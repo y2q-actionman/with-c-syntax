@@ -2,6 +2,9 @@
 
 (use-package :yacc)
 
+(defconstant +operators+
+  '(+ - * / % ! ++ -- & \| ^ && \|\| = < > \, [ ]))
+
 (defun list-lexer (list)
   #'(lambda ()
       (let ((value (pop list)))
