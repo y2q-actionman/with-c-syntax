@@ -1,9 +1,10 @@
 (in-package :cl-user)
 
+(asdf:load-system :yacc)
 (use-package :yacc)
 
-(defconstant +operators+
-  '(+ - * / % ! ++ -- & \| ^ && \|\| = < > \, [ ]))
+;; (defconstant +operators+
+;;   '(+ - * / % ! ++ -- & \| ^ && \|\| = < > \, [ ]))
 
 (defun list-lexer (list)
   #'(lambda ()
@@ -55,3 +56,10 @@
 (defun c-expression-tranform (form)
   (parse-with-lexer (list-lexer form)
 		    *expression-parser*))
+
+
+(defmacro with-c-syntax (&body body)
+  `(progn
+     ,@(mapcar #'c-expression-tranform
+	  body)))
+
