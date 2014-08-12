@@ -3,8 +3,8 @@
 (asdf:load-system :yacc)
 (use-package :yacc)
 
-;; (defconstant +operators+
-;;   '(+ - * / % ! ++ -- & \| ^ && \|\| = < > \, [ ]))
+(defconstant +operators+
+  '(+ - * / % ! ++ -- & \| ^ && \|\| = < > \, [ ]))
 
 (defun list-lexer (list)
   #'(lambda ()
@@ -12,7 +12,7 @@
 	(cond ((null value)
 	       (values nil nil))
 	      ((symbolp value)
-	       (let ((term (member value '(+ - * / |(| |)|)
+	       (let ((term (member value +operators+
 				   :test #'string= :key #'symbol-name)))
 		 (values (if term (car term) 'id) ; returns a symbol of our package.
 			 value)))
@@ -32,9 +32,11 @@
     b)
   )
 
+;; http://www.cs.man.ac.uk/~pjj/bnf/c_syntax.bnf
+
 (define-parser *expression-parser*
   (:start-symbol expression)
-  (:terminals (int id + - * / |(| |)|))
+  (:terminals (int id + - * / |(| |)| |,|))
   (:precedence ((:left * /) (:left + -)))
   
   (expression
@@ -58,8 +60,11 @@
 		    *expression-parser*))
 
 
-(defmacro with-c-syntax (&body body)
-  `(progn
-     ,@(mapcar #'c-expression-tranform
-	  body)))
+(defmacro with-c-syntax (() &body body)
+  (c-expression-tranform body))
 
+#|
+(with-c-syntax ()
+  1 + 2)
+3
+|#
