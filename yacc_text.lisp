@@ -5,25 +5,33 @@
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defconstant +operators+
-  '(|,|
-    = *= /= %= += -= <<= >>= &= ^= \|=
-    ? |:|
-    \|\|
-    &&
-    \|
-    ^
-    &
-    == !=
-    < > <= >=
-    >> <<
-    + -
-    * / %
-    \( \)
-    ++ -- sizeof
-    & * + - ~ !
-    [ ] \. ->
-    ))
-)
+    '(|,|
+      = *= /= %= += -= <<= >>= &= ^= \|=
+      ? |:|
+      \|\|
+      &&
+      \|
+      ^
+      &
+      == !=
+      < > <= >=
+      >> <<
+      + -
+      * / %
+      \( \)
+      ++ -- sizeof
+      & * + - ~ !
+      [ ] \. ->
+      ))
+
+  (defconstant +keywords+
+    '(\;
+      case default
+      if else switch
+      while do for
+      goto continue break return
+      ))
+  )
 
 (defvar *enum-symbols* nil)
 
@@ -33,9 +41,12 @@
 	(cond ((null value)
 	       (values nil nil))
 	      ((symbolp value)
-	       (let ((op (member value +operators+
-				 :test #'string=
-				 :key #'symbol-name))
+	       (let ((op (or (member value +operators+
+				     :test #'string=
+				     :key #'symbol-name)
+			     (member value +keywords+
+				     :test #'string=
+				     :key #'symbol-name)))
 		     (en (member value *enum-symbols*)))
 		 (cond (op
 			;; returns the symbol of our package.
@@ -85,7 +96,7 @@
   )
 
 (define-parser *expression-parser*
-  (:start-symbol exp)
+  (:start-symbol stat)
 
   ;; http://www.swansontec.com/sopc.html
   (:precedence (;; Primary expression
@@ -114,10 +125,71 @@
   ;; http://www.cs.man.ac.uk/~pjj/bnf/c_syntax.bnf
   (:terminals
    #.(append +operators+
+	     +keywords+
 	     '(enumeration-const id
 	       int-const char-const float-const
 	       string)
 	     '(lisp-expression)))
+
+  ;; TODO
+  (stat
+   labeled_stat
+   exp_stat
+   compound_stat
+   selection_stat
+   iteration_stat
+   jump_stat)
+
+  ;; TODO
+  (labeled_stat
+   (id \: stat)
+   (case const_exp \: stat)
+   (default \: stat))
+
+  ;; TODO
+  (exp_stat
+   (exp \;)
+   (\;))
+
+  ;; TODO
+  (compound_stat
+   ;; ({ decl_list stat_list })
+   ({ stat_list })
+   ;; ({ decl_list	})
+   ({ }))
+
+  ;; TODO
+  (stat_list
+   (stat)
+   (stat_list stat))
+
+  ;; TODO
+  (selection_stat
+   (if \( exp \) stat)
+   (if \( exp \) stat else stat)
+   (switch \( exp \) stat))
+
+  ;; TODO
+  (iteration_stat
+   (while \( exp \) stat)
+   (do stat while \( exp \) \;)
+   (for \( exp \; exp \; exp \) stat)
+   (for \( exp \; exp \;     \) stat)
+   (for \( exp \;     \; exp \) stat)
+   (for \( exp \;     \;     \) stat)
+   (for \(     \; exp \; exp \) stat)
+   (for \(     \; exp \;     \) stat)
+   (for \(     \;     \; exp \) stat)
+   (for \(     \;     \;     \) stat))
+
+  ;; TODO
+  (jump_stat
+   (goto id \;)
+   (continue \;)
+   (break \;)
+   (return exp \;)
+   (return \;))
+
 
   (exp
    assignment-exp
