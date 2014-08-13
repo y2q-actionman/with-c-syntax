@@ -66,6 +66,10 @@
     "Second out of three"
     (declare (ignore a c))
     b)
+
+  (defun pick-2nd (_1 x _3)
+    (declare (ignore _1 _3))
+    x)
   )
 
 (define-parser *expression-parser*
@@ -182,23 +186,30 @@
   (unary-operator
    & * + - ~ !)
 
-  ;; TODO
   (postfix-exp
    primary-exp
-   (postfix-exp [ exp ])
-   (postfix-exp \( argument-exp-list \))
-   (postfix-exp \( \))
-   (postfix-exp \. id)
-   (postfix-exp -> id)
-   (postfix-exp ++)
-   (postfix-exp --))
+   (postfix-exp [ exp ]			; TODO: compound with multi-dimention
+		#'(lambda (exp op1 idx op2)
+		    (declare (ignore op1 op2))
+		    `(aref ,exp ,idx)))
+   (postfix-exp \( argument-exp-list \)) ; TODO
+   (postfix-exp \( \))			 ; TODO
+   (postfix-exp \. id)			 ; TODO
+   (postfix-exp -> id)			 ; TODO
+   (postfix-exp ++
+		#'(lambda (exp op)
+		    (declare (ignore op))
+		    `(prog1 ,exp (incf ,exp))))
+   (postfix-exp --
+		#'(lambda (exp op)
+		    (declare (ignore op))
+		    `(prog1 ,exp (decf ,exp)))))
 
-  ;; TODO
   (primary-exp
    id
    const
    string
-   (\( exp \))
+   (\( exp \) #'pick-2nd)
    lisp-expression			; added
    )
 
@@ -211,7 +222,7 @@
    int-const
    char-const
    float-const
-   enumeration-const)
+   enumeration-const)			; TODO
 )
 
 ;; (parse-with-lexer (list-lexer '(x * - - 2 + 3 * y)) *expression-parser*)
