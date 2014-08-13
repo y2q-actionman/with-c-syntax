@@ -27,6 +27,7 @@
   (defconstant +keywords+
     '(\;
       case default
+      { }
       if else switch
       while do for
       goto continue break return
@@ -146,22 +147,34 @@
    (case const_exp \: stat)
    (default \: stat))
 
-  ;; TODO
   (exp_stat
-   (exp \;)
-   (\;))
+   (exp \;
+	#'(lambda (exp term)
+	    (declare (ignore term))
+	    exp))
+   (\;
+    #'(lambda (term)
+	(declare (ignore term))
+	nil)))
 
-  ;; TODO
   (compound_stat
    ;; ({ decl_list stat_list })
-   ({ stat_list })
+   ({ stat_list }
+      #'(lambda (op1 sts op2)
+	  (declare (ignore op1 op2))
+	  `(progn ,@sts)))
    ;; ({ decl_list	})
-   ({ }))
+   ({ }
+      #'(lambda (op1 op2)
+	  (declare (ignore op1 op2))
+	  '(progn))))
 
-  ;; TODO
   (stat_list
-   (stat)
-   (stat_list stat))
+   (stat
+    #'list)
+   (stat_list stat
+	      #'(lambda (sts st)
+		  (append sts (list st)))))
 
   ;; TODO
   (selection_stat
