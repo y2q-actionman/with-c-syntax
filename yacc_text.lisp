@@ -94,6 +94,23 @@
 
   (defun ash-right (i c)
     (ash i (- c)))
+
+  (defun lispify-loop (body
+		       &key (init nil) (cond t) (step nil)
+		       (post-test-p nil))
+    `(tagbody
+      loop-init
+	(progn ,init)
+	,(if post-test-p
+	     '(go loop-body)		; do-while
+	     '(go loop-cond))
+      loop-body
+	(progn ,body)
+      loop-cond
+	(when (progn ,cond)
+	  (progn ,step)
+	  (go loop-body))
+      loop-end))
   )
 
 (define-parser *expression-parser*
@@ -187,26 +204,60 @@
 	   `(if ,exp ,stat1 ,stat2)))
    (switch \( exp \) stat))		; TODO
 
-  ;; TODO
   (iteration_stat
-   (while \( exp \) stat)
-   (do stat while \( exp \) \;)
-   (for \( exp \; exp \; exp \) stat)
-   (for \( exp \; exp \;     \) stat)
-   (for \( exp \;     \; exp \) stat)
-   (for \( exp \;     \;     \) stat)
-   (for \(     \; exp \; exp \) stat)
-   (for \(     \; exp \;     \) stat)
-   (for \(     \;     \; exp \) stat)
-   (for \(     \;     \;     \) stat))
+   (while \( exp \) stat
+	  #'(lambda (_k _lp cond _rp body)
+	      (declare (ignore _k _lp _rp))
+	      (lispify-loop body :cond cond)))
+   (do stat while \( exp \) \;
+     #'(lambda (_k1 cond _k2 _lp body _rp _t)
+	 (declare (ignore _k1 _k2 _lp _rp _t))
+	 (lispify-loop body :cond cond :post-test-p t)))
+   (for \( exp \; exp \; exp \) stat
+	#'(lambda (_k _lp init _t1 cond _t2 step _rp body)
+	    (declare (ignore _k _lp _t1 _t2 _rp))
+	    (lispify-loop body :init init :cond cond :step step)))
+   (for \( exp \; exp \;     \) stat
+	#'(lambda (_k _lp init _t1 cond _t2      _rp body)
+	    (declare (ignore _k _lp _t1 _t2 _rp))
+	    (lispify-loop body :init init :cond cond)))
+   (for \( exp \;     \; exp \) stat
+	#'(lambda (_k _lp init _t1      _t2 step _rp body)
+	    (declare (ignore _k _lp _t1 _t2 _rp))
+	    (lispify-loop body :init init :step step)))
+   (for \( exp \;     \;     \) stat
+	#'(lambda (_k _lp init _t1      _t2      _rp body)
+	    (declare (ignore _k _lp _t1 _t2 _rp))
+	    (lispify-loop body :init init)))
+   (for \(     \; exp \; exp \) stat
+	#'(lambda (_k _lp      _t1 cond _t2 step _rp body)
+	    (declare (ignore _k _lp _t1 _t2 _rp))
+	    (lispify-loop body :cond cond :step step)))
+   (for \(     \; exp \;     \) stat
+	#'(lambda (_k _lp      _t1 cond _t2      _rp body)
+	    (declare (ignore _k _lp _t1 _t2 _rp))
+	    (lispify-loop body :cond cond)))
+   (for \(     \;     \; exp \) stat
+	#'(lambda (_k _lp      _t1      _t2 step _rp body)
+	    (declare (ignore _k _lp _t1 _t2 _rp))
+	    (lispify-loop body :step step)))
+   (for \(     \;     \;     \) stat
+	#'(lambda (_k _lp      _t1      _t2      _rp body)
+	    (declare (ignore _k _lp _t1 _t2 _rp))
+	    (lispify-loop body))))
 
-  ;; TODO
   (jump_stat
-   (goto id \;)
-   (continue \;)
-   (break \;)
-   (return exp \;)
-   (return \;))
+   (goto id \;)				; TODO
+   (continue \;
+	     #'(lambda (_k _t)
+		 (declare (ignore _k _t))
+		 '(go loop-cond)))	; see lispify-loop
+   (break \;
+	  #'(lambda (_k _t)
+	      (declare (ignore _k _t))
+	      '(go loop-end)))		; see lispify-loop
+   (return exp \;)			; TODO
+   (return \;))				; TODO
 
 
   (exp
@@ -256,7 +307,7 @@
   (logical-or-exp
    logical-and-exp
    (logical-or-exp \|\| logical-and-exp
-		    (lispify-binary 'or)))
+		   (lispify-binary 'or)))
 
   (logical-and-exp
    inclusive-or-exp
@@ -390,7 +441,7 @@
    char-const
    float-const
    enumeration-const)			; TODO
-)
+  )
 
 ;; (parse-with-lexer (list-lexer '(x * - - 2 + 3 * y)) *expression-parser*)
 ;; => (+ (* X (- (- 2))) (* 3 Y))	       
@@ -407,4 +458,27 @@
 (with-c-syntax ()
   1 + 2)
 3
+
+(defparameter x 0)
+(with-c-syntax ()
+  while \( x < 100 \)
+  x ++ \;
+  )
+
+(defparameter i 0)
+(with-c-syntax ()
+  for \( i = 0 \; i < 100 \; ++ i \)
+  (format t "~A~%" i) \;
+  )
+
+(defparameter i 0)
+(with-c-syntax ()
+  for \( i = 0 \; i < 100 \; ++ i \) {
+    if \( (oddp i) \)
+      continue \;
+    if \( i == 50 \)
+      break \;
+    (format t "~A~%" i) \;
+  }
+)
 |#

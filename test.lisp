@@ -152,8 +152,31 @@
   ;; switch
   t)
 
+(defun test-iteration-stat ()
+  (test '(while \( x \) y \;))
+  (test '(do { x \; } while \( cond \) \;))
+  (test '(for \( i = 0 \; i < 100 \; ++ i \) (format t "~A~%" i) \;))
+  (test '(for \( i = 0 \; i < 100 \;      \) (format t "~A~%" i) \;))
+  (test '(for \( i = 0 \;         \; ++ i \) (format t "~A~%" i) \;))
+  (test '(for \( i = 0 \;         \;      \) (format t "~A~%" i) \;))
+  (test '(for \(       \; i < 100 \; ++ i \) (format t "~A~%" i) \;))
+  (test '(for \(       \; i < 100 \;      \) (format t "~A~%" i) \;))
+  (test '(for \(       \;         \; ++ i \) (format t "~A~%" i) \;))
+  (test '(for \(       \;         \;      \) (format t "~A~%" i) \;))
+  t)
+
+(defun test-jump-stat ()
+  ;; goto
+  (test '(continue \;))
+  (test '(break \;))
+  ;; return args
+  ;; return no arg
+  t)
+
 (defun test-stat ()
   (test-exp-stat)
   (test-compound-stat)
   (test-selection-stat)
+  (test-iteration-stat)
+  (test-jump-stat)
   t)
