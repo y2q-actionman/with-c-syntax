@@ -22,9 +22,8 @@
 (defun test-postfix-exp ()
   (test-primary-exp)
   (test '(array [ 80 ]))
-  ;; arr
-  ;; args
-  ;; no arg
+  (test '(hoge \( 1 \, 2 \, 3 \)))
+  (test '(hoge \( \)))
   ;; dot
   ;; arrow
   (test '(hoge ++))

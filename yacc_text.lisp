@@ -192,8 +192,14 @@
 		#'(lambda (exp op1 idx op2)
 		    (declare (ignore op1 op2))
 		    `(aref ,exp ,idx)))
-   (postfix-exp \( argument-exp-list \)) ; TODO
-   (postfix-exp \( \))			 ; TODO
+   (postfix-exp \( argument-exp-list \)
+		#'(lambda (exp op1 args op2)
+		    (declare (ignore op1 op2))
+		    `(apply ,exp ,args)))
+   (postfix-exp \( \)
+		#'(lambda (exp op1 op2)
+		    (declare (ignore op1 op2))
+		    `(funcall ,exp)))
    (postfix-exp \. id)			 ; TODO
    (postfix-exp -> id)			 ; TODO
    (postfix-exp ++
