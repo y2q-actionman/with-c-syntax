@@ -219,10 +219,13 @@
    lisp-expression			; added
    )
 
-  ;; TODO
   (argument-exp-list
-   assignment-exp
-   (argument-exp-list \, assignment-exp))
+   (assignment-exp
+    #'list)
+   (argument-exp-list \, assignment-exp
+		      #'(lambda (exp1 op exp2)
+			  (declare (ignore op))
+			  (append exp1 (list exp2)))))
 
   (const
    int-const
