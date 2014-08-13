@@ -149,22 +149,35 @@
 	       string)
 	     '(lisp-expression)))
 
-  ;; TODO
   (stat
-   labeled_stat
-   exp_stat
-   compound_stat
-   selection_stat
-   iteration_stat
-   jump_stat)
+   labeled-stat
+   exp-stat
+   compound-stat
+   selection-stat
+   iteration-stat
+   jump-stat)
 
-  ;; TODO
-  (labeled_stat
-   (id \: stat)
-   (case const_exp \: stat)
-   (default \: stat))
+  (labeled-stat
+   (id \: stat
+       #'(lambda (id _c stat)
+	   (declare (ignore _c))
+	   ;; TODO: accumulate tags at upper list
+	   `(,id			; tagbody's go tag
+	     ,stat)))
+   (case const-exp \: stat
+       #'(lambda (_k  exp _c stat)
+	   (declare (ignore _k _c))
+	   ;; TODO: accumulate tags at switch
+	   `(,exp			; tagbody's go tag
+	     ,stat)))
+   (default \: stat
+       #'(lambda (_k _c stat)
+	   (declare (ignore _k _c))
+	   ;; TODO: accumulate tags at switch
+	   `(default			; tagbody's go tag
+	     ,stat))))
 
-  (exp_stat
+  (exp-stat
    (exp \;
 	#'(lambda (exp term)
 	    (declare (ignore term))
@@ -174,26 +187,26 @@
 	(declare (ignore term))
 	nil)))
 
-  (compound_stat
-   ;; ({ decl_list stat_list })
-   ({ stat_list }
+  (compound-stat
+   ;; ({ decl-list stat-list })
+   ({ stat-list }
       #'(lambda (op1 sts op2)
 	  (declare (ignore op1 op2))
-	  `(progn ,@sts)))
-   ;; ({ decl_list	})
+	  `(tagbody ,@sts)))
+   ;; ({ decl-list	})
    ({ }
       #'(lambda (op1 op2)
 	  (declare (ignore op1 op2))
-	  '(progn))))
+	  '(tagbody))))
 
-  (stat_list
+  (stat-list
    (stat
     #'list)
-   (stat_list stat
+   (stat-list stat
 	      #'(lambda (sts st)
 		  (append sts (list st)))))
 
-  (selection_stat
+  (selection-stat
    (if \( exp \) stat
        #'(lambda (op lp exp rp stat)
 	   (declare (ignore op lp rp))
@@ -202,9 +215,15 @@
        #'(lambda (op lp exp rp stat1 el stat2)
 	   (declare (ignore op lp rp el))
 	   `(if ,exp ,stat1 ,stat2)))
-   (switch \( exp \) stat))		; TODO
+   (switch \( exp \) stat
+	   #'(lambda (_k _lp exp _rp stat)
+	       (declare (ignore _k _lp _rp))
+	       ;; TODO:
+	       ;; 1. collect tags of case clause
+	       ;; 2. create jump table here
+	       nil)))
 
-  (iteration_stat
+  (iteration-stat
    (while \( exp \) stat
 	  #'(lambda (_k _lp cond _rp body)
 	      (declare (ignore _k _lp _rp))
@@ -246,8 +265,11 @@
 	    (declare (ignore _k _lp _t1 _t2 _rp))
 	    (lispify-loop body))))
 
-  (jump_stat
-   (goto id \;)				; TODO
+  (jump-stat
+   (goto id \;
+	 #'(lambda (_k id _t)
+	     (declare (ignore _k _t))
+	     `(go ,id)))
    (continue \;
 	     #'(lambda (_k _t)
 		 (declare (ignore _k _t))
@@ -256,8 +278,14 @@
 	  #'(lambda (_k _t)
 	      (declare (ignore _k _t))
 	      '(go loop-end)))		; see lispify-loop
-   (return exp \;)			; TODO
-   (return \;))				; TODO
+   (return exp \;
+	   #'(lambda (_k exp _t)
+	       (declare (ignore _k _t))
+	       `(return ,exp)))		; TODO: use our block
+   (return \;
+	   #'(lambda (_k _t)
+	       (declare (ignore _k _t))
+	       `(return (values)))))	; TODO: use our block
 
 
   (exp
@@ -481,4 +509,13 @@
     (format t "~A~%" i) \;
   }
 )
+
+
+(with-c-syntax ()
+  {
+  goto a \;
+  a \:
+    return 100 \;
+    }
+  )
 |#

@@ -136,6 +136,12 @@
 
 ;;; statements
 
+(defun test-labeled-stat ()
+  (test '(a \: \;))
+  (test '(case 100 \: \;))
+  (test '(default \: \;))
+  t)
+
 (defun test-exp-stat ()
   (test-exp)
   (test '(\;))
@@ -149,7 +155,11 @@
 (defun test-selection-stat ()
   (test '(if \( x \) y \;))
   (test '(if \( x \) y \; else z \;))
-  ;; switch
+  (test '(switch \( x \) {
+	  case 1 \: hoge \;
+	  case 2 \: fuga \;
+	  default \: piyo \;
+	  } ))
   t)
 
 (defun test-iteration-stat ()
@@ -166,11 +176,11 @@
   t)
 
 (defun test-jump-stat ()
-  ;; goto
+  (test '(goto x \;))
   (test '(continue \;))
   (test '(break \;))
-  ;; return args
-  ;; return no arg
+  (test '(return 1 \;))
+  (test '(return \;))
   t)
 
 (defun test-stat ()
