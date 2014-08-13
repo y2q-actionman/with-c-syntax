@@ -29,3 +29,16 @@
   (test '(hoge ++))
   (test '(fuga --))
   t)
+
+(defun test-unary-exp ()
+  (test-postfix-exp)
+  (test '(++ hoge))
+  (test '(-- hoge))
+  ;; address-of
+  ;; dereference
+  (test '(+ hoge))
+  (test '(- hoge))
+  (test '(! hoge))
+  ;; sizeof
+  ;; sizeof
+  t)

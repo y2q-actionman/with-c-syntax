@@ -76,7 +76,28 @@
   (:start-symbol exp)
 
   ;; http://www.swansontec.com/sopc.html
-  ;; (:precedence ((:left * /) (:left + -)))
+  (:precedence (;; Primary expression
+		(:left \( \) [ ] \. -> ++ --)
+		;; Unary
+		(:right * & + - ! ~ ++ -- #+ignore(typecast) sizeof)
+		;; Binary
+		(:left * / %)
+		(:left + -)
+		(:left >> <<)
+		(:left < > <= >=)
+		(:left == !=)
+		(:left &)
+		(:left ^)
+		(:left \|)
+		(:left &&)
+		(:left \|\|)
+		;; Ternary
+		(:right ? \:)
+		;; Assignment
+		(:right = += -= *= /= %= >>= <<= &= ^= \|=)
+		;; Comma
+		(:left \,)
+		))
 
   ;; http://www.cs.man.ac.uk/~pjj/bnf/c_syntax.bnf
   (:terminals
@@ -172,19 +193,33 @@
    unary-exp
    (\( type-name \) cast-exp))
 
-  ;; TODO
+  ;; 'unary-operator' is included here
   (unary-exp
    postfix-exp
-   (++ unary-exp)
-   (-- unary-exp)
-   (unary-operator cast-exp)
-   ;; (sizeof unary-exp)
-   ;; (sizeof \( type-name \))
-   )
-
-  ;; TODO
-  (unary-operator
-   & * + - ~ !)
+   (++ unary-exp
+       #'(lambda (op exp)
+	   (declare (ignore op))
+	   `(incf ,exp)))
+   (-- unary-exp
+       #'(lambda (op exp)
+	   (declare (ignore op))
+	   `(decf ,exp)))
+   (& cast-exp)				; TODO
+   (* cast-exp)				; TODO
+   (+ cast-exp
+      #'(lambda (op exp)
+	  (declare (ignore op))
+	  `(+ ,exp)))
+   (- cast-exp
+      #'(lambda (op exp)
+	  (declare (ignore op))
+	  `(- ,exp)))
+   (! cast-exp
+      #'(lambda (op exp)
+	  (declare (ignore op))
+	  `(not ,exp)))
+   (sizeof unary-exp)			; TODO
+   (sizeof \( type-name \)))		; TODO
 
   (postfix-exp
    primary-exp
@@ -216,8 +251,7 @@
    const
    string
    (\( exp \) #'pick-2nd)
-   lisp-expression			; added
-   )
+   lisp-expression)			; added
 
   (argument-exp-list
    (assignment-exp
