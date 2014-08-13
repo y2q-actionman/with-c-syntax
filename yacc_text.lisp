@@ -58,15 +58,14 @@
 	       (error "Unexpected value ~S" value))))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun i2p (a b c)
-    "Infix to prefix"
-    (list b a c))
-  
-  (defun k-2-3 (a b c)
-    "Second out of three"
-    (declare (ignore a c))
-    b)
+  (defun infix-to-prefix (a b c)
+    `(,b ,a ,c))
 
+  (defun unary-prefix (prefix)
+    #'(lambda (op exp)
+	(declare (ignore op))
+	`(,prefix ,exp)))
+  
   (defun pick-2nd (_1 x _3)
     (declare (ignore _1 _3))
     x)
@@ -181,43 +180,37 @@
    (additive-exp + mult-exp)
    (additive-exp - mult-exp))
 
-  ;; TODO
   (mult-exp
    cast-exp
-   (mult-exp * cast-exp)
-   (mult-exp / cast-exp)
-   (mult-exp % cast-exp))
+   (mult-exp * cast-exp
+	     #'infix-to-prefix)
+   (mult-exp / cast-exp
+	     #'infix-to-prefix)
+   (mult-exp % cast-exp
+	     #'infix-to-prefix))
 
-  ;; TODO
   (cast-exp
    unary-exp
-   (\( type-name \) cast-exp))
+   (\( type-name \) cast-exp		; TODO: type-name must be defined
+       #'(lambda (op1 type op2 exp)
+	   (declare (ignore op1 op2))
+	   `(coerce ,exp ',type))))
 
   ;; 'unary-operator' is included here
   (unary-exp
    postfix-exp
    (++ unary-exp
-       #'(lambda (op exp)
-	   (declare (ignore op))
-	   `(incf ,exp)))
+       (unary-prefix 'incf))
    (-- unary-exp
-       #'(lambda (op exp)
-	   (declare (ignore op))
-	   `(decf ,exp)))
+       (unary-prefix 'decf))
    (& cast-exp)				; TODO
    (* cast-exp)				; TODO
    (+ cast-exp
-      #'(lambda (op exp)
-	  (declare (ignore op))
-	  `(+ ,exp)))
+      (unary-prefix '+))
    (- cast-exp
-      #'(lambda (op exp)
-	  (declare (ignore op))
-	  `(- ,exp)))
+      (unary-prefix '-))
    (! cast-exp
-      #'(lambda (op exp)
-	  (declare (ignore op))
-	  `(not ,exp)))
+      (unary-prefix 'not))
    (sizeof unary-exp)			; TODO
    (sizeof \( type-name \)))		; TODO
 
@@ -250,7 +243,8 @@
    id
    const
    string
-   (\( exp \) #'pick-2nd)
+   (\( exp \)
+       #'pick-2nd)
    lisp-expression)			; added
 
   (argument-exp-list

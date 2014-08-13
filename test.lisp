@@ -42,3 +42,15 @@
   ;; sizeof
   ;; sizeof
   t)
+
+(defun test-cast-exp ()
+  (test-unary-exp)
+  ;; (test '(\( integer \) hoge))
+  t)
+
+(defun test-mult-exp ()
+  (test-cast-exp)
+  (test '(x * y))
+  (test '(x / y))
+  (test '(x % y))
+  t)
