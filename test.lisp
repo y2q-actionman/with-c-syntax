@@ -146,7 +146,14 @@
   (test '({  }))
   t)
 
+(defun test-selection-stat ()
+  (test '(if \( x \) y \;))
+  (test '(if \( x \) y \; else z \;))
+  ;; switch
+  t)
+
 (defun test-stat ()
   (test-exp-stat)
   (test-compound-stat)
+  (test-selection-stat)
   t)

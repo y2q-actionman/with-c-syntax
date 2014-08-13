@@ -176,11 +176,16 @@
 	      #'(lambda (sts st)
 		  (append sts (list st)))))
 
-  ;; TODO
   (selection_stat
-   (if \( exp \) stat)
-   (if \( exp \) stat else stat)
-   (switch \( exp \) stat))
+   (if \( exp \) stat
+       #'(lambda (op lp exp rp stat)
+	   (declare (ignore op lp rp))
+	   `(if ,exp ,stat)))
+   (if \( exp \) stat else stat
+       #'(lambda (op lp exp rp stat1 el stat2)
+	   (declare (ignore op lp rp el))
+	   `(if ,exp ,stat1 ,stat2)))
+   (switch \( exp \) stat))		; TODO
 
   ;; TODO
   (iteration_stat
