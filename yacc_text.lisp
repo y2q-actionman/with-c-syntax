@@ -58,17 +58,30 @@
 	       (error "Unexpected value ~S" value))))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun infix-to-prefix (a b c)
-    `(,b ,a ,c))
-
-  (defun unary-prefix (prefix)
-    #'(lambda (op exp)
-	(declare (ignore op))
-	`(,prefix ,exp)))
+  (defun lispify-unary (op)
+    #'(lambda (_ exp)
+	(declare (ignore _))
+	`(,op ,exp)))
   
+  (defun lispify-binary (op)
+    #'(lambda (exp1 _ exp2)
+	(declare (ignore _))
+	`(,op ,exp1 ,exp2)))
+
+  (defun lispify-augmented-assignment (op)
+    #'(lambda (exp1 _ exp2)
+	(declare (ignore _))
+	(let ((tmp (gensym)))
+	  `(let ((,tmp ,exp1))
+	     (setf ,exp1
+		   (,op ,tmp ,exp2))))))
+
   (defun pick-2nd (_1 x _3)
     (declare (ignore _1 _3))
     x)
+
+  (defun ash-right (i c)
+    (ash i (- c)))
   )
 
 (define-parser *expression-parser*
@@ -106,88 +119,115 @@
 	       string)
 	     '(lisp-expression)))
 
-  ;; TODO
   (exp
    assignment-exp
-   (exp |,| assignment-exp))
+   (exp |,| assignment-exp
+	(lispify-binary 'progn)))
 
-  ;; TODO
+  ;; 'assignment-operator' is included here
   (assignment-exp
    conditional-exp
-   (unary-exp assignment-operator assignment-exp))
+   (unary-exp = assignment-exp
+	      #'(lambda (exp1 op exp2)
+		  (declare (ignore op))
+		  `(setf ,exp1 ,exp2)))
+   (unary-exp *= assignment-exp
+	      (lispify-augmented-assignment '*))
+   (unary-exp /= assignment-exp
+	      (lispify-augmented-assignment '/))
+   (unary-exp %= assignment-exp
+	      (lispify-augmented-assignment 'mod))
+   (unary-exp += assignment-exp
+	      (lispify-augmented-assignment '+))
+   (unary-exp -= assignment-exp
+	      (lispify-augmented-assignment '-))
+   (unary-exp <<= assignment-exp
+	      (lispify-augmented-assignment 'ash))
+   (unary-exp >>= assignment-exp
+	      (lispify-augmented-assignment 'ash-right))
+   (unary-exp &= assignment-exp
+	      (lispify-augmented-assignment 'logand))
+   (unary-exp ^= assignment-exp
+	      (lispify-augmented-assignment 'logxor))
+   (unary-exp \|= assignment-exp
+	      (lispify-augmented-assignment 'logior)))
 
-  ;; TODO
-  (assignment-operator
-   = *= /= %= += -= <<= >>= &= ^= \|=)
-
-  ;; TODO
   (conditional-exp
    logical-or-exp
-   (logical-or-exp ? exp |:| conditional-exp))
+   (logical-or-exp ? exp |:| conditional-exp
+		   #'(lambda (cnd op1 then-exp op2 else-exp)
+		       (declare (ignore op1 op2))
+		       `(if ,cnd ,then-exp ,else-exp))))
 
   ;; TODO
   (const-exp
    conditional-exp)
 
-  ;; TODO
   (logical-or-exp
    logical-and-exp
-   (logical-or-exp \|\| logical-and-exp))
+   (logical-or-exp \|\| logical-and-exp
+		    (lispify-binary 'or)))
 
-  ;; TODO
   (logical-and-exp
    inclusive-or-exp
-   (logical-and-exp && inclusive-or-exp))
+   (logical-and-exp && inclusive-or-exp
+		    (lispify-binary 'and)))
 
-  ;; TODO
   (inclusive-or-exp
    exclusive-or-exp
-   (inclusive-or-exp \| exclusive-or-exp))
+   (inclusive-or-exp \| exclusive-or-exp
+		     (lispify-binary 'logior)))
 
-  ;; TODO
   (exclusive-or-exp
    and-exp
-   (exclusive-or-exp ^ and-exp))
+   (exclusive-or-exp ^ and-exp
+		     (lispify-binary 'logxor)))
 
-  ;; TODO
   (and-exp
    equality-exp
-   (and-exp & equality-exp))
+   (and-exp & equality-exp
+	    (lispify-binary 'logand)))
 
-  ;; TODO
   (equality-exp
    relational-exp
-   (equality-exp == relational-exp)
-   (equality-exp != relational-exp))
+   (equality-exp == relational-exp
+		 (lispify-binary '=))
+   (equality-exp != relational-exp
+		 (lispify-binary '/=)))
 
-  ;; TODO
   (relational-exp
    shift-expression
-   (relational-exp < shift-expression)
-   (relational-exp > shift-expression)
-   (relational-exp <= shift-expression)
-   (relational-exp >= shift-expression))
+   (relational-exp < shift-expression
+		   (lispify-binary '<))
+   (relational-exp > shift-expression
+		   (lispify-binary '>))
+   (relational-exp <= shift-expression
+		   (lispify-binary '<=))
+   (relational-exp >= shift-expression
+		   (lispify-binary '>=)))
 
-  ;; TODO
   (shift-expression
    additive-exp
-   (shift-expression << additive-exp)
-   (shift-expression >> additive-exp))
+   (shift-expression << additive-exp
+		     (lispify-binary 'ash))
+   (shift-expression >> additive-exp
+		     (lispify-binary 'ash-right)))
 
-  ;; TODO
   (additive-exp
    mult-exp
-   (additive-exp + mult-exp)
-   (additive-exp - mult-exp))
+   (additive-exp + mult-exp
+		 (lispify-binary '+))
+   (additive-exp - mult-exp
+		 (lispify-binary '-)))
 
   (mult-exp
    cast-exp
    (mult-exp * cast-exp
-	     #'infix-to-prefix)
+	     (lispify-binary '*))
    (mult-exp / cast-exp
-	     #'infix-to-prefix)
+	     (lispify-binary '/))
    (mult-exp % cast-exp
-	     #'infix-to-prefix))
+	     (lispify-binary 'mod)))
 
   (cast-exp
    unary-exp
@@ -200,17 +240,17 @@
   (unary-exp
    postfix-exp
    (++ unary-exp
-       (unary-prefix 'incf))
+       (lispify-unary 'incf))
    (-- unary-exp
-       (unary-prefix 'decf))
+       (lispify-unary 'decf))
    (& cast-exp)				; TODO
    (* cast-exp)				; TODO
    (+ cast-exp
-      (unary-prefix '+))
+      (lispify-unary '+))
    (- cast-exp
-      (unary-prefix '-))
+      (lispify-unary '-))
    (! cast-exp
-      (unary-prefix 'not))
+      (lispify-unary 'not))
    (sizeof unary-exp)			; TODO
    (sizeof \( type-name \)))		; TODO
 
