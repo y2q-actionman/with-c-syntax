@@ -99,19 +99,80 @@
 		       &key (init nil) (cond t) (step nil)
 		       (post-test-p nil))
     `(tagbody
-      loop-init
+      loop-init				; unused?
 	(progn ,init)
 	,(if post-test-p
 	     '(go loop-body)		; do-while
 	     '(go loop-cond))
       loop-body
-	(progn ,body)
+	,body
       loop-cond
 	(when (progn ,cond)
 	  (progn ,step)
 	  (go loop-body))
       loop-end))
-  )
+
+  (defvar *goto-tags* nil
+    "alist of '(goto-tag . statement)")
+
+  (defun goto-tags-expand (lis)
+    (loop for i in lis
+       as g = (assoc i *goto-tags*)
+       if g
+       collect (car g) and collect (cdr g)
+       else
+       collect i))
+
+  (defvar *case-label-list* nil
+    "alist of (<gensym> . :exp <case-exp> :stat <case-statement>))")
+
+  (defun push-case-label (exp stat)
+    (let ((case-sym (gensym (format nil "(case ~S)" exp))))
+      (setf *case-label-list*
+	    (acons case-sym
+		   (list :exp exp :stat stat)
+		   *case-label-list*))
+      case-sym))
+
+  ;;  TODO: support the Duff's device.
+  (defun construct-switch-stmt (exp stat)
+    (let* ((exp-sym (gensym "(switch exp)"))
+	   (end-tag 'loop-end)		; see break
+	   (jump-table			; create jump table
+	    (loop with default-clause =`(t (go ,end-tag))
+	       for label in *case-label-list*
+	       as label-sym = (car label)
+	       as label-exp = (getf (cdr label) :exp)
+
+	       if (eq label-exp 'default)
+	       do (setf default-clause `(t (go ,label-sym)))
+	       else
+	       collect `((eql ,exp-sym ,label-exp) (go ,label-sym))
+	       into clauses
+	       finally
+		 (return (append '(cond)
+				 clauses
+				 `(,default-clause)))))
+	   (body 			; expand tagged stmt
+	    (loop initially (assert (member (car stat)
+					    '(tagbody progn)))
+	       for i in (cdr stat)
+	       as l = (assoc i *case-label-list*)
+	       if l
+	       collect (car l) and collect (getf (cdr l) :stat)
+	       else
+	       collect i)))
+      (prog1
+	  `(let ((,exp-sym ,exp))
+	     (tagbody
+		jump-table		; unused?
+		,jump-table
+		,@body
+		,end-tag))
+	(setf *case-label-list* nil))))
+
+  ;; TODO: make goto resolver, and use it by switch-case
+)
 
 (define-parser *expression-parser*
   (:start-symbol stat)
@@ -161,21 +222,17 @@
    (id \: stat
        #'(lambda (id _c stat)
 	   (declare (ignore _c))
-	   ;; TODO: accumulate tags at upper list
-	   `(,id			; tagbody's go tag
-	     ,stat)))
+	   (setf *goto-tags*
+		 (acons id stat *goto-tags*))
+	   id))		; tagbody's go tag
    (case const-exp \: stat
        #'(lambda (_k  exp _c stat)
 	   (declare (ignore _k _c))
-	   ;; TODO: accumulate tags at switch
-	   `(,exp			; tagbody's go tag
-	     ,stat)))
+	   (push-case-label exp stat)))
    (default \: stat
        #'(lambda (_k _c stat)
 	   (declare (ignore _k _c))
-	   ;; TODO: accumulate tags at switch
-	   `(default			; tagbody's go tag
-	     ,stat))))
+	   (push-case-label 'default stat))))
 
   (exp-stat
    (exp \;
@@ -192,7 +249,7 @@
    ({ stat-list }
       #'(lambda (op1 sts op2)
 	  (declare (ignore op1 op2))
-	  `(tagbody ,@sts)))
+	  `(tagbody ,@(goto-tags-expand sts))))
    ;; ({ decl-list	})
    ({ }
       #'(lambda (op1 op2)
@@ -218,10 +275,7 @@
    (switch \( exp \) stat
 	   #'(lambda (_k _lp exp _rp stat)
 	       (declare (ignore _k _lp _rp))
-	       ;; TODO:
-	       ;; 1. collect tags of case clause
-	       ;; 2. create jump table here
-	       nil)))
+	       (construct-switch-stmt exp stat))))
 
   (iteration-stat
    (while \( exp \) stat
@@ -475,8 +529,10 @@
 ;; => (+ (* X (- (- 2))) (* 3 Y))	       
 
 (defun c-expression-tranform (form)
-  (parse-with-lexer (list-lexer form)
-		    *expression-parser*))
+  (let ((*goto-tags* nil)
+	(*case-label-list* nil))
+    (parse-with-lexer (list-lexer form)
+		      *expression-parser*)))
 
 
 (defmacro with-c-syntax (() &body body)
@@ -518,4 +574,18 @@
     return 100 \;
     }
   )
+
+(with-c-syntax ()
+  switch \( x \) {
+  case 1 \:
+    (format t "case 1 ni kita~%") \;
+    break \;
+  case 2 \:
+    (format t "case 2 ni kita~%") \;
+    (format t "fall-though~%") \;
+  default \:
+    (format t "default ni kita~%") \;
+  }
+)
+
 |#
