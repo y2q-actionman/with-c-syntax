@@ -57,3 +57,13 @@
   (test '({ const auto unsigned int float \; }))
   t)
 
+(defun test-struct-or-union-spec ()
+  (test '({ struct hoge { int x \; } \; }))
+  (test '({ struct hoge { int x \; int y \; } \; }))
+  (test '({ struct hoge { int x \; int y \; int z \; } \; }))
+  (test '({ struct { int x \; } \; }))
+  (test '({ struct { int x \; int y \; } \; }))
+  (test '({ struct a \; }))
+  (test '({ union a \; }))
+  t)
+

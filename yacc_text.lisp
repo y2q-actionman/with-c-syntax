@@ -261,21 +261,21 @@
   (decl-specs
    (storage-class-spec decl-specs
                        #'(lambda (cls dcls)
-                           (pushnew cls (getf dcls :storage-class))
+                           (push cls (getf dcls :storage-class))
                            dcls))
    (storage-class-spec
     #'(lambda (cls)
         (list :storage-class `(,cls))))
    (type-spec decl-specs
               #'(lambda (tp dcls)
-                  (pushnew tp (getf dcls :type))
+                  (push tp (getf dcls :type))
                   dcls))
    (type-spec
     #'(lambda (tp)
         (list :type `(,tp))))
    (type-qualifier decl-specs
                    #'(lambda (qlr dcls)
-                       (pushnew qlr (getf dcls :qualifier))
+                       (push qlr (getf dcls :qualifier))
                        dcls))
    (type-qualifier
     #'(lambda (qlr)
@@ -284,30 +284,39 @@
   (storage-class-spec
    auto register static extern typedef) ; keywords
 
-  ;; TODO
   (type-spec
    void char short int long float double signed unsigned ; keywords
-   struct-or-union-spec
-   enum-spec
+   struct-or-union-spec                                  ; TODO
+   enum-spec                                             ; TODO
    typedef-name)                        ; not supported -- TODO!!
 
   (type-qualifier
    const volatile)                      ; keywords
 
-  ;; TODO
+  ;; returns like:
+  ;;   (union :name hoge :decl (...))
   (struct-or-union-spec
-   (struct-or-union id { struct-decl-list })
-   (struct-or-union    { struct-decl-list })
-   (struct-or-union id))
+   (struct-or-union id { struct-decl-list }
+                    #'(lambda (kwd id _l decl _r)
+                        (declare (ignore _l _r))
+                        (list kwd :name id :decl decl)))
+   (struct-or-union    { struct-decl-list }
+                    #'(lambda (kwd _l decl _r)
+                        (declare (ignore _l _r))
+                        (list kwd :decl decl)))
+   (struct-or-union id
+                    #'(lambda (kwd id)
+                        (list kwd :name id))))
 
-  ;; TODO
   (struct-or-union
    struct union)                        ; keywords
 
-  ;; TODO
   (struct-decl-list
-   struct-decl
-   (struct-decl-list struct-decl))
+   (struct-decl
+    #'list)
+   (struct-decl-list struct-decl
+                     #'(lambda (dcls dcl)
+                         `(,@dcls ,dcl))))
 
   ;; TODO
   (init-declarator-list
@@ -319,9 +328,12 @@
    declarator
    (declarator = initializer))
 
-  ;; TODO
+  ;; TODO -- now only reduces ';'
   (struct-decl
-   (spec-qualifier-list struct-declarator-list \;))
+   (spec-qualifier-list struct-declarator-list \;
+                        #'(lambda (qls dcls _t)
+                            (declare (ignore _t))
+                            `(,qls ,dcls))))
 
   ;; TODO
   (spec-qualifier-list
