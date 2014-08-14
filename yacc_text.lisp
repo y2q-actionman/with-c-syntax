@@ -238,26 +238,49 @@
 ;; 			|		declarator 	compound_stat
 ;; 			;
 
-  ;; TODO
+  ;; TODO: stucks into *declarations*
   (decl
-   (decl-specs init-declarator-list \;)
-   (decl-specs \;))
+   (decl-specs init-declarator-list \;  ; TODO
+               #'(lambda (dcls inits _t)
+                   (declare (ignore _t))
+                   (list :decl dcls :init inits)))
+   (decl-specs \;                       ; TODO
+               #'(lambda (dcls _t)
+                   (declare (ignore _t))
+                   (list :decl dcls))))
 
-  ;; TODO
   (decl-list
-   decl
-   (decl-list decl))
+   (decl
+    #'list)
+   (decl-list decl
+              #'(lambda (dcls dcl)
+                  (append dcls (list dcl)))))
 
-  ;; TODO
+  ;; returns like:
+  ;;   (:type (int) :storage-class (auto register) :qualifier (const))
   (decl-specs
-   (storage-class-spec decl-specs)
-   storage-class-spec
-   (type-spec decl-specs)
-   type-spec
-   (type-qualifier decl-specs)
-   type-qualifier)
+   (storage-class-spec decl-specs
+                       #'(lambda (cls dcls)
+                           (pushnew cls (getf dcls :storage-class))
+                           dcls))
+   (storage-class-spec
+    #'(lambda (cls)
+        (list :storage-class `(,cls))))
+   (type-spec decl-specs
+              #'(lambda (tp dcls)
+                  (pushnew tp (getf dcls :type))
+                  dcls))
+   (type-spec
+    #'(lambda (tp)
+        (list :type `(,tp))))
+   (type-qualifier decl-specs
+                   #'(lambda (qlr dcls)
+                       (pushnew qlr (getf dcls :qualifier))
+                       dcls))
+   (type-qualifier
+    #'(lambda (qlr)
+        (list :qualifier `(,qlr)))))
 
-  ;; TODO
   (storage-class-spec
    auto register static extern typedef) ; keywords
 
@@ -266,9 +289,8 @@
    void char short int long float double signed unsigned ; keywords
    struct-or-union-spec
    enum-spec
-   typedef-name)                        ; not supported
+   typedef-name)                        ; not supported -- TODO!!
 
-  ;; TODO
   (type-qualifier
    const volatile)                      ; keywords
 
@@ -458,12 +480,18 @@
 	nil)))
 
   (compound-stat
-   ({ decl-list stat-list })            ; TODO
+   ({ decl-list stat-list }
+      #'(lambda (_op1 dcls sts _op2)
+          (declare (ignore _op1 _op2))
+          `(,dcls ,@sts)))             ; TODO
    ({ stat-list }
       #'(lambda (op1 sts op2)
 	  (declare (ignore op1 op2))
-	  (apply #'append sts)))	; flatten
-   ({ decl-list	})                      ; TODO
+	  `(,@sts)))
+   ({ decl-list	}
+      #'(lambda (_op1 dcls _op2)
+	  (declare (ignore _op1 _op2))
+	  `(,dcls)))                   ; TODO
    ({ }
       #'(lambda (op1 op2)
 	  (declare (ignore op1 op2))
