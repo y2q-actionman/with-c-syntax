@@ -100,10 +100,6 @@
 	     (setf ,exp1
 		   (,op ,tmp ,exp2))))))
 
-  (defun pick-2nd (_1 x _3)
-    (declare (ignore _1 _3))
-    x)
-
   (defun ash-right (i c)
     (ash i (- c)))
 
@@ -506,12 +502,15 @@
    (postfix-exp \( argument-exp-list \)
 		#'(lambda (exp op1 args op2)
 		    (declare (ignore op1 op2))
-		    `(apply ,exp ,args)))
+		    `(,exp ,@args)))
    (postfix-exp \( \)
 		#'(lambda (exp op1 op2)
 		    (declare (ignore op1 op2))
-		    `(funcall ,exp)))
-   (postfix-exp \. id)			 ; TODO
+		    `(,exp)))
+   (postfix-exp \. id
+		#'(lambda (exp _op id)
+		    (declare (ignore _op))
+		    `(,id ,exp))) ; id is assumed as a reader
    (postfix-exp -> id)			 ; TODO
    (postfix-exp ++
 		#'(lambda (exp op)
@@ -527,7 +526,9 @@
    const
    string
    (\( exp \)
-       #'pick-2nd)
+       #'(lambda  (_1 x _3)
+	   (declare (ignore _1 _3))
+	   x))
    lisp-expression)			; added
 
   (argument-exp-list
@@ -619,6 +620,24 @@
   goto a \;
   a \:
     return 100 \;
+}
+)
+
+;; removed dereference temporarylly..
+(with-c-syntax ()
+{
+	n = \( count + 7 \) / 8 \;
+	switch \( count % 8 \) {
+	case 0 \:	do {	to = from ++ \;
+	case 7 \:		to = from ++ \;
+	case 6 \:		to = from ++ \;
+	case 5 \:		to = from ++ \;
+	case 4 \:		to = from ++ \;
+	case 3 \:		to = from ++ \;
+	case 2 \:		to = from ++ \;
+	case 1 \:		to = from ++ \;
+		} while \( -- n > 0 \) \;
+	}
 }
 )
 
