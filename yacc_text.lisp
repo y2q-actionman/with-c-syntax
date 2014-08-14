@@ -76,6 +76,10 @@
 	       (error "Unexpected value ~S" value))))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun concatinate-comma-list (lis op i)
+    (declare (ignore op))
+    `(,@lis ,i))
+
   (defvar *declarations* nil
     "list of (symbol &optional init-exp)")
 
@@ -318,15 +322,21 @@
                      #'(lambda (dcls dcl)
                          `(,@dcls ,dcl))))
 
-  ;; TODO
   (init-declarator-list
-   init-declarator
-   (init-declarator-list \, init-declarator))
+   (init-declarator
+    #'list)
+   (init-declarator-list \, init-declarator
+                         #'concatinate-comma-list))
 
-  ;; TODO
+  ;; returns:  (:name A :init B)
   (init-declarator
-   declarator
-   (declarator = initializer))
+   (declarator
+    #'(lambda (d)
+        `(:name ,d)))
+   (declarator = initializer
+               #'(lambda (d _op i)
+                   (declare (ignore _op))
+                   `(:name ,d :init ,i))))
 
   ;; TODO -- now only reduces ';'
   (struct-decl
@@ -353,21 +363,37 @@
    (declarator \: const-exp)
    (\: const-exp))
 
-  ;; TODO                                            
+  ;; returns like:
+  ;;   (enum :name hoge :enumerator (...))
+  ;; TODO: treat enum as a lexical variable (not dynamic!)
   (enum-spec
-   (enum id { enumerator-list })
-   (enum    { enumerator-list })
-   (enum id))
+   (enum id { enumerator-list }
+         #'(lambda (kwd id _l lis _r)
+             (declare (ignore _l _r))
+             `(,kwd :name ,id :enumerator ,lis)))
+   (enum    { enumerator-list }
+         #'(lambda (kwd _l lis _r)
+             (declare (ignore _l _r))
+             `(,kwd :enumerator ,lis)))
+   (enum id
+         #'(lambda (kwd id)
+             `(,kwd :name ,id))))
 
-  ;; TODO
   (enumerator-list
-   enumerator
-   (enumerator-list \, enumerator))
+   (enumerator
+    #'list)
+   (enumerator-list \, enumerator
+                    #'concatinate-comma-list))
 
-  ;; TODO
+  ;; returns:  (:name A :init B)
   (enumerator
-   id
-   (id = const-exp))
+   (id
+    #'(lambda (id)
+        `(:name ,id)))
+   (id = const-exp
+       #'(lambda (id _op exp)
+           (declare (ignore _op))
+           `(:name ,id :init ,exp))))
 
   ;; TODO
   (declarator
@@ -776,9 +802,7 @@
    (assignment-exp
     #'list)
    (argument-exp-list \, assignment-exp
-		      #'(lambda (exp1 op exp2)
-			  (declare (ignore op))
-			  (append exp1 (list exp2)))))
+                      #'concatinate-comma-list))
 
   (const*
    int-const

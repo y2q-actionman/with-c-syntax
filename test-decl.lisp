@@ -67,3 +67,17 @@
   (test '({ union a \; }))
   t)
 
+(defun test-init-declarator-list ()
+  (test '({ int a \; }))
+  (test '({ int a \, b \; }))
+  (test '({ int a \, b \, c \; }))
+  (test '({ int a = 0 \; }))
+  (test '({ int a \, b = 1 \; }))
+  (test '({ int a \, b = 1 \, c = 2 \; }))
+  t)
+
+(defun test-enum-spec ()
+  (test '({ enum hoge \; }))
+  (test '({ enum hoge { x \, y = 1 \, z } \; }))
+  (test '({ enum { x = 0 \, y \, z = 3 } \; } ))
+  t)
