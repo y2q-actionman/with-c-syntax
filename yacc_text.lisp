@@ -104,8 +104,7 @@
     (ash i (- c)))
 
 
-  ;; TODO: I think this is not 'lispify' already..
-  (defun lispify-if-statement (exp then-body
+  (defun extract-if-statement (exp then-body
 			       &optional (else-body nil))
     (let* ((then-tag (gensym "(if then)"))
 	   (else-tag (gensym "(if else)"))
@@ -129,7 +128,7 @@
        do (setf (second i) sym))
     (setf *continue-statements* nil))
 
-  (defun lispify-loop (body
+  (defun extract-loop (body
 		       &key (init nil) (cond t) (step nil)
 		       (post-test-p nil))
     (let ((loop-body-tag (gensym "(loop body)"))
@@ -157,7 +156,7 @@
 		   *case-label-list*))
       case-sym))
 
-  (defun lispify-switch (exp stat)
+  (defun extract-switch (exp stat)
     (let* ((exp-sym (gensym "(switch exp)"))
 	   (end-tag (gensym "(switch end)"))
 	   (jump-table			; create jump table
@@ -278,57 +277,57 @@
    (if \( exp \) stat
        #'(lambda (op lp exp rp stat)
 	   (declare (ignore op lp rp))
-	   (lispify-if-statement exp stat)))
+	   (extract-if-statement exp stat)))
    (if \( exp \) stat else stat
        #'(lambda (op lp exp rp stat1 el stat2)
 	   (declare (ignore op lp rp el))
-	   (lispify-if-statement exp stat1 stat2)))
+	   (extract-if-statement exp stat1 stat2)))
    (switch \( exp \) stat
 	   #'(lambda (_k _lp exp _rp stat)
 	       (declare (ignore _k _lp _rp))
-	       (lispify-switch exp stat))))
+	       (extract-switch exp stat))))
 
   (iteration-stat
    (while \( exp \) stat
 	  #'(lambda (_k _lp cond _rp body)
 	      (declare (ignore _k _lp _rp))
-	      (lispify-loop body :cond cond)))
+	      (extract-loop body :cond cond)))
    (do stat while \( exp \) \;
      #'(lambda (_k1 body _k2 _lp cond _rp _t)
 	 (declare (ignore _k1 _k2 _lp _rp _t))
-	 (lispify-loop body :cond cond :post-test-p t)))
+	 (extract-loop body :cond cond :post-test-p t)))
    (for \( exp \; exp \; exp \) stat
 	#'(lambda (_k _lp init _t1 cond _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (lispify-loop body :init init :cond cond :step step)))
+	    (extract-loop body :init init :cond cond :step step)))
    (for \( exp \; exp \;     \) stat
 	#'(lambda (_k _lp init _t1 cond _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (lispify-loop body :init init :cond cond)))
+	    (extract-loop body :init init :cond cond)))
    (for \( exp \;     \; exp \) stat
 	#'(lambda (_k _lp init _t1      _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (lispify-loop body :init init :step step)))
+	    (extract-loop body :init init :step step)))
    (for \( exp \;     \;     \) stat
 	#'(lambda (_k _lp init _t1      _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (lispify-loop body :init init)))
+	    (extract-loop body :init init)))
    (for \(     \; exp \; exp \) stat
 	#'(lambda (_k _lp      _t1 cond _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (lispify-loop body :cond cond :step step)))
+	    (extract-loop body :cond cond :step step)))
    (for \(     \; exp \;     \) stat
 	#'(lambda (_k _lp      _t1 cond _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (lispify-loop body :cond cond)))
+	    (extract-loop body :cond cond)))
    (for \(     \;     \; exp \) stat
 	#'(lambda (_k _lp      _t1      _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (lispify-loop body :step step)))
+	    (extract-loop body :step step)))
    (for \(     \;     \;     \) stat
 	#'(lambda (_k _lp      _t1      _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (lispify-loop body))))
+	    (extract-loop body))))
 
   (jump-stat
    (goto id \;
