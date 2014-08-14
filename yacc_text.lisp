@@ -157,7 +157,6 @@
 		   *case-label-list*))
       case-sym))
 
-  ;;  TODO: support the Duff's device.
   (defun lispify-switch (exp stat)
     (let* ((exp-sym (gensym "(switch exp)"))
 	   (end-tag (gensym "(switch end)"))
@@ -398,7 +397,6 @@
 		       (declare (ignore op1 op2))
 		       `(if ,cnd ,then-exp ,else-exp))))
 
-  ;; TODO
   (const-exp
    conditional-exp)
 

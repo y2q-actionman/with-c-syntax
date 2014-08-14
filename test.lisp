@@ -26,8 +26,8 @@
   (test '({ array [ 80 ] \; }))
   (test '({ hoge \( 1 \, 2 \, 3 \) \; }))
   (test '({ hoge \( \) \; }))
-  ;; dot
-  ;; arrow
+  (test '({ hoge \. a \; }))
+  (test '({ hoge -> a \; }))
   (test '({ hoge ++ \; }))
   (test '({ fuga -- \; }))
   t)
@@ -36,8 +36,8 @@
   (test-postfix-exp)
   (test '({ ++ hoge \; }))
   (test '({ -- hoge \; }))
-  ;; address-of
-  ;; dereference
+  (test '({ & hoge \; }))
+  (test '({ * hoge \; }))
   (test '({ + hoge \; }))
   (test '({ - hoge \; }))
   (test '({ ! hoge \; }))
