@@ -70,6 +70,18 @@
 	       (error "Unexpected value ~S" value))))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (defvar *declarations* nil
+    "list of (symbol &optional init-exp)")
+
+  (defvar *break-statements* nil
+    "list of (go 'break), should be rewrited")
+
+  (defvar *continue-statements* nil
+    "list of (go 'continue), should be rewrited")
+
+  (defvar *case-label-list* nil
+    "alist of (<gensym> . :exp <case-exp>)")
+
   (defun lispify-unary (op)
     #'(lambda (_ exp)
 	(declare (ignore _))
@@ -95,49 +107,64 @@
   (defun ash-right (i c)
     (ash i (- c)))
 
+
+  ;; TODO: I think this is not 'lispify' already..
+  (defun lispify-if-statement (exp then-body
+			       &optional (else-body nil))
+    (let* ((then-tag (gensym "(if then)"))
+	   (else-tag (gensym "(if else)"))
+	   (end-tag (gensym "(if end)")))
+      `((if ,exp (go ,then-tag) (go ,else-tag))
+	,then-tag
+	,@then-body
+	(go ,end-tag)
+	,else-tag
+	,@else-body
+	(go ,end-tag)
+	,end-tag)))
+
+  (defun rewrite-break-statements (sym)
+    (loop for i in *break-statements*
+       do (setf (second i) sym))
+    (setf *break-statements* nil))
+
+  (defun rewrite-continue-statements (sym)
+    (loop for i in *continue-statements*
+       do (setf (second i) sym))
+    (setf *continue-statements* nil))
+
   (defun lispify-loop (body
 		       &key (init nil) (cond t) (step nil)
 		       (post-test-p nil))
-    `(tagbody
-      loop-init				; unused?
-	(progn ,init)
+    (let ((loop-body-tag (gensym "(loop body)"))
+	  (loop-cond-tag (gensym "(loop cond)"))
+	  (loop-end-tag (gensym "(loop end)")))
+      (rewrite-break-statements loop-end-tag)
+      (rewrite-continue-statements loop-cond-tag)
+      `((progn ,init)
 	,(if post-test-p
-	     '(go loop-body)		; do-while
-	     '(go loop-cond))
-      loop-body
-	,body
-      loop-cond
+	     `(go ,loop-body-tag)		; do-while
+	     `(go ,loop-cond-tag))
+	,loop-body-tag
+	,@body
+	,loop-cond-tag
 	(when (progn ,cond)
 	  (progn ,step)
-	  (go loop-body))
-      loop-end))
+	  (go ,loop-body-tag))
+	,loop-end-tag)))
 
-  (defvar *goto-tags* nil
-    "alist of '(goto-tag . statement)")
-
-  (defun goto-tags-expand (lis)
-    (loop for i in lis
-       as g = (assoc i *goto-tags*)
-       if g
-       collect (car g) and collect (cdr g)
-       else
-       collect i))
-
-  (defvar *case-label-list* nil
-    "alist of (<gensym> . :exp <case-exp> :stat <case-statement>))")
-
-  (defun push-case-label (exp stat)
+  (defun push-case-label (exp)
     (let ((case-sym (gensym (format nil "(case ~S)" exp))))
       (setf *case-label-list*
 	    (acons case-sym
-		   (list :exp exp :stat stat)
+		   (list :exp exp)
 		   *case-label-list*))
       case-sym))
 
   ;;  TODO: support the Duff's device.
-  (defun construct-switch-stmt (exp stat)
+  (defun lispify-switch (exp stat)
     (let* ((exp-sym (gensym "(switch exp)"))
-	   (end-tag 'loop-end)		; see break
+	   (end-tag (gensym "(switch end)"))
 	   (jump-table			; create jump table
 	    (loop with default-clause =`(t (go ,end-tag))
 	       for label in *case-label-list*
@@ -152,30 +179,19 @@
 	       finally
 		 (return (append '(cond)
 				 clauses
-				 `(,default-clause)))))
-	   (body 			; expand tagged stmt
-	    (loop initially (assert (member (car stat)
-					    '(tagbody progn)))
-	       for i in (cdr stat)
-	       as l = (assoc i *case-label-list*)
-	       if l
-	       collect (car l) and collect (getf (cdr l) :stat)
-	       else
-	       collect i)))
-      (prog1
-	  `(let ((,exp-sym ,exp))
-	     (tagbody
-		jump-table		; unused?
-		,jump-table
-		,@body
-		,end-tag))
-	(setf *case-label-list* nil))))
-
-  ;; TODO: make goto resolver, and use it by switch-case
+				 `(,default-clause))))))
+      (rewrite-break-statements end-tag)
+      (push `(,exp-sym) *declarations*)
+      (setf *case-label-list* nil)
+      `((setf ,exp-sym ,exp)
+	,jump-table
+	,@stat
+	,end-tag)
+      ))
 )
 
 (define-parser *expression-parser*
-  (:start-symbol stat)
+  (:start-symbol compound-stat)
 
   ;; http://www.swansontec.com/sopc.html
   (:precedence (;; Primary expression
@@ -212,7 +228,7 @@
 
   (stat
    labeled-stat
-   exp-stat
+   exp-stat 
    compound-stat
    selection-stat
    iteration-stat
@@ -222,23 +238,23 @@
    (id \: stat
        #'(lambda (id _c stat)
 	   (declare (ignore _c))
-	   (setf *goto-tags*
-		 (acons id stat *goto-tags*))
-	   id))		; tagbody's go tag
+	   (cons id stat)))
    (case const-exp \: stat
        #'(lambda (_k  exp _c stat)
 	   (declare (ignore _k _c))
-	   (push-case-label exp stat)))
+	   (cons (push-case-label exp)
+		 stat)))
    (default \: stat
        #'(lambda (_k _c stat)
 	   (declare (ignore _k _c))
-	   (push-case-label 'default stat))))
+	   (cons (push-case-label 'default)
+		 stat))))
 
   (exp-stat
    (exp \;
 	#'(lambda (exp term)
 	    (declare (ignore term))
-	    exp))
+	    (list exp)))
    (\;
     #'(lambda (term)
 	(declare (ignore term))
@@ -249,12 +265,12 @@
    ({ stat-list }
       #'(lambda (op1 sts op2)
 	  (declare (ignore op1 op2))
-	  `(tagbody ,@(goto-tags-expand sts))))
+	  (apply #'append sts)))	; flatten
    ;; ({ decl-list	})
    ({ }
       #'(lambda (op1 op2)
 	  (declare (ignore op1 op2))
-	  '(tagbody))))
+	  nil)))
 
   (stat-list
    (stat
@@ -267,15 +283,15 @@
    (if \( exp \) stat
        #'(lambda (op lp exp rp stat)
 	   (declare (ignore op lp rp))
-	   `(if ,exp ,stat)))
+	   (lispify-if-statement exp stat)))
    (if \( exp \) stat else stat
        #'(lambda (op lp exp rp stat1 el stat2)
 	   (declare (ignore op lp rp el))
-	   `(if ,exp ,stat1 ,stat2)))
+	   (lispify-if-statement exp stat1 stat2)))
    (switch \( exp \) stat
 	   #'(lambda (_k _lp exp _rp stat)
 	       (declare (ignore _k _lp _rp))
-	       (construct-switch-stmt exp stat))))
+	       (lispify-switch exp stat))))
 
   (iteration-stat
    (while \( exp \) stat
@@ -283,7 +299,7 @@
 	      (declare (ignore _k _lp _rp))
 	      (lispify-loop body :cond cond)))
    (do stat while \( exp \) \;
-     #'(lambda (_k1 cond _k2 _lp body _rp _t)
+     #'(lambda (_k1 body _k2 _lp cond _rp _t)
 	 (declare (ignore _k1 _k2 _lp _rp _t))
 	 (lispify-loop body :cond cond :post-test-p t)))
    (for \( exp \; exp \; exp \) stat
@@ -323,23 +339,27 @@
    (goto id \;
 	 #'(lambda (_k id _t)
 	     (declare (ignore _k _t))
-	     `(go ,id)))
+	     (list `(go ,id))))
    (continue \;
 	     #'(lambda (_k _t)
 		 (declare (ignore _k _t))
-		 '(go loop-cond)))	; see lispify-loop
+		 (let ((ret (list 'go (gensym "unresolved continue"))))
+		   (push ret *continue-statements*)
+		   (list ret))))
    (break \;
 	  #'(lambda (_k _t)
 	      (declare (ignore _k _t))
-	      '(go loop-end)))		; see lispify-loop
+	      (let ((ret (list 'go (gensym "unresolved break"))))
+		(push ret *break-statements*)
+		(list ret))))
    (return exp \;
 	   #'(lambda (_k exp _t)
 	       (declare (ignore _k _t))
-	       `(return ,exp)))		; TODO: use our block
+	       (list `(return ,exp))))	; use the block of PROG
    (return \;
 	   #'(lambda (_k _t)
 	       (declare (ignore _k _t))
-	       `(return (values)))))	; TODO: use our block
+	       (list `(return (values)))))) ; use the block of PROG
 
 
   (exp
@@ -529,34 +549,45 @@
 ;; => (+ (* X (- (- 2))) (* 3 Y))	       
 
 (defun c-expression-tranform (form)
-  (let ((*goto-tags* nil)
-	(*case-label-list* nil))
-    (parse-with-lexer (list-lexer form)
-		      *expression-parser*)))
-
+  (let* ((*declarations* nil)
+	 (*break-statements* nil)
+	 (*continue-statements* nil)
+	 (*case-label-list* nil)
+	 (ret (parse-with-lexer (list-lexer form)
+				*expression-parser*)))
+    `(prog ,*declarations*
+	,@ret)))
 
 (defmacro with-c-syntax (() &body body)
   (c-expression-tranform body))
 
 #|
 (with-c-syntax ()
-  1 + 2)
+{
+  return 1 + 2 \;
+}
+)
 3
 
 (defparameter x 0)
-(with-c-syntax ()
+(with-c-syntax () {
   while \( x < 100 \)
-  x ++ \;
-  )
+    x ++ \;
+  return x \;
+}
+)
 
 (defparameter i 0)
 (with-c-syntax ()
+{
   for \( i = 0 \; i < 100 \; ++ i \)
   (format t "~A~%" i) \;
-  )
+}
+)
 
 (defparameter i 0)
 (with-c-syntax ()
+{
   for \( i = 0 \; i < 100 \; ++ i \) {
     if \( (oddp i) \)
       continue \;
@@ -564,18 +595,11 @@
       break \;
     (format t "~A~%" i) \;
   }
+}
 )
 
-
 (with-c-syntax ()
-  {
-  goto a \;
-  a \:
-    return 100 \;
-    }
-  )
-
-(with-c-syntax ()
+{
   switch \( x \) {
   case 1 \:
     (format t "case 1 ni kita~%") \;
@@ -586,6 +610,16 @@
   default \:
     (format t "default ni kita~%") \;
   }
+}
+)
+
+
+(with-c-syntax ()
+{
+  goto a \;
+  a \:
+    return 100 \;
+}
 )
 
 |#
