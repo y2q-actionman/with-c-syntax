@@ -26,6 +26,12 @@
 
   (defconstant +keywords+
     '(\;
+      auto register static extern typedef
+      void char short int long float double signed unsigned
+      const volatile
+      struct union
+      enum
+      |...|
       case default
       { }
       if else switch
@@ -220,6 +226,203 @@
 	       string)
 	     '(lisp-expression)))
 
+;; translation_unit	: external_decl
+;; 			| translation_unit external_decl
+;; 			;
+;; external_decl		: function_definition
+;; 			| decl
+;; 			;
+;; function_definition	: decl_specs declarator decl_list compound_stat
+;; 			|		declarator decl_list compound_stat
+;; 			| decl_specs declarator		compound_stat
+;; 			|		declarator 	compound_stat
+;; 			;
+
+  ;; TODO
+  (decl
+   (decl-specs init-declarator-list \;)
+   (decl-specs \;))
+
+  ;; TODO
+  (decl-list
+   decl
+   (decl-list decl))
+
+  ;; TODO
+  (decl-specs
+   (storage-class-spec decl-specs)
+   storage-class-spec
+   (type-spec decl-specs)
+   type-spec
+   (type-qualifier decl-specs)
+   type-qualifier)
+
+  ;; TODO
+  (storage-class-spec
+   auto register static extern typedef) ; keywords
+
+  ;; TODO
+  (type-spec
+   void char short int long float double signed unsigned ; keywords
+   struct-or-union-spec
+   enum-spec
+   typedef-name)                        ; not supported
+
+  ;; TODO
+  (type-qualifier
+   const volatile)                      ; keywords
+
+  ;; TODO
+  (struct-or-union-spec
+   (struct-or-union id { struct-decl-list })
+   (struct-or-union    { struct-decl-list })
+   (struct-or-union id))
+
+  ;; TODO
+  (struct-or-union
+   struct union)                        ; keywords
+
+  ;; TODO
+  (struct-decl-list
+   struct-decl
+   (struct-decl-list struct-decl))
+
+  ;; TODO
+  (init-declarator-list
+   init-declarator
+   (init-declarator-list \, init-declarator))
+
+  ;; TODO
+  (init-declarator
+   declarator
+   (declarator = initializer))
+
+  ;; TODO
+  (struct-decl
+   (spec-qualifier-list struct-declarator-list \;))
+
+  ;; TODO
+  (spec-qualifier-list
+   (type-spec spec-qualifier-list)
+   type-spec
+   (type-qualifier spec-qualifier-list)
+   type-qualifier)
+
+  ;; TODO
+  (struct-declarator-list
+   struct-declarator
+   (struct-declarator-list \, struct-declarator))
+
+  ;; TODO
+  (struct-declarator
+   declarator
+   (declarator \: const-exp)
+   (\: const-exp))
+
+  ;; TODO                                            
+  (enum-spec
+   (enum id { enumerator-list })
+   (enum    { enumerator-list })
+   (enum id))
+
+  ;; TODO
+  (enumerator-list
+   enumerator
+   (enumerator-list \, enumerator))
+
+  ;; TODO
+  (enumerator
+   id
+   (id = const-exp))
+
+  ;; TODO
+  (declarator
+   (pointer direct-declarator)
+   direct-declarator)
+
+  ;; TODO
+  (direct-declarator
+   id
+   (\( declarator \))
+   (direct-declarator [ const-exp ])
+   (direct-declarator [		  ])
+   (direct-declarator \( param-type-list \))
+   (direct-declarator \( id-list \))
+   (direct-declarator \(	 \)))
+
+  ;; TODO
+  (pointer
+   (* type-qualifier-list)
+   *
+   (* type-qualifier-list pointer)
+   (*			  pointer))
+
+  ;; TODO
+  (type-qualifier-list
+   type-qualifier
+   (type-qualifier-list type-qualifier))
+
+  ;; TODO
+  (param-type-list
+   param-list
+   (param-list \, |...|))
+
+  ;; TODO
+  (param-list
+   param-decl
+   (param-list \, param-decl))
+
+  ;; TODO
+  (param-decl
+   (decl-specs declarator)
+   (decl-specs abstract-declarator)
+   decl-specs)
+
+  ;; TODO
+  (id-list
+   id
+   (id-list \, id))
+
+  ;; TODO
+  (initializer
+   assignment-exp
+   ({ initializer-list })
+   ({ initializer-list \, }))
+
+  ;; TODO
+  (initializer-list
+   initializer
+   (initializer-list \, initializer))
+
+  ;; TODO
+  (type-name
+   (spec-qualifier-list abstract-declarator)
+   spec-qualifier-list)
+
+  ;; TODO
+  (abstract-declarator
+   pointer
+   (pointer direct-abstract-declarator)
+   direct-abstract-declarator)
+
+  ;; TODO
+  (direct-abstract-declarator
+   (\( abstract-declarator \))
+   (direct-abstract-declarator [ const-exp ])
+   (			       [ const-exp ])
+   (direct-abstract-declarator [	   ])
+   (			       [	   ])
+   (direct-abstract-declarator \( param-type-list \))
+   (			       \( param-type-list \))
+   (direct-abstract-declarator \(		  \))
+   (			       \(		  \)))
+
+  ;; ;; TODO
+  ;; (typedef-name
+  ;;  id)
+
+
+  ;;; Statements
   (stat
    labeled-stat
    exp-stat 
@@ -255,12 +458,12 @@
 	nil)))
 
   (compound-stat
-   ;; ({ decl-list stat-list })
+   ({ decl-list stat-list })            ; TODO
    ({ stat-list }
       #'(lambda (op1 sts op2)
 	  (declare (ignore op1 op2))
 	  (apply #'append sts)))	; flatten
-   ;; ({ decl-list	})
+   ({ decl-list	})                      ; TODO
    ({ }
       #'(lambda (op1 op2)
 	  (declare (ignore op1 op2))
@@ -356,6 +559,7 @@
 	       (list `(return (values)))))) ; use the block of PROG
 
 
+  ;;; Expressions
   (exp
    assignment-exp
    (exp |,| assignment-exp
@@ -520,7 +724,7 @@
 
   (primary-exp
    id
-   const
+   const*
    string
    (\( exp \)
        #'(lambda  (_1 x _3)
@@ -536,7 +740,7 @@
 			  (declare (ignore op))
 			  (append exp1 (list exp2)))))
 
-  (const
+  (const*
    int-const
    char-const
    float-const
