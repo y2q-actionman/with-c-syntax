@@ -1,7 +1,7 @@
 (in-package :cl-user)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defconstant +operators+
+  (alexandria:define-constant +operators+
     '(|,|
       = *= /= %= += -= <<= >>= &= ^= \|=
       ? |:|
@@ -19,9 +19,10 @@
       ++ -- sizeof
       & * + - ~ !
       [ ] \. ->
-      ))
+      )
+    :test 'equal)
 
-  (defconstant +keywords+
+  (alexandria:define-constant +keywords+
     '(\;
       auto register static extern typedef
       void char short int long float double signed unsigned
@@ -34,7 +35,8 @@
       if else switch
       while do for
       goto continue break return
-      ))
+      )
+    :test 'equal)
   )
 
 (defvar *enum-symbols* nil)

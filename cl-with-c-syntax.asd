@@ -2,7 +2,7 @@
 
 (asdf:defsystem :cl-with-c-syntax
   :serial t
-  :depends-on (:yacc)
+  :depends-on (:alexandria :yacc)
   :components ((:file "package")
 	       (:file "yacc_text")))
 
