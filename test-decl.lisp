@@ -98,3 +98,49 @@
   (test '({ enum hoge { x \, y = 1 \, z } \; }))
   (test '({ enum { x = 0 \, y \, z = 3 } \; } ))
   t)
+
+
+(defun test-type-name ()
+  ;; uses cast
+
+  (test '({ \( int \) x \; }))
+  (test '({ \( unsigned int \) x \; }))
+
+  ;; abstract-declarator -- pointer
+  (test '({ \( int * \) x \; }))
+  (test '({ \( int const * \) x \; })) 	; not included in pointer..
+  (test '({ \( int * const \) x \; }))
+  (test '({ \( int * * \) x \; }))
+  (test '({ \( int * const * const * \) x \; }))
+
+  ;; abstract-declarator -- direct-abstract-declarator
+  (test '({ \( int \( * \) \) x \; }))
+  (test '({ \( int \( * \( int \) \) \) x \; }))
+
+  (test '({ \( int [ 1 ] [ 2 ] \) x \; }))
+  (test '({ \( int [ 1 ] [ 2 ] [ 3 ] \) x \; }))
+
+  (test '({ \( int [ 5 ] \) x \; }))
+
+  (test '({ \( int [ ] \) x \; }))
+  (test '({ \( int [ ] [ ] [ ] \) x \; }))
+
+  (test '({ \( int [ ] \( int \) \) x \; }))
+  (test '({ \( int [ 1 ] \( int \) \) x \; }))
+
+  (test '({ \( int \( int \) \) x \; })) ; using param-type-list
+  (test '({ \( int \( int \, |...| \) \) x \; }))
+  (test '({ \( int \( int \, int \) \) x \; }))
+  (test '({ \( int \( int \, int \, const int \) \) x \; }))
+
+  (test '({ \( int [ ] \( \) \) x \; }))
+  (test '({ \( int \( \) \( \) \) x \; }))
+
+  (test '({ \( int \( \) \) x \; }))
+
+  ;; abstract-declarator
+  (test '({ \( int * \( * \) \) x \; }))
+  (test '({ \( int * \( * \( int \) \) \) x \; }))
+  
+
+  t)

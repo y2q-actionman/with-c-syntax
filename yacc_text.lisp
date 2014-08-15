@@ -432,27 +432,40 @@
    (direct-declarator \( id-list \))
    (direct-declarator \(	 \)))
 
-  ;; TODO
+  ;; returns like:
+  ;; (*), (* *), (* * *)
+  ;; ((* const)), (* (* const)), (* (* const) *)
   (pointer
-   (* type-qualifier-list)
-   *
-   (* type-qualifier-list pointer)
-   (*			  pointer))
+   (* type-qualifier-list
+      #'(lambda (kwd qls)
+	  `((,kwd ,@qls))))
+   (*
+    #'(lambda (kwd)
+	(list kwd)))
+   (* type-qualifier-list pointer
+      #'(lambda (kwd qls p)
+	  `((,kwd ,@qls) ,@p)))
+   (*			  pointer
+      #'(lambda (kwd p)
+	  `(,kwd ,@p))))
+			  
 
-  ;; TODO
   (type-qualifier-list
-   type-qualifier
-   (type-qualifier-list type-qualifier))
+   (type-qualifier
+    #'list)
+   (type-qualifier-list type-qualifier
+			#'append-item-to-right))
 
-  ;; TODO
   (param-type-list
    param-list
-   (param-list \, |...|))
+   (param-list \, |...|
+	       #'concatinate-comma-list))
 
-  ;; TODO
   (param-list
-   param-decl
-   (param-list \, param-decl))
+   (param-decl
+    #'list)
+   (param-list \, param-decl
+	       #'concatinate-comma-list))
 
   ;; TODO
   (param-decl
@@ -476,28 +489,58 @@
    initializer
    (initializer-list \, initializer))
 
-  ;; TODO
   (type-name
-   (spec-qualifier-list abstract-declarator)
-   spec-qualifier-list)
+   (spec-qualifier-list abstract-declarator
+			#'(lambda (qls abs)
+			    `(,@qls :suffixes ,abs)))
+   (spec-qualifier-list
+    #'identity))
 
-  ;; TODO
   (abstract-declarator
    pointer
    (pointer direct-abstract-declarator)
    direct-abstract-declarator)
 
-  ;; TODO
+  ;; returns like:
+  ;; (:aref nil) (:funcall nil) (:aref 5 :funcall (int))
   (direct-abstract-declarator
-   (\( abstract-declarator \))
-   (direct-abstract-declarator [ const-exp ])
-   (			       [ const-exp ])
-   (direct-abstract-declarator [	   ])
-   (			       [	   ])
-   (direct-abstract-declarator \( param-type-list \))
-   (			       \( param-type-list \))
-   (direct-abstract-declarator \(		  \))
-   (			       \(		  \)))
+   (\( abstract-declarator \)
+    #'(lambda (_lp dcls _rp)
+	(declare (ignore _lp _rp))
+	`(:function-pointer ,@dcls)))
+   (direct-abstract-declarator [ const-exp ]
+    #'(lambda (dcls _lp params _rp)
+	(declare (ignore _lp _rp))
+	`(,@dcls :aref ,params)))
+   (			       [ const-exp ]
+    #'(lambda (_lp params _rp)
+	(declare (ignore _lp _rp))
+	`(:aref ,params)))
+   (direct-abstract-declarator [	   ]
+    #'(lambda (dcls _lp _rp)
+	(declare (ignore _lp _rp))
+	`(,@dcls :aref nil)))
+   (			       [	   ]
+    #'(lambda (_lp _rp)
+	(declare (ignore _lp _rp))
+	`(:aref nil)))
+   (direct-abstract-declarator \( param-type-list \)
+    #'(lambda (dcls _lp params _rp)
+	(declare (ignore _lp _rp))
+	`(,@dcls :funcall ,params)))
+   (			       \( param-type-list \)
+    #'(lambda (_lp params _rp)
+	(declare (ignore _lp _rp))
+	`(:funcall ,params)))
+   (direct-abstract-declarator \(		  \)
+    #'(lambda (dcls _lp _rp)
+	(declare (ignore _lp _rp))
+	`(,@dcls :funcall nil)))
+   (			       \(		  \)
+    #'(lambda (_lp _rp)
+	(declare (ignore _lp _rp))
+	`(:funcall nil))))
+						  
 
   ;; ;; TODO
   ;; (typedef-name
