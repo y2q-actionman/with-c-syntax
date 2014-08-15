@@ -170,9 +170,9 @@
       case-sym))
 
   (defun extract-switch (exp stat)
-    (let* ((exp-sym (gensym "(switch exp)"))
+    (let* ((exp-sym (gensym "(switch cond)"))
 	   (end-tag (gensym "(switch end)"))
-	   (jump-table			; create jump table
+	   (jump-table			; create jump table with COND
 	    (loop with default-clause =`(t (go ,end-tag))
 	       for label in *case-label-list*
 	       as label-sym = (car label)
