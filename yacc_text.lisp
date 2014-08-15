@@ -887,8 +887,14 @@
 	 (*case-label-list* nil)
 	 (ret (parse-with-lexer (list-lexer form)
 				*expression-parser*)))
-    `(prog ,*declarations*
-	,@ret)))
+    (loop for i in *declarations*
+       collect (first i) into syms
+       collect (second i) into vals
+       finally
+       ;; TODO: muffle undefined-variable warnings
+         (return `(block nil
+                    (progv ',syms (list ,@vals)
+                      (tagbody ,@ret)))))))
 
 (defmacro with-c-syntax (() &body body)
   (c-expression-tranform body))
