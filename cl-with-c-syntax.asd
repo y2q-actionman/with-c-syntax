@@ -4,6 +4,7 @@
   :serial t
   :depends-on (:alexandria :yacc)
   :components ((:file "package")
+               (:file "pseudo-pointer")
 	       (:file "yacc_text")))
 
 (asdf:defsystem :cl-with-c-syntax.test
