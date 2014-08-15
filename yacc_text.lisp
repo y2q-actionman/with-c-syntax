@@ -544,11 +544,11 @@
    ({ decl-list stat-list }
       #'(lambda (_op1 dcls sts _op2)
           (declare (ignore _op1 _op2))
-          `(,dcls ,@sts)))             ; TODO
+          `(,dcls ,(apply #'append sts)))) ; TODO
    ({ stat-list }
       #'(lambda (op1 sts op2)
 	  (declare (ignore op1 op2))
-	  `(,@sts)))
+	  (apply #'append sts)))	; flatten
    ({ decl-list	}
       #'(lambda (_op1 dcls _op2)
 	  (declare (ignore _op1 _op2))
