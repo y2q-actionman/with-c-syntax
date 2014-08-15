@@ -197,6 +197,8 @@
 )
 
 (define-parser *expression-parser*
+  (:muffle-conflicts t)
+
   (:start-symbol compound-stat)
 
   ;; http://www.swansontec.com/sopc.html
