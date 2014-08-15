@@ -76,9 +76,12 @@
 	       (error "Unexpected value ~S" value))))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun append-item-to-right (lis i)
+    (append lis (list i)))
+
   (defun concatinate-comma-list (lis op i)
     (declare (ignore op))
-    `(,@lis ,i))
+    (append-item-to-right lis i))
 
   (defvar *declarations* nil
     "list of (symbol &optional init-exp)")
@@ -257,8 +260,7 @@
    (decl
     #'list)
    (decl-list decl
-              #'(lambda (dcls dcl)
-                  (append dcls (list dcl)))))
+	      #'append-item-to-right))
 
   ;; returns like:
   ;;   (:type (int) :storage-class (auto register) :qualifier (const))
@@ -319,8 +321,7 @@
    (struct-decl
     #'list)
    (struct-decl-list struct-decl
-                     #'(lambda (dcls dcl)
-                         `(,@dcls ,dcl))))
+		     #'append-item-to-right))
 
   (init-declarator-list
    (init-declarator
@@ -338,30 +339,52 @@
                    (declare (ignore _op))
                    `(:name ,d :init ,i))))
 
-  ;; TODO -- now only reduces ';'
+  ;; returns like:
+  ;;   (:type (...) :fields (...))
   (struct-decl
    (spec-qualifier-list struct-declarator-list \;
                         #'(lambda (qls dcls _t)
                             (declare (ignore _t))
-                            `(,qls ,dcls))))
+                            `(:type ,qls :fields ,dcls))))
 
-  ;; TODO
+  ;; returns like:
+  ;;   (:type (int) :qualifier (const))
   (spec-qualifier-list
-   (type-spec spec-qualifier-list)
-   type-spec
-   (type-qualifier spec-qualifier-list)
-   type-qualifier)
+   (type-spec spec-qualifier-list
+	      #'(lambda (tp lis)
+		  (push tp (getf lis :type))
+		  lis))
+   (type-spec
+    #'(lambda (tp)
+	(list :type `(,tp))))
+   (type-qualifier spec-qualifier-list
+		   #'(lambda (ql lis)
+		       (push ql (getf lis :qualifier))
+		       lis))
+   (type-qualifier
+    #'(lambda (ql)
+	(list :qualifier `(,ql)))))
 
-  ;; TODO
   (struct-declarator-list
-   struct-declarator
-   (struct-declarator-list \, struct-declarator))
+   (struct-declarator
+    #'list)
+   (struct-declarator-list \, struct-declarator
+			   #'concatinate-comma-list))
 
-  ;; TODO
+  ;; returns like:
+  ;;   (:name hoge :bits 3)
   (struct-declarator
-   declarator
-   (declarator \: const-exp)
-   (\: const-exp))
+   (declarator
+    #'(lambda (d)
+	(list :name d)))
+   (declarator \: const-exp
+	       #'(lambda (d _c bits)
+		   (declare (ignore _c))
+		   (list :name d :bits bits)))
+   (\: const-exp
+       #'(lambda (_c bits)
+	   (declare (ignore _c))
+	   (list :bits bits))))
 
   ;; returns like:
   ;;   (enum :name hoge :enumerator (...))
@@ -539,8 +562,7 @@
    (stat
     #'list)
    (stat-list stat
-	      #'(lambda (sts st)
-		  (append sts (list st)))))
+	      #'append-item-to-right))
 
   (selection-stat
    (if \( exp \) stat

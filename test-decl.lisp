@@ -76,6 +76,23 @@
   (test '({ int a \, b = 1 \, c = 2 \; }))
   t)
 
+(defun test-spec-qualifier-list ()
+  (test '({ struct hoge { int x \; } \; }))
+  (test '({ struct hoge { const x \; } \; }))
+  (test '({ struct hoge { unsigned int x \; } \; }))
+  (test '({ struct hoge { const unsigned int x \; } \; }))
+  (test '({ struct hoge { const unsigned volatile int x \; } \; }))
+  t)
+
+(defun test-struct-declarator ()
+  (test '({ struct hoge { int x \; } \; }))
+  (test '({ struct hoge { int x \, y \; } \; }))
+  (test '({ struct hoge { int x \, y \, z \; } \; }))
+  (test '({ struct hoge { int x \: 3 \; } \; }))
+  (test '({ struct hoge { int x \, y \: 3 \; } \; }))
+  (test '({ struct hoge { int x \: 1 \, y \: 5 \, z \: 99 \; } \; }))
+  t)
+
 (defun test-enum-spec ()
   (test '({ enum hoge \; }))
   (test '({ enum hoge { x \, y = 1 \, z } \; }))
