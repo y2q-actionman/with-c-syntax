@@ -100,6 +100,18 @@
   t)
 
 
+(defun test-param-type-list ()
+  ;; uses cast
+
+  (test '({ \( int \( int \) \) x \; }))
+  (test '({ \( int \( unsigned int \) \) x \; }))
+  (test '({ \( int \( int * \) \) x \; }))
+  (test '({ \( int \( int * * \) \) x \; }))
+  (test '({ \( int \( const unsigned int * hoge \) \) x \; }))
+  (test '({ \( int \( const struct hogehoge * * \) \) x \; }))
+
+  t)
+
 (defun test-type-name ()
   ;; uses cast
 
@@ -141,6 +153,6 @@
   ;; abstract-declarator
   (test '({ \( int * \( * \) \) x \; }))
   (test '({ \( int * \( * \( int \) \) \) x \; }))
-  
 
   t)
+

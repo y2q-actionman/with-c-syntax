@@ -467,10 +467,13 @@
    (param-list \, param-decl
 	       #'concatinate-comma-list))
 
-  ;; TODO
   (param-decl
-   (decl-specs declarator)
-   (decl-specs abstract-declarator)
+   (decl-specs declarator
+	       #'(lambda (dls abs)
+		   `(,@dls :suffixes ,abs))) ; TODO
+   (decl-specs abstract-declarator
+	       #'(lambda (dls abs)
+		   `(,@dls :suffixes ,abs)))
    decl-specs)
 
   ;; TODO
