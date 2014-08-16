@@ -83,7 +83,9 @@
     (append-item-to-right lis i))
 
   (defvar *declarations* nil
-    "list of (symbol &optional init-exp)")
+"list of (symbol
+          :initform (or init-exp nil)) \
+          :binding (or :lexical :external :dynamic))")
 
   (defvar *break-statements* nil
     "list of (go 'break), should be rewrited")
@@ -187,7 +189,7 @@
 				 clauses
 				 `(,default-clause))))))
       (rewrite-break-statements end-tag)
-      (push `(,exp-sym) *declarations*)
+      (push `(,exp-sym :binding :lexical) *declarations*)
       (setf *case-label-list* nil)
       `((setf ,exp-sym ,exp)
 	,jump-table
@@ -888,13 +890,19 @@
 	 (ret (parse-with-lexer (list-lexer form)
 				*expression-parser*)))
     (loop for i in *declarations*
-       collect (first i) into syms
-       collect (second i) into vals
+       as sym = (car i)
+       as attr = (cdr i)
+       as binding = (getf attr :binding)
+       if (eq binding :dynamic)
+         collect sym into dynamic-syms
+         and collect (getf attr :initform) into dynamic-vals
+       else if (eq binding :lexical)
+         collect `(,sym ,(getf attr :initform)) into lexical-vals
        finally
        ;; TODO: muffle undefined-variable warnings
-         (return `(block nil
-                    (progv ',syms (list ,@vals)
-                      (tagbody ,@ret)))))))
+         (return `(progv ',dynamic-syms (list ,@dynamic-vals)
+                    (prog ,lexical-vals
+                       ,@ret))))))
 
 (defmacro with-c-syntax (() &body body)
   (c-expression-tranform body))
