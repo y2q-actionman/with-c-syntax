@@ -83,9 +83,7 @@
     (append-item-to-right lis i))
 
   (defvar *declarations* nil
-"list of (symbol
-          :initform (or init-exp nil)) \
-          :binding (or :lexical :external :dynamic))")
+    "alist of (symbol . initform)")
 
   (defvar *break-statements* nil
     "list of (go 'break), should be rewrited")
@@ -189,7 +187,7 @@
 				 clauses
 				 `(,default-clause))))))
       (rewrite-break-statements end-tag)
-      (push `(,exp-sym :binding :lexical) *declarations*)
+      (push `(,exp-sym) *declarations*)
       (setf *case-label-list* nil)
       `((setf ,exp-sym ,exp)
 	,jump-table
@@ -823,8 +821,17 @@
        (lispify-unary 'incf))
    (-- unary-exp
        (lispify-unary 'decf))
-   (& cast-exp)				; TODO
-   (* cast-exp)				; TODO
+   (& cast-exp
+      #'(lambda (_op exp)
+          (declare (ignore _op))
+          ;; TODO: consider it. We should this exp is setf-able or not?
+          (if (symbolp exp)
+              `(make-pseudo-pointer* ,exp ',exp)
+              `(make-pseudo-pointer ,exp))))a
+   (* cast-exp
+      #'(lambda (_op exp)
+          (declare (ignore _op))
+          `(pseudo-pointer-dereference ,exp)))
    (+ cast-exp
       (lispify-unary '+))
    (- cast-exp
@@ -849,10 +856,13 @@
 		    (declare (ignore op1 op2))
 		    `(,exp)))
    (postfix-exp \. id
-		#'(lambda (exp _op id)
+		#'(lambda (exp _op id) ; id is assumed as a reader
 		    (declare (ignore _op))
-		    `(,id ,exp))) ; id is assumed as a reader
-   (postfix-exp -> id)			 ; TODO
+		    `(,id ,exp)))
+   (postfix-exp -> id
+		#'(lambda (exp _op id) ; id is assumed as a reader
+		    (declare (ignore _op))
+		    `(,id (pseudo-pointer-dereference ,exp))))
    (postfix-exp ++
 		#'(lambda (exp op)
 		    (declare (ignore op))
@@ -885,27 +895,29 @@
    enumeration-const)			; TODO
   )
 
-(defun c-expression-tranform (form)
+(defun c-expression-tranform (form refering-symbols)
   (let* ((*declarations* nil)
 	 (*break-statements* nil)
 	 (*continue-statements* nil)
 	 (*case-label-list* nil)
-	 (ret (parse-with-lexer (list-lexer form)
-				*expression-parser*)))
+	 (lisp-exp (parse-with-lexer (list-lexer form)
+                                     *expression-parser*))
+         (dynamic-syms nil)
+         (dynamic-vals nil))
+    ;; expand user specified bindings
+    (loop for s in refering-symbols
+       do (push s dynamic-syms)
+          (push s dynamic-vals))
+    ;; expand declarations
     (loop for i in *declarations*
-       as sym = (car i)
-       as attr = (cdr i)
-       as binding = (getf attr :binding)
-       if (eq binding :dynamic)
-         collect sym into dynamic-syms
-         and collect (getf attr :initform) into dynamic-vals
-       else if (eq binding :lexical)
-         collect `(,sym ,(getf attr :initform)) into lexical-vals
-       finally
-       ;; TODO: muffle undefined-variable warnings
-         (return `(progv ',dynamic-syms (list ,@dynamic-vals)
-                    (prog ,lexical-vals
-                       ,@ret))))))
+       do (push (car i) dynamic-syms)
+          (push (cdr i) dynamic-vals))
+    ;; TODO: muffle undefined-variable warnings
+    `(with-pseudo-pointer-scope ()
+       (progv ',dynamic-syms (list ,@dynamic-vals)
+         (locally (declare (special ,@dynamic-syms))
+           (prog ()
+              ,@lisp-exp))))))
 
-(defmacro with-c-syntax (() &body body)
-  (c-expression-tranform body))
+(defmacro with-c-syntax ((&rest refering-symbols) &body body)
+  (c-expression-tranform body refering-symbols))
