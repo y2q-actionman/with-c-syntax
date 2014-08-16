@@ -236,6 +236,9 @@
 	       string)
 	     '(lisp-expression)))
 
+;; TODO: introduce our entry point
+;; to - top level forms in C, statements, expressions
+
 ;; translation_unit	: external_decl
 ;; 			| translation_unit external_decl
 ;; 			;
