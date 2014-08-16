@@ -71,17 +71,23 @@
 	       (getf entry :pointee)
 	       idx val))))
 
-(defun make-pseudo-pointer (pointee)
+(defun make-pseudo-pointer* (&rest pointee-candidates)
   (multiple-value-bind (base p)
       (alloc-pseudo-pointer)
-    (let ((handler (find-pseudo-pointer-handler pointee)))
-      (unless handler
-        (error "pseudo pointers cannot hold this object ~S~%" pointee))
-      (setf (gethash base *pseudo-pointee-table*)
-            (list :pointee pointee
-                  :reader (getf (cdr handler) :reader)
-                  :writer (getf (cdr handler) :writer)))
-      p)))
+    (loop for pointee in pointee-candidates
+       as handler = (find-pseudo-pointer-handler pointee)
+       when handler
+       do (setf (gethash base *pseudo-pointee-table*)
+                (list :pointee pointee
+                      :reader (getf (cdr handler) :reader)
+                      :writer (getf (cdr handler) :writer)))
+         (return p)
+       finally
+         (error "pseudo pointers cannot hold this object ~S~%"
+                pointee-candidates))))
+
+(defun make-pseudo-pointer (pointee)
+  (make-pseudo-pointer* pointee))
 
 (defmacro with-pseudo-pointer-scope (() &body body)
   `(let ((*pseudo-pointee-table* (make-hash-table))
