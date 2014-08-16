@@ -906,8 +906,12 @@
          (dynamic-vals nil))
     ;; expand user specified bindings
     (loop for s in refering-symbols
-       do (push s dynamic-syms)
-          (push s dynamic-vals))
+       do (cond ((symbolp s)
+                 (push s dynamic-syms)
+                 (push s dynamic-vals))
+                ((listp s)
+                 (push (first s) dynamic-syms)
+                 (push (second s) dynamic-vals))))
     ;; expand declarations
     (loop for i in *declarations*
        do (push (car i) dynamic-syms)
@@ -919,5 +923,5 @@
            (prog ()
               ,@lisp-exp))))))
 
-(defmacro with-c-syntax ((&rest refering-symbols) &body body)
-  (c-expression-tranform body refering-symbols))
+(defmacro with-c-syntax ((&rest bindings) &body body)
+  (c-expression-tranform body bindings))
