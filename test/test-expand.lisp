@@ -1,4 +1,4 @@
-(in-package :cl-user)
+(in-package :with-c-syntax)
 
 (defun test-hello-world ()
   (with-c-syntax ()

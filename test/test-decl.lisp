@@ -1,8 +1,4 @@
-(in-package :cl-user)
-
-(defun test (form)
-  (format t "~&~S~%   ~S~%" form 
-	  (c-expression-tranform form)))
+(in-package :with-c-syntax)
 
 ;;; declarations
 
@@ -155,4 +151,3 @@
   (test '({ \( int * \( * \( int \) \) \) x \; }))
 
   t)
-

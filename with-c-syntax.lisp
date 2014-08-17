@@ -1,4 +1,4 @@
-(in-package :cl-user)
+(in-package :with-c-syntax)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (alexandria:define-constant +operators+

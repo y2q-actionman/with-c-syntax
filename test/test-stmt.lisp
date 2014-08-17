@@ -1,8 +1,4 @@
-(in-package :cl-user)
-
-(defun test (form)
-  (format t "~&~S~%   ~S~%" form 
-	  (c-expression-tranform form)))
+(in-package :with-c-syntax)
 
 ;;; expressions
 
@@ -190,4 +186,3 @@
   (test-iteration-stat)
   (test-jump-stat)
   t)
- 

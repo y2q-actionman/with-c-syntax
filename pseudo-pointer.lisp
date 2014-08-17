@@ -1,4 +1,4 @@
-(in-package :cl-user)
+(in-package :with-c-syntax)
 
 (defconstant +pseudo-pointer-mask+    #b0111111)
 (defconstant +pseudo-pointer-safebit+ #b0100000)
