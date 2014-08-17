@@ -904,11 +904,10 @@
                                      *expression-parser*))
          (dynamic-syms nil)
          (dynamic-vals nil))
-    ;; expand user specified bindings
     (loop for s in refering-symbols
        do (cond ((symbolp s)
                  (push s dynamic-syms)
-                 (push s dynamic-vals))
+                 (push nil dynamic-vals))
                 ((listp s)
                  (push (first s) dynamic-syms)
                  (push (second s) dynamic-vals))))

@@ -18,7 +18,7 @@
 (defparameter x 0)
 
 (defun test-while-loop ()
-  (with-c-syntax (x)                    ; closes 'x'
+  (with-c-syntax ((x x))                ; closes 'x'
     {
     while \( x < 100 \)
       x ++ \;
@@ -55,7 +55,7 @@
 
 (defun test-switch ()
   (flet ((fun (x)
-           (with-c-syntax (x)
+           (with-c-syntax ((x x))
     {
       format \( t \, "[~A] " \, x \) \;
       switch \( x \) {
@@ -121,7 +121,7 @@ dabec
 |#
 
 (defun test-pointer (xxx &aux z)
-  (with-c-syntax (xxx)
+  (with-c-syntax ((xxx xxx))
     {
     z =  & xxx \;
     (format t "z = ~A~%" z) \;
@@ -148,7 +148,8 @@ xxx = 22
 |#
   
 (defun test-duff-device (to-seq from-seq cnt)
-  (with-c-syntax (to-seq from-seq cnt (to nil) (from nil) (n nil))
+  (with-c-syntax ((to-seq to-seq) (from-seq from-seq) (cnt cnt)
+                  to from n)
     {
     to = & to-seq \;
     from = & from-seq \;
