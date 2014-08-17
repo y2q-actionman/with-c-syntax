@@ -15,6 +15,14 @@
   )
 ;; => 3
 
+(defun test-add-args (x y)
+  (with-c-syntax ()
+    {
+    return x + y \;
+    })
+  )
+;; => 3
+
 (defparameter x 0)
 
 (defun test-while-loop ()
@@ -38,19 +46,18 @@
 ;; => 5050
 
 (defun test-loop-continue-break ()
-  (let ((i 0) (sum 0))
-    (with-c-syntax ()
-      {
-      for \( i = 0 \; i < 100 \; ++ i \) {
-        if \( (oddp i) \)
-          continue \;
-        if \( i == 50 \)
-          break \;
-        sum += i \;
-        (format t "i ~A, sum ~A~%" i sum) \;
-      }
-      })
-    sum))
+  (with-c-syntax ((i 0) (sum 0))
+   {
+    for \( i = 0 \; i < 100 \; ++ i \) {
+      if \( (oddp i) \)
+        continue \;
+      if \( i == 50 \)
+        break \;
+      sum += i \;
+      (format t "i ~A, sum ~A~%" i sum) \;
+    }
+   return sum \;
+   }))
 ;; => 600
 
 (defun test-switch ()
