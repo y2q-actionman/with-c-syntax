@@ -104,6 +104,14 @@
 	(declare (ignore _))
 	`(,op ,exp1 ,exp2)))
 
+  (defun lispify-post-increment (op)
+    #'(lambda (exp _)
+	(declare (ignore _))
+	(let ((tmp (gensym)))
+	  `(let ((,tmp ,exp))
+	     (setf ,exp (,op ,tmp 1))
+             ,tmp))))
+
   (defun lispify-augmented-assignment (op)
     #'(lambda (exp1 _ exp2)
 	(declare (ignore _))
@@ -864,13 +872,9 @@
 		    (declare (ignore _op))
 		    `(,id (pseudo-pointer-dereference ,exp))))
    (postfix-exp ++
-		#'(lambda (exp op)
-		    (declare (ignore op))
-		    `(prog1 ,exp (incf ,exp))))
+                (lispify-post-increment '+))
    (postfix-exp --
-		#'(lambda (exp op)
-		    (declare (ignore op))
-		    `(prog1 ,exp (decf ,exp)))))
+                (lispify-post-increment '-)))
 
   (primary-exp
    id
