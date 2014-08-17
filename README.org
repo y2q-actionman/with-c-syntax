@@ -1,0 +1,160 @@
+# -*- mode: org -*-
+
+* 概要
+with-c-syntax は、 Common Lisp に C 言語っぽい記法を持ち込む一発ネタの
+パッケージです。
+全くもって真面目な用途は想定していません。
+
+* Loading
+** 依存しているライブラリ
+- asdf
+- cl-yacc
+- alexandria
+
+どれも、 Quicklisp からインストール可能です。
+
+** asdf で Load 
+#+BEGIN_SRC lisp
+(load "with-c-syntax.asd")
+(asdf:load-system :with-c-syntax)
+#+END_SRC
+
+* 使用例
+** Hello, World
+#+BEGIN_SRC lisp
+CL-USER> (with-c-syntax:with-c-syntax ()
+{
+  format \( t \, "Hello World!" \) \;
+})
+Hello World!
+NIL
+#+END_SRC
+
+** 1 から 100 までの和
+#+BEGIN_SRC lisp
+CL-USER> (with-c-syntax:with-c-syntax (i (sum 0))
+{
+  for \( i = 0 \; i < 100 \; ++ i \)
+    sum += i \;
+  return sum \;
+})
+5050
+#+END_SRC
+
+** Duff's Device
+#+BEGIN_SRC lisp
+(defun test-duff-device (to-seq from-seq cnt)
+  (with-c-syntax ((to-seq to-seq) (from-seq from-seq) (cnt cnt)
+                  to from n)
+    {
+    to = & to-seq \;
+    from = & from-seq \;
+
+    n = \( cnt + 7 \) / 8 \;
+    n = floor \( n \) \;                ; Lisp's CL:/ produces rational
+    switch \( cnt % 8 \) {
+    case 0 \:	do {	* to ++ = * from ++ \;
+    case 7 \:		* to ++ = * from ++ \;
+    case 6 \:		* to ++ = * from ++ \;
+    case 5 \:		* to ++ = * from ++ \;
+    case 4 \:		* to ++ = * from ++ \;
+    case 3 \:		* to ++ = * from ++ \;
+    case 2 \:		* to ++ = * from ++ \;
+    case 1 \:		* to ++ = * from ++ \;
+      } while \( -- n > 0 \) \;
+    }
+    })
+  to-seq)
+
+(setf arr1 (make-array 20 :initial-element 1))
+(setf arr2 (make-array 20 :initial-element 2))
+(test-duff-device arr1 arr2 10)
+
+arr1 ;; => #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
+#+END_SRC
+
+* API
+** Macro with-c-syntax
+*** 構文
+#+BEGIN_EXAMPLE
+with-c-syntax ( { var | (var [init-form]) }* ) form* => result
+
+var -- a symbol
+init-form -- a form
+form -- a form
+result -- the value returned by the forms
+#+END_EXAMPLE
+
+*** 機能
+form で指定された式を、 *C 言語っぽい* syntax で解釈して実行します。
+
+form 中で使用する変数は、 with-c-syntax の最初の所で let の様に指定しま
+す。
+
+現在のところ受け付けられる *C 言語っぽい* syntax は、 C 言語の複文
+(compound statement) の構文から、宣言 (declaration) を除いたものに相当
+します。
+
+特殊な解釈をされるシンボルは、以下の通りです。
+#+BEGIN_EXAMPLE
+|,|
+= *= /= %= += -= <<= >>= &= ^= \|=
+? |:|
+\|\|
+&&
+\|
+^
+&
+== !=
+< > <= >=
+>> <<
++ -
+* / %
+\( \)
+++ -- sizeof
+& * + - ~ !
+[ ] \. ->
+
+\;
+auto register static extern typedef
+void char short int long float double signed unsigned
+const volatile
+struct union
+enum
+|...|
+case default
+{ }
+if else switch
+while do for
+goto continue break return
+#+END_EXAMPLE
+
+現在のところ、 form に渡す Lisp 式は、シンボル '{' で始まり、 シンボル
+'}' で終わるものでなければなりません。
+
+*** 注意点
+現在は、専用のリーダなどはありません。 Lisp reader で読みこむことを想定
+しています。その場合は、以下のことに注意してください。
+
+Lisp reader で通常マクロ文字として扱われる文字は、シンボルとして解釈さ
+せるために、適宜エスケープする必要があります。以下の文字が相当します。
+#+BEGIN_EXAMPLE
+, | : ( ) . ;
+#+END_EXAMPLE
+
+Lisp reader で constituent character とされる文字を続けて書くと、一まと
+まりのシンボルとして解釈されます。適宜、空白を挿入する必要があります。
+
+例:
+#+BEGIN_EXAMPLE
+{x[5]\;} ;; => シンボル |{X[5];}| と解釈される。
+
+{ x [ 5 ] \; } => 一連のシンボルと数値と解釈される。
+#+END_EXAMPLE
+
+* TODO List (stub)
+** 宣言 (declarations) の構文が一切通らないのを直す
+** pointer の semantics を再確認
+** reader macro で escape をしないようにする。
+** 関数定義、型定義を通せるように
+** entry point を expression, statement, compilation unit の三つに
