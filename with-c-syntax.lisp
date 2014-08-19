@@ -138,11 +138,25 @@
 	(go ,end-tag)
 	,end-tag)))
 
+  (defvar *unresolved-break-tag* (gensym "unresolved break"))
+
+  (defun allocate-unresolved-break-statement ()
+    (let ((ret (list 'go *unresolved-break-tag*)))
+      (push ret *break-statements*)
+      (list ret)))
+    
   (defun rewrite-break-statements (sym)
     (loop for i in *break-statements*
        do (setf (second i) sym))
     (setf *break-statements* nil))
 
+  (defvar *unresolved-continue-tag* (gensym "unresolved continue"))
+
+  (defun allocate-unresolved-continue-statement ()
+    (let ((ret (list 'go *unresolved-continue-tag*)))
+      (push ret *continue-statements*)
+      (list ret)))
+    
   (defun rewrite-continue-statements (sym)
     (loop for i in *continue-statements*
        do (setf (second i) sym))
@@ -686,15 +700,11 @@
    (continue \;
 	     #'(lambda (_k _t)
 		 (declare (ignore _k _t))
-		 (let ((ret (list 'go (gensym "unresolved continue"))))
-		   (push ret *continue-statements*)
-		   (list ret))))
+		 (allocate-unresolved-continue-statement)))
    (break \;
 	  #'(lambda (_k _t)
 	      (declare (ignore _k _t))
-	      (let ((ret (list 'go (gensym "unresolved break"))))
-		(push ret *break-statements*)
-		(list ret))))
+	      (allocate-unresolved-break-statement)))
    (return exp \;
 	   #'(lambda (_k exp _t)
 	       (declare (ignore _k _t))
