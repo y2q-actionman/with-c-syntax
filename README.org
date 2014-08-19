@@ -152,7 +152,7 @@ Lisp reader で constituent character とされる文字を続けて書くと、
 { x [ 5 ] \; } => 一連のシンボルと数値と解釈される。
 #+END_EXAMPLE
 
-* TODO List (stub)
+* TO-DO List (stub)
 ** 宣言 (declarations) の構文が一切通らないのを直す
 ** pointer の semantics を再確認
 ** reader macro で escape をしないようにする。
