@@ -398,10 +398,12 @@
   ;; top level forms in C, or statements
   (w-c-s-entry-point
    translation-unit
+   labeled-stat
+   ;; exp-stat is not included, because it is gramatically ambiguous.
    compound-stat
    selection-stat
    iteration-stat
-   )
+   jump-stat)
 
   (translation-unit
    (external-decl
