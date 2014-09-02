@@ -1112,7 +1112,7 @@
   )
 
 ;;; Expander
-(defun c-expression-tranform (form refering-symbols)
+(defun c-expression-tranform (refering-symbols form)
   (let* ((*declarations* nil)
 	 (*break-statements* nil)
 	 (*continue-statements* nil)
@@ -1141,4 +1141,4 @@
 
 ;;; Macro interface
 (defmacro with-c-syntax ((&rest bindings) &body body)
-  (c-expression-tranform body bindings))
+  (c-expression-tranform bindings body))
