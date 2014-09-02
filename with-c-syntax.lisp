@@ -109,9 +109,9 @@
   ;; alist of (spec-qualifier-list . (struct-declarator ...))
   (struct-decl-list nil))
 
-(defstruct spec-qualifier-list
-  (type-spec nil)
-  (qualifier nil))
+(defstruct (spec-qualifier-list
+             (:include decl-specs))
+  )
 
 (defstruct struct-declarator
   (name nil)
