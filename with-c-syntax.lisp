@@ -91,9 +91,11 @@
 
 ;; for declarations 
 (defstruct decl-specs
-  (type nil)
+  (type-spec nil)
   (storage-class nil)
-  (qualifier nil))
+  (qualifier nil)
+  lisp-type
+  lisp-code)
 
 
 (defstruct init-declarator
@@ -108,7 +110,7 @@
   (struct-decl-list nil))
 
 (defstruct spec-qualifier-list
-  (type nil)
+  (type-spec nil)
   (qualifier nil))
 
 (defstruct struct-declarator
@@ -128,7 +130,7 @@
 ;; returns two value:
 ;; - the specified Lisp type
 ;; - ~defstruct code~, if needed
-(defun lispify-decl-specs-types (tp-list)
+(defun lispify-type-spec (tp-list)
   (loop with numeric-type = nil 
      with variant-table = (make-hash-table)
 
@@ -137,7 +139,7 @@
      if (eq tp 'void)			; void
      do (unless (= 1 (length tp-list))
 	  (error "invalid decl-spec (~A)" tp-list))
-       (return (values 'nil nil))
+       (return nil)
 
      else if (struct-or-union-spec-p tp) ; struct / union
      do (unless (= 1 (length tp-list))
@@ -172,31 +174,25 @@
 		    (gethash 'long variant-table)
 		    (<= 2 (gethash 'short variant-table 0)))
 	    (error "invalid decl-spec (~A)" tp-list))
-	  (return (values
-		   (if (gethash 'short variant-table)
-		       'short-float 'single-float)
-		   nil)))
+	  (return (if (gethash 'short variant-table)
+		       'short-float 'single-float)))
 	 (double
 	  (when (or (gethash 'signed variant-table)
 		    (gethash 'unsigned variant-table)
 		    (gethash 'short variant-table)
 		    (<= 2 (gethash 'long variant-table 0)))
 	    (error "invalid decl-spec (~A)" tp-list))
-	  (return (values
-		   (if (gethash 'long variant-table)
-		       'long-float 'double-float)
-		   nil)))
+	  (return (if (gethash 'long variant-table)
+                      'long-float 'double-float)))
 	 (char
 	  (when (or (gethash 'short variant-table)
 		    (gethash 'long variant-table)
 		    (and (gethash 'signed variant-table)
 			 (gethash 'unsigned variant-table)))
 	    (error "invalid decl-spec (~A)" tp-list))
-	  (return (values
-		   (if (gethash 'unsigned variant-table)
+	  (return (if (gethash 'unsigned variant-table)
 		       '(unsigned-byte 8)
-		       '(signed-byte 8)) ; no-signified-char is 'signed'
-		   nil)))
+		       '(signed-byte 8))))
 	 ((int nil)
 	  (when (or (and (gethash 'signed variant-table)
 			 (gethash 'unsigned variant-table))
@@ -206,15 +202,16 @@
 		    (<= 3 (gethash 'long variant-table 0)))
 	    (error "invalid decl-spec (~A)" tp-list))
 	  ;; TODO: supply accurate bit range..
-	  (return (values
-		   (if (gethash 'long variant-table)
-		       'integer
-		       'fixnum)
-		   nil))))))
+	  (return (if (gethash 'long variant-table)
+                      'integer
+                      'fixnum))))))
 
 ;; TODO: process storage-class and qualifier
 (defun lispify-decl-specs (decl-specs)
-  (lispify-decl-specs-types (decl-specs-type decl-specs)))
+  (let ((lisp-type (lispify-type-spec
+                    (decl-specs-type-spec decl-specs))))
+    (setf (decl-specs-lisp-type decl-specs) lisp-type))
+  decl-specs)
 
 ;; TODO
 (defun lispify-declaration (decl inits)
@@ -474,11 +471,11 @@
 	(make-decl-specs :storage-class `(,cls))))
    (type-spec decl-specs
               #'(lambda (tp dcls)
-                  (push tp (decl-specs-type dcls))
+                  (push tp (decl-specs-type-spec dcls))
                   dcls))
    (type-spec
     #'(lambda (tp)
-	(make-decl-specs :type `(,tp))))
+	(make-decl-specs :type-spec `(,tp))))
    (type-qualifier decl-specs
                    #'(lambda (qlr dcls)
                        (push qlr (decl-specs-qualifier dcls))
@@ -552,11 +549,11 @@
   (spec-qualifier-list
    (type-spec spec-qualifier-list
 	      #'(lambda (tp lis)
-		  (push tp (spec-qualifier-list-type lis))
+		  (push tp (spec-qualifier-list-type-spec lis))
 		  lis))
    (type-spec
     #'(lambda (tp)
-	(make-spec-qualifier-list :type `(,tp))))
+	(make-spec-qualifier-list :type-spec `(,tp))))
    (type-qualifier spec-qualifier-list
 		   #'(lambda (ql lis)
 		       (push ql (spec-qualifier-list-qualifier lis))
