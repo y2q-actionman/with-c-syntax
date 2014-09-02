@@ -88,6 +88,139 @@
   "alist of (<gensym> . :exp <case-exp>)")
 
 ;;; Functions used by the parser.
+
+;; for declarations 
+(defstruct decl-specs
+  (type nil)
+  (storage-class nil)
+  (qualifier nil))
+
+
+(defstruct init-declarator
+  name
+  (init nil))
+
+
+(defstruct struct-or-union-spec
+  type					; symbol. 'struct' or 'union'
+  (name nil)
+  ;; alist of (spec-qualifier-list . (struct-declarator ...))
+  (struct-decl-list nil))
+
+(defstruct spec-qualifier-list
+  (type nil)
+  (qualifier nil))
+
+(defstruct struct-declarator
+  (name nil)
+  (bits nil))
+
+
+(defstruct enum-spec
+  (name nil)
+  ;; list of enumerator
+  (enumerator-list nil))
+
+(defstruct (enumerator
+	     (:include init-declarator))
+  )
+
+;; returns two value:
+;; - the specified Lisp type
+;; - ~defstruct code~, if needed
+(defun lispify-decl-specs-types (tp-list)
+  (loop with numeric-type = nil 
+     with variant-table = (make-hash-table)
+
+     for tp in tp-list
+
+     if (eq tp 'void)			; void
+     do (unless (= 1 (length tp-list))
+	  (error "invalid decl-spec (~A)" tp-list))
+       (return (values 'nil nil))
+
+     else if (struct-or-union-spec-p tp) ; struct / union
+     do (unless (= 1 (length tp-list))
+	  (error "invalid decl-spec (~A)" tp-list))
+     ;; stub
+       (return (values (struct-or-union-spec-name tp)
+		       nil))		; TODO: add defstruct
+
+     else if (enum-spec-p tp)	; enum
+     do (unless (= 1 (length tp-list))
+	  (error "invalid decl-spec (~A)" tp-list))
+     ;; stub
+       (return (values (enum-spec-name tp)
+		       nil))		; TODO: add defstruct
+
+     ;; numeric types
+     else if (member tp '(float double int char))
+     do (when numeric-type
+	  (error "invalid decl-spec (~A)" tp-list))
+       (setf numeric-type tp)
+     ;; numeric variants
+     else if (member tp '(signed unsigned long short))
+     do (incf (gethash tp variant-table 0))
+     else
+     do (assert nil)
+       
+     finally
+       (ecase numeric-type
+	 (float
+	  (when (or (gethash 'signed variant-table)
+		    (gethash 'unsigned variant-table)
+		    (gethash 'long variant-table)
+		    (<= 2 (gethash 'short variant-table 0)))
+	    (error "invalid decl-spec (~A)" tp-list))
+	  (return (values
+		   (if (gethash 'short variant-table)
+		       'short-float 'single-float)
+		   nil)))
+	 (double
+	  (when (or (gethash 'signed variant-table)
+		    (gethash 'unsigned variant-table)
+		    (gethash 'short variant-table)
+		    (<= 2 (gethash 'long variant-table 0)))
+	    (error "invalid decl-spec (~A)" tp-list))
+	  (return (values
+		   (if (gethash 'long variant-table)
+		       'long-float 'double-float)
+		   nil)))
+	 (char
+	  (when (or (gethash 'short variant-table)
+		    (gethash 'long variant-table)
+		    (and (gethash 'signed variant-table)
+			 (gethash 'unsigned variant-table)))
+	    (error "invalid decl-spec (~A)" tp-list))
+	  (return (values
+		   (if (gethash 'unsigned variant-table)
+		       '(unsigned-byte 8)
+		       '(signed-byte 8)) ; no-signified-char is 'signed'
+		   nil)))
+	 ((int nil)
+	  (when (or (and (gethash 'signed variant-table)
+			 (gethash 'unsigned variant-table))
+		    (and (gethash 'short variant-table)
+			 (gethash 'long variant-table))
+		    (<= 2 (gethash 'short variant-table 0))
+		    (<= 3 (gethash 'long variant-table 0)))
+	    (error "invalid decl-spec (~A)" tp-list))
+	  ;; TODO: supply accurate bit range..
+	  (return (values
+		   (if (gethash 'long variant-table)
+		       'integer
+		       'fixnum)
+		   nil))))))
+
+;; TODO: process storage-class and qualifier
+(defun lispify-decl-specs (decl-specs)
+  (lispify-decl-specs-types (decl-specs-type decl-specs)))
+
+;; TODO
+(defun lispify-declaration (decl inits)
+  )
+
+;; for expressions
 (defun lispify-unary (op)
   #'(lambda (_ exp)
       (declare (ignore _))
@@ -118,6 +251,7 @@
   (ash i (- c)))
 
 
+;; for statements
 (defun extract-if-statement (exp then-body
 			     &optional (else-body nil))
   (let* ((then-tag (gensym "(if then)"))
@@ -311,14 +445,15 @@
 
   ;; TODO: stucks into *declarations*
   (decl
-   (decl-specs init-declarator-list \;  ; TODO
+   (decl-specs init-declarator-list \;	; TODO
                #'(lambda (dcls inits _t)
                    (declare (ignore _t))
-                   (list :decl dcls :init inits)))
-   (decl-specs \;                       ; TODO
+		   (lispify-decl-specs dcls)
+		   (lispify-declaration dcls inits)))
+   (decl-specs \;
                #'(lambda (dcls _t)
                    (declare (ignore _t))
-                   (list :decl dcls))))
+		   (lispify-decl-specs dcls))))
 
   (decl-list
    (decl
@@ -326,30 +461,29 @@
    (decl-list decl
 	      #'append-item-to-right))
 
-  ;; returns like:
-  ;;   (:type (int) :storage-class (auto register) :qualifier (const))
+  ;; returns 'decl-specs' structure
   (decl-specs
    (storage-class-spec decl-specs
                        #'(lambda (cls dcls)
-                           (push cls (getf dcls :storage-class))
+                           (push cls (decl-specs-storage-class dcls))
                            dcls))
    (storage-class-spec
     #'(lambda (cls)
-        (list :storage-class `(,cls))))
+	(make-decl-specs :storage-class `(,cls))))
    (type-spec decl-specs
               #'(lambda (tp dcls)
-                  (push tp (getf dcls :type))
+                  (push tp (decl-specs-type dcls))
                   dcls))
    (type-spec
     #'(lambda (tp)
-        (list :type `(,tp))))
+	(make-decl-specs :type `(,tp))))
    (type-qualifier decl-specs
                    #'(lambda (qlr dcls)
-                       (push qlr (getf dcls :qualifier))
+                       (push qlr (decl-specs-qualifier dcls))
                        dcls))
    (type-qualifier
     #'(lambda (qlr)
-        (list :qualifier `(,qlr)))))
+	(make-decl-specs :qualifier `(,qlr)))))
 
   (storage-class-spec
    auto register static extern typedef) ; keywords
@@ -363,20 +497,22 @@
   (type-qualifier
    const volatile)                      ; keywords
 
-  ;; returns like:
-  ;;   (union :name hoge :decl (...))
+  ;; returns struct-or-union-spec structure
   (struct-or-union-spec
    (struct-or-union id { struct-decl-list }
                     #'(lambda (kwd id _l decl _r)
                         (declare (ignore _l _r))
-                        (list kwd :name id :decl decl)))
+			(make-struct-or-union-spec
+			 :type kwd :name id :struct-decl-list decl)))
    (struct-or-union    { struct-decl-list }
                     #'(lambda (kwd _l decl _r)
                         (declare (ignore _l _r))
-                        (list kwd :decl decl)))
+			(make-struct-or-union-spec
+			 :type kwd :struct-decl-list decl)))
    (struct-or-union id
                     #'(lambda (kwd id)
-                        (list kwd :name id))))
+			(make-struct-or-union-spec
+			 :type kwd :name id))))
 
   (struct-or-union
    struct union)                        ; keywords
@@ -393,41 +529,39 @@
    (init-declarator-list \, init-declarator
                          #'concatinate-comma-list))
 
-  ;; returns:  (:name A :init B)
+  ;; returns init-declarator structure
   (init-declarator
    (declarator
     #'(lambda (d)
-        `(:name ,d)))
+	(make-init-declarator :name d)))
    (declarator = initializer
                #'(lambda (d _op i)
                    (declare (ignore _op))
-                   `(:name ,d :init ,i))))
+		   (make-init-declarator :name d :init i))))
 
-  ;; returns like:
-  ;;   (:type (...) :fields (...))
+  ;; returns (spec-qualifier-list . struct-declarator-list)
   (struct-decl
    (spec-qualifier-list struct-declarator-list \;
                         #'(lambda (qls dcls _t)
                             (declare (ignore _t))
-                            `(:type ,qls :fields ,dcls))))
+			    (cons qls dcls))))
 
-  ;; returns like:
-  ;;   (:type (int) :qualifier (const))
+  ;; returns spec-qualifier-list structure
   (spec-qualifier-list
    (type-spec spec-qualifier-list
 	      #'(lambda (tp lis)
-		  (push tp (getf lis :type))
+		  (push tp (spec-qualifier-list-type lis))
 		  lis))
    (type-spec
     #'(lambda (tp)
-	(list :type `(,tp))))
+	(make-spec-qualifier-list :type `(,tp))))
    (type-qualifier spec-qualifier-list
 		   #'(lambda (ql lis)
-		       (push ql (getf lis :qualifier))
+		       (push ql (spec-qualifier-list-qualifier lis))
 		       lis))
    (type-qualifier
     #'(lambda (ql)
-	(list :qualifier `(,ql)))))
+	(make-spec-qualifier-list :qualifier `(,ql)))))
 
   (struct-declarator-list
    (struct-declarator
@@ -435,36 +569,35 @@
    (struct-declarator-list \, struct-declarator
 			   #'concatinate-comma-list))
 
-  ;; returns like:
-  ;;   (:name hoge :bits 3)
+  ;; returns struct-declarator structure
   (struct-declarator
    (declarator
     #'(lambda (d)
-	(list :name d)))
+	(make-struct-declarator :name d)))
    (declarator \: const-exp
 	       #'(lambda (d _c bits)
 		   (declare (ignore _c))
-		   (list :name d :bits bits)))
+		   (make-struct-declarator :name d :bits bits)))
    (\: const-exp
        #'(lambda (_c bits)
 	   (declare (ignore _c))
-	   (list :bits bits))))
+	   (make-struct-declarator :bits bits))))
 
-  ;; returns like:
-  ;;   (enum :name hoge :enumerator (...))
+  ;; returns enum-spec structure
   ;; TODO: treat enum as a lexical variable (not dynamic!)
   (enum-spec
    (enum id { enumerator-list }
-         #'(lambda (kwd id _l lis _r)
-             (declare (ignore _l _r))
-             `(,kwd :name ,id :enumerator ,lis)))
+         #'(lambda (_kwd id _l lis _r)
+             (declare (ignore _kwd _l _r))
+	     (make-enum-spec :name id :enumerator-list lis)))
    (enum    { enumerator-list }
-         #'(lambda (kwd _l lis _r)
-             (declare (ignore _l _r))
-             `(,kwd :enumerator ,lis)))
+         #'(lambda (_kwd _l lis _r)
+             (declare (ignore _kwd _l _r))
+	     (make-enum-spec :enumerator-list lis)))
    (enum id
-         #'(lambda (kwd id)
-             `(,kwd :name ,id))))
+         #'(lambda (_kwd id)
+             (declare (ignore _kwd))
+	     (make-enum-spec :name id))))
 
   (enumerator-list
    (enumerator
@@ -472,15 +605,15 @@
    (enumerator-list \, enumerator
                     #'concatinate-comma-list))
 
-  ;; returns:  (:name A :init B)
+  ;; returns enumerator structure
   (enumerator
    (id
     #'(lambda (id)
-        `(:name ,id)))
+	(make-enumerator :name id)))
    (id = const-exp
        #'(lambda (id _op exp)
            (declare (ignore _op))
-           `(:name ,id :init ,exp))))
+	   (make-enumerator :name id :init exp))))
 
   ;; uses directly..
   (declarator
@@ -488,6 +621,7 @@
    direct-declarator)
 
   ;; see direct-abstract-declarator
+  ;; TODO: introduce some structure?
   (direct-declarator
    id
    (\( declarator \)
@@ -518,6 +652,7 @@
   ;; returns like:
   ;; (*), (* *), (* * *)
   ;; ((* const)), (* (* const)), (* (* const) *)
+  ;; TODO: introduce some structure?
   (pointer
    (* type-qualifier-list
       #'(lambda (kwd qls)
@@ -550,6 +685,7 @@
    (param-list \, param-decl
 	       #'concatinate-comma-list))
 
+  ;; TODO: introduce some structure?
   (param-decl
    (decl-specs declarator
 	       #'(lambda (dls abs)
@@ -565,6 +701,7 @@
    (id-list \, id
     #'concatinate-comma-list))
 
+  ;; TODO: introduce some structure?
   (initializer
    assignment-exp
    ({ initializer-list }
@@ -582,6 +719,7 @@
    (initializer-list \, initializer
     #'concatinate-comma-list))
 
+  ;; TODO: introduce some struct
   (type-name
    (spec-qualifier-list abstract-declarator
 			#'(lambda (qls abs)
@@ -589,6 +727,7 @@
    (spec-qualifier-list
     #'identity))
 
+  ;; TODO: introduce some structure?
   (abstract-declarator
    pointer
    (pointer direct-abstract-declarator)
@@ -596,6 +735,7 @@
 
   ;; returns like:
   ;; (:aref nil) (:funcall nil) (:aref 5 :funcall (int))
+  ;; TODO: introduce some structure?
   (direct-abstract-declarator
    (\( abstract-declarator \)
     #'(lambda (_lp dcls _rp)
