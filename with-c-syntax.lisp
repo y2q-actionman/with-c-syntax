@@ -264,7 +264,10 @@
   ;; top level forms in C, or statements
   (w-c-s-entry-point
    translation-unit
-   stat)
+   compound-stat
+   selection-stat
+   iteration-stat
+   )
 
   (translation-unit
    (external-decl
