@@ -221,7 +221,7 @@
 (define-parser *expression-parser*
   (:muffle-conflicts t)
 
-  (:start-symbol compound-stat)
+  (:start-symbol w-c-s-entry-point)
 
   ;; http://www.swansontec.com/sopc.html
   (:precedence (;; Primary expression
@@ -256,20 +256,53 @@
 	       string)
 	     '(lisp-expression)))
 
-;; TODO: introduce our entry point
-;; to - top level forms in C, statements, expressions
+  ;; Our entry point.
+  ;; - top level forms in C
+  ;; - statements
+  ;; - expressions
+  (w-c-s-entry-point
+   translation-unit
+   stat)
 
-;; translation_unit	: external_decl
-;; 			| translation_unit external_decl
-;; 			;
-;; external_decl		: function_definition
-;; 			| decl
-;; 			;
-;; function_definition	: decl_specs declarator decl_list compound_stat
-;; 			|		declarator decl_list compound_stat
-;; 			| decl_specs declarator		compound_stat
-;; 			|		declarator 	compound_stat
-;; 			;
+  (translation-unit
+   (external-decl
+    #'list)
+   (translation-unit external-decl
+    #'append-item-to-right))
+
+  (external-decl
+   function-definition
+   decl)
+
+  (function-definition
+   (decl-specs declarator decl-list compound-stat
+    #'(lambda (ret name k&r-decls body)
+	(list :function-definition
+	      :return ret
+	      :name name
+	      :K&R-style-decls k&r-decls
+	      :body body)))
+   (           declarator decl-list compound-stat
+    #'(lambda (name k&r-decls body)
+	(list :function-definition
+	      :return nil
+	      :name name
+	      :K&R-style-decls k&r-decls
+	      :body body)))
+   (decl-specs declarator           compound-stat
+    #'(lambda (ret name body)
+	(list :function-definition
+	      :return ret
+	      :name name
+	      ;; :K&R-style-decls nil
+	      :body body)))
+   (           declarator           compound-stat
+    #'(lambda (name body)
+	(list :function-definition
+	      :return nil
+	      :name name
+	      ;; :K&R-style-decls nil
+	      :body body))))
 
   ;; TODO: stucks into *declarations*
   (decl

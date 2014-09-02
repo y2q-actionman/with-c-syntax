@@ -6,4 +6,5 @@
   :components ((:file "test-util")
                (:file "test-stmt")
 	       (:file "test-decl")
+	       (:file "test-trans")
 	       (:file "test-expand")))
