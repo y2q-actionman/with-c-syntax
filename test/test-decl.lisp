@@ -151,3 +151,25 @@
   (test '({ \( int * \( * \( int \) \) \) x \; }))
 
   t)
+
+
+(defun test-declarator ()
+  ;; uses init-declarator
+
+  (test '({ int x \; }))
+  (test '({ int * x \; }))
+  (test '({ int * * x \; }))
+
+  (test '({ int x \; }))
+
+  (test '({ int \( x \) \; }))
+  (test '({ int x [ 5 ] \; }))
+  (test '({ int x [ ] \; }))
+  (test '({ int x \( int \) \; }))
+  (test '({ int x \( int \, float \) \; }))
+  (test '({ int x \( hoge \) \; }))
+  (test '({ int x \( hoge \, fuga \) \; }))
+  (test '({ int x \( hoge \, fuga \, piyo \) \; }))
+  (test '({ int x \( \) \; }))
+
+  t)

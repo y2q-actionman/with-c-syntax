@@ -2,4 +2,4 @@
 
 (defun test (form)
   (format t "~&~S~%   ~S~%" form 
-	  (c-expression-tranform form)))
+	  (c-expression-tranform form ())))

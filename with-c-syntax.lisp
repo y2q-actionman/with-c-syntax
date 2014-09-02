@@ -444,20 +444,38 @@
            (declare (ignore _op))
            `(:name ,id :init ,exp))))
 
-  ;; TODO
+  ;; uses directly..
   (declarator
    (pointer direct-declarator)
    direct-declarator)
 
-  ;; TODO
+  ;; see direct-abstract-declarator
   (direct-declarator
    id
-   (\( declarator \))
-   (direct-declarator [ const-exp ])
-   (direct-declarator [		  ])
-   (direct-declarator \( param-type-list \))
-   (direct-declarator \( id-list \))
-   (direct-declarator \(	 \)))
+   (\( declarator \)
+    #'(lambda (_lp dcl _rp)
+	(declare (ignore _lp _rp))
+	`(:function-pointer ,dcl)))
+   (direct-declarator [ const-exp ]
+    #'(lambda (dcl _lp params _rp)
+	(declare (ignore _lp _rp))
+	`(,dcl :aref ,params)))
+   (direct-declarator [		  ]
+    #'(lambda (dcl _lp _rp)
+	(declare (ignore _lp _rp))
+	`(,dcl :aref nil)))
+   (direct-declarator \( param-type-list \)
+    #'(lambda (dcl _lp params _rp)
+	(declare (ignore _lp _rp))
+	`(,dcl :funcall ,params)))
+   (direct-declarator \( id-list \)
+    #'(lambda (dcl _lp params _rp)
+	(declare (ignore _lp _rp))
+	`(,dcl :funcall ,params)))	; TODO: we should see type-spec or not.
+   (direct-declarator \(	 \)
+    #'(lambda (dcl _lp _rp)
+	(declare (ignore _lp _rp))
+	`(,dcl :funcall nil))))
 
   ;; returns like:
   ;; (*), (* *), (* * *)
@@ -503,10 +521,11 @@
 		   `(,@dls :suffixes ,abs)))
    decl-specs)
 
-  ;; TODO
   (id-list
-   id
-   (id-list \, id))
+   (id
+    #'list)
+   (id-list \, id
+    #'concatinate-comma-list))
 
   ;; TODO
   (initializer
