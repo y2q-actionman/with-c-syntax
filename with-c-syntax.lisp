@@ -527,16 +527,22 @@
    (id-list \, id
     #'concatinate-comma-list))
 
-  ;; TODO
   (initializer
    assignment-exp
-   ({ initializer-list })
-   ({ initializer-list \, }))
+   ({ initializer-list }
+    #'(lambda (_lp inits _rp)
+	(declare (ignore _lp _rp))
+	inits))
+   ({ initializer-list \, }
+    #'(lambda (_lp inits _cm _rp)
+	(declare (ignore _lp _cm _rp))
+	inits)))			; TODO: see again..
 
-  ;; TODO
   (initializer-list
-   initializer
-   (initializer-list \, initializer))
+   (initializer
+    #'list)
+   (initializer-list \, initializer
+    #'concatinate-comma-list))
 
   (type-name
    (spec-qualifier-list abstract-declarator

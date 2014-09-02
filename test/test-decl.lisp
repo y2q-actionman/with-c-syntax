@@ -173,3 +173,14 @@
   (test '({ int x \( \) \; }))
 
   t)
+
+(defun test-initializer ()
+  ;; uses init-declarator
+
+  (test '({ int x = 0 \; }))
+  (test '({ int x = { 0 } \; }))
+  (test '({ int x = { 0 \, 1 } \; }))
+  (test '({ int x = { 0 \, 1 \, 2 } \; }))
+  (test '({ int x = { 0 \, 1 \, } \; }))
+
+  t)
