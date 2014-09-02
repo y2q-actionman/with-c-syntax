@@ -1,7 +1,7 @@
 (in-package :with-c-syntax)
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (alexandria:define-constant +operators+
+;;; Constants
+(alexandria:define-constant +operators+
     '(|,|
       = *= /= %= += -= <<= >>= &= ^= \|=
       ? |:|
@@ -20,9 +20,9 @@
       & * + - ~ !
       [ ] \. ->
       )
-    :test 'equal)
+  :test 'equal)
 
-  (alexandria:define-constant +keywords+
+(alexandria:define-constant +keywords+
     '(\;
       auto register static extern typedef
       void char short int long float double signed unsigned
@@ -36,9 +36,9 @@
       while do for
       goto continue break return
       )
-    :test 'equal)
-  )
+  :test 'equal)
 
+;;; Lexer
 (defvar *enum-symbols* nil)
 
 (defun list-lexer (list)
@@ -74,6 +74,144 @@
 	      (t
 	       (error "Unexpected value ~S" value))))))
 
+;;; Variables, works with the parser.
+(defvar *declarations* nil
+  "alist of (symbol . initform)")
+
+(defvar *break-statements* nil
+  "list of (go 'break), should be rewrited")
+
+(defvar *continue-statements* nil
+  "list of (go 'continue), should be rewrited")
+
+(defvar *case-label-list* nil
+  "alist of (<gensym> . :exp <case-exp>)")
+
+;;; Functions used by the parser.
+(defun lispify-unary (op)
+  #'(lambda (_ exp)
+      (declare (ignore _))
+      `(,op ,exp)))
+
+(defun lispify-binary (op)
+  #'(lambda (exp1 _ exp2)
+      (declare (ignore _))
+      `(,op ,exp1 ,exp2)))
+
+(defun lispify-post-increment (op)
+  #'(lambda (exp _)
+      (declare (ignore _))
+      (let ((tmp (gensym)))
+	`(let ((,tmp ,exp))
+	   (setf ,exp (,op ,tmp 1))
+	   ,tmp))))
+
+(defun lispify-augmented-assignment (op)
+  #'(lambda (exp1 _ exp2)
+      (declare (ignore _))
+      (let ((tmp (gensym)))
+	`(let ((,tmp ,exp1))
+	   (setf ,exp1
+		 (,op ,tmp ,exp2))))))
+
+(defun ash-right (i c)
+  (ash i (- c)))
+
+
+(defun extract-if-statement (exp then-body
+			     &optional (else-body nil))
+  (let* ((then-tag (gensym "(if then)"))
+	 (else-tag (gensym "(if else)"))
+	 (end-tag (gensym "(if end)")))
+    `((if ,exp (go ,then-tag) (go ,else-tag))
+      ,then-tag
+      ,@then-body
+      (go ,end-tag)
+      ,else-tag
+      ,@else-body
+      (go ,end-tag)
+      ,end-tag)))
+
+(defvar *unresolved-break-tag* (gensym "unresolved break"))
+
+(defun allocate-unresolved-break-statement ()
+  (let ((ret (list 'go *unresolved-break-tag*)))
+    (push ret *break-statements*)
+    (list ret)))
+
+(defun rewrite-break-statements (sym)
+  (loop for i in *break-statements*
+     do (setf (second i) sym))
+  (setf *break-statements* nil))
+
+(defvar *unresolved-continue-tag* (gensym "unresolved continue"))
+
+(defun allocate-unresolved-continue-statement ()
+  (let ((ret (list 'go *unresolved-continue-tag*)))
+    (push ret *continue-statements*)
+    (list ret)))
+
+(defun rewrite-continue-statements (sym)
+  (loop for i in *continue-statements*
+     do (setf (second i) sym))
+  (setf *continue-statements* nil))
+
+(defun extract-loop (body
+		     &key (init nil) (cond t) (step nil)
+		     (post-test-p nil))
+  (let ((loop-body-tag (gensym "(loop body)"))
+	(loop-cond-tag (gensym "(loop cond)"))
+	(loop-end-tag (gensym "(loop end)")))
+    (rewrite-break-statements loop-end-tag)
+    (rewrite-continue-statements loop-cond-tag)
+    `((progn ,init)
+      ,(if post-test-p
+	   `(go ,loop-body-tag)		; do-while
+	   `(go ,loop-cond-tag))
+      ,loop-body-tag
+      ,@body
+      ,loop-cond-tag
+      (when (progn ,cond)
+	(progn ,step)
+	(go ,loop-body-tag))
+      ,loop-end-tag)))
+
+(defun push-case-label (exp)
+  (let ((case-sym (gensym (format nil "(case ~S)" exp))))
+    (setf *case-label-list*
+	  (acons case-sym
+		 (list :exp exp)
+		 *case-label-list*))
+    case-sym))
+
+(defun extract-switch (exp stat)
+  (let* ((exp-sym (gensym "(switch cond)"))
+	 (end-tag (gensym "(switch end)"))
+	 (jump-table			; create jump table with COND
+	  (loop with default-clause =`(t (go ,end-tag))
+	     for label in *case-label-list*
+	     as label-sym = (car label)
+	     as label-exp = (getf (cdr label) :exp)
+
+	     if (eq label-exp 'default)
+	     do (setf default-clause `(t (go ,label-sym)))
+	     else
+	     collect `((eql ,exp-sym ,label-exp) (go ,label-sym))
+	     into clauses
+	     finally
+	       (return (append '(cond)
+			       clauses
+			       `(,default-clause))))))
+    (rewrite-break-statements end-tag)
+    (push `(,exp-sym) *declarations*)
+    (setf *case-label-list* nil)
+    `((setf ,exp-sym ,exp)
+      ,jump-table
+      ,@stat
+      ,end-tag)
+    ))
+
+;;; Functions referenced by the parser directly.
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun append-item-to-right (lis i)
     (append lis (list i)))
@@ -81,143 +219,9 @@
   (defun concatinate-comma-list (lis op i)
     (declare (ignore op))
     (append-item-to-right lis i))
-
-  (defvar *declarations* nil
-    "alist of (symbol . initform)")
-
-  (defvar *break-statements* nil
-    "list of (go 'break), should be rewrited")
-
-  (defvar *continue-statements* nil
-    "list of (go 'continue), should be rewrited")
-
-  (defvar *case-label-list* nil
-    "alist of (<gensym> . :exp <case-exp>)")
-
-  (defun lispify-unary (op)
-    #'(lambda (_ exp)
-	(declare (ignore _))
-	`(,op ,exp)))
-  
-  (defun lispify-binary (op)
-    #'(lambda (exp1 _ exp2)
-	(declare (ignore _))
-	`(,op ,exp1 ,exp2)))
-
-  (defun lispify-post-increment (op)
-    #'(lambda (exp _)
-	(declare (ignore _))
-	(let ((tmp (gensym)))
-	  `(let ((,tmp ,exp))
-	     (setf ,exp (,op ,tmp 1))
-             ,tmp))))
-
-  (defun lispify-augmented-assignment (op)
-    #'(lambda (exp1 _ exp2)
-	(declare (ignore _))
-	(let ((tmp (gensym)))
-	  `(let ((,tmp ,exp1))
-	     (setf ,exp1
-		   (,op ,tmp ,exp2))))))
-
-  (defun ash-right (i c)
-    (ash i (- c)))
-
-
-  (defun extract-if-statement (exp then-body
-			       &optional (else-body nil))
-    (let* ((then-tag (gensym "(if then)"))
-	   (else-tag (gensym "(if else)"))
-	   (end-tag (gensym "(if end)")))
-      `((if ,exp (go ,then-tag) (go ,else-tag))
-	,then-tag
-	,@then-body
-	(go ,end-tag)
-	,else-tag
-	,@else-body
-	(go ,end-tag)
-	,end-tag)))
-
-  (defvar *unresolved-break-tag* (gensym "unresolved break"))
-
-  (defun allocate-unresolved-break-statement ()
-    (let ((ret (list 'go *unresolved-break-tag*)))
-      (push ret *break-statements*)
-      (list ret)))
-    
-  (defun rewrite-break-statements (sym)
-    (loop for i in *break-statements*
-       do (setf (second i) sym))
-    (setf *break-statements* nil))
-
-  (defvar *unresolved-continue-tag* (gensym "unresolved continue"))
-
-  (defun allocate-unresolved-continue-statement ()
-    (let ((ret (list 'go *unresolved-continue-tag*)))
-      (push ret *continue-statements*)
-      (list ret)))
-    
-  (defun rewrite-continue-statements (sym)
-    (loop for i in *continue-statements*
-       do (setf (second i) sym))
-    (setf *continue-statements* nil))
-
-  (defun extract-loop (body
-		       &key (init nil) (cond t) (step nil)
-		       (post-test-p nil))
-    (let ((loop-body-tag (gensym "(loop body)"))
-	  (loop-cond-tag (gensym "(loop cond)"))
-	  (loop-end-tag (gensym "(loop end)")))
-      (rewrite-break-statements loop-end-tag)
-      (rewrite-continue-statements loop-cond-tag)
-      `((progn ,init)
-	,(if post-test-p
-	     `(go ,loop-body-tag)		; do-while
-	     `(go ,loop-cond-tag))
-	,loop-body-tag
-	,@body
-	,loop-cond-tag
-	(when (progn ,cond)
-	  (progn ,step)
-	  (go ,loop-body-tag))
-	,loop-end-tag)))
-
-  (defun push-case-label (exp)
-    (let ((case-sym (gensym (format nil "(case ~S)" exp))))
-      (setf *case-label-list*
-	    (acons case-sym
-		   (list :exp exp)
-		   *case-label-list*))
-      case-sym))
-
-  (defun extract-switch (exp stat)
-    (let* ((exp-sym (gensym "(switch cond)"))
-	   (end-tag (gensym "(switch end)"))
-	   (jump-table			; create jump table with COND
-	    (loop with default-clause =`(t (go ,end-tag))
-	       for label in *case-label-list*
-	       as label-sym = (car label)
-	       as label-exp = (getf (cdr label) :exp)
-
-	       if (eq label-exp 'default)
-	       do (setf default-clause `(t (go ,label-sym)))
-	       else
-	       collect `((eql ,exp-sym ,label-exp) (go ,label-sym))
-	       into clauses
-	       finally
-		 (return (append '(cond)
-				 clauses
-				 `(,default-clause))))))
-      (rewrite-break-statements end-tag)
-      (push `(,exp-sym) *declarations*)
-      (setf *case-label-list* nil)
-      `((setf ,exp-sym ,exp)
-	,jump-table
-	,@stat
-	,end-tag)
-      ))
 )
 
+;;; The parser
 (define-parser *expression-parser*
   (:muffle-conflicts t)
 
@@ -257,9 +261,7 @@
 	     '(lisp-expression)))
 
   ;; Our entry point.
-  ;; - top level forms in C
-  ;; - statements
-  ;; - expressions
+  ;; top level forms in C, or statements
   (w-c-s-entry-point
    translation-unit
    stat)
@@ -967,6 +969,7 @@
    enumeration-const)			; TODO
   )
 
+;;; Expander
 (defun c-expression-tranform (form refering-symbols)
   (let* ((*declarations* nil)
 	 (*break-statements* nil)
@@ -994,5 +997,6 @@
            (prog ()
               ,@lisp-exp))))))
 
+;;; Macro interface
 (defmacro with-c-syntax ((&rest bindings) &body body)
   (c-expression-tranform body bindings))
