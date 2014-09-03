@@ -95,8 +95,9 @@
 (defstruct decl-specs
   (type-spec nil)
   (storage-class nil)
-  (qualifier nil))
-
+  (qualifier nil)
+  lisp-type
+  lisp-code)
 
 (defstruct init-declarator
   name
@@ -224,11 +225,17 @@
                       'integer
                       'fixnum))))))
 
-;; TODO: process storage-class and qualifier
-(defun lispify-decl-specs (dspecs)
+(defun finalize-decl-specs (dspecs)
   (multiple-value-bind (ltype lcode)
       (lispify-type-spec (decl-specs-type-spec dspecs))
-    (values ltype lcode)))
+    (setf (decl-specs-lisp-type dspecs) ltype
+	  (decl-specs-lisp-code dspecs) lcode))
+  (setf (decl-specs-qualifier dspecs)
+	(remove-duplicates (decl-specs-qualifier dspecs)))
+  (when (> (length (decl-specs-storage-class dspecs)) 1)
+    (error "too many storage-class specified: ~A"
+	   (decl-specs-storage-class dspecs))) 
+  dspecs)
 
 ;; TODO
 (defun lispify-declaration (decl inits)
@@ -464,15 +471,13 @@
    (decl-specs init-declarator-list \;	; TODO
                #'(lambda (dcls inits _t)
                    (declare (ignore _t))
-		   (lispify-decl-specs dcls)
+		   (setf dcls (finalize-decl-specs dcls))
 		   (lispify-declaration dcls inits)))
    (decl-specs \;
                #'(lambda (dcls _t)
                    (declare (ignore _t))
-		   (multiple-value-bind (_ code)
-		       (lispify-decl-specs dcls)
-		     (declare (ignore _))
-		     code))))
+		   (setf dcls (finalize-decl-specs dcls))
+		   (decl-specs-lisp-code dcls))))
 
   (decl-list
    (decl
