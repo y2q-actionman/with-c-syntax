@@ -234,7 +234,9 @@
 	(remove-duplicates (decl-specs-qualifier dspecs)))
   (when (> (length (decl-specs-storage-class dspecs)) 1)
     (error "too many storage-class specified: ~A"
-	   (decl-specs-storage-class dspecs))) 
+	   (decl-specs-storage-class dspecs)))
+  (setf (decl-specs-storage-class dspecs)
+	(first (decl-specs-storage-class dspecs)))
   dspecs)
 
 ;; TODO
