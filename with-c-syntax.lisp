@@ -131,6 +131,42 @@
 ;; returns two value:
 ;; - the specified Lisp type
 ;; - some code, if needed
+(defun lispify-struct-spec (sspec)
+  ;; fills name
+  (when (null (struct-or-union-spec-name sspec))
+    (setf (struct-or-union-spec-name sspec) (gensym "(struct-name)")))
+  ;; fields
+  (loop for (spec-qual . struct-decls)
+     in (struct-or-union-spec-struct-decl-list sspec)
+     do (finalize-decl-specs spec-qual)
+     collect (decl-specs-lisp-code spec-qual) into codes
+     append (loop with tp = (decl-specs-lisp-type spec-qual)
+	       for s-decl in struct-decls
+	       as name = (or (struct-declarator-name s-decl)
+			     (gensym "(unnamed field)"))
+	       as bits = (struct-declarator-bits s-decl)
+	       when bits
+	       collect (list :name name
+			     :type (cond
+				     ((subtypep `(signed-byte ,bits) tp)
+				      `(signed-byte ,bits))
+				     ((subtypep `(unsigned-byte ,bits) tp)
+				      `(unsigned-byte ,bits))
+				     (t
+				      (error "invalid bitfield: ~A, ~A" tp s-decl))))
+	       else 
+	       collect (list :name name
+			     :type tp))
+     into fields
+     finally
+       (format t "codes ~S~%" codes)
+       (format t "fields ~S~%" fields)
+       (return (values (struct-or-union-spec-name sspec)
+		       `(progn ,@codes)))))
+
+;; returns two value:
+;; - the specified Lisp type
+;; - some code, if needed
 ;; changes *enum-declarations-alist*
 (defun lispify-enum-spec (espec)
   ;; fills name
@@ -165,9 +201,7 @@
      else if (struct-or-union-spec-p tp) ; struct / union
      do (unless (= 1 (length tp-list))
 	  (error "invalid decl-spec (~A)" tp-list))
-     ;; stub
-       (return (values (struct-or-union-spec-name tp)
-		       nil))		; TODO: add defstruct
+       (return (lispify-struct-spec tp))
 
      else if (enum-spec-p tp)	; enum
      do (unless (= 1 (length tp-list))
