@@ -39,7 +39,8 @@
   :test 'equal)
 
 ;;; Lexer
-(defvar *enum-symbols* nil)
+(defvar *enum-declarations-alist* nil
+  "list of (symbol initform)")
 
 (defun list-lexer (list)
   #'(lambda ()
@@ -53,7 +54,8 @@
 			     (member value +keywords+
 				     :test #'string=
 				     :key #'symbol-name)))
-		     (en (member value *enum-symbols*)))
+		     (en (member value *enum-declarations-alist*
+				 :key #'car)))
 		 (cond (op
 			;; returns the symbol of our package.
 			(values (car op) value))
@@ -93,9 +95,7 @@
 (defstruct decl-specs
   (type-spec nil)
   (storage-class nil)
-  (qualifier nil)
-  lisp-type
-  lisp-code)
+  (qualifier nil))
 
 
 (defstruct init-declarator
@@ -129,6 +129,26 @@
 
 ;; returns two value:
 ;; - the specified Lisp type
+;; - some code, if needed
+;; changes *enum-declarations-alist*
+(defun lispify-enum-spec (espec)
+  ;; fills name
+  (when (null (enum-spec-name espec))
+    (setf (enum-spec-name espec) (gensym "(enum-name)")))
+  ;; addes values into *declarations*
+  (loop as default-initform = 0 then `(1+ ,(enumerator-name e))
+     for e in (enum-spec-enumerator-list espec)
+     collect (list (enumerator-name e)
+		   (or (enumerator-init e) default-initform))
+     into edecls
+     finally (setf *enum-declarations-alist*
+		   (append *enum-declarations-alist* edecls)))
+  (values (enum-spec-name espec)
+	  `(deftype ,(enum-spec-name espec) ()
+	     'fixnum)))
+
+;; returns two value:
+;; - the specified Lisp type
 ;; - ~defstruct code~, if needed
 (defun lispify-type-spec (tp-list)
   (loop with numeric-type = nil 
@@ -151,9 +171,7 @@
      else if (enum-spec-p tp)	; enum
      do (unless (= 1 (length tp-list))
 	  (error "invalid decl-spec (~A)" tp-list))
-     ;; stub
-       (return (values (enum-spec-name tp)
-		       nil))		; TODO: add defstruct
+       (return (lispify-enum-spec tp))
 
      ;; numeric types
      else if (member tp '(float double int char))
@@ -207,11 +225,10 @@
                       'fixnum))))))
 
 ;; TODO: process storage-class and qualifier
-(defun lispify-decl-specs (decl-specs)
-  (let ((lisp-type (lispify-type-spec
-                    (decl-specs-type-spec decl-specs))))
-    (setf (decl-specs-lisp-type decl-specs) lisp-type))
-  decl-specs)
+(defun lispify-decl-specs (dspecs)
+  (multiple-value-bind (ltype lcode)
+      (lispify-type-spec (decl-specs-type-spec dspecs))
+    (values ltype lcode)))
 
 ;; TODO
 (defun lispify-declaration (decl inits)
@@ -452,7 +469,10 @@
    (decl-specs \;
                #'(lambda (dcls _t)
                    (declare (ignore _t))
-		   (lispify-decl-specs dcls))))
+		   (multiple-value-bind (_ code)
+		       (lispify-decl-specs dcls)
+		     (declare (ignore _))
+		     code))))
 
   (decl-list
    (decl
@@ -583,7 +603,6 @@
 	   (make-struct-declarator :bits bits))))
 
   ;; returns enum-spec structure
-  ;; TODO: treat enum as a lexical variable (not dynamic!)
   (enum-spec
    (enum id { enumerator-list }
          #'(lambda (_kwd id _l lis _r)
@@ -818,7 +837,7 @@
    ({ decl-list stat-list }
       #'(lambda (_op1 dcls sts _op2)
           (declare (ignore _op1 _op2))
-          `(,dcls ,(apply #'append sts)))) ; TODO
+          `(,@dcls ,@(apply #'append sts)))) ; FIXME: looks confused..
    ({ stat-list }
       #'(lambda (op1 sts op2)
 	  (declare (ignore op1 op2))
@@ -826,7 +845,7 @@
    ({ decl-list	}
       #'(lambda (_op1 dcls _op2)
 	  (declare (ignore _op1 _op2))
-	  `(,dcls)))                   ; TODO
+	  `(,@dcls)))			; FIXME: looks confused..
    ({ }
       #'(lambda (op1 op2)
 	  (declare (ignore op1 op2))
@@ -1113,14 +1132,16 @@
 
 ;;; Expander
 (defun c-expression-tranform (refering-symbols form)
-  (let* ((*declarations* nil)
+  (let* ((*enum-declarations-alist* nil)
+	 (*declarations* nil)
 	 (*break-statements* nil)
 	 (*continue-statements* nil)
 	 (*case-label-list* nil)
 	 (lisp-exp (parse-with-lexer (list-lexer form)
                                      *expression-parser*))
          (dynamic-syms nil)
-         (dynamic-vals nil))
+         (dynamic-vals nil)
+	 (lexical-binds nil))
     (loop for s in refering-symbols
        do (cond ((symbolp s)
                  (push s dynamic-syms)
@@ -1132,11 +1153,14 @@
     (loop for i in *declarations*
        do (push (car i) dynamic-syms)
           (push (cdr i) dynamic-vals))
+    (setf lexical-binds
+	  (append lexical-binds *enum-declarations-alist*))
     ;; TODO: muffle undefined-variable warnings
+    ;; TODO: support function definition. This is only for a compound statement.
     `(with-pseudo-pointer-scope ()
        (progv ',dynamic-syms (list ,@dynamic-vals)
          (locally (declare (special ,@dynamic-syms))
-           (prog ()
+           (prog* ,lexical-binds
               ,@lisp-exp))))))
 
 ;;; Macro interface
