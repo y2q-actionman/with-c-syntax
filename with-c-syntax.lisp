@@ -100,8 +100,8 @@
   lisp-code)
 
 (defstruct init-declarator
-  name
-  (init nil))
+  declarator
+  (initializer nil))
 
 
 (defstruct struct-or-union-spec
@@ -181,10 +181,10 @@
   (when (null (enum-spec-name espec))
     (setf (enum-spec-name espec) (gensym "(enum-name)")))
   ;; addes values into *declarations*
-  (loop as default-initform = 0 then `(1+ ,(enumerator-name e))
+  (loop as default-initform = 0 then `(1+ ,(init-declarator-declarator e))
      for e in (enum-spec-enumerator-list espec)
-     collect (list (enumerator-name e)
-		   (or (enumerator-init e) default-initform))
+     collect (list (init-declarator-declarator e)
+		   (or (init-declarator-initializer e) default-initform))
      into edecls
      finally (setf *enum-declarations-alist*
 		   (append *enum-declarations-alist* edecls)))
@@ -286,6 +286,8 @@
   )
 
 ;; for expressions
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  ;; These are directly called by the parser..
 (defun lispify-unary (op)
   #'(lambda (_ exp)
       (declare (ignore _))
@@ -311,10 +313,10 @@
 	`(let ((,tmp ,exp1))
 	   (setf ,exp1
 		 (,op ,tmp ,exp2))))))
+)
 
 (defun ash-right (i c)
   (ash i (- c)))
-
 
 ;; for statements
 (defun extract-if-statement (exp then-body
@@ -601,11 +603,12 @@
   (init-declarator
    (declarator
     #'(lambda (d)
-	(make-init-declarator :name d)))
+	(make-init-declarator :declarator d)))
    (declarator = initializer
                #'(lambda (d _op i)
                    (declare (ignore _op))
-		   (make-init-declarator :name d :init i))))
+		   (make-init-declarator :declarator d
+					 :initializer i))))
 
   ;; returns (spec-qualifier-list . struct-declarator-list)
   (struct-decl
@@ -676,11 +679,11 @@
   (enumerator
    (id
     #'(lambda (id)
-	(make-enumerator :name id)))
+	(make-enumerator :declarator id)))
    (id = const-exp
        #'(lambda (id _op exp)
            (declare (ignore _op))
-	   (make-enumerator :name id :init exp))))
+	   (make-enumerator :declarator id :initializer exp))))
 
   ;; uses directly..
   (declarator
