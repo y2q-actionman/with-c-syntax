@@ -262,10 +262,23 @@
 		    (<= 2 (gethash 'short variant-table 0))
 		    (<= 3 (gethash 'long variant-table 0)))
 	    (error "invalid decl-spec (~A)" tp-list))
-	  ;; TODO: supply accurate bit range..
-	  (return (if (gethash 'long variant-table)
-                      'integer
-                      'fixnum))))))
+	  (return (if (gethash 'unsigned variant-table)
+		      (cond ((= 2 (gethash 'long variant-table 0))
+			     '(unsigned-byte 64))
+			    ((= 1 (gethash 'long variant-table 0))
+			     '(unsigned-byte 32))
+			    ((= 1 (gethash 'short variant-table 0))
+			     '(unsigned-byte 16))
+			    (t
+			     'fixnum))	; FIXME: consider unsigned?
+		      (cond ((= 2 (gethash 'long variant-table 0))
+			     '(signed-byte 64))
+			    ((= 1 (gethash 'long variant-table 0))
+			     '(signed-byte 32))
+			    ((= 1 (gethash 'short variant-table 0))
+			     '(signed-byte 16))
+			    (t
+			     'fixnum))))))))
 
 (defun finalize-decl-specs (dspecs)
   (multiple-value-bind (ltype lcode)
