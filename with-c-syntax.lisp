@@ -296,8 +296,15 @@
   dspecs)
 
 ;; TODO
-(defun lispify-declaration (decl inits)
-  )
+(defun lispify-declaration (decl init-decls)
+  (loop for init-decl in init-decls
+     as name = (init-declarator-declarator init-decl)
+     as init = (init-declarator-initializer init-decl)
+     when (and (not (consp name))	; only for the simplest case
+	       (not (consp init)))
+     do (push `(,name . ,init) *declarations*)
+     else
+     do (format t "name = ~S, init = ~S~%" name init)))
 
 ;; for expressions
 (eval-when (:compile-toplevel :load-toplevel :execute)
