@@ -128,6 +128,13 @@
 	     (:include init-declarator))
   )
 
+(defstruct declarator
+  name					; if abstract, this is nil
+  (pointer nil)
+  (function-pointer nil)		; has a declarator
+  (aref nil)
+  (funcall nil))
+  
 ;; returns two value:
 ;; - the specified Lisp type
 ;; - some code, if needed
@@ -304,7 +311,7 @@
 	       (not (consp init)))
      do (push `(,name . ,init) *declarations*)
      else
-     do (format t "name = ~S, init = ~S~%" name init)))
+     do (format t "~&type = ~S~% name = ~S~% init = ~S~%" decl name init)))
 
 ;; for expressions
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -706,57 +713,68 @@
            (declare (ignore _op))
 	   (make-enumerator :declarator id :initializer exp))))
 
-  ;; uses directly..
   (declarator
-   (pointer direct-declarator)
+   (pointer direct-declarator		; TODO: should I introduce
+    #'(lambda (ptr dcl)			; 'pointer' struct?
+	(push ptr (declarator-pointer dcl))
+	dcl))
    direct-declarator)
 
   ;; see direct-abstract-declarator
-  ;; TODO: introduce some structure?
   (direct-declarator
-   id
+   (id
+    #'(lambda (id)
+	(make-declarator :name id)))
    (\( declarator \)
     #'(lambda (_lp dcl _rp)
 	(declare (ignore _lp _rp))
-	`(:function-pointer ,dcl)))
+	`(:function-pointer ,dcl)))	; TODO
    (direct-declarator [ const-exp ]
     #'(lambda (dcl _lp params _rp)
 	(declare (ignore _lp _rp))
-	`(,dcl :aref ,params)))
+	(setf (declarator-aref dcl)
+	      (append-item-to-right (declarator-aref dcl) params))
+	dcl))
    (direct-declarator [		  ]
     #'(lambda (dcl _lp _rp)
 	(declare (ignore _lp _rp))
-	`(,dcl :aref nil)))
+	(setf (declarator-aref dcl)
+	      (append-item-to-right (declarator-aref dcl) nil))
+	dcl))
    (direct-declarator \( param-type-list \)
     #'(lambda (dcl _lp params _rp)
 	(declare (ignore _lp _rp))
-	`(,dcl :funcall ,params)))
+	(setf (declarator-funcall dcl)
+	      (append-item-to-right (declarator-funcall dcl) params))
+	dcl))
    (direct-declarator \( id-list \)
     #'(lambda (dcl _lp params _rp)
 	(declare (ignore _lp _rp))
-	`(,dcl :funcall ,params)))	; TODO: we should see type-spec or not.
+	;; TODO: we should see type-spec or not.
+	(setf (declarator-funcall dcl)
+	      (append-item-to-right (declarator-funcall dcl) params))
+	dcl))
    (direct-declarator \(	 \)
     #'(lambda (dcl _lp _rp)
 	(declare (ignore _lp _rp))
-	`(,dcl :funcall nil))))
+	(setf (declarator-funcall dcl)
+	      (append-item-to-right (declarator-funcall dcl) nil))
+	dcl)))
 
   ;; returns like:
   ;; (*), (* *), (* * *)
-  ;; ((* const)), (* (* const)), (* (* const) *)
+  ;; (* const), (* * const), (* * const *)
   ;; TODO: introduce some structure?
   (pointer
    (* type-qualifier-list
-      #'(lambda (kwd qls)
-	  `((,kwd ,@qls))))
+    #'list*)
    (*
-    #'(lambda (kwd)
-	(list kwd)))
+    #'list)
    (* type-qualifier-list pointer
       #'(lambda (kwd qls p)
-	  `((,kwd ,@qls) ,@p)))
+	  `(,kwd ,@qls ,@p)))
    (*			  pointer
-      #'(lambda (kwd p)
-	  `(,kwd ,@p))))
+    #'list*))
 			  
 
   (type-qualifier-list
@@ -818,52 +836,64 @@
    (spec-qualifier-list
     #'identity))
 
-  ;; TODO: introduce some structure?
   (abstract-declarator
-   pointer
-   (pointer direct-abstract-declarator)
+   ;; TODO: consider about pointer-struct. see above.
+   (pointer
+    #'(lambda (ptr)
+	(make-declarator :name nil :pointer ptr)))
+   (pointer direct-abstract-declarator
+    #'(lambda (ptr dcl)
+	(push ptr (declarator-pointer dcl))
+	dcl))
    direct-abstract-declarator)
 
   ;; returns like:
   ;; (:aref nil) (:funcall nil) (:aref 5 :funcall (int))
-  ;; TODO: introduce some structure?
   (direct-abstract-declarator
    (\( abstract-declarator \)
     #'(lambda (_lp dcls _rp)
 	(declare (ignore _lp _rp))
-	`(:function-pointer ,@dcls)))
+	`(:function-pointer ,@dcls)))	; TODO
    (direct-abstract-declarator [ const-exp ]
     #'(lambda (dcls _lp params _rp)
 	(declare (ignore _lp _rp))
-	`(,@dcls :aref ,params)))
+	(setf (declarator-aref dcls)
+	      (append-item-to-right (declarator-aref dcls) params))
+	dcls))
    (			       [ const-exp ]
     #'(lambda (_lp params _rp)
 	(declare (ignore _lp _rp))
-	`(:aref ,params)))
+	(make-declarator :name nil :aref params)))
    (direct-abstract-declarator [	   ]
     #'(lambda (dcls _lp _rp)
 	(declare (ignore _lp _rp))
-	`(,@dcls :aref nil)))
+	(setf (declarator-aref dcls)
+	      (append-item-to-right (declarator-aref dcls) nil))
+	dcls))
    (			       [	   ]
     #'(lambda (_lp _rp)
 	(declare (ignore _lp _rp))
-	`(:aref nil)))
+	(make-declarator :name nil :aref nil)))
    (direct-abstract-declarator \( param-type-list \)
     #'(lambda (dcls _lp params _rp)
 	(declare (ignore _lp _rp))
-	`(,@dcls :funcall ,params)))
+	(setf (declarator-funcall dcls)
+	      (append-item-to-right (declarator-funcall dcls) params))
+	dcls))
    (			       \( param-type-list \)
     #'(lambda (_lp params _rp)
 	(declare (ignore _lp _rp))
-	`(:funcall ,params)))
+	(make-declarator :name nil :funcall params)))
    (direct-abstract-declarator \(		  \)
     #'(lambda (dcls _lp _rp)
 	(declare (ignore _lp _rp))
-	`(,@dcls :funcall nil)))
+	(setf (declarator-funcall dcls)
+	      (append-item-to-right (declarator-funcall dcls) nil))
+	dcls))
    (			       \(		  \)
     #'(lambda (_lp _rp)
 	(declare (ignore _lp _rp))
-	`(:funcall nil))))
+	(make-declarator :name nil :funcall nil))))
 						  
 
   ;; ;; TODO
