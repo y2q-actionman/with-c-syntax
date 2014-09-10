@@ -817,11 +817,9 @@
   ;; TODO: introduce some structure?
   (param-decl
    (decl-specs declarator
-	       #'(lambda (dls abs)
-		   `(,@dls :suffixes ,abs))) ; TODO
+	       #'list)
    (decl-specs abstract-declarator
-	       #'(lambda (dls abs)
-		   `(,@dls :suffixes ,abs)))
+	       #'list)
    decl-specs)
 
   (id-list

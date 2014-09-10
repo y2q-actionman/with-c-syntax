@@ -184,3 +184,17 @@
   (test '({ int x = { 0 \, 1 \, } \; }))
 
   t)
+
+(defun test-array-pointer-decl ()
+  (test '(int * array_of_pointer [ 5 ] \; ))
+  (test '(int \( * pointer_to_array \) [ 5 ] \; ))
+  (test '(int * \( array_of_pointer [ 5 ] \) \; ))
+  (test '(int \( * array_of_func_ptr [ 5 ] \) \( int \, int \) \; ))
+  (test '(int * array_of_func [ 5 ] \( int \, int \) \; )) ; error
+  (test '(int * func_returns_array \( int \, int \) [ 5 ] \; )) ; error
+  (test '(int * func_returns_pointer \( int \, int \) \; ))
+  (test '(int * \( * funcptr \) \( int \, int \) \; ))
+  (test '(int * func_returns_func \( int x \, int y \) \( int z \) \; ))
+
+
+  t)
