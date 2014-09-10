@@ -133,7 +133,11 @@
   (pointer nil)
   (function-pointer nil)		; has a declarator
   (aref nil)
-  (funcall nil))
+  (funcall nil)
+  lisp-type
+  lisp-initform
+  lisp-binding
+  lisp-code)
   
 ;; returns two value:
 ;; - the specified Lisp type
@@ -302,16 +306,32 @@
 	(first (decl-specs-storage-class dspecs)))
   dspecs)
 
+(deftype pointer ()
+  't)
+
+(defun finalize-declarator (dspecs decl init)
+  (format t "~&[before]~%type = ~S~% decl = ~S~% init = ~S~%" dspecs decl init)
+  (cond ((declarator-pointer decl)
+	 ;; Now works as 'void*'
+	 ;; TODO: support type inference?
+	 (setf (declarator-lisp-type decl) 'pointer)
+	 (setf (declarator-lisp-initform decl)
+	       (if (and (integerp init) (zerop init))
+		   nil			; null-pointer
+		   init)))
+	(t
+	 nil				; TODO
+	 ))
+  (format t "~&[after]~%decl = ~S~%~%" decl))
+
+  
+
 ;; TODO
-(defun lispify-declaration (decl init-decls)
+(defun lispify-declaration (dspecs init-decls)
   (loop for init-decl in init-decls
-     as name = (init-declarator-declarator init-decl)
+     as decl = (init-declarator-declarator init-decl)
      as init = (init-declarator-initializer init-decl)
-     when (and (not (consp name))	; only for the simplest case
-	       (not (consp init)))
-     do (push `(,name . ,init) *declarations*)
-     else
-     do (format t "~&type = ~S~% name = ~S~% init = ~S~%" decl name init)))
+     do (finalize-declarator dspecs decl init)))
 
 ;; for expressions
 (eval-when (:compile-toplevel :load-toplevel :execute)
