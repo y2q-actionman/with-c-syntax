@@ -131,9 +131,9 @@
 (defstruct declarator
   ;; symbol, another declarator, or t, nil (abstract declarator)
   name
-  (pointer nil)
+  (funcall nil)				; ordered by precedence
   (aref nil)
-  (funcall nil)
+  (pointer nil)
   lisp-type
   lisp-initform
   lisp-binding

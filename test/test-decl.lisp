@@ -195,5 +195,7 @@
   (test '(int * func_returns_func \( int x \, int y \) \( int z \) \; )) ; error
   (test '(int * func_returns_pointer \( int \, int \) \; ))
   (test '(int * \( * funcptr \) \( int \, int \) \; ))
+  ;; http://unixwiz.net/techtips/reading-cdecl.html
+  (test '(char * \( * \( * * foo [ ] [ 8 ] \) \( \) \) [ ] \;))
 
   t)
