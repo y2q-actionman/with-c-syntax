@@ -129,9 +129,9 @@
   )
 
 (defstruct declarator
-  name					; if abstract, this is nil
+  ;; symbol, another declarator, or t, nil (abstract declarator)
+  name
   (pointer nil)
-  (function-pointer nil)		; has a declarator
   (aref nil)
   (funcall nil)
   lisp-type
@@ -748,7 +748,7 @@
    (\( declarator \)
     #'(lambda (_lp dcl _rp)
 	(declare (ignore _lp _rp))
-	`(:function-pointer ,dcl)))	; TODO
+	(make-declarator :name dcl)))
    (direct-declarator [ const-exp ]
     #'(lambda (dcl _lp params _rp)
 	(declare (ignore _lp _rp))
@@ -857,10 +857,9 @@
     #'identity))
 
   (abstract-declarator
-   ;; TODO: consider about pointer-struct. see above.
    (pointer
     #'(lambda (ptr)
-	(make-declarator :name nil :pointer ptr)))
+	(make-declarator :name t :pointer ptr)))
    (pointer direct-abstract-declarator
     #'(lambda (ptr dcl)
 	(push ptr (declarator-pointer dcl))
@@ -871,9 +870,9 @@
   ;; (:aref nil) (:funcall nil) (:aref 5 :funcall (int))
   (direct-abstract-declarator
    (\( abstract-declarator \)
-    #'(lambda (_lp dcls _rp)
+    #'(lambda (_lp dcl _rp)
 	(declare (ignore _lp _rp))
-	`(:function-pointer ,@dcls)))	; TODO
+	(make-declarator :name dcl)))
    (direct-abstract-declarator [ const-exp ]
     #'(lambda (dcls _lp params _rp)
 	(declare (ignore _lp _rp))
