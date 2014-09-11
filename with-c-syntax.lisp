@@ -295,9 +295,39 @@
 	(first (decl-specs-storage-class dspecs)))
   dspecs)
 
+;; TODO: should be placed in psendo-pointer.lisp
+(deftype pointer ()
+  'fixnum)
+
 (defun finalize-declarator (dspecs decl init)
   (format t "~&[before]~%type = ~S~% decl = ~S~% init = ~S~%" dspecs decl init)
-  (format t "~&[after]~%decl = ~S~%~%" decl))
+  (let ((var-name (first decl))
+        (var-type (ecase (car (second decl))
+                    (:pointer
+                     'pointer)          ; TODO: includes 'what it points'
+                    (:funcall
+                     (when (eq :aref (car (third decl)))
+                       (error "a function returning an array is not accepted"))
+                     'function)         ; TODO: includes returning type, and arg type
+                    (:aref
+                     (loop with aref-type = (decl-specs-lisp-type dspecs)
+
+                        for (tp tp-args) in (nthcdr 2 decl)
+                        if (eq :funcall tp)
+                          do (error "an array of functions is not accepted")
+                        else if (eq :aref tp)
+                          collect (if tp-args tp-args '*) into aref-dim
+                        else if (eq :pointer tp)
+                          do (setf aref-type 'pointer) (loop-finish)
+                        finally
+                          (let ((tp-args-1 (cadr (second decl))))
+                            (push (if tp-args-1 tp-args-1 '*) aref-dim))
+                          (return `(simple-array ,aref-type ,aref-dim))))
+                    ((nil)
+                     (decl-specs-lisp-type dspecs)))))
+    ;; TODO: init forms. I think struct-init is limited to C99 style..
+    (format t "~&var-name ~S, var-type ~S~%"
+            var-name var-type)))
   
 
 ;; TODO
