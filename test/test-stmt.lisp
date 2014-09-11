@@ -3,183 +3,397 @@
 ;;; expressions
 
 (defun test-const ()
-  (test '({ 1 \; }))
-  (test '({ #\a \; }))
-  (test '({ 1.0 \; }))
-  ;; TODO: enum
+  (eval-equal 1 ()
+    return 1 \;)
+  (eval-equal #\a ()
+    return #\a \;)
+  (eval-equal 1.0 ()
+    return 1.0 \;)
   t)
 
 (defun test-primary-exp ()
-  (test '({ hoge \; }))
+  (eval-equal 'hoge ()
+    return 'hoge \;)
   (test-const)
-  (test '({ "abc" \; }))
-  (test '({  \( 111 \)  \; }))
-  (test '({ (+ 1 2) \; }))
+  (eval-equal "abc" ()
+    return "abc" \;)
+  (eval-equal 111 ()
+    return \( 111 \) \;)
+  ;; lisp expression
+  (eval-equal 3 ()
+    return (+ 1 2) \;)
   t)
 
 (defun test-postfix-exp ()
   (test-primary-exp)
-  (test '({ array [ 80 ] \; }))
-  (test '({ hoge \( 1 \, 2 \, 3 \) \; }))
-  (test '({ hoge \( \) \; }))
-  (test '({ hoge \. a \; }))
-  (test '({ hoge -> a \; }))
-  (test '({ hoge ++ \; }))
-  (test '({ fuga -- \; }))
+  ;; aref
+  (let ((arr (make-array 5 :initial-contents '(0 1 2 3 4))))
+    (eval-equal 2 ()
+      return arr [ 2 ] \;))
+  ;; funcall
+  (eval-equal '(1 2 3) ()
+    return list \( 1 \, 2 \, 3 \) \;)
+  (eval-equal '() ()
+    return list \( \) \;)
+  ;; struct ref
+  (defstruct hoge-struct
+    (a 'hoge-struct-a))
+  (let ((hoge-1 (make-hoge-struct)))
+    (eval-equal 'hoge-struct-a ()
+      return hoge-1 \. hoge-struct-a \;)
+    (eval-equal 'hoge-struct-a ((hoge-1 hoge-1))
+      return \( & hoge-1 \) -> hoge-struct-a \;))
+  ;; post increment/decrement
+  (let ((hoge 0))
+    (eval-equal 0 ()
+      return hoge ++ \;)
+    (assert (= hoge 1))
+    (eval-equal 1 ()
+      return hoge -- \;)
+    (assert (= hoge 0)))
   t)
 
 (defun test-unary-exp ()
   (test-postfix-exp)
-  (test '({ ++ hoge \; }))
-  (test '({ -- hoge \; }))
-  (test '({ & hoge \; }))
-  (test '({ * hoge \; }))
-  (test '({ + hoge \; }))
-  (test '({ - hoge \; }))
-  (test '({ ! hoge \; }))
-  ;; sizeof
-  ;; sizeof
+  ;; pre increment/decrement
+  (let ((hoge 0))
+    (eval-equal 1 ()
+      return ++ hoge \;)
+    (assert (= hoge 1))
+    (eval-equal 0 ()
+      return -- hoge \;)
+    (assert (= hoge 0)))
+  ;; '&' and '*'
+  (let ((hoge 99))
+    (eval-equal 99 ((hoge hoge))
+      return * & hoge \;))
+  ;; '+' and '-'
+  (eval-equal -1 ()
+    return + -1 \;)
+  (eval-equal 1 ()
+      return - -1 \;)
+  ;; '!'
+  (let ((hoge nil))
+    (eval-equal t ()
+      return ! hoge \;)
+    (eval-equal nil ()
+      return ! ! hoge \;))
+  ;; TODO: sizeof
+  ;; TODO: sizeof
   t)
 
 (defun test-cast-exp ()
   (test-unary-exp)
-  ;; (test '({ \( integer \) hoge \; }))
+  ;; TODO: (test '({ \( integer \) hoge \; }))
   t)
 
 (defun test-mult-exp ()
   (test-cast-exp)
-  (test '({ x * y \; }))
-  (test '({ x / y \; }))
-  (test '({ x % y \; }))
+  (eval-equal 18 ()
+    return 6 * 3 \;)
+  (eval-equal 2 ()
+    return 6 / 3 \;)
+  (eval-equal 1 ()
+      return 3 % 2 \;)
   t)
 
 (defun test-addictive-exp ()
   (test-mult-exp)
-  (test '({ x + y \; }))
-  (test '({ x - y \; }))
+  (eval-equal 5 ()
+    return 3 + 2 \;)
+  (eval-equal 1 ()
+    return 3 - 2 \;)
   t)
 
-(defun test-shift-expression ()
+(defun test-shift-exp ()
   (test-addictive-exp)
-  (test '({ x << y \; }))
-  (test '({ x >> y \; }))
+  (eval-equal 8 ()
+    return 4 << 1 \;)
+  (eval-equal 2 ()
+    return 4 >> 1 \;)
   t)
 
 (defun test-relational-exp ()
-  (test-shift-expression)
-  (test '({ x < y \; }))
-  (test '({ x > y \; }))
-  (test '({ x <= y \; }))
-  (test '({ x >= y \; }))
+  (test-shift-exp)
+  (eval-equal t ()
+    return 1 < 2 \;)
+  (eval-equal nil ()
+    return 1 > 2 \;)
+  (eval-equal t ()
+    return 1 <= 2 \;)
+  (eval-equal nil ()
+    return 1 >= 2 \;)
   t)
 
 (defun test-equality-exp ()
   (test-relational-exp)
-  (test '({ x == y \; }))
-  (test '({ x != y \; }))
+  (eval-equal nil ()
+    return 1 == 2 \;)
+  (eval-equal t ()
+    return 1 != 2 \;)
   t)
 
 (defun test-and-exp ()
   (test-equality-exp)
-  (test '({ x & y \; }))
+  (eval-equal #b0001 ()
+    return #b0011 & #b0101 \;)
   t)
 
 (defun test-exclusive-or-exp ()
   (test-and-exp)
-  (test '({ x ^ y \; }))
+  (eval-equal #b0110 ()
+    return #b0011 ^ #b0101 \;)
   t)
 
 (defun test-inclusive-or-exp ()
   (test-exclusive-or-exp)
-  (test '({ x \| y \; }))
+  (eval-equal #b0111 ()
+    return #b0011 \| #b0101 \;)
   t)
 
 (defun test-logical-and-exp ()
   (test-inclusive-or-exp)
-  (test '({ x && y \; }))
+  (eval-equal 'b ()
+    return 'a && 'b \;)
   t)
 
 (defun test-logical-or-exp ()
   (test-logical-and-exp)
-  (test '({ x \|\| y \; }))
+  (eval-equal 'a ()
+    return 'a \|\| 'b \;)
   t)
 
 (defun test-conditional-exp ()
   (test-logical-or-exp)
-  (test '({ x ? y \: z \; }))
+  (eval-equal 'then ()
+    return (and) ? 'then \: 'else \;)
+  (eval-equal 'else ()
+    return (or) ? 'then \: 'else \;)
   t)
 
 (defun test-assignment-exp ()
   (test-conditional-exp)
-  (test '({ x = y \; }))
-  (test '({ x *= y \; }))
-  (test '({ x /= y \; }))
-  (test '({ x %= y \; }))
-  (test '({ x += y \; }))
-  (test '({ x -= y \; }))
-  (test '({ x <<= y \; }))
-  (test '({ x >>= y \; }))
-  (test '({ x &= y \; }))
-  (test '({ x ^= y \; }))
-  (test '({ x \|= y \; }))
+  (let ((x nil) (y 2))
+    (eval-equal 2 ()
+      return x = y \;)
+    (assert (= x 2))
+    (eval-equal 4 ()
+      return x *= y \;)
+    (assert (= x 4))
+    (eval-equal 2 ()
+      return x /= y \;)
+    (assert (= x 2))
+    (eval-equal 0 ()
+      return x %= y \;)
+    (assert (= x 0))
+    (eval-equal 2 ()
+      return x += y \;)
+    (assert (= x 2))
+    (eval-equal 0 ()
+      return x -= y \;)
+    (assert (= x 0))
+
+    (setf x 1)
+    (eval-equal 4 ()
+      return x <<= y \;)
+    (assert (= x 4))
+    (eval-equal 1 ()
+      return x >>= y \;)
+    (assert (= x 1))
+
+    (setf x #b0011 y #b0101)
+    (eval-equal #b0001 ()
+      return x &= y \;)
+    (assert (= x #b0001))
+
+    (setf x #b0011 y #b0101)
+    (eval-equal #b0110 ()
+      return x ^= y \;)
+    (assert (= x #b0110))
+
+    (setf x #b0011 y #b0101)
+    (eval-equal #b0111 ()
+      return x \|= y \;)
+    (assert (= x #b0111)))
   t)
 
 (defun test-exp ()
   (test-assignment-exp)
-  (test '({ x \, y \, z \; }))
+  (eval-equal 'z ()
+    return 'x \, 'y \, 'z \;)
   t)
 
 
 ;;; statements
 
 (defun test-labeled-stat ()
-  (test '({ a \: some_stmt \; }))
-  (test '({ case 100 \: some_stmt \; }))
-  (test '({ default \: some_stme \; }))
+  (eval-equal 'some-stmt ()
+    a \: return 'some-stmt \;)
+  (eval-equal 'some-stmt ()
+    case 100 \: return 'some-stmt \;)
+  (eval-equal 'some-stmt ()
+    default \: return 'some-stmt \;)
   t)
 
 (defun test-exp-stat ()
   (test-exp)
-  (test '({ \; }))
+  (eval-equal nil ()
+    { \; })
   t)
 
 (defun test-compound-stat ()
-  (test '({ x \; y \; z \; }))
-  (test '({  }))
+  (let ((x 0))
+    (eval-equal 3 ()
+      { x ++ \; x ++ \; x ++ \; return x \; }))
+  (eval-equal nil ()
+    {  })
   t)
 
 (defun test-selection-stat ()
-  (test '({ if \( x \) y \; }))
-  (test '({ if \( x \) y \; else z \; }))
-  (test '({ switch \( x \) {
-	      case 1 \: hoge \; hoge \;
-	      case 2 \: fuga \; fuga \;
-    	      default \: piyo \; piyo \;
-	  } } ))
+  (eval-equal 'then ()
+    if \( (and) \) return 'then \; )
+  (eval-equal 'nil ()
+    if \( (or) \) return 'then \; )
+  (eval-equal 'then ()
+    if \( (and) \) return 'then \; else return 'else \;)
+  (eval-equal 'else ()
+    if \( (or) \) return 'then \; else return 'else \;)
+
+  (flet ((switch-test (x)
+	   (with-c-syntax ()
+	     switch \( x \) {
+	      case 1 \: return 'hoge \;
+	      case 2 \: return 'fuga \;
+    	      default \: return 'piyo \;
+	     })))
+    (assert (eq 'hoge (switch-test 1))))
+    (assert (eq 'fuga (switch-test 2))))
+    (assert (eq 'piyo (switch-test 3))))
   t)
 
 (defun test-iteration-stat ()
-  (test '({ while \( x \) y \; }))
-  (test '({ do { x \; } while \( cond \) \; }))
-  (test '({ for \( i = 0 \; i < 100 \; ++ i \) (format t "~A~%" i) \; }))
-  (test '({ for \( i = 0 \; i < 100 \;      \) (format t "~A~%" i) \; }))
-  (test '({ for \( i = 0 \;         \; ++ i \) (format t "~A~%" i) \; }))
-  (test '({ for \( i = 0 \;         \;      \) (format t "~A~%" i) \; }))
-  (test '({ for \(       \; i < 100 \; ++ i \) (format t "~A~%" i) \; }))
-  (test '({ for \(       \; i < 100 \;      \) (format t "~A~%" i) \; }))
-  (test '({ for \(       \;         \; ++ i \) (format t "~A~%" i) \; }))
-  (test '({ for \(       \;         \;      \) (format t "~A~%" i) \; }))
+  (let ((x 0))
+    (eval-equal 100 ()
+      {
+      while \( x < 100 \)
+        ++ x \;
+      return x \;
+      }))
+  (let ((x 1))
+    (eval-equal 2 ()
+      {
+      do {
+        ++ x \;
+      } while \( x < 0 \) \;
+      return x \;
+      }))
+  ;; for family
+  (let ((i nil) (ret 0))
+    (eval-equal 5050 ()
+      {
+      for \( i = 1 \; i <= 100 \; ++ i \)
+        ret += i \;
+      return ret \;
+      }))
+  (let ((i nil) (ret 0))
+    (eval-equal 5050 ()
+      {
+      for \( i = 1 \; i <= 100 \; \) {
+        ret += i \;
+  	++ i \;
+      }
+      return ret \;
+      }))
+  (let ((i nil) (ret 0))
+    (eval-equal 5050 ()
+      {
+      for \( i = 0 \; \; ++ i \) {
+  	if \( ! \( i <= 100 \) \) break \;
+        ret += i \;
+      }
+      return ret \;
+      }))
+  (let ((i nil) (ret 0))
+    (eval-equal 5050 ()
+      {
+      for \( i = 0 \; \; \) {
+  	if \( ! \( i <= 100 \) \) break \;
+        ret += i \;
+  	++ i \;
+      }
+      return ret \;
+      }))
+
+  (let ((i nil) (ret 0))
+    (eval-equal 5050 ()
+      {
+      i = 0 \;
+      for \( \; i <= 100 \; ++ i \)
+        ret += i \;
+      return ret \;
+      }))
+  (let ((i nil) (ret 0))
+    (eval-equal 5050 ()
+      {
+      i = 0 \;
+      for \( \; i <= 100 \; \) {
+        ret += i \;
+  	++ i \;
+      }
+      return ret \;
+      }))
+  (let ((i nil) (ret 0))
+    (eval-equal 5050 ()
+      {
+      i = 0 \;
+      for \( \; \; ++ i \) {
+  	if \( ! \( i <= 100 \) \) break \;
+        ret += i \;
+      }
+      return ret \;
+      }))
+  (let ((i nil) (ret 0))
+    (eval-equal 5050 ()
+      {
+      i = 0 \;
+      for \( \; \; \) {
+  	if \( ! \( i <= 100 \) \) break \;
+        ret += i \;
+  	++ i \;
+      }
+      return ret \;
+      }))
   t)
 
 (defun test-jump-stat ()
-  (test '({ goto x \; }))
-  (test '({ continue \; }))
-  (test '({ break \; }))
-  (test '({ return 1 \; }))
-  (test '({ return \; }))
+  ;; (simple) goto
+  (eval-equal 'y ()
+    {
+      goto y \;
+      x \: return 'x \;
+      y \: return 'y \;
+    })
+  ;; break, continue
+  (let ((i nil) (ret 0))
+    (eval-equal 5050 ()
+      {
+      for \( i = 1 \; \; ++ i \) {
+  	if \( ! \( i <= 100 \) \) break \;
+        ret += i \;
+	continue \;
+	(assert nil () "never comes here") \;
+      }
+      return ret \;
+      }))
+  ;; return
+  (eval-equal 1 ()
+    return 1 \; )
+  (eval-equal nil ()
+    return \;)
   t)
 
 (defun test-stat ()
+  (test-labeled-stat)
   (test-exp-stat)
   (test-compound-stat)
   (test-selection-stat)
