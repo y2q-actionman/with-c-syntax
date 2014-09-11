@@ -711,7 +711,8 @@
 
   (declarator
    (pointer direct-declarator
-    #'append)
+    #'(lambda (ptr dcls)
+        (append dcls ptr)))
    direct-declarator)
 
   ;; see direct-abstract-declarator
@@ -725,24 +726,24 @@
    (direct-declarator [ const-exp ]
     #'(lambda (dcl _lp params _rp)
 	(declare (ignore _lp _rp))
-        (list* `(:aref ,params) dcl)))
+        `(,@dcl (:aref ,params))))
    (direct-declarator [		  ]
     #'(lambda (dcl _lp _rp)
 	(declare (ignore _lp _rp))
-        (list* '(:aref nil) dcl)))
+        `(,@dcl (:aref nil))))
    (direct-declarator \( param-type-list \)
     #'(lambda (dcl _lp params _rp)
 	(declare (ignore _lp _rp))
-        (list* `(:funcall ,params) dcl)))
+        `(,@dcl (:funcall ,params))))
    (direct-declarator \( id-list \)
     #'(lambda (dcl _lp params _rp)
 	(declare (ignore _lp _rp))
 	;; TODO: we should see type-spec or not.
-        (list* `(:funcall ,params) dcl)))
+        `(,@dcl (:funcall ,params))))
    (direct-declarator \(	 \)
     #'(lambda (dcl _lp _rp)
 	(declare (ignore _lp _rp))
-        (list* '(:funcall nil) dcl))))
+        `(,@dcl (:funcall nil)))))
 
   ;; TODO: introduce some structure?
   (pointer
@@ -757,11 +758,11 @@
    (* type-qualifier-list pointer
     #'(lambda (_kwd qls ptr)
         (declare (ignore _kwd))
-        (list* `(:pointer ,@qls) ptr)))
+        `(,@ptr (:pointer ,@qls))))
    (*			  pointer
     #'(lambda (_kwd ptr)
         (declare (ignore _kwd))
-        (list* '(:pointer) ptr))))
+        `(,@ptr (:pointer)))))
 			  
 
   (type-qualifier-list
@@ -824,7 +825,8 @@
   (abstract-declarator
    pointer
    (pointer direct-abstract-declarator
-    #'append)
+    #'(lambda (ptr dcls)
+        (append dcls ptr)))
    direct-abstract-declarator)
 
   ;; returns like:
@@ -837,7 +839,7 @@
    (direct-abstract-declarator [ const-exp ]
     #'(lambda (dcls _lp params _rp)
 	(declare (ignore _lp _rp))
-        (list* `(:aref ,params) dcls)))
+        `(,@dcls (:aref ,params))))
    (			       [ const-exp ]
     #'(lambda (_lp params _rp)
 	(declare (ignore _lp _rp))
@@ -845,7 +847,7 @@
    (direct-abstract-declarator [	   ]
     #'(lambda (dcls _lp _rp)
 	(declare (ignore _lp _rp))
-        (list* '(:aref nil) dcls)))
+        `(,@dcls (:aref nil))))
    (			       [	   ]
     #'(lambda (_lp _rp)
 	(declare (ignore _lp _rp))
@@ -853,7 +855,7 @@
    (direct-abstract-declarator \( param-type-list \)
     #'(lambda (dcls _lp params _rp)
 	(declare (ignore _lp _rp))
-        (list* `(:funcall ,params) dcls)))
+        `(,@dcls (:funcall ,params))))
    (			       \( param-type-list \)
     #'(lambda (_lp params _rp)
 	(declare (ignore _lp _rp))
@@ -861,12 +863,12 @@
    (direct-abstract-declarator \(		  \)
     #'(lambda (dcls _lp _rp)
 	(declare (ignore _lp _rp))
-        (list* '(:funcall nil) dcls)))
+        `(,@dcls (:funcall nil))))
    (			       \(		  \)
     #'(lambda (_lp _rp)
 	(declare (ignore _lp _rp))
         '((:funcall nil)))))
-						  
+
 
   ;; ;; TODO
   ;; (typedef-name
