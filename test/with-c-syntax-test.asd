@@ -7,4 +7,4 @@
                (:file "test-stmt")
 	       (:file "test-decl")
 	       (:file "test-trans")
-	       (:file "test-expand")))
+	       (:file "test-examples")))
