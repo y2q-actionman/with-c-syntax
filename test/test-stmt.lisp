@@ -24,6 +24,9 @@
     return (+ 1 2) \;)
   t)
 
+(defstruct hoge-struct
+  (a 'hoge-struct-a))
+
 (defun test-postfix-exp ()
   (test-primary-exp)
   ;; aref
@@ -36,8 +39,6 @@
   (eval-equal '() ()
     return list \( \) \;)
   ;; struct ref
-  (defstruct hoge-struct
-    (a 'hoge-struct-a))
   (let ((hoge-1 (make-hoge-struct)))
     (eval-equal 'hoge-struct-a ()
       return hoge-1 \. hoge-struct-a \;)
@@ -266,8 +267,8 @@
 	      case 2 \: return 'fuga \;
     	      default \: return 'piyo \;
 	     })))
-    (assert (eq 'hoge (switch-test 1))))
-    (assert (eq 'fuga (switch-test 2))))
+    (assert (eq 'hoge (switch-test 1)))
+    (assert (eq 'fuga (switch-test 2)))
     (assert (eq 'piyo (switch-test 3))))
   t)
 
