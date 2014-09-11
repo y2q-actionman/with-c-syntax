@@ -114,8 +114,8 @@
              (:include decl-specs))
   )
 
-(defstruct struct-declarator
-  (declarator nil)
+(defstruct (struct-declarator
+             (:include init-declarator))
   (bits nil))
 
 
@@ -155,7 +155,7 @@
      append (loop with tp = (decl-specs-lisp-type spec-qual)
 	       with constness = (member 'const (decl-specs-qualifier spec-qual))
 	       for s-decl in struct-decls
-	       as name = (or (struct-declarator-declarator s-decl)
+	       as name = (or (init-declarator-declarator s-decl)
 			     (gensym "(unnamed field)"))
 	       as bits = (struct-declarator-bits s-decl)
 	       collect
