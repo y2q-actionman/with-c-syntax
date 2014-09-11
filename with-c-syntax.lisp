@@ -409,19 +409,21 @@
 		     &key (init nil) (cond t) (step nil)
 		     (post-test-p nil))
   (let ((loop-body-tag (gensym "(loop body)"))
+	(loop-step-tag (gensym "(loop step)"))
 	(loop-cond-tag (gensym "(loop cond)"))
 	(loop-end-tag (gensym "(loop end)")))
     (rewrite-break-statements loop-end-tag)
-    (rewrite-continue-statements loop-cond-tag)
+    (rewrite-continue-statements loop-step-tag)
     `((progn ,init)
       ,(if post-test-p
 	   `(go ,loop-body-tag)		; do-while
 	   `(go ,loop-cond-tag))
       ,loop-body-tag
       ,@body
+      ,loop-step-tag
+      (progn ,step)
       ,loop-cond-tag
       (when (progn ,cond)
-	(progn ,step)
 	(go ,loop-body-tag))
       ,loop-end-tag)))
 
