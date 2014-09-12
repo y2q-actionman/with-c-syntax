@@ -198,7 +198,8 @@
 ;; - ~defstruct code~, if needed
 (defun lispify-type-spec (tp-list)
   (loop with numeric-type = nil 
-     with variant-table = (make-hash-table)
+     with numeric-signedness = nil	; 'signed, 'unsigned, or nil
+     with numeric-length = 0		; -1(short), 1(long), 2(long long), or 0
 
      for tp in tp-list
 
@@ -223,63 +224,54 @@
 	  (error "invalid decl-spec (~A)" tp-list))
        (setf numeric-type tp)
      ;; numeric variants
-     else if (member tp '(signed unsigned long short))
-     do (incf (gethash tp variant-table 0))
+     else if (member tp '(signed unsigned))
+     do (when numeric-signedness
+	  (error "invalid decl-spec (~A)" tp-list))
+       (setf numeric-signedness tp)
+     else if (eq tp 'long)
+     do (unless (<= 0 numeric-length 1)
+	  (error "invalid decl-spec (~A)" tp-list))
+       (incf numeric-length)
+     else if (eq tp 'short)
+     do (unless (= 0 numeric-length)
+	  (error "invalid decl-spec (~A)" tp-list))
+       (decf numeric-length)
+
      else
      do (assert nil)
        
      finally
        (ecase numeric-type
 	 (float
-	  (when (or (gethash 'signed variant-table)
-		    (gethash 'unsigned variant-table)
-		    (gethash 'long variant-table)
-		    (<= 2 (gethash 'short variant-table 0)))
+	  (when (or numeric-signedness
+		    (not (member numeric-length '(-1 0))))
 	    (error "invalid decl-spec (~A)" tp-list))
-	  (return (if (gethash 'short variant-table)
-		       'short-float 'single-float)))
+	  (return (if (eq numeric-length -1)
+		      'short-float 'single-float)))
 	 (double
-	  (when (or (gethash 'signed variant-table)
-		    (gethash 'unsigned variant-table)
-		    (gethash 'short variant-table)
-		    (<= 2 (gethash 'long variant-table 0)))
+	  (when (or numeric-signedness
+		    (not (member numeric-length '(0 1))))
 	    (error "invalid decl-spec (~A)" tp-list))
-	  (return (if (gethash 'long variant-table)
+	  (return (if (eq numeric-length 1)
                       'long-float 'double-float)))
 	 (char
-	  (when (or (gethash 'short variant-table)
-		    (gethash 'long variant-table)
-		    (and (gethash 'signed variant-table)
-			 (gethash 'unsigned variant-table)))
+	  (when (not (= 0 numeric-length))
 	    (error "invalid decl-spec (~A)" tp-list))
-	  (return (if (gethash 'unsigned variant-table)
-		       '(unsigned-byte 8)
-		       '(signed-byte 8))))
+	  (return (if (eq 'unsigned numeric-signedness) ; raw 'char' is signed
+		      '(unsigned-byte 8)
+		      '(signed-byte 8))))
 	 ((int nil)
-	  (when (or (and (gethash 'signed variant-table)
-			 (gethash 'unsigned variant-table))
-		    (and (gethash 'short variant-table)
-			 (gethash 'long variant-table))
-		    (<= 2 (gethash 'short variant-table 0))
-		    (<= 3 (gethash 'long variant-table 0)))
-	    (error "invalid decl-spec (~A)" tp-list))
-	  (return (if (gethash 'unsigned variant-table)
-		      (cond ((= 2 (gethash 'long variant-table 0))
-			     '(unsigned-byte 64))
-			    ((= 1 (gethash 'long variant-table 0))
-			     '(unsigned-byte 32))
-			    ((= 1 (gethash 'short variant-table 0))
-			     '(unsigned-byte 16))
-			    (t
-			     'fixnum))	; FIXME: consider unsigned?
-		      (cond ((= 2 (gethash 'long variant-table 0))
-			     '(signed-byte 64))
-			    ((= 1 (gethash 'long variant-table 0))
-			     '(signed-byte 32))
-			    ((= 1 (gethash 'short variant-table 0))
-			     '(signed-byte 16))
-			    (t
-			     'fixnum))))))))
+	  (return (if (eq 'unsigned numeric-signedness)
+		      (ecase numeric-length
+			(2 '(unsigned-byte 64))
+			(1 '(unsigned-byte 32))
+			(0 'fixnum)	; FIXME: consider unsigned?
+			(-1 '(unsigned-byte 16)))
+		      (ecase numeric-length
+			(2 '(signed-byte 64))
+			(1 '(signed-byte 32))
+			(0 'fixnum)
+			(-1 '(signed-byte 16)))))))))
 
 (defun finalize-decl-specs (dspecs)
   (multiple-value-bind (ltype lcode)
