@@ -78,7 +78,8 @@
 
 ;;; Variables, works with the parser.
 (defvar *declarations* nil
-  "alist of (symbol . initform)")
+  "list of (symbol :initform form :type type
+                   :c-declarator nil :c-decl-specs nil)")
 
 (defvar *break-statements* nil
   "list of (go 'break), should be rewrited")
@@ -181,7 +182,7 @@
   ;; fills name
   (when (null (enum-spec-id espec))
     (setf (enum-spec-id espec) (gensym "(enum-name)")))
-  ;; addes values into *declarations*
+  ;; addes values into *enum-declarations-alist*
   (loop as default-initform = 0 then `(1+ ,(init-declarator-declarator e))
      for e in (enum-spec-enumerator-list espec)
      collect (list (init-declarator-declarator e)
@@ -292,7 +293,6 @@
   'fixnum)
 
 (defun finalize-declarator (dspecs decl init)
-  (format t "~&[before]~%type = ~S~% decl = ~S~% init = ~S~%" dspecs decl init)
   (let ((var-name (first decl))
         (var-type (ecase (car (second decl))
                     (:pointer
@@ -318,8 +318,9 @@
                     ((nil)
                      (decl-specs-lisp-type dspecs)))))
     ;; TODO: init forms. I think struct-init is limited to C99 style..
-    (format t "~&var-name ~S, var-type ~S~%"
-            var-name var-type)))
+    (push `(,var-name :initform ,init :type ,var-type
+                      :c-declarator ,decl :c-decl-specs dspecs)
+          *declarations*)))
   
 
 ;; TODO
@@ -450,7 +451,7 @@
 			       clauses
 			       `(,default-clause))))))
     (rewrite-break-statements end-tag)
-    (push `(,exp-sym) *declarations*)
+    (push `(,exp-sym :type fixnum) *declarations*)
     (setf *case-label-list* nil)
     `((setf ,exp-sym ,exp)
       ,jump-table
@@ -558,13 +559,13 @@
 	      ;; :K&R-style-decls nil
 	      :body body))))
 
-  ;; TODO: stucks into *declarations*
   (decl
-   (decl-specs init-declarator-list \;	; TODO
+   (decl-specs init-declarator-list \;
                #'(lambda (dcls inits _t)
                    (declare (ignore _t))
 		   (setf dcls (finalize-decl-specs dcls))
-		   (lispify-declaration dcls inits)))
+		   (lispify-declaration dcls inits)
+                   (decl-specs-lisp-code dcls)))
    (decl-specs \;
                #'(lambda (dcls _t)
                    (declare (ignore _t))
@@ -1251,7 +1252,7 @@
     ;; expand declarations
     (loop for i in *declarations*
        do (push (car i) dynamic-syms)
-          (push (cdr i) dynamic-vals))
+          (push (getf (cdr i) :initform) dynamic-vals))
     (setf lexical-binds
 	  (append lexical-binds *enum-declarations-alist*))
     ;; TODO: muffle undefined-variable warnings
