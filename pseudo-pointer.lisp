@@ -1,5 +1,8 @@
 (in-package :with-c-syntax)
 
+(deftype pseudo-pointer ()
+  'fixnum)
+
 (defconstant +pseudo-pointer-mask+    #b0111111)
 (defconstant +pseudo-pointer-safebit+ #b0100000)
 

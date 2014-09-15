@@ -288,10 +288,6 @@
 	(first (decl-specs-storage-class dspecs)))
   dspecs)
 
-;; TODO: should be placed in psendo-pointer.lisp
-(deftype pointer ()
-  'fixnum)
-
 (defun array-init-adjust (a-spec init)
   (let* ((a-dim (third a-spec))
          (default-val (if (subtypep (second a-spec) 'number) 0 nil))
@@ -310,7 +306,7 @@
   (let* ((var-name (first decl))
          (var-type (ecase (car (second decl))
                      (:pointer
-                      'pointer)          ; TODO: includes 'what it points'
+                      'pseudo-pointer) ; TODO: includes 'what it points'
                      (:funcall
                       (when (eq :aref (car (third decl)))
                         (error "a function returning an array is not accepted"))
@@ -324,14 +320,14 @@
                          else if (eq :aref tp)
                          collect (if tp-args tp-args '*) into aref-dim
                          else if (eq :pointer tp)
-                         do (setf aref-type 'pointer) (loop-finish)
+                         do (setf aref-type 'pseudo-pointer) (loop-finish)
                          finally
                            (let ((tp-args-1 (cadr (second decl))))
                              (push (if tp-args-1 tp-args-1 '*) aref-dim))
                            (return `(simple-array ,aref-type ,aref-dim))))
                      ((nil)
                       (decl-specs-lisp-type dspecs))))
-         (var-init (cond ((eq var-type 'pointer)
+         (var-init (cond ((eq var-type 'pseudo-pointer)
                           init)
                          ((subtypep var-type 'function)
                           (unless (null init)
@@ -966,7 +962,7 @@
    ({ decl-list stat-list }
       #'(lambda (_op1 dcls sts _op2)
           (declare (ignore _op1 _op2))
-          `(,@dcls ,@(apply #'append sts)))) ; FIXME: looks confused..
+          `(,@(apply #'append sts)))) ; FIXME: looks confused..
    ({ stat-list }
       #'(lambda (op1 sts op2)
 	  (declare (ignore op1 op2))
@@ -974,7 +970,7 @@
    ({ decl-list	}
       #'(lambda (_op1 dcls _op2)
 	  (declare (ignore _op1 _op2))
-	  `(,@dcls)))			; FIXME: looks confused..
+	  `()))			; FIXME: looks confused..
    ({ }
       #'(lambda (op1 op2)
 	  (declare (ignore op1 op2))
