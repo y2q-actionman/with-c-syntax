@@ -292,38 +292,63 @@
 (deftype pointer ()
   'fixnum)
 
-(defun finalize-declarator (dspecs decl init)
-  (let ((var-name (first decl))
-        (var-type (ecase (car (second decl))
-                    (:pointer
-                     'pointer)          ; TODO: includes 'what it points'
-                    (:funcall
-                     (when (eq :aref (car (third decl)))
-                       (error "a function returning an array is not accepted"))
-                     'function)         ; TODO: includes returning type, and arg type
-                    (:aref
-                     (loop with aref-type = (decl-specs-lisp-type dspecs)
+(defun array-init-adjust (a-spec init)
+  (let* ((a-dim (third a-spec))
+         (default-val (if (subtypep (second a-spec) 'number) 0 nil))
+         (contents (make-array a-dim
+                               :initial-element default-val)))
+    (labels ((var-init-setup (dims rev-aref init)
+               (if (null dims)
+                   (setf (apply #'aref contents (reverse rev-aref)) init)
+                   (loop for i from 0 below (car dims)
+                      for init-i on init
+                      do (var-init-setup (cdr dims) (cons i rev-aref) (car init-i))))))
+      (var-init-setup a-dim () init))
+    contents))
 
-                        for (tp tp-args) in (nthcdr 2 decl)
-                        if (eq :funcall tp)
-                          do (error "an array of functions is not accepted")
-                        else if (eq :aref tp)
-                          collect (if tp-args tp-args '*) into aref-dim
-                        else if (eq :pointer tp)
-                          do (setf aref-type 'pointer) (loop-finish)
-                        finally
-                          (let ((tp-args-1 (cadr (second decl))))
-                            (push (if tp-args-1 tp-args-1 '*) aref-dim))
-                          (return `(simple-array ,aref-type ,aref-dim))))
-                    ((nil)
-                     (decl-specs-lisp-type dspecs)))))
+(defun finalize-declarator (dspecs decl init)
+  (let* ((var-name (first decl))
+         (var-type (ecase (car (second decl))
+                     (:pointer
+                      'pointer)          ; TODO: includes 'what it points'
+                     (:funcall
+                      (when (eq :aref (car (third decl)))
+                        (error "a function returning an array is not accepted"))
+                      'function)         ; TODO: includes returning type, and arg type
+                     (:aref
+                      (loop with aref-type = (decl-specs-lisp-type dspecs)
+
+                         for (tp tp-args) in (nthcdr 2 decl)
+                         if (eq :funcall tp)
+                         do (error "an array of functions is not accepted")
+                         else if (eq :aref tp)
+                         collect (if tp-args tp-args '*) into aref-dim
+                         else if (eq :pointer tp)
+                         do (setf aref-type 'pointer) (loop-finish)
+                         finally
+                           (let ((tp-args-1 (cadr (second decl))))
+                             (push (if tp-args-1 tp-args-1 '*) aref-dim))
+                           (return `(simple-array ,aref-type ,aref-dim))))
+                     ((nil)
+                      (decl-specs-lisp-type dspecs))))
+         (var-init (cond ((eq var-type 'pointer)
+                          init)
+                         ((subtypep var-type 'function)
+                          (unless (null init)
+                            (error "a function cannot take a initializer")))
+                         ((subtypep var-type 'number)
+                          (if (null init) 0 init))
+                         ((subtypep var-type 'array)
+                          (array-init-adjust var-type init))
+                         (t
+                          init))))
     ;; TODO: init forms. I think struct-init is limited to C99 style..
-    (push `(,var-name :initform ,init :type ,var-type
-                      :c-declarator ,decl :c-decl-specs dspecs)
+    (push `(,var-name :initform ,var-init :type ,var-type
+                      :c-declarator ,decl :c-decl-specs ,dspecs
+                      :c-initializer ,init)
           *declarations*)))
   
 
-;; TODO
 (defun lispify-declaration (dspecs init-decls)
   (loop for init-decl in init-decls
      as decl = (init-declarator-declarator init-decl)
@@ -829,7 +854,11 @@
    ({ initializer-list \, }
     #'(lambda (_lp inits _cm _rp)
 	(declare (ignore _lp _cm _rp))
-	inits)))			; TODO: see again..
+	inits))
+   ({ }                                 ; NOTE: I added this..
+    #'(lambda (_lp _rp)
+	(declare (ignore _lp _rp))
+        nil)))
 
   (initializer-list
    (initializer
