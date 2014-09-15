@@ -25,6 +25,7 @@
     { int a = 1 \; int b = 2 \; int c = 3 \; return a \, b \, c \; })
   t)
 
+;; TODO: add storage-class tests!
 (defun test-decl-specs ()
   (test '({ int \; }))
 
@@ -60,8 +61,20 @@
   t)
 
 (defun test-struct-or-union-spec ()
-  (test '({ struct hoge { int x \; } \; }))
-  (test '({ struct hoge { int x \; int y \; } \; }))
+  (eval-equal 100 ()
+    {
+    struct hoge { int x \; } foo \;     ; TODO: FIXME!!
+    foo = (make-instance 'hoge) \;      ; FIXME!!
+    foo \. x = 100 \;
+    return foo \. x \;
+    })
+  (eval-equal t ()
+    {
+    struct hoge { int x \; int y \; } foo \;
+    foo = (make-instance 'hoge) \;
+    foo \. x = foo \. y = 1 \;
+    return foo \. x == foo \. y \;
+    })
   (test '({ struct hoge { int x \; int y \; int z \; } \; }))
   (test '({ struct { int x \; } \; }))
   (test '({ struct { int x \; int y \; } \; }))

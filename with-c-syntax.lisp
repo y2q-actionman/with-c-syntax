@@ -138,6 +138,10 @@
   ;; fills name
   (when (null (struct-or-union-spec-id sspec))
     (setf (struct-or-union-spec-id sspec) (gensym "(struct-name)")))
+  ;; only declaration?
+  (when (null (struct-or-union-spec-struct-decl-list sspec))
+    (return-from lispify-struct-spec
+      (values (struct-or-union-spec-id sspec) nil)))
   ;; fields
   (loop for (spec-qual . struct-decls)
      in (struct-or-union-spec-struct-decl-list sspec)
@@ -146,7 +150,7 @@
      append (loop with tp = (decl-specs-lisp-type spec-qual)
 	       with constness = (member 'const (decl-specs-qualifier spec-qual))
 	       for s-decl in struct-decls
-	       as name = (or (init-declarator-declarator s-decl)
+	       as name = (or (car (init-declarator-declarator s-decl))
 			     (gensym "(unnamed field)"))
 	       as bits = (struct-declarator-bits s-decl)
 	       collect
@@ -182,6 +186,10 @@
   ;; fills name
   (when (null (enum-spec-id espec))
     (setf (enum-spec-id espec) (gensym "(enum-name)")))
+  ;; only declaration?
+  (when (null (enum-spec-enumerator-list espec))
+    (return-from lispify-enum-spec
+      (values (enum-spec-id espec) nil)))
   ;; addes values into *enum-declarations-alist*
   (loop as default-initform = 0 then `(1+ ,(init-declarator-declarator e))
      for e in (enum-spec-enumerator-list espec)
@@ -962,7 +970,7 @@
    ({ decl-list stat-list }
       #'(lambda (_op1 dcls sts _op2)
           (declare (ignore _op1 _op2))
-          `(,@(apply #'append sts)))) ; FIXME: looks confused..
+          `((progn ,@dcls) ,@(apply #'append sts)))) ; FIXME: looks confused..
    ({ stat-list }
       #'(lambda (op1 sts op2)
 	  (declare (ignore op1 op2))
@@ -970,7 +978,7 @@
    ({ decl-list	}
       #'(lambda (_op1 dcls _op2)
 	  (declare (ignore _op1 _op2))
-	  `()))			; FIXME: looks confused..
+	  `((progn ,@dcls))))			; FIXME: looks confused..
    ({ }
       #'(lambda (op1 op2)
 	  (declare (ignore op1 op2))
