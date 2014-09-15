@@ -3,20 +3,26 @@
 ;;; declarations
 
 (defun test-decl-simple ()
-  (test '({ int a \; }))
-  (test '({ int a \; a = 1 \; }))
-  t)
+  (eval-equal nil ()
+    int a \;)
+  (eval-equal 1 ()
+    { int a \; a = 1 \; return a \; })
 
-(defun test-decl ()
-  (test '({ int a \; }))
-  (test '({ int \; }))
-  (test '({ int \; int a \; int \; int b \; }))
+  (eval-equal nil ()
+    { int a \; })
+  (eval-equal nil ()
+    { int \; })             ; should be warned?
+  (eval-equal nil ()
+    { int \; int a \; int \; int b \; })
   t)
 
 (defun test-decl-list ()
-  (test '({ int a \; }))
-  (test '({ int a \; int b \; }))
-  (test '({ int a \; int b \; int c \; }))
+  (eval-equal 1 ()
+    { int a = 1 \; return a \; })
+  (eval-equal 2 ()
+    { int a = 1 \; int b = 2 \; return a \, b \; })
+  (eval-equal 3 ()
+    { int a = 1 \; int b = 2 \; int c = 3 \; return a \, b \, c \; })
   t)
 
 (defun test-decl-specs ()
@@ -197,5 +203,11 @@
   (test '(int * \( * funcptr \) \( int \, int \) \; ))
   ;; http://unixwiz.net/techtips/reading-cdecl.html
   (test '(char * \( * \( * * foo [ ] [ 8 ] \) \( \) \) [ ] \;))
+  t)
 
+;; TODO: add initializer tests
+
+(defun test-decl ()
+  (test-decl-simple)
+  (test-decl-list)
   t)

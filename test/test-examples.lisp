@@ -207,7 +207,7 @@
   t)
 
 
-(defun test-all-examples ()
+(defun test-examples ()
   (test-hello-world)
   (test-add-const)
   (test-add-args)

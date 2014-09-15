@@ -227,7 +227,7 @@
 
 ;;; statements
 
-(defun test-labeled-stat ()
+(defun test-labeled-stmt ()
   (eval-equal 'some-stmt ()
     a \: return 'some-stmt \;)
   (eval-equal 'some-stmt ()
@@ -236,13 +236,13 @@
     default \: return 'some-stmt \;)
   t)
 
-(defun test-exp-stat ()
+(defun test-exp-stmt ()
   (test-exp)
   (eval-equal nil ()
     { \; })
   t)
 
-(defun test-compound-stat ()
+(defun test-compound-stmt ()
   (let ((x 0))
     (eval-equal 3 ()
       { x ++ \; x ++ \; x ++ \; return x \; }))
@@ -250,7 +250,7 @@
     {  })
   t)
 
-(defun test-selection-stat ()
+(defun test-selection-stmt ()
   (eval-equal 'then ()
     if \( (and) \) return 'then \; )
   (eval-equal 'nil ()
@@ -272,7 +272,7 @@
     (assert (eq 'piyo (switch-test 3))))
   t)
 
-(defun test-iteration-stat ()
+(defun test-iteration-stmt ()
   (let ((x 0))
     (eval-equal 100 ()
       {
@@ -366,7 +366,7 @@
       }))
   t)
 
-(defun test-jump-stat ()
+(defun test-jump-stmt ()
   ;; (simple) goto
   (eval-equal 'y ()
     {
@@ -393,11 +393,11 @@
     return \;)
   t)
 
-(defun test-stat ()
-  (test-labeled-stat)
-  (test-exp-stat)
-  (test-compound-stat)
-  (test-selection-stat)
-  (test-iteration-stat)
-  (test-jump-stat)
+(defun test-stmt ()
+  (test-labeled-stmt)
+  (test-exp-stmt)
+  (test-compound-stmt)
+  (test-selection-stmt)
+  (test-iteration-stmt)
+  (test-jump-stmt)
   t)
