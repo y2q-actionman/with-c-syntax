@@ -3,11 +3,11 @@
 ;;; declarations
 
 (defun test-decl-simple ()
-  (eval-equal nil ()
-    int a \;)
+  ;; TODO: introduce compile unit!!
+  ;; (eval-equal nil ()
+  ;;   int a \;)
   (eval-equal 1 ()
     { int a \; a = 1 \; return a \; })
-
   (eval-equal nil ()
     { int a \; })
   (eval-equal nil ()
@@ -60,6 +60,7 @@
   (test '({ const auto unsigned int float \; }))
   t)
 
+;; TODO: expand defclass!!
 (defun test-struct-or-union-spec ()
   (eval-equal 100 ()
     {
@@ -73,8 +74,18 @@
     foo \. x = foo \. y = 1 \;
     return foo \. x == foo \. y \;
     })
-  (test '({ struct hoge { int x \; int y \; int z \; } \; }))
-  (test '({ struct { int x \; } \; }))
+  (eval-equal t ()
+    {
+    struct hoge { int x \; int y \; int z \; } foo \;
+    foo \. x = foo \. y = foo \. z = 1 \;
+    return foo \. x == foo \. y && foo \. y == foo \. z \;
+    })
+  (eval-equal 1 ()
+    {
+    struct { int x \; } foo \;
+    foo \. x = 1 \;
+    return foo \. x \;
+    })
   (test '({ struct { int x \; int y \; } \; }))
   (test '({ struct a \; }))
   (test '({ union a \; }))

@@ -77,18 +77,6 @@
 	       (error "Unexpected value ~S" value))))))
 
 ;;; Variables, works with the parser.
-(defvar *declarations* nil
-  "list of (symbol :initform form :type type
-                   :c-declarator nil :c-decl-specs nil)")
-
-(defvar *break-statements* nil
-  "list of (go 'break), should be rewrited")
-
-(defvar *continue-statements* nil
-  "list of (go 'continue), should be rewrited")
-
-(defvar *case-label-list* nil
-  "alist of (<gensym> . :exp <case-exp>)")
 
 ;;; Functions used by the parser.
 
@@ -362,7 +350,6 @@
 	  `(,var-name :initform ,var-init :type ,var-type
                       :c-declarator ,decl :c-decl-specs ,dspecs
                       :c-initializer ,init)))
-    (push decl-entry *declarations*)
     decl-entry))
   
 
@@ -370,7 +357,7 @@
   (loop for init-decl in init-decls
      as decl = (init-declarator-declarator init-decl)
      as init = (init-declarator-initializer init-decl)
-     do (finalize-declarator dspecs decl init)))
+     collect (finalize-declarator dspecs decl init)))
 
 ;; for expressions
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -406,80 +393,109 @@
   (ash i (- c)))
 
 ;; for statements
-(defun extract-if-statement (exp then-body
-			     &optional (else-body nil))
-  (let* ((then-tag (gensym "(if then)"))
+(defstruct stat
+  (code nil)
+  ;; list of (symbol :initform form :type type
+  ;;                  :c-declarator nil :c-decl-specs nil)
+  (declarations nil)
+  (break-statements nil)    ; list of (go 'break), should be rewrited
+  (continue-statements nil) ; list of (go 'continue), should be rewrited
+  (case-label-list nil))    ; alist of (<gensym> . :exp <case-exp>)
+
+(defun merge-stat (s1 s2 &key (merge-code nil))
+  (make-stat :code (if merge-code (append (stat-code s1)
+					  (stat-code s2))
+		       nil)
+	     :declarations (append (stat-declarations s1)
+				   (stat-declarations s2))
+	     :break-statements (append (stat-break-statements s1)
+				       (stat-break-statements s2))
+	     :continue-statements (append (stat-continue-statements s1)
+					  (stat-continue-statements s2))
+	     :case-label-list (append (stat-case-label-list s1)
+				      (stat-case-label-list s2))))
+
+(defun extract-if-statement (exp then-stat
+			     &optional (else-stat nil))
+  (let* ((stat (if else-stat
+		   (merge-stat then-stat else-stat)
+		   then-stat))
+	 (then-tag (gensym "(if then)"))
 	 (else-tag (gensym "(if else)"))
 	 (end-tag (gensym "(if end)")))
-    `((if ,exp (go ,then-tag) (go ,else-tag))
-      ,then-tag
-      ,@then-body
-      (go ,end-tag)
-      ,else-tag
-      ,@else-body
-      (go ,end-tag)
-      ,end-tag)))
+    (setf (stat-code stat)
+	  `((if ,exp (go ,then-tag) (go ,else-tag))
+	    ,then-tag
+	    ,@(stat-code then-stat)
+	    (go ,end-tag)
+	    ,else-tag
+	    ,@(if else-stat (stat-code else-stat) nil)
+	    (go ,end-tag)
+	    ,end-tag))
+    stat))
 
 (defvar *unresolved-break-tag* (gensym "unresolved break"))
 
-(defun allocate-unresolved-break-statement ()
+(defun make-stat-unresolved-break ()
   (let ((ret (list 'go *unresolved-break-tag*)))
-    (push ret *break-statements*)
-    (list ret)))
+    (make-stat :code (list ret)
+	       :break-statements (list ret))))
 
-(defun rewrite-break-statements (sym)
-  (loop for i in *break-statements*
+(defun rewrite-break-statements (sym stat)
+  (loop for i in (stat-break-statements stat)
      do (setf (second i) sym))
-  (setf *break-statements* nil))
+  (setf (stat-break-statements stat) nil))
 
 (defvar *unresolved-continue-tag* (gensym "unresolved continue"))
 
-(defun allocate-unresolved-continue-statement ()
+(defun make-stat-unresolved-continue ()
   (let ((ret (list 'go *unresolved-continue-tag*)))
-    (push ret *continue-statements*)
-    (list ret)))
+    (make-stat :code (list ret)
+	       :continue-statements (list ret))))
 
-(defun rewrite-continue-statements (sym)
-  (loop for i in *continue-statements*
+(defun rewrite-continue-statements (sym stat)
+  (loop for i in (stat-continue-statements stat)
      do (setf (second i) sym))
-  (setf *continue-statements* nil))
+  (setf (stat-continue-statements stat) nil))
 
-(defun extract-loop (body
+(defun extract-loop (body-stat
 		     &key (init nil) (cond t) (step nil)
 		     (post-test-p nil))
   (let ((loop-body-tag (gensym "(loop body)"))
 	(loop-step-tag (gensym "(loop step)"))
 	(loop-cond-tag (gensym "(loop cond)"))
 	(loop-end-tag (gensym "(loop end)")))
-    (rewrite-break-statements loop-end-tag)
-    (rewrite-continue-statements loop-step-tag)
-    `((progn ,init)
-      ,(if post-test-p
-	   `(go ,loop-body-tag)		; do-while
-	   `(go ,loop-cond-tag))
-      ,loop-body-tag
-      ,@body
-      ,loop-step-tag
-      (progn ,step)
-      ,loop-cond-tag
-      (when (progn ,cond)
-	(go ,loop-body-tag))
-      ,loop-end-tag)))
+    (rewrite-break-statements loop-end-tag body-stat)
+    (rewrite-continue-statements loop-step-tag body-stat)
+    (setf (stat-code body-stat)
+	  `((progn ,init)
+	    ,(if post-test-p
+		 `(go ,loop-body-tag)		; do-while
+		 `(go ,loop-cond-tag))
+	    ,loop-body-tag
+	    ,@(stat-code body-stat)
+	    ,loop-step-tag
+	    (progn ,step)
+	    ,loop-cond-tag
+	    (when (progn ,cond)
+	      (go ,loop-body-tag))
+	    ,loop-end-tag))
+    body-stat))
 
-(defun push-case-label (exp)
+(defun push-case-label (exp stat)
   (let ((case-sym (gensym (format nil "(case ~S)" exp))))
-    (setf *case-label-list*
+    (setf (stat-case-label-list stat)
 	  (acons case-sym
 		 (list :exp exp)
-		 *case-label-list*))
-    case-sym))
+		 (stat-case-label-list stat)))
+    (push case-sym (stat-code stat))))
 
 (defun extract-switch (exp stat)
   (let* ((exp-sym (gensym "(switch cond)"))
 	 (end-tag (gensym "(switch end)"))
 	 (jump-table			; create jump table with COND
 	  (loop with default-clause =`(t (go ,end-tag))
-	     for label in *case-label-list*
+	     for label in (stat-case-label-list stat)
 	     as label-sym = (car label)
 	     as label-exp = (getf (cdr label) :exp)
 
@@ -492,20 +508,21 @@
 	       (return (append '(cond)
 			       clauses
 			       `(,default-clause))))))
-    (rewrite-break-statements end-tag)
-    (push `(,exp-sym :type fixnum) *declarations*)
-    (setf *case-label-list* nil)
-    `((setf ,exp-sym ,exp)
-      ,jump-table
-      ,@stat
-      ,end-tag)
-    ))
+    (rewrite-break-statements end-tag stat)
+    (push `(,exp-sym :type fixnum) (stat-declarations stat))
+    (setf (stat-case-label-list stat) nil)
+    (setf (stat-code stat)
+	  `((setf ,exp-sym ,exp)
+	    ,jump-table
+	    ,@(stat-code stat)
+	    ,end-tag))
+    stat))
 
 (defun expand-toplevel-stat (stat)
   (let* ((dynamic-syms nil)
          (dynamic-vals nil)
 	 (lexical-binds nil))
-    (loop for i in *declarations*
+    (loop for i in (stat-declarations stat)
        do (push (car i) dynamic-syms)
           (push (getf (cdr i) :initform) dynamic-vals))
     (setf lexical-binds
@@ -515,12 +532,9 @@
 	   (progv ',dynamic-syms (list ,@dynamic-vals)
 	     (locally (declare (special ,@dynamic-syms))
 	       (prog* ,lexical-binds
-		  ,@stat))))
-      (setf *enum-declarations-alist* nil
-	    *declarations* nil
-	    *break-statements* nil
-	    *continue-statements* nil
-	    *case-label-list* nil))))
+		  ,@(stat-code stat)))))
+      ;; TODO: remove them
+      (setf *enum-declarations-alist* nil))))
 
 ;;; Functions referenced by the parser directly.
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -641,10 +655,9 @@
 		   (lispify-declaration dcls nil))))
 
   (decl-list
-   (decl
-    #'list)
+   decl
    (decl-list decl
-	      #'append-item-to-right))
+	      #'append))
 
   ;; returns 'decl-specs' structure
   (decl-specs
@@ -970,8 +983,8 @@
   ;;  id)
 
 
-  ;;; Statements
-  ;; TODO: introduce some struct, a pair of (decl . stat)
+  ;;; Statements: 'stat' structure
+  ;; 
   (stat
    labeled-stat
    exp-stat 
@@ -984,55 +997,54 @@
    (id \: stat
        #'(lambda (id _c stat)
 	   (declare (ignore _c))
-	   (cons id stat)))
+	   (push id (stat-code stat))
+	   stat))
    (case const-exp \: stat
        #'(lambda (_k  exp _c stat)
 	   (declare (ignore _k _c))
-	   (cons (push-case-label exp)
-		 stat)))
+	   (push-case-label exp stat)
+	   stat))
    (default \: stat
        #'(lambda (_k _c stat)
 	   (declare (ignore _k _c))
-	   (cons (push-case-label 'default)
-		 stat))))
+	   (push-case-label 'default stat)
+	   stat)))
 
   (exp-stat
    (exp \;
-	#'(lambda (exp term)
-	    (declare (ignore term))
-	    (list exp)))
+	#'(lambda (exp _term)
+	    (declare (ignore _term))
+	    (make-stat :code (list exp))))
    (\;
-    #'(lambda (term)
-	(declare (ignore term))
-	nil)))
+    #'(lambda (_term)
+	(declare (ignore _term))
+	(make-stat))))
 
   (compound-stat
    ({ decl-list stat-list }
-      #'(lambda (_op1 dcls sts _op2)
+      #'(lambda (_op1 dcls stat _op2)
           (declare (ignore _op1 _op2))
-	  ;; assumes dcls are assigned into *declarations*
-	  (declare (ignore dcls))
-          (apply #'append sts)))
+	  (setf (stat-declarations stat)
+		(append dcls (stat-declarations stat)))
+	  stat))
    ({ stat-list }
-      #'(lambda (op1 sts op2)
+      #'(lambda (op1 stat op2)
 	  (declare (ignore op1 op2))
-	  (apply #'append sts)))	; flatten
+	  stat))
    ({ decl-list	}
       #'(lambda (_op1 dcls _op2)
 	  (declare (ignore _op1 _op2))
-	  ;; assumes dcls are assigned into *declarations*
-	  (declare (ignore dcls))
-	  nil))
+	  (make-stat :declarations dcls)))
    ({ }
       #'(lambda (op1 op2)
 	  (declare (ignore op1 op2))
-	  nil)))
+	  (make-stat))))
 
   (stat-list
-   (stat
-    #'list)
+   stat
    (stat-list stat
-	      #'append-item-to-right))
+    #'(lambda (st1 st2)
+	(merge-stat st1 st2 :merge-code t))))
 
   (selection-stat
    (if \( exp \) stat
@@ -1094,23 +1106,25 @@
    (goto id \;
 	 #'(lambda (_k id _t)
 	     (declare (ignore _k _t))
-	     (list `(go ,id))))
+	     (make-stat :code (list `(go ,id)))))
    (continue \;
 	     #'(lambda (_k _t)
 		 (declare (ignore _k _t))
-		 (allocate-unresolved-continue-statement)))
+		 (make-stat-unresolved-continue)))
    (break \;
 	  #'(lambda (_k _t)
 	      (declare (ignore _k _t))
-	      (allocate-unresolved-break-statement)))
+	      (make-stat-unresolved-break)))
    (return exp \;
 	   #'(lambda (_k exp _t)
 	       (declare (ignore _k _t))
-	       (list `(return ,exp))))	; use the block of PROG
+	       ;; use the block of PROG
+	       (make-stat :code (list `(return ,exp)))))
    (return \;
 	   #'(lambda (_k _t)
 	       (declare (ignore _k _t))
-	       (list `(return (values)))))) ; use the block of PROG
+	       ;; use the block of PROG
+	       (make-stat :code (list `(return (values)))))))
 
 
   ;;; Expressions
@@ -1310,10 +1324,6 @@
 ;;; Expander
 (defun c-expression-tranform (refering-symbols form)
   (let* ((*enum-declarations-alist* nil)
-	 (*declarations* nil)
-	 (*break-statements* nil)
-	 (*continue-statements* nil)
-	 (*case-label-list* nil)
 	 (lisp-exp (parse-with-lexer (list-lexer form)
                                      *expression-parser*)))
     (loop with dynamic-syms = nil
