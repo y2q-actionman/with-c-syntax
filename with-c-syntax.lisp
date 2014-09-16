@@ -341,16 +341,29 @@
                           (unless (null init)
                             (error "a function cannot take a initializer")))
                          ((subtypep var-type 'number)
+			  ;; This includes enum-spec
+			  ;; Should I check it? like:
+			  ;; (member-if #'enum-spec-p (decl-specs-type-spec dspecs))
                           (if (null init) 0 init))
                          ((subtypep var-type 'array)
-                          (array-init-adjust var-type init))
-                         (t
-                          init))))
-    ;; TODO: init forms. I think struct-init is limited to C99 style..
-    (push `(,var-name :initform ,var-init :type ,var-type
+			  `(make-array ',(third var-type)
+				       :initial-contents 
+				       ,(array-init-adjust var-type init)))
+			 ((and (symbolp var-type)
+			       (not (eq 'nil var-type)))
+			  ;; TODO: I think struct-init is limited to C99 style..
+			  (let ((cls var-type))
+			    (if init
+				`(make-instance ',cls ,@init)
+				`(make-instance ',cls))))
+			 (t
+                          init)))
+	 (decl-entry
+	  `(,var-name :initform ,var-init :type ,var-type
                       :c-declarator ,decl :c-decl-specs ,dspecs
-                      :c-initializer ,init)
-          *declarations*)))
+                      :c-initializer ,init)))
+    (push decl-entry *declarations*)
+    decl-entry))
   
 
 (defun lispify-declaration (dspecs init-decls)

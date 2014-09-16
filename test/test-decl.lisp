@@ -63,15 +63,13 @@
 (defun test-struct-or-union-spec ()
   (eval-equal 100 ()
     {
-    struct hoge { int x \; } foo \;     ; TODO: FIXME!!
-    foo = (make-instance 'hoge) \;      ; FIXME!!
+    struct hoge { int x \; } foo \;
     foo \. x = 100 \;
     return foo \. x \;
     })
   (eval-equal t ()
     {
     struct hoge { int x \; int y \; } foo \;
-    foo = (make-instance 'hoge) \;
     foo \. x = foo \. y = 1 \;
     return foo \. x == foo \. y \;
     })
