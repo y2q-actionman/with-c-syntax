@@ -501,6 +501,27 @@
       ,end-tag)
     ))
 
+(defun expand-toplevel-stat (stat)
+  (let* ((dynamic-syms nil)
+         (dynamic-vals nil)
+	 (lexical-binds nil))
+    (loop for i in *declarations*
+       do (push (car i) dynamic-syms)
+          (push (getf (cdr i) :initform) dynamic-vals))
+    (setf lexical-binds
+	  (append lexical-binds *enum-declarations-alist*))
+    (prog1
+	`(with-pseudo-pointer-scope ()
+	   (progv ',dynamic-syms (list ,@dynamic-vals)
+	     (locally (declare (special ,@dynamic-syms))
+	       (prog* ,lexical-binds
+		  ,@stat))))
+      (setf *enum-declarations-alist* nil
+	    *declarations* nil
+	    *break-statements* nil
+	    *continue-statements* nil
+	    *case-label-list* nil))))
+
 ;;; Functions referenced by the parser directly.
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun append-item-to-right (lis i)
@@ -553,13 +574,19 @@
   ;; Our entry point.
   ;; top level forms in C, or statements
   (w-c-s-entry-point
-   translation-unit
-   labeled-stat
+   translation-unit			; TODO
+   (labeled-stat
+    #'(lambda (st) (expand-toplevel-stat st)))
    ;; exp-stat is not included, because it is gramatically ambiguous.
-   compound-stat
-   selection-stat
-   iteration-stat
-   jump-stat)
+   (compound-stat
+    #'(lambda (st) (expand-toplevel-stat st)))
+   (selection-stat
+    #'(lambda (st) (expand-toplevel-stat st)))
+   (iteration-stat
+    #'(lambda (st) (expand-toplevel-stat st)))
+   (jump-stat
+    #'(lambda (st) (expand-toplevel-stat st))))
+
 
   (translation-unit
    (external-decl
@@ -606,13 +633,12 @@
                #'(lambda (dcls inits _t)
                    (declare (ignore _t))
 		   (setf dcls (finalize-decl-specs dcls))
-		   (lispify-declaration dcls inits)
-                   (decl-specs-lisp-code dcls)))
+		   (lispify-declaration dcls inits)))
    (decl-specs \;
                #'(lambda (dcls _t)
                    (declare (ignore _t))
 		   (setf dcls (finalize-decl-specs dcls))
-		   (decl-specs-lisp-code dcls))))
+		   (lispify-declaration dcls nil))))
 
   (decl-list
    (decl
@@ -945,6 +971,7 @@
 
 
   ;;; Statements
+  ;; TODO: introduce some struct, a pair of (decl . stat)
   (stat
    labeled-stat
    exp-stat 
@@ -983,7 +1010,9 @@
    ({ decl-list stat-list }
       #'(lambda (_op1 dcls sts _op2)
           (declare (ignore _op1 _op2))
-          `((progn ,@dcls) ,@(apply #'append sts)))) ; FIXME: looks confused..
+	  ;; assumes dcls are assigned into *declarations*
+	  (declare (ignore dcls))
+          (apply #'append sts)))
    ({ stat-list }
       #'(lambda (op1 sts op2)
 	  (declare (ignore op1 op2))
@@ -991,7 +1020,9 @@
    ({ decl-list	}
       #'(lambda (_op1 dcls _op2)
 	  (declare (ignore _op1 _op2))
-	  `((progn ,@dcls))))			; FIXME: looks confused..
+	  ;; assumes dcls are assigned into *declarations*
+	  (declare (ignore dcls))
+	  nil))
    ({ }
       #'(lambda (op1 op2)
 	  (declare (ignore op1 op2))
@@ -1284,30 +1315,20 @@
 	 (*continue-statements* nil)
 	 (*case-label-list* nil)
 	 (lisp-exp (parse-with-lexer (list-lexer form)
-                                     *expression-parser*))
-         (dynamic-syms nil)
-         (dynamic-vals nil)
-	 (lexical-binds nil))
-    (loop for s in refering-symbols
+                                     *expression-parser*)))
+    (loop with dynamic-syms = nil
+       with dynamic-vals = nil
+       for s in refering-symbols
        do (cond ((symbolp s)
                  (push s dynamic-syms)
                  (push nil dynamic-vals))
                 ((listp s)
                  (push (first s) dynamic-syms)
-                 (push (second s) dynamic-vals))))
-    ;; expand declarations
-    (loop for i in *declarations*
-       do (push (car i) dynamic-syms)
-          (push (getf (cdr i) :initform) dynamic-vals))
-    (setf lexical-binds
-	  (append lexical-binds *enum-declarations-alist*))
-    ;; TODO: muffle undefined-variable warnings
-    ;; TODO: support function definition. This is only for a compound statement.
-    `(with-pseudo-pointer-scope ()
-       (progv ',dynamic-syms (list ,@dynamic-vals)
-         (locally (declare (special ,@dynamic-syms))
-           (prog* ,lexical-binds
-              ,@lisp-exp))))))
+                 (push (second s) dynamic-vals)))
+       finally
+	 (return `(progv ',dynamic-syms (list ,@dynamic-vals)
+		    (locally (declare (special ,@dynamic-syms))
+		      ,lisp-exp))))))
 
 ;;; Macro interface
 (defmacro with-c-syntax ((&rest bindings) &body body)

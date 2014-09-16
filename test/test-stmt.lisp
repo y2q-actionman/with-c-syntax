@@ -273,6 +273,12 @@
   t)
 
 (defun test-iteration-stmt ()
+  (eval-equal 100 ((x 0))
+    while \( 1 \) {
+      ++ x \;
+      if \( x >= 100 \) return x \;
+      })
+
   (let ((x 0))
     (eval-equal 100 ()
       {
