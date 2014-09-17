@@ -337,7 +337,7 @@
                          ((or (subtypep var-type 'number)
 			      ;; enum type. TODO: review me!!
 			      (member-if #'enum-spec-p (decl-specs-type-spec dspecs)))
-			  (unless (atom init))
+			  (unless (atom init)
 			    (error "number cannot be initialized with a list"))
 			  (if (null init) 0 init))
                          ((subtypep var-type 'array)
