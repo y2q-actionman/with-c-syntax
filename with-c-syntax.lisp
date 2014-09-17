@@ -120,6 +120,10 @@
 	     (:include init-declarator))
   )
 
+(defvar *default-decl-specs*
+  (make-decl-specs :type-spec '(int)
+		   :lisp-type 'fixnum))
+
 ;; returns two value:
 ;; - the specified Lisp type
 ;; - some code, if needed
@@ -301,7 +305,7 @@
       (var-init-setup a-dim () init))
     contents))
 
-(defun finalize-declarator (dspecs decl init)
+(defun finalize-initializer (dspecs decl init)
   (let* ((var-name (first decl))
          (var-type (ecase (car (second decl))
                      (:pointer
@@ -360,18 +364,15 @@
 			 (t
                           init)))
 	 (decl-entry
-	  `(,var-name :initform ,var-init :type ,var-type
-		      :prelude-code ,(decl-specs-lisp-code dspecs)
-                      :c-declarator ,decl :c-decl-specs ,dspecs
-                      :c-initializer ,init)))
+	  `(,var-name :initform ,var-init :type ,var-type)))
     decl-entry))
   
 
-(defun lispify-declaration (dspecs init-decls)
+(defun finalize-init-decls (dspecs init-decls)
   (loop for init-decl in init-decls
      as decl = (init-declarator-declarator init-decl)
      as init = (init-declarator-initializer init-decl)
-     collect (finalize-declarator dspecs decl init)))
+     collect (finalize-initializer dspecs decl init)))
 
 ;; for expressions
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -523,7 +524,8 @@
 			       clauses
 			       `(,default-clause))))))
     (rewrite-break-statements end-tag stat)
-    (push `(,exp-sym :type fixnum) (stat-declarations stat))
+    (push `(,*default-decl-specs* ((,exp-sym :type fixnum)))
+	  (stat-declarations stat))
     (setf (stat-case-label-list stat) nil)
     (setf (stat-code stat)
 	  `((setf ,exp-sym ,exp)
@@ -537,10 +539,16 @@
   (let* ((dynamic-syms nil)
          (dynamic-vals nil)
 	 (lexical-binds nil))
-    (loop for i in (stat-declarations stat)
-       as p-code = (getf (cdr i) :prelude-code)
-       do (push (car i) dynamic-syms)
-	 (push (getf (cdr i) :initform) dynamic-vals)
+    (loop for (dspecs inits) in (stat-declarations stat)
+       as p-code = (decl-specs-lisp-code dspecs)
+       do (loop for i in inits
+	     as p-code = (getf (cdr i) :prelude-code)
+	     collect (car i) into dsyms
+	     collect (getf (cdr i) :initform) into dvals
+	     finally (setf dynamic-syms
+			   (nconc dynamic-syms dsyms)
+			   dynamic-vals
+			   (nconc dynamic-vals dvals)))
        when p-code
        do (pushnew p-code *prelude-code* :test #'equalp))
     (setf lexical-binds
@@ -554,12 +562,8 @@
       ;; TODO: remove them
       (setf *enum-declarations-alist* nil))))
 
-(defvar *function-definition-default-return*
-  (make-decl-specs :type-spec '(int)
-		   :lisp-type 'fixnum))
-
 (defun lispify-function-definition (name body &key
-				    (return *function-definition-default-return*)
+				    (return *default-decl-specs*)
 				    (K&R-decls nil))
   nil)
 				    
@@ -663,17 +667,18 @@
                #'(lambda (dcls inits _t)
                    (declare (ignore _t))
 		   (setf dcls (finalize-decl-specs dcls))
-		   (lispify-declaration dcls inits)))
+		   `(,dcls ,(finalize-init-decls dcls inits))))
    (decl-specs \;
                #'(lambda (dcls _t)
                    (declare (ignore _t))
 		   (setf dcls (finalize-decl-specs dcls))
-		   (lispify-declaration dcls nil))))
+		   `(,dcls))))
 
   (decl-list
-   decl
+   (decl
+    #'list)
    (decl-list decl
-	      #'append))
+	      #'append-item-to-right))
 
   ;; returns 'decl-specs' structure
   (decl-specs
