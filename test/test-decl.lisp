@@ -34,16 +34,20 @@
   (test '({ static int \; }))
   (test '({ extern int \; }))
   (test '({ typedef int \; }))
-  (test '({ auto auto auto int \; }))
-  (test '({ auto register int \; }))
+  (assert-compile-error ()
+    { auto auto auto int \; })
+  (assert-compile-error ()
+    { auto register int \; })
 
   (test '({ auto \; }))
   (test '({ register \; }))
   (test '({ static \; }))
   (test '({ extern \; }))
   (test '({ typedef \; }))
-  (test '({ auto auto \; }))
-  (test '({ auto register \; }))
+  (assert-compile-error ()
+    { auto auto \; })
+  (assert-compile-error ()
+    { auto register \; })
 
   (test '({ void \; }))
   (test '({ int \; }))
@@ -57,7 +61,8 @@
   (test '({ const \; }))
 
   (test '({ const auto unsigned int \; }))
-  (test '({ const auto unsigned int float \; }))
+  (assert-compile-error ()
+    { const auto unsigned int float \; })
   t)
 
 (defun test-struct-or-union-spec ()
@@ -188,8 +193,7 @@
 
 
 (defun test-param-type-list ()
-  ;; uses cast
-
+  ;; TODO: support cast
   (test '({ \( int \( int \) \) x \; }))
   (test '({ \( int \( unsigned int \) \) x \; }))
   (test '({ \( int \( int * \) \) x \; }))
@@ -255,7 +259,8 @@
 
   (test '({ int \( x \) \; }))
   (test '({ int x [ 5 ] \; }))
-  (test '({ int x [ ] \; }))
+  (assert-compile-error ()
+    { int x [ ] \; })
   (test '({ int x \( int \) \; }))
   (test '({ int x \( int \, float \) \; }))
   (test '({ int x \( hoge \) \; }))
@@ -265,15 +270,29 @@
 
   t)
 
-(defun test-initializer ()
+(defun test-initializer-simple ()
   ;; uses init-declarator
-
-  (test '({ int x = 0 \; }))
-  (test '({ int x = { 0 } \; }))
-  (test '({ int x = { 0 \, 1 } \; }))
-  (test '({ int x = { 0 \, 1 \, 2 } \; }))
-  (test '({ int x = { 0 \, 1 \, } \; }))
-
+  (eval-equal 0 ()
+    { int x = 0 \; return x \; })
+  (assert-compile-error ()
+    { int x = { 0 } \; })
+  (eval-equal t ()
+    {
+    int x [ 2 ] = { 0 \, 1 } \;
+    return x [ 0 ] == 0 && x [ 1 ] == 1 \;
+    })
+  (eval-equal t ()
+    {
+    int x [ 3 ] = { 0 \, 1 \, 2 } \;
+    return x [ 0 ] == 0 && x [ 1 ] == 1 && x [ 2 ] == 2 \;
+    })
+  (eval-equal t ()
+    {
+    int x [ 2 ] = { 0 \, 1 \, } \;
+    return x [ 0 ] == 0 && x [ 1 ] == 1 \;
+    })
+  ;; TODO: support this!
+  ;; (test '({ int x [ ]= { 0 \, 1 } \; }))
   t)
 
 (defun test-array-pointer-decl ()
@@ -281,13 +300,16 @@
   (test '(int \( * pointer_to_array \) [ 5 ] \; ))
   (test '(int * \( array_of_pointer [ 5 ] \) \; ))
   (test '(int \( * array_of_func_ptr [ 5 ] \) \( int \, int \) \; ))
-  (test '(int * array_of_func [ 5 ] \( int \, int \) \; )) ; error
-  (test '(int * func_returns_array \( int \, int \) [ 5 ] \; )) ; error
-  (test '(int * func_returns_func \( int x \, int y \) \( int z \) \; )) ; error
+  (assert-compile-error ()
+    int * array_of_func [ 5 ] \( int \, int \) \; )
+  (assert-compile-error ()
+    int * func_returns_array \( int \, int \) [ 5 ] \; )
+  (assert-compile-error ()
+    int * func_returns_func \( int x \, int y \) \( int z \) \;)
   (test '(int * func_returns_pointer \( int \, int \) \; ))
   (test '(int * \( * funcptr \) \( int \, int \) \; ))
   ;; http://unixwiz.net/techtips/reading-cdecl.html
-  (test '(char * \( * \( * * foo [ ] [ 8 ] \) \( \) \) [ ] \;))
+  ;; (test '(char * \( * \( * * foo [ ] [ 8 ] \) \( \) \) [ ] \;))
   t)
 
 ;; TODO: add initializer tests
@@ -295,8 +317,15 @@
 (defun test-decl ()
   (test-decl-simple)
   (test-decl-list)
+  (test-decl-specs)
   (test-struct-or-union-spec)
   (test-init-declarator-list)
+  (test-spec-qualifier-list)
   (test-struct-declarator)
   (test-enum-spec)
+  (test-param-type-list)
+  (test-type-name)
+  (test-declarator)
+  (test-initializer-simple)
+  (test-array-pointer-decl)
   t)
