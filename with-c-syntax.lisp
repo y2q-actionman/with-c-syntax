@@ -123,6 +123,8 @@
 ;; - some code, if needed
 ;; TODO: consider struct-name's scope. If using defclass, it is global!
 ;; TODO: support cv-qualifier.
+;; NOTE: In C, max bits are limited to the normal type.
+;; http://stackoverflow.com/questions/2647320/struct-bitfield-max-size-c99-c
 (defun lispify-struct-spec (sspec)
   ;; fills name
   (when (null (struct-or-union-spec-id sspec))
@@ -145,7 +147,7 @@
 	       collect
 		 (let ((tp
 			(if bits
-			    (cond
+			    (cond	; Limit the bits. see above comments.
 			      ((subtypep `(signed-byte ,bits) tp)
 			       `(signed-byte ,bits))
 			      ((subtypep `(unsigned-byte ,bits) tp)
@@ -330,10 +332,9 @@
                          ((subtypep var-type 'function)
                           (unless (null init)
                             (error "a function cannot take a initializer")))
-                         ((subtypep var-type 'number)
-			  ;; This includes enum-spec
-			  ;; Should I check it? like:
-			  ;; (member-if #'enum-spec-p (decl-specs-type-spec dspecs))
+                         ((or (subtypep var-type 'number)
+			      ;; enum type. TODO: review me!!
+			      (member-if #'enum-spec-p (decl-specs-type-spec dspecs)))
                           (if (null init) 0 init))
                          ((subtypep var-type 'array)
 			  `(make-array ',(third var-type)
