@@ -423,9 +423,7 @@
 ;; for statements
 (defstruct stat
   (code nil)
-  ;; list of (symbol :initform form :type type
-  ;;                  :c-declarator nil :c-decl-specs nil)
-  (declarations nil)
+  (declarations nil)        ; list of 'init-declarator'
   (break-statements nil)    ; list of (go 'break), should be rewrited
   (continue-statements nil) ; list of (go 'continue), should be rewrited
   (case-label-list nil))    ; alist of (<gensym> . :exp <case-exp>)
