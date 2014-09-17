@@ -79,13 +79,18 @@
       return ! hoge \;)
     (eval-equal nil ()
       return ! ! hoge \;))
-  ;; TODO: sizeof
-  ;; TODO: sizeof
+  (eval-equal 1 ()
+    return sizeof 2 \;)
+  (eval-equal 1 ()
+    return sizeof \( int \) \;)
   t)
 
 (defun test-cast-exp ()
   (test-unary-exp)
-  ;; TODO: (test '({ \( integer \) hoge \; }))
+  (eval-equal 10 ((hoge 10))
+    { return \( int \) 10 \; })
+  (eval-equal 10 ((hoge 10))
+    { return \( int \) \( int * \) hoge \; })
   t)
 
 (defun test-mult-exp ()

@@ -407,6 +407,17 @@
 (defun ash-right (i c)
   (ash i (- c)))
 
+(defun lispify-type-name (qls abs)
+  (setf qls (finalize-decl-specs qls))
+  (if abs
+      (let ((init-decls
+	     (finalize-init-decls
+	      qls
+	      (list (make-init-declarator :declarator (cons nil abs))))))
+	(getf (cdr (first init-decls)) :type))
+      (decl-specs-lisp-type qls)))
+
+
 ;; for statements
 (defstruct stat
   (code nil)
@@ -943,13 +954,14 @@
    (initializer-list \, initializer
     #'concatinate-comma-list))
 
-  ;; TODO: introduce some struct
+  ;; see 'decl'
   (type-name
    (spec-qualifier-list abstract-declarator
 			#'(lambda (qls abs)
-			    `(,qls :declarator ,abs)))
+			    (lispify-type-name qls abs)))
    (spec-qualifier-list
-    #'identity))
+    #'(lambda (qls)
+	(lispify-type-name qls nil))))
 
   (abstract-declarator
    pointer
@@ -1289,8 +1301,18 @@
       (lispify-unary '-))
    (! cast-exp
       (lispify-unary 'not))
-   (sizeof unary-exp)			; TODO
-   (sizeof \( type-name \)))		; TODO
+   (sizeof unary-exp			; TODO: add struct
+	   #'(lambda (_op exp)
+	       (declare (ignore _op))
+	       `(if (arrayp ,exp)
+		    (array-total-size ,exp)
+		    1)))
+   (sizeof \( type-name \)		; TODO: add struct
+	   #'(lambda (_op _lp tp _rp)
+	       (declare (ignore _op _lp _rp))
+	       (if (subtypep tp 'array)
+		   (array-total-size (make-array tp))
+		   1))))
 
   (postfix-exp
    primary-exp
