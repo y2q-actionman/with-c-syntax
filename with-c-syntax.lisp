@@ -533,6 +533,7 @@
 	    ,end-tag))
     stat))
 
+;;: Toplevel
 (defun expand-toplevel-stat (stat)
   (let* ((dynamic-syms nil)
          (dynamic-vals nil)
@@ -553,6 +554,16 @@
 		  ,@(stat-code stat)))))
       ;; TODO: remove them
       (setf *enum-declarations-alist* nil))))
+
+(defvar *function-definition-default-return*
+  (make-decl-specs :type-spec '(int)
+		   :lisp-type 'fixnum))
+
+(defun lispify-function-definition (name body &key
+				    (return *function-definition-default-return*)
+				    (K&R-decls nil))
+  nil)
+				    
 
 ;;; Functions referenced by the parser directly.
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -633,32 +644,20 @@
   (function-definition
    (decl-specs declarator decl-list compound-stat
     #'(lambda (ret name k&r-decls body)
-	(list :function-definition
-	      :return ret
-	      :name name
-	      :K&R-style-decls k&r-decls
-	      :body body)))
+	(lispify-function-definition name body
+				     :return ret
+				     :K&R-decls k&r-decls)))
    (           declarator decl-list compound-stat
     #'(lambda (name k&r-decls body)
-	(list :function-definition
-	      :return nil
-	      :name name
-	      :K&R-style-decls k&r-decls
-	      :body body)))
+	(lispify-function-definition name body
+				     :K&R-decls k&r-decls)))
    (decl-specs declarator           compound-stat
     #'(lambda (ret name body)
-	(list :function-definition
-	      :return ret
-	      :name name
-	      ;; :K&R-style-decls nil
-	      :body body)))
+	(lispify-function-definition name body
+				     :return ret)))
    (           declarator           compound-stat
     #'(lambda (name body)
-	(list :function-definition
-	      :return nil
-	      :name name
-	      ;; :K&R-style-decls nil
-	      :body body))))
+	(lispify-function-definition name body))))
 
   (decl
    (decl-specs init-declarator-list \;

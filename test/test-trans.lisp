@@ -19,3 +19,7 @@
   (test '( hoge \( int x \, float y \) { }  ))
   t)
 
+(defun test-trans ()
+  (test-trans-decl)
+  (test-trans-fdefinition)
+  t)
