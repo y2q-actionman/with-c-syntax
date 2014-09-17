@@ -310,6 +310,8 @@
                      (:funcall
                       (when (eq :aref (car (third decl)))
                         (error "a function returning an array is not accepted"))
+                      (when (eq :funcall (car (third decl)))
+                        (error "a function returning a function is not accepted"))
                       'function)         ; TODO: includes returning type, and arg type
                      (:aref
                       (loop with aref-type = (decl-specs-lisp-type dspecs)
@@ -335,11 +337,20 @@
                          ((or (subtypep var-type 'number)
 			      ;; enum type. TODO: review me!!
 			      (member-if #'enum-spec-p (decl-specs-type-spec dspecs)))
-                          (if (null init) 0 init))
+			  (unless (atom init))
+			    (error "number cannot be initialized with a list"))
+			  (if (null init) 0 init))
                          ((subtypep var-type 'array)
-			  `(make-array ',(third var-type)
-				       :initial-contents 
-				       ,(array-init-adjust var-type init)))
+			  (let ((array-dim (third var-type)))
+			    (when (and (or (null array-dim)
+					   (member '* array-dim))
+				       (null init))
+			      (error "array's dimension cannot be specified (~S, ~S, ~S)"
+				     var-name var-type init))
+			    `(make-array ',array-dim
+					 :element-type ',(second var-type)
+					 :initial-contents 
+					 ,(array-init-adjust var-type init))))
 			 ((and (symbolp var-type)
 			       (not (eq 'nil var-type)))
 			  ;; TODO: I think struct-init is limited to C99 style..
