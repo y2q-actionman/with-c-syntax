@@ -1,5 +1,6 @@
 (in-package :with-c-syntax)
 
+;; TODO: remove this!
 (defun test (form)
   (format t "~&~S~%   ~S~%" form 
 	  (c-expression-tranform () form)))
@@ -21,3 +22,10 @@
 	       ()
 	       "eval-equal error: test-fun ~S, returned ~S~% form ~S"
 	       ,fun ,ret ',body))))
+
+(defmacro assert-compile-error ((&rest bindings) &body body)
+  `(multiple-value-bind (ret condition)
+       (ignore-errors (c-expression-tranform ',bindings
+					     ',body))
+     (declare (ignore ret))
+     (assert condition)))

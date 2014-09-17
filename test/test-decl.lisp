@@ -85,20 +85,43 @@
     foo \. x = 1 \;
     return foo \. x \;
     })
-  (test '({ struct { int x \; int y \; } \; }))
-  (test '({ struct a \; }))
-  (test '({ union a \; }))
+  (eval-equal t ()
+    {
+    struct { int x \; int y \; } foo \;
+    foo \. x = foo \. y = 1 \;
+    return foo \. x == foo \. y \;
+    })
+  (eval-equal t ()
+    {
+    struct a \;
+    struct a * p \;
+    return t \;
+    })
+  ;; TODO: add union tests!
+  (eval-equal t ()
+    {
+    union a \;
+    union a * p \;
+    return t \;
+    })
   t)
 
 (defun test-init-declarator-list ()
-  (test '({ int a \; }))
-  (test '({ int a \, b \; }))
-  (test '({ int a \, b \, c \; }))
-  (test '({ int a = 0 \; }))
-  (test '({ int a \, b = 1 \; }))
-  (test '({ int a \, b = 1 \, c = 2 \; }))
+  (eval-equal t ()
+    { int a \; return t \; })
+  (eval-equal t ()
+    { int a \, b \; return t \; })
+  (eval-equal t ()
+    { int a \, b \, c \; return t \; })
+  (eval-equal 0 ()
+    { int a = 0 \; return a \; })
+  (eval-equal 1 ()
+    { int a \, b = 1 \; return b \; })
+  (eval-equal t ()
+    { int a \, b = 1 \, c = 2 \; return b == 1 && c == 2 \; })
   t)
 
+;; TODO: add cv-qualifier tests!
 (defun test-spec-qualifier-list ()
   (test '({ struct hoge { int x \; } \; }))
   (test '({ struct hoge { const x \; } \; }))
@@ -108,18 +131,59 @@
   t)
 
 (defun test-struct-declarator ()
-  (test '({ struct hoge { int x \; } \; }))
-  (test '({ struct hoge { int x \, y \; } \; }))
-  (test '({ struct hoge { int x \, y \, z \; } \; }))
-  (test '({ struct hoge { int x \: 3 \; } \; }))
-  (test '({ struct hoge { int x \, y \: 3 \; } \; }))
-  (test '({ struct hoge { int x \: 1 \, y \: 5 \, z \: 99 \; } \; }))
+  (eval-equal t ()
+    { struct hoge { int x \; } foo \; return t \; })
+  (eval-equal t ()
+    {
+    struct hoge { int x \, y \; } foo \;
+    foo \. x = foo \. y = 1 \;
+    return foo \. x == foo \. y \;
+    })
+  (eval-equal t ()
+    {
+    struct hoge { int x \, y \, z \; } foo \;
+    foo \. x = foo \. y = foo \. z = 1 \;
+    return foo \. x == foo \. y && foo \. y == foo \. z \;
+    })
+  (eval-equal t ()
+    {
+    struct hoge { int x \: 3 \; } foo \;
+    foo \. x = 1 \;
+    return foo \. x == 1 \;
+    })
+  (eval-equal t ()
+    {
+    struct hoge { int x \, y \: 3 \; } foo \;
+    foo \. x = foo \. y = 1 \;
+    return foo \. x == foo \. y \;
+    })
+  (eval-equal t ()
+    {
+    struct hoge { int x \: 1 \, y \: 5 \, z \: 8 \; } foo \;
+    foo \. x = foo \. y = foo \. z = 1 \;
+    return foo \. x == foo \. y && foo \. y == foo \. z \;
+    })
+  (assert-compile-error ()
+    { struct hoge { int x \: 99 \; } \; })
   t)
 
 (defun test-enum-spec ()
-  (test '({ enum hoge \; }))
-  (test '({ enum hoge { x \, y = 1 \, z } \; }))
-  (test '({ enum { x = 0 \, y \, z = 3 } \; } ))
+  (eval-equal 100 ()
+    {
+    enum hoge \;
+    enum hoge foo = 100 \;
+    return foo \;
+    })
+  (eval-equal t ()
+    {
+    enum hoge { x \, y = 4 \, z } \;
+    return x == 0 && y == 4 && z == 5 \;
+    })
+  (eval-equal t ()
+    {
+    enum { x = 0 \, y \, z = 3 } \;
+    return x == 0 && y == 1 && z == 3 \;
+    })
   t)
 
 
@@ -231,4 +295,8 @@
 (defun test-decl ()
   (test-decl-simple)
   (test-decl-list)
+  (test-struct-or-union-spec)
+  (test-init-declarator-list)
+  (test-struct-declarator)
+  (test-enum-spec)
   t)
