@@ -60,7 +60,6 @@
   (test '({ const auto unsigned int float \; }))
   t)
 
-;; TODO: expand defclass!!
 (defun test-struct-or-union-spec ()
   (eval-equal 100 ()
     {
