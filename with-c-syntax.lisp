@@ -118,7 +118,7 @@
   ;; list of enumerator
   (enumerator-list nil)
   (lisp-type 'fixnum)
-  lisp-decls)
+  lisp-bindings)
 
 (defstruct (enumerator
 	     (:include init-declarator))
@@ -184,12 +184,13 @@
   (when (null (enum-spec-id espec))
     (setf (enum-spec-id espec) (gensym "(enum-name)")))
   ;; addes values into lisp-decls
-  (loop as default-initform = 0 then `(1+ ,(init-declarator-declarator e))
+  (loop as default-initform = 0 then `(1+ ,e-decl)
      for e in (enum-spec-enumerator-list espec)
-     collect (list (init-declarator-declarator e)
-		   (or (init-declarator-initializer e) default-initform))
-     into edecls
-     finally (setf (enum-spec-lisp-decls espec) edecls))
+     as e-decl = (init-declarator-declarator e)
+     as e-init = (init-declarator-initializer e)
+     collect (list e-decl (or e-init default-initform))
+     into bindings
+     finally (setf (enum-spec-lisp-bindings espec) bindings))
   espec)
 
 (defun lispify-type-spec (tp-list)
@@ -277,7 +278,7 @@
 	   ;; TODO: move from here??
 	   (setf *enum-declarations-alist*
 		 (append *enum-declarations-alist*
-			 (enum-spec-lisp-decls ltype))))
+			 (enum-spec-lisp-bindings ltype))))
           ((struct-or-union-spec-p ltype)
            (setf (decl-specs-lisp-code dspecs)
                  (struct-or-union-spec-lisp-code ltype)
@@ -328,12 +329,12 @@
                          if (eq :funcall tp)
                          do (error "an array of functions is not accepted")
                          else if (eq :aref tp)
-                         collect (if tp-args tp-args '*) into aref-dim
+                         collect (or tp-args '*) into aref-dim
                          else if (eq :pointer tp)
                          do (setf aref-type 'pseudo-pointer) (loop-finish)
                          finally
                            (let ((tp-args-1 (cadr (second decl))))
-                             (push (if tp-args-1 tp-args-1 '*) aref-dim))
+                             (push (or tp-args-1 '*) aref-dim))
                            (return `(simple-array ,aref-type ,aref-dim))))
                      ((nil)
                       (decl-specs-lisp-type dspecs))))
@@ -347,7 +348,7 @@
 			      (member-if #'enum-spec-p (decl-specs-type-spec dspecs)))
 			  (unless (atom init)
 			    (error "number cannot be initialized with a list"))
-			  (if (null init) 0 init))
+			  (or init 0))
                          ((subtypep var-type 'array)
 			  (let ((array-dim (third var-type)))
 			    (when (and (or (null array-dim)
