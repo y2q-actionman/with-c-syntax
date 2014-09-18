@@ -652,6 +652,7 @@
       (nconcf lexical-binds binds)
       (setf constructors ctors
 	    fields flds))
+    ;; TODO: if no pointers used, we can remove some facilities.
     (prog1
 	`(flet (,@(expand-constructor-spec constructors)
 		,@(expand-field-spec fields))

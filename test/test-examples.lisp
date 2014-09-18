@@ -152,7 +152,7 @@
   t)
 
 (defun w-c-s-pointer (xxx &aux z)
-  (with-c-syntax ((xxx xxx))
+  (with-c-syntax ()
     {
     z =  & xxx \;
     ;; (format t "z = ~A~%" z) \;
