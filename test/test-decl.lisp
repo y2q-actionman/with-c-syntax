@@ -311,6 +311,26 @@
   ;; (test '(char * \( * \( * * foo [ ] [ 8 ] \) \( \) \) [ ] \;))
   t)
 
+
+(defun test-initializer-struct ()
+  (eval-equal t ()
+    {
+    struct hoge { int x \, y \; } foo = { 1 \, 2 } \;
+    return foo \. x == 1 && foo \. y == 2 \;
+    })
+  (eval-equal t ()
+    {
+    struct hoge { int x \, y \, z \; } foo = { 1 \, 2 \, 3 } \;
+    return foo \. x == 1 && foo \. y == 2 && foo \. z == 3 \;
+    })
+  (eval-equal t ()
+    {
+    struct { int x \, y \, z \; } foo =  { 1 \, 2 \, 3 } \;
+    return foo \. x == 1 && foo \. y == 2 && foo \. z == 3 \;
+    })
+  ;; TODO: add nested struct initializer
+  t)
+
 ;; TODO: add initializer tests
 
 (defun test-decl ()
@@ -327,4 +347,5 @@
   (test-declarator)
   (test-initializer-simple)
   (test-array-pointer-decl)
+  (test-initializer-struct)
   t)
