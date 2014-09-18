@@ -599,6 +599,60 @@
 		   do (setf (aref ret i) i)
 		   finally (return ret)))))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun maybe-w-c-s-struct-p (obj)
+    (and (arrayp obj)
+	 (plusp (length obj))
+	 (symbolp (aref obj 0)))))
+
+(defun expand-field-spec (fields)
+  (let ((reader-table (make-hash-table :test 'eq))
+	(writer-table (make-hash-table :test 'eq)))
+    (loop for f in fields
+       as name = (w-c-s-struct-field-spec-field-name f)
+       as constness = (w-c-s-struct-field-spec-constness f)
+       do (push f (gethash name reader-table))
+       when (not constness)
+       do (push f (gethash name writer-table)))
+    (append
+     (loop with func-arg = 'arg
+	for k being the hash-key of reader-table using (hash-value vals)
+	as func-name = k
+	as func-body =
+	  (loop with case-default = `(,func-name ,func-arg)
+	     for v in vals
+	     as struct-name = (w-c-s-struct-field-spec-struct-name v)
+	     as index = (w-c-s-struct-field-spec-index v)
+	     as case-clause = `(,struct-name (aref ,func-arg ,index))
+	     collect case-clause into case-body
+	     finally (return
+		       `(if (maybe-w-c-s-struct-p ,func-arg)
+			    (case (aref ,func-arg 0)
+			      ,@case-body
+			      (t ,case-default))
+			    ,case-default)))
+	collect `(,func-name (,func-arg) ,func-body))
+     (loop with func-arg = 'arg
+	with func-newval = 'newval
+	for k being the hash-key of writer-table using (hash-value vals)
+	as func-name = k
+	as func-body =
+	  (loop with case-default = `(setf (,func-name ,func-arg) ,func-newval)
+	     for v in vals
+	     as struct-name = (w-c-s-struct-field-spec-struct-name v)
+	     as index = (w-c-s-struct-field-spec-index v)
+	     as case-clause = `(,struct-name
+				(setf (aref ,func-arg ,index) ,func-newval))
+	     collect case-clause into case-body
+	     finally (return
+		       `(if (maybe-w-c-s-struct-p ,func-arg)
+			    (case (aref ,func-arg 0)
+			      ,@case-body
+			      (t ,case-default))
+			    ,case-default)))
+	collect `((setf ,func-name) (,func-newval ,func-arg) ,func-body)))))
+
+
 (defun expand-toplevel-stat (stat &key bindings entry-point)
   (let* ((dynamic-syms nil)
          (dynamic-vals nil)
@@ -621,7 +675,8 @@
 	    constructors ctors
 	    fields flds))
     (prog1
-	`(flet ,(expand-constructor-spec constructors)
+	`(flet (,@(expand-constructor-spec constructors)
+		,@(expand-field-spec fields))
 	   (with-pseudo-pointer-scope ()
 	     (progv ',dynamic-syms (list ,@dynamic-vals)
 	       (locally (declare (special ,@dynamic-syms))
