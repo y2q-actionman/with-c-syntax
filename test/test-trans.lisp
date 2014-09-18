@@ -55,6 +55,16 @@
     )
   (assert (<= 5 (hoge7 5 0.4) 6))
 
+  (with-c-syntax ()
+    struct test { int x \; } \;
+    hoge8 \( x \) {
+      struct test s = { x } \;
+      s \. x *= 8 \;
+      return s \. x \;
+    }
+    )
+  (assert (= 16 (hoge8 2)))
+
   t)
 
 (defun test-trans ()

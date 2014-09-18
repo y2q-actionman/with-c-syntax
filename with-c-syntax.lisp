@@ -594,9 +594,9 @@
 		(&rest args)
 		(loop with ret = (make-array '(,field-count))
 		   initially (setf (aref ret 0) ',struct-name)
-		   for idx from 1
-		   as i in args
-		   do (setf (aref ret i) i)
+		   for idx from 1 below ,field-count
+		   for arg in args
+		   do (setf (aref ret idx) arg)
 		   finally (return ret)))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -718,6 +718,9 @@
   (loop with dynamic-syms = nil
      with dynamic-vals = nil
      with codes = nil
+     with lexical-bindings = nil
+     with constructors = nil
+     with fields = nil
 
      initially
       (multiple-value-setq (dynamic-syms dynamic-vals)
@@ -727,15 +730,21 @@
      if (function-definition-p u)
      do (appendf codes (function-definition-lisp-code u))
      else
-     do (multiple-value-bind (dsyms dvals) ; TODO: other values
+     do (multiple-value-bind (dsyms dvals e-binds ctors flds)
             (expand-decl-bindings (list u))
 	  (nconcf dynamic-syms dsyms)
-	  (nconcf dynamic-vals dvals))
+	  (nconcf dynamic-vals dvals)
+	  (nconcf lexical-bindings e-binds)
+	  (nconcf constructors ctors)
+	  (nconcf fields flds))
      finally
-       (return 
-         `(progv ',dynamic-syms (list ,@dynamic-vals)
-            (locally (declare (special ,@dynamic-syms))
-              ,@codes)))))
+       (return
+	`(flet (,@(expand-constructor-spec constructors)
+		,@(expand-field-spec fields))
+	   (let ,lexical-bindings
+	     (progv ',dynamic-syms (list ,@dynamic-vals)
+	       (locally (declare (special ,@dynamic-syms))
+		 ,@codes)))))))
 
 ;;; The parser
 (define-parser *expression-parser*
