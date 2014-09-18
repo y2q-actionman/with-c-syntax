@@ -3,8 +3,8 @@
 (deftype pseudo-pointer ()
   'fixnum)
 
-(defconstant +pseudo-pointer-mask+    #b0111111)
-(defconstant +pseudo-pointer-safebit+ #b0100000)
+(defconstant +pseudo-pointer-mask+    #b1111111)
+(defconstant +pseudo-pointer-safebit+ #b1000000)
 
 ;; integer -> (list :pointee obj :reader func :writer func)
 (defvar *pseudo-pointee-table* (make-hash-table))
@@ -33,10 +33,10 @@
          :test #'typep))
 
 (defun alloc-pseudo-pointer ()
+  (incf *pseudo-pointer-next*) ; This makes the base of the first pointer to 0
   (let* ((base (ash *pseudo-pointer-next*
                     (logcount +pseudo-pointer-mask+)))
          (p (+ base +pseudo-pointer-safebit+)))
-    (incf *pseudo-pointer-next*)
     (values base p)))
 
 (defun pseudo-pointer-extract (p)
