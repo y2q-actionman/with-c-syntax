@@ -160,15 +160,12 @@
      in (struct-or-union-spec-struct-decl-list sspec)
      do (finalize-decl-specs spec-qual)
      ;; other struct
-     do (setf (decl-specs-lisp-bindings dspecs)
-	      (append (decl-specs-lisp-bindings dspecs)
-		      (decl-specs-lisp-bindings spec-qual))
-	      (decl-specs-lisp-constructor-spec dspecs)
-	      (append (decl-specs-lisp-constructor-spec dspecs)
-		      (decl-specs-lisp-constructor-spec spec-qual))
-	      (decl-specs-lisp-field-spec dspecs)
-	      (append (decl-specs-lisp-field-spec dspecs)
-		      (decl-specs-lisp-field-spec spec-qual)))
+     do (appendf (decl-specs-lisp-bindings dspecs)
+		 (decl-specs-lisp-bindings spec-qual))
+       (appendf	(decl-specs-lisp-constructor-spec dspecs)
+		(decl-specs-lisp-constructor-spec spec-qual))
+       (appendf (decl-specs-lisp-field-spec dspecs)
+		(decl-specs-lisp-field-spec spec-qual))
      ;; this struct
      append
        (loop with tp = (decl-specs-lisp-type spec-qual)
@@ -194,14 +191,12 @@
      finally
        (setf (decl-specs-lisp-type dspecs)
 	     `(vector * ,field-count))
-       (setf (decl-specs-lisp-constructor-spec dspecs)
-	     (append-item-to-right
-	      (decl-specs-lisp-constructor-spec dspecs)
-	      (make-w-c-s-struct-constructor-spec
-	       :struct-name struct-name :field-count field-count)))
-       (setf (decl-specs-lisp-field-spec dspecs)
-	     (append (decl-specs-lisp-field-spec dspecs)
-		     fields)))
+       (append-item-to-right-f
+	(decl-specs-lisp-constructor-spec dspecs)
+	(make-w-c-s-struct-constructor-spec
+	 :struct-name struct-name :field-count field-count))
+       (appendf (decl-specs-lisp-field-spec dspecs)
+		fields))
   dspecs)
 
 ;; TODO: consider enum-name's scope. If using deftype, it is global!
@@ -584,8 +579,8 @@
      do (loop for i in init-decls
            collect (init-declarator-lisp-name i) into dsyms
            collect (init-declarator-lisp-initform i) into dvals
-           finally (setf dynamic-syms (nconc dynamic-syms dsyms)
-                         dynamic-vals (nconc dynamic-vals dvals)))
+           finally (nconcf dynamic-syms dsyms)
+	     (nconcf dynamic-vals dvals))
      append (decl-specs-lisp-bindings dspecs) into e-bindings
      append (decl-specs-lisp-constructor-spec dspecs) into constructors
      append (decl-specs-lisp-field-spec dspecs) into fields
@@ -605,13 +600,13 @@
     (when bindings
       (multiple-value-bind (dsyms dvals)
 	  (expand-binding-list bindings)
-	(setf dynamic-syms (nconc dynamic-syms dsyms)
-	      dynamic-vals (nconc dynamic-vals dvals))))
+	(nconcf dynamic-syms dsyms)
+	(nconcf dynamic-vals dvals)))
     (multiple-value-bind (dsyms dvals e-bindings ctors flds)
         (expand-decl-bindings (stat-declarations stat))
-      (setf dynamic-syms (nconc dynamic-syms dsyms)
-            dynamic-vals (nconc dynamic-vals dvals)
-	    lexical-binds e-bindings
+      (nconcf dynamic-syms dsyms)
+      (nconcf dynamic-vals dvals)
+      (setf lexical-binds e-bindings
 	    constructors ctors
 	    fields flds))
     (prog1
@@ -664,28 +659,17 @@
 
      for u in units
      if (function-definition-p u)
-     do (setf codes
-              (append codes (function-definition-lisp-code u)))
+     do (appendf codes (function-definition-lisp-code u))
      else
      do (multiple-value-bind (dsyms dvals) ; TODO: other values
             (expand-decl-bindings (list u))
-          (setf dynamic-syms (nconc dynamic-syms dsyms)
-                dynamic-vals (nconc dynamic-vals dvals)))
+	  (nconcf dynamic-syms dsyms)
+	  (nconcf dynamic-vals dvals))
      finally
        (return 
          `(progv ',dynamic-syms (list ,@dynamic-vals)
             (locally (declare (special ,@dynamic-syms))
               ,@codes)))))
-
-;;; Functions referenced by the parser directly.
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun append-item-to-right (lis i)
-    (append lis (list i)))
-
-  (defun concatinate-comma-list (lis op i)
-    (declare (ignore op))
-    (append-item-to-right lis i))
-)
 
 ;;; The parser
 (define-parser *expression-parser*
