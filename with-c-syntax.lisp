@@ -141,6 +141,9 @@
   index
   constness)
 
+(defun w-c-s-struct-constructor-name (struct-name)
+  (intern (concatenate 'string "MAKE-" (symbol-name struct-name))))
+
 ;; TODO: consider struct-name's scope. If using defclass, it is global!
 ;; TODO: support cv-qualifier.
 ;; NOTE: In C, max bits are limited to the normal type.
@@ -324,8 +327,9 @@
 (defun finalize-init-declarator (dspecs init-decl)
   (let* ((decl (init-declarator-declarator init-decl))
          (init (init-declarator-initializer init-decl))
+	 (decl-type (car (second decl)))
          (var-name (first decl))
-         (var-type (ecase (car (second decl))
+         (var-type (ecase decl-type
                      (:pointer
                       'pseudo-pointer) ; TODO: includes 'what it points'
                      (:funcall
@@ -350,40 +354,34 @@
                            (return `(simple-array ,aref-type ,aref-dim))))
                      ((nil)
                       (decl-specs-lisp-type dspecs))))
-         (var-init (cond ((eq var-type 'pseudo-pointer)
-                          init)
-                         ((subtypep var-type 'function)
-                          (unless (null init)
-                            (error "a function cannot take a initializer")))
-                         ((or (subtypep var-type 'number)
-			      ;; enum type. TODO: review me!!
-			      (member-if #'enum-spec-p (decl-specs-type-spec dspecs)))
-			  (unless (atom init)
-			    (error "number cannot be initialized with a list"))
-			  (or init 0))
-                         ((subtypep var-type 'array)
-			  (let ((array-dim (third var-type)))
-			    (when (and (or (null array-dim)
-					   (member '* array-dim))
-				       (null init))
-			      (error "array's dimension cannot be specified (~S, ~S, ~S)"
-				     var-name var-type init))
-			    `(make-array ',array-dim
-					 :element-type ',(second var-type)
-					 :initial-contents 
-					 ,(array-init-adjust var-type init))))
-			 ((and (symbolp var-type)
-			       (not (eq 'nil var-type)))
-			  ;; structure (or a class)
-			  `(make-instance
-			    ',var-type
-			    ,@(loop for index from 0
-				 for i in init
-				 collect `(quote
-					   ,(w-c-s-struct-initarg-symbol index))
-				 collect i)))
-			 (t
-                          init))))
+         (var-init (case decl-type
+		     (:pointer init)
+		     (:funcall
+		      (unless (null init)
+			(error "a function cannot take a initializer")))
+		     (:aref
+		      (let ((array-dim (third var-type)))
+			(when (and (or (null array-dim)
+				       (member '* array-dim))
+				   (null init))
+			  (error "array's dimension cannot be specified (~S, ~S, ~S)"
+				 var-name var-type init))
+			`(make-array ',array-dim
+				     :element-type ',(second var-type)
+				     :initial-contents 
+				     ,(array-init-adjust var-type init))))
+		     (t
+		      (cond
+			((subtypep var-type 'number) ; includes enum
+			 (unless (atom init)
+			   (error "number cannot be initialized with a list"))
+			 (or init 0))
+			((subtypep var-type '(vector))
+			 (let ((name (decl-specs-w-c-s-type-tag dspecs)))
+			   `(,(w-c-s-struct-constructor-name name)
+			      ,@init)))
+			(t
+			 init))))))
     (setf (init-declarator-lisp-name init-decl) var-name
           (init-declarator-lisp-initform init-decl) var-init
           (init-declarator-lisp-type init-decl) var-type)
@@ -588,6 +586,19 @@
        (return (values dynamic-syms dynamic-vals
 		       e-bindings constructors fields))))
 
+(defun expand-constructor-spec (constructors)
+  (loop for ctor in constructors
+     as struct-name = (w-c-s-struct-constructor-spec-struct-name ctor)
+     as field-count = (w-c-s-struct-constructor-spec-field-count ctor)
+     collect `(,(w-c-s-struct-constructor-name struct-name)
+		(&rest args)
+		(loop with ret = (make-array '(,field-count))
+		   initially (setf (aref ret 0) ',struct-name)
+		   for idx from 1
+		   as i in args
+		   do (setf (aref ret i) i)
+		   finally (return ret)))))
+
 (defun expand-toplevel-stat (stat &key bindings entry-point)
   (let* ((dynamic-syms nil)
          (dynamic-vals nil)
@@ -610,7 +621,7 @@
 	    constructors ctors
 	    fields flds))
     (prog1
-	`(progn
+	`(flet ,(expand-constructor-spec constructors)
 	   (with-pseudo-pointer-scope ()
 	     (progv ',dynamic-syms (list ,@dynamic-vals)
 	       (locally (declare (special ,@dynamic-syms))
