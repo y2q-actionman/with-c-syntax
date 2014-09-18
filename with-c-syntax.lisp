@@ -586,18 +586,23 @@
        (return (values dynamic-syms dynamic-vals
 		       e-bindings constructors fields))))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun w-c-s-struct-constructor (size tag &rest args)
+    (loop with ret = (make-array `(,size))
+       initially (setf (aref ret 0) tag)
+       for idx from 1 below size
+       for arg in args
+       do (setf (aref ret idx) arg)
+       finally (return ret))))
+
 (defun expand-constructor-spec (constructors)
   (loop for ctor in constructors
      as struct-name = (w-c-s-struct-constructor-spec-struct-name ctor)
      as field-count = (w-c-s-struct-constructor-spec-field-count ctor)
      collect `(,(w-c-s-struct-constructor-name struct-name)
 		(&rest args)
-		(loop with ret = (make-array '(,field-count))
-		   initially (setf (aref ret 0) ',struct-name)
-		   for idx from 1 below ,field-count
-		   for arg in args
-		   do (setf (aref ret idx) arg)
-		   finally (return ret)))))
+                (apply #'w-c-s-struct-constructor
+                       ,field-count ',struct-name args))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun maybe-w-c-s-struct-p (obj)
@@ -606,52 +611,38 @@
 	 (symbolp (aref obj 0)))))
 
 (defun expand-field-spec (fields)
-  (let ((reader-table (make-hash-table :test 'eq))
-	(writer-table (make-hash-table :test 'eq)))
+  (let ((fields-table (make-hash-table :test 'eq)))
+    ;; collect with their names
     (loop for f in fields
        as name = (w-c-s-struct-field-spec-field-name f)
-       as constness = (w-c-s-struct-field-spec-constness f)
-       do (push f (gethash name reader-table))
-       when (not constness)
-       do (push f (gethash name writer-table)))
-    (append
-     (loop with func-arg = 'arg
-	for k being the hash-key of reader-table using (hash-value vals)
-	as func-name = k
-	as func-body =
-	  (loop with case-default = `(,func-name ,func-arg)
+       do (push f (gethash name fields-table)))
+    ;; expand to flet func
+    (loop with func-arg = 'arg
+       with func-newval = 'newval
+       for k being the hash-key of fields-table using (hash-value vals)
+       as func-name = k
+       as (func-body-r func-body-w) = 
+	  (loop with case-default-r = `(,func-name ,func-arg)
+             with case-default-w = `(setf ,case-default-r ,func-newval)
 	     for v in vals
 	     as struct-name = (w-c-s-struct-field-spec-struct-name v)
 	     as index = (w-c-s-struct-field-spec-index v)
-	     as case-clause = `(,struct-name (aref ,func-arg ,index))
-	     collect case-clause into case-body
+             as access-form = `(aref ,func-arg ,index)
+             as case-clause-r = `(,struct-name ,access-form)
+             as case-clause-w = `(,struct-name (setf ,access-form ,func-newval))
+	     collect case-clause-r into case-body-r
+	     collect case-clause-w into case-body-w
 	     finally (return
-		       `(if (maybe-w-c-s-struct-p ,func-arg)
-			    (case (aref ,func-arg 0)
-			      ,@case-body
-			      (t ,case-default))
-			    ,case-default)))
-	collect `(,func-name (,func-arg) ,func-body))
-     (loop with func-arg = 'arg
-	with func-newval = 'newval
-	for k being the hash-key of writer-table using (hash-value vals)
-	as func-name = k
-	as func-body =
-	  (loop with case-default = `(setf (,func-name ,func-arg) ,func-newval)
-	     for v in vals
-	     as struct-name = (w-c-s-struct-field-spec-struct-name v)
-	     as index = (w-c-s-struct-field-spec-index v)
-	     as case-clause = `(,struct-name
-				(setf (aref ,func-arg ,index) ,func-newval))
-	     collect case-clause into case-body
-	     finally (return
-		       `(if (maybe-w-c-s-struct-p ,func-arg)
-			    (case (aref ,func-arg 0)
-			      ,@case-body
-			      (t ,case-default))
-			    ,case-default)))
-	collect `((setf ,func-name) (,func-newval ,func-arg) ,func-body)))))
-
+                       (flet ((expand-to-flet-body (clauses default)
+                                `(if (maybe-w-c-s-struct-p ,func-arg)
+                                     (case (aref ,func-arg 0)
+                                       ,@clauses
+                                       (t ,default))
+                                     ,default)))
+                         (list (expand-to-flet-body case-body-r case-default-r)
+                               (expand-to-flet-body case-body-w case-default-w)))))
+	collect `(,func-name (,func-arg) ,func-body-r)
+	collect `((setf ,func-name) (,func-newval ,func-arg) ,func-body-w))))
 
 (defun expand-toplevel-stat (stat &key bindings entry-point)
   (let* ((dynamic-syms nil)
