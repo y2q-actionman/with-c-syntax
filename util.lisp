@@ -19,3 +19,7 @@
 (define-modify-macro append-item-to-right-f (i)
   append-item-to-right)
 
+(defmacro with-dynamic-bound-symbols ((&rest symbols) &body body)
+  `(progv ',symbols (list ,@symbols)
+     (locally (declare (special ,@symbols))
+       ,@body)))

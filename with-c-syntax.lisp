@@ -78,6 +78,7 @@
 
 ;;; Variables, works with the parser.
 (defvar *toplevel-bindings* nil)
+(defvar *dynamic-binding-required* nil)
 
 ;;; Functions used by the parser.
 
@@ -559,32 +560,17 @@
     stat))
 
 ;;: Toplevel
-(defun expand-binding-list (bindings)
-  (loop for s in bindings
-     if (symbolp s)
-       collect s into syms
-       and collect nil into vals
-     else if (listp s)
-       collect (first s) into syms
-       and collect (second s) into vals
-     finally
-       (return (values syms vals))))
-
 (defun expand-decl-bindings (declaration-list)
-  (loop with dynamic-syms = nil
-     with dynamic-vals = nil
-     for (dspecs init-decls) in declaration-list
-     do (loop for i in init-decls
-           collect (init-declarator-lisp-name i) into dsyms
-           collect (init-declarator-lisp-initform i) into dvals
-           finally (nconcf dynamic-syms dsyms)
-	     (nconcf dynamic-vals dvals))
-     append (decl-specs-lisp-bindings dspecs) into e-bindings
+  (loop for (dspecs init-decls) in declaration-list
+     append (loop for i in init-decls
+               collect (list (init-declarator-lisp-name i)
+                             (init-declarator-lisp-initform i)))
+     into bindings
+     append (decl-specs-lisp-bindings dspecs) into bindings
      append (decl-specs-lisp-constructor-spec dspecs) into constructors
      append (decl-specs-lisp-field-spec dspecs) into fields
      finally
-       (return (values dynamic-syms dynamic-vals
-		       e-bindings constructors fields))))
+       (return (values bindings constructors fields))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun w-c-s-struct-constructor (size tag &rest args)
@@ -645,34 +631,26 @@
 	collect `((setf ,func-name) (,func-newval ,func-arg) ,func-body-w))))
 
 (defun expand-toplevel-stat (stat &key bindings entry-point)
-  (let* ((dynamic-syms nil)
-         (dynamic-vals nil)
-	 (lexical-binds nil)
-	 (constructors nil)		; TODO
-	 (fields nil))			; TODO
+  (let* ((lexical-binds nil)
+	 (constructors nil)
+	 (fields nil))
     (when entry-point
-      (multiple-value-setq (dynamic-syms dynamic-vals)
-	(expand-binding-list *toplevel-bindings*)))
+      (nconcf lexical-binds (copy-list *toplevel-bindings*)))
     (when bindings
-      (multiple-value-bind (dsyms dvals)
-	  (expand-binding-list bindings)
-	(nconcf dynamic-syms dsyms)
-	(nconcf dynamic-vals dvals)))
-    (multiple-value-bind (dsyms dvals e-bindings ctors flds)
+      (nconcf lexical-binds bindings))
+    (multiple-value-bind (binds ctors flds)
         (expand-decl-bindings (stat-declarations stat))
-      (nconcf dynamic-syms dsyms)
-      (nconcf dynamic-vals dvals)
-      (setf lexical-binds e-bindings
-	    constructors ctors
+      (nconcf lexical-binds binds)
+      (setf constructors ctors
 	    fields flds))
     (prog1
 	`(flet (,@(expand-constructor-spec constructors)
 		,@(expand-field-spec fields))
-	   (with-pseudo-pointer-scope ()
-	     (progv ',dynamic-syms (list ,@dynamic-vals)
-	       (locally (declare (special ,@dynamic-syms))
-		 (prog* ,lexical-binds
-		    ,@(stat-code stat))))))
+           (let* ,lexical-binds
+             (with-dynamic-bound-symbols ,*dynamic-binding-required*
+               (with-pseudo-pointer-scope ()
+                 (block nil (tagbody ,@(stat-code stat)))))))
+      (setf *dynamic-binding-required* nil)
       ;; TODO: remove them
       (setf *enum-declarations-alist* nil))))
 
@@ -690,9 +668,9 @@
              collect (first tspecs)))
 	 (prelude-code nil))
     (setf return (finalize-decl-specs return))
-    ;; (setf prelude-code (decl-specs-lisp-code return))
     (when K&R-decls
-      (let* ((K&R-param-ids (expand-decl-bindings K&R-decls)))
+      (let* ((K&R-param-ids
+              (mapcar #'first (expand-decl-bindings K&R-decls))))
         (unless (equal K&R-param-ids param-ids)
           (error "prototype is not matched with k&r-style params"))))
     (make-function-definition
@@ -706,36 +684,30 @@
                            ',(decl-specs-lisp-type return)))))
 				    
 (defun expand-translation-unit (units)
-  (loop with dynamic-syms = nil
-     with dynamic-vals = nil
-     with codes = nil
+  (loop with codes = nil
      with lexical-bindings = nil
      with constructors = nil
      with fields = nil
 
      initially
-      (multiple-value-setq (dynamic-syms dynamic-vals)
-	(expand-binding-list *toplevel-bindings*))
+       (nconcf lexical-bindings (copy-list *toplevel-bindings*))
 
      for u in units
      if (function-definition-p u)
      do (appendf codes (function-definition-lisp-code u))
      else
-     do (multiple-value-bind (dsyms dvals e-binds ctors flds)
+     do (multiple-value-bind (binds ctors flds)
             (expand-decl-bindings (list u))
-	  (nconcf dynamic-syms dsyms)
-	  (nconcf dynamic-vals dvals)
-	  (nconcf lexical-bindings e-binds)
+	  (nconcf lexical-bindings binds)
 	  (nconcf constructors ctors)
 	  (nconcf fields flds))
      finally
        (return
 	`(flet (,@(expand-constructor-spec constructors)
 		,@(expand-field-spec fields))
-	   (let ,lexical-bindings
-	     (progv ',dynamic-syms (list ,@dynamic-vals)
-	       (locally (declare (special ,@dynamic-syms))
-		 ,@codes)))))))
+	   (let* ,lexical-bindings
+             (with-dynamic-bound-symbols ,*dynamic-binding-required*
+               (block nil ,@codes)))))))
 
 ;;; The parser
 (define-parser *expression-parser*
@@ -1439,7 +1411,9 @@
           (declare (ignore _op))
           ;; TODO: consider it. We should this exp is setf-able or not?
           (if (symbolp exp)
-              `(make-pseudo-pointer* ,exp ',exp)
+              (progn
+                (push exp *dynamic-binding-required*)
+                `(make-pseudo-pointer* ,exp ',exp))
               `(make-pseudo-pointer ,exp))))a
    (* cast-exp
       #'(lambda (_op exp)
@@ -1518,6 +1492,7 @@
 (defun c-expression-tranform (bindings form)
   (let* ((*enum-declarations-alist* nil)
 	 (*toplevel-bindings* bindings)
+	 (*dynamic-binding-required* nil)
 	 (lisp-exp (parse-with-lexer (list-lexer form)
                                      *expression-parser*)))
     lisp-exp))
