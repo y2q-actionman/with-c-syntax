@@ -328,6 +328,12 @@
     struct { int x \, y \, z \; } foo =  { 1 \, 2 \, 3 } \;
     return foo \. x == 1 && foo \. y == 2 && foo \. z == 3 \;
     })
+  (eval-equal t ()
+    {
+    struct hoge { int x \, y \; } foo = { 1 \, 2 } \;
+    struct fuga { int x \, y \; } bar = { 1 \, 2 } \;
+    return foo \. x == bar \. x && foo \. y == bar \. y \;
+    })
   ;; TODO: add nested struct initializer
   t)
 
