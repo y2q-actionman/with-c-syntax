@@ -361,11 +361,14 @@
 					 ,(array-init-adjust var-type init))))
 			 ((and (symbolp var-type)
 			       (not (eq 'nil var-type)))
-			  ;; TODO: I think struct-init is limited to C99 style..
-			  (let ((cls var-type))
-			    (if init
-				`(make-instance ',cls ,@init)
-				`(make-instance ',cls))))
+			  ;; structure (or a class)
+			  `(make-instance
+			    ',var-type
+			    ,@(loop for index from 0
+				 for i in init
+				 collect `(quote
+					   ,(w-c-s-struct-initarg-symbol index))
+				 collect i)))
 			 (t
                           init))))
     (setf (init-declarator-lisp-name init-decl) var-name
