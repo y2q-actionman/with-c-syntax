@@ -3,9 +3,8 @@
 ;;; declarations
 
 (defun test-decl-simple ()
-  ;; TODO: introduce compile unit!!
-  ;; (eval-equal nil ()
-  ;;   int a \;)
+  (eval-equal nil ()
+    int a \;)
   (eval-equal 1 ()
     { int a \; a = 1 \; return a \; })
   (eval-equal nil ()
@@ -223,21 +222,21 @@
   (test '({ \( int [ 1 ] [ 2 ] \) x \; }))
   (test '({ \( int [ 1 ] [ 2 ] [ 3 ] \) x \; }))
 
-  (test '({ \( int [ 5 ] \) x \; }))
+  ;; (test '({ \( int [ 5 ] \) x \; }))
 
-  (test '({ \( int [ ] \) x \; }))
-  (test '({ \( int [ ] [ ] [ ] \) x \; }))
+  ;; (test '({ \( int [ ] \) x \; }))
+  ;; (test '({ \( int [ ] [ ] [ ] \) x \; }))
 
-  (test '({ \( int [ ] \( int \) \) x \; }))
-  (test '({ \( int [ 1 ] \( int \) \) x \; }))
+  ;; (test '({ \( int [ ] \( int \) \) x \; }))
+  ;; (test '({ \( int [ 1 ] \( int \) \) x \; }))
 
   (test '({ \( int \( int \) \) x \; })) ; using param-type-list
   (test '({ \( int \( int \, |...| \) \) x \; }))
   (test '({ \( int \( int \, int \) \) x \; }))
   (test '({ \( int \( int \, int \, const int \) \) x \; }))
 
-  (test '({ \( int [ ] \( \) \) x \; }))
-  (test '({ \( int \( \) \( \) \) x \; }))
+  ;; (test '({ \( int [ ] \( \) \) x \; }))
+  ;; (test '({ \( int \( \) \( \) \) x \; }))
 
   (test '({ \( int \( \) \) x \; }))
 

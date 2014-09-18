@@ -77,7 +77,7 @@
 	       (error "Unexpected value ~S" value))))))
 
 ;;; Variables, works with the parser.
-(defvar *prelude-code* nil)
+(defvar *toplevel-bindings* nil)
 
 ;;; Functions used by the parser.
 
@@ -567,29 +567,38 @@
            finally (setf dynamic-syms (nconc dynamic-syms dsyms)
                          dynamic-vals (nconc dynamic-vals dvals)))
      when p-code
-     collect p-code into p-code-list
+     append p-code into p-code-list
      finally
        (return (values dynamic-syms dynamic-vals p-code-list))))
 
-(defun expand-toplevel-stat (bind-syms stat)
+(defun expand-toplevel-stat (stat &key bindings entry-point)
   (let* ((dynamic-syms nil)
          (dynamic-vals nil)
-	 (lexical-binds nil))
-    (multiple-value-setq (dynamic-syms dynamic-vals)
-      (expand-binding-list bind-syms))
+	 (lexical-binds nil)
+	 (prelude-code nil))
+    (when entry-point
+      (multiple-value-setq (dynamic-syms dynamic-vals)
+	(expand-binding-list *toplevel-bindings*)))
+    (when bindings
+      (multiple-value-bind (dsyms dvals)
+	  (expand-binding-list bindings)
+	(setf dynamic-syms (nconc dynamic-syms dsyms)
+	      dynamic-vals (nconc dynamic-vals dvals))))
     (multiple-value-bind (dsyms dvals p-codes)
         (expand-decl-bindings (stat-declarations stat))
       (setf dynamic-syms (nconc dynamic-syms dsyms)
             dynamic-vals (nconc dynamic-vals dvals)
-            *prelude-code* (append *prelude-code* p-codes)))
+            prelude-code (nconc prelude-code p-codes)))
     (setf lexical-binds
 	  (append lexical-binds *enum-declarations-alist*))
     (prog1
-	`(with-pseudo-pointer-scope ()
-	   (progv ',dynamic-syms (list ,@dynamic-vals)
-	     (locally (declare (special ,@dynamic-syms))
-	       (prog* ,lexical-binds
-		  ,@(stat-code stat)))))
+	`(progn
+	   ,@prelude-code
+	   (with-pseudo-pointer-scope ()
+	     (progv ',dynamic-syms (list ,@dynamic-vals)
+	       (locally (declare (special ,@dynamic-syms))
+		 (prog* ,lexical-binds
+		    ,@(stat-code stat))))))
       ;; TODO: remove them
       (setf *enum-declarations-alist* nil))))
 
@@ -604,10 +613,10 @@
          (func-param (getf (second name) :funcall))
          (param-ids
           (loop for (dspec tspecs) in func-param
-             collect (first tspecs))))
+             collect (first tspecs)))
+	 (prelude-code nil))
     (setf return (finalize-decl-specs return))
-    (setf *prelude-code*
-          (append *prelude-code* (decl-specs-lisp-code return)))
+    (setf prelude-code (decl-specs-lisp-code return))
     (when K&R-decls
       (let* ((K&R-param-ids
               (multiple-value-bind (dsyms dvals p-codes)
@@ -617,10 +626,12 @@
         (unless (equal K&R-param-ids param-ids)
           (error "prototype is not matched with k&r-style params"))))
     (make-function-definition
-     :lisp-code `((defun ,func-name ,param-ids
+     :lisp-code `(,prelude-code
+		  (defun ,func-name ,param-ids
                     ,(expand-toplevel-stat
-                      (mapcar #'(lambda (p) (list p p)) param-ids)
-                      body)))
+                      body
+		      :bindings
+                      (mapcar #'(lambda (p) (list p p)) param-ids))))
      :lisp-type `(function ',(mapcar (constantly t) param-ids)
                            ',(decl-specs-lisp-type return)))))
 				    
@@ -629,6 +640,10 @@
      with dynamic-vals = nil
      with codes = nil
 
+     initially
+      (multiple-value-setq (dynamic-syms dynamic-vals)
+	(expand-binding-list *toplevel-bindings*))
+
      for u in units
      if (function-definition-p u)
      do (setf codes
@@ -636,8 +651,8 @@
      else
      do (multiple-value-bind (dsyms dvals c)
             (expand-decl-bindings (list u))
-          (setf dynamic-syms (append dynamic-syms dsyms)
-                dynamic-vals (append dynamic-vals dvals)
+          (setf dynamic-syms (nconc dynamic-syms dsyms)
+                dynamic-vals (nconc dynamic-vals dvals)
                 codes (append codes c)))
      finally
        (return 
@@ -700,16 +715,16 @@
    (translation-unit
     #'(lambda (us) (expand-translation-unit us)))
    (labeled-stat
-    #'(lambda (st) (expand-toplevel-stat nil st)))
+    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
    ;; exp-stat is not included, because it is gramatically ambiguous.
    (compound-stat
-    #'(lambda (st) (expand-toplevel-stat nil st)))
+    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
    (selection-stat
-    #'(lambda (st) (expand-toplevel-stat nil st)))
+    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
    (iteration-stat
-    #'(lambda (st) (expand-toplevel-stat nil st)))
+    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
    (jump-stat
-    #'(lambda (st) (expand-toplevel-stat nil st))))
+    #'(lambda (st) (expand-toplevel-stat st :entry-point t))))
 
 
   (translation-unit
@@ -1435,16 +1450,10 @@
 ;;; Expander
 (defun c-expression-tranform (bindings form)
   (let* ((*enum-declarations-alist* nil)
-	 (*prelude-code* nil)
+	 (*toplevel-bindings* bindings)
 	 (lisp-exp (parse-with-lexer (list-lexer form)
                                      *expression-parser*)))
-    (multiple-value-bind (dynamic-syms dynamic-vals)
-        (expand-binding-list bindings)
-      `(progn
-         ,@*prelude-code*                    
-         (progv ',dynamic-syms (list ,@dynamic-vals)
-           (locally (declare (special ,@dynamic-syms))
-             ,lisp-exp))))))
+    lisp-exp))
 
 ;;; Macro interface
 (defmacro with-c-syntax ((&rest bindings) &body body)
