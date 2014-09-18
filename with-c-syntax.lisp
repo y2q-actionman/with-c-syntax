@@ -100,6 +100,8 @@
   (lisp-initform)
   (lisp-type))
 
+(defstruct initializer-list
+  list)
 
 (defstruct struct-or-union-spec
   type					; symbol. 'struct' or 'union'
@@ -356,12 +358,17 @@
                      ((nil)
                       (decl-specs-lisp-type dspecs))))
          (var-init (case decl-type
-		     (:pointer init)
+		     (:pointer
+                      (when (initializer-list-p init)
+			(error "a pointer cannot take a initializer-list"))
+                      init)
 		     (:funcall
 		      (unless (null init)
 			(error "a function cannot take a initializer")))
 		     (:aref
-		      (let ((array-dim (third var-type)))
+		      (let ((array-dim (third var-type))
+                            (init-list (if (initializer-list-p init)
+                                           (initializer-list-list init) nil)))
 			(when (and (or (null array-dim)
 				       (member '* array-dim))
 				   (null init))
@@ -370,17 +377,19 @@
 			`(make-array ',array-dim
 				     :element-type ',(second var-type)
 				     :initial-contents 
-				     ,(array-init-adjust var-type init))))
+				     ,(array-init-adjust var-type init-list))))
 		     (t
 		      (cond
 			((subtypep var-type 'number) ; includes enum
-			 (unless (atom init)
+			 (when (initializer-list-p init)
 			   (error "number cannot be initialized with a list"))
 			 (or init 0))
 			((subtypep var-type '(vector))
-			 (let ((name (decl-specs-w-c-s-type-tag dspecs)))
+			 (let ((name (decl-specs-w-c-s-type-tag dspecs))
+                               (init-list (if (initializer-list-p init)
+                                              (initializer-list-list init) nil)))
 			   `(,(w-c-s-struct-constructor-name name)
-			      ,@init)))
+			      ,@init-list)))
 			(t
 			 init))))))
     (setf (init-declarator-lisp-name init-decl) var-name
@@ -646,9 +655,9 @@
     (prog1
 	`(flet (,@(expand-constructor-spec constructors)
 		,@(expand-field-spec fields))
-           (let* ,lexical-binds
-             (with-dynamic-bound-symbols ,*dynamic-binding-required*
-               (with-pseudo-pointer-scope ()
+           (with-pseudo-pointer-scope ()
+             (let* ,lexical-binds
+               (with-dynamic-bound-symbols ,*dynamic-binding-required*
                  (block nil (tagbody ,@(stat-code stat)))))))
       (setf *dynamic-binding-required* nil)
       ;; TODO: remove them
@@ -1054,21 +1063,21 @@
    (id-list \, id
     #'concatinate-comma-list))
 
-  ;; TODO: introduce some structure?
+  ;; returns a struct, if initializer-list is used.
   (initializer
    assignment-exp
    ({ initializer-list }
     #'(lambda (_lp inits _rp)
 	(declare (ignore _lp _rp))
-	inits))
+        (make-initializer-list :list inits)))
    ({ initializer-list \, }
     #'(lambda (_lp inits _cm _rp)
 	(declare (ignore _lp _cm _rp))
-	inits))
+        (make-initializer-list :list inits)))
    ({ }                                 ; NOTE: I added this..
     #'(lambda (_lp _rp)
 	(declare (ignore _lp _rp))
-        nil)))
+        (make-initializer-list :list nil))))
 
   (initializer-list
    (initializer

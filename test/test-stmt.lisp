@@ -67,6 +67,8 @@
   ;; '&' and '*'
   (let ((hoge 99))
     (eval-equal 99 ((hoge hoge))
+      return * & hoge \;)
+    (eval-equal 99 ()
       return * & hoge \;))
   ;; '+' and '-'
   (eval-equal -1 ()
@@ -88,7 +90,7 @@
 (defun test-cast-exp ()
   (test-unary-exp)
   (eval-equal 10 ((hoge 10))
-    { return \( int \) 10 \; })
+    { return \( int \) hoge \; })
   (eval-equal 10 ((hoge 10))
     { return \( int \) \( int * \) hoge \; })
   t)

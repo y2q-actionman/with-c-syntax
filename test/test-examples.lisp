@@ -176,13 +176,12 @@
   t)
   
 (defun w-c-s-duff-device (to-seq from-seq cnt)
-  (with-c-syntax ((to-seq to-seq) (from-seq from-seq) (cnt cnt)
-                  to from n)
+  (with-c-syntax ()
     {
-    to = & to-seq \;
-    from = & from-seq \;
+    int * to = & to-seq \;
+    int * from = & from-seq \;
 
-    n = \( cnt + 7 \) / 8 \;
+    int n = \( cnt + 7 \) / 8 \;
     n = floor \( n \) \;                ; Lisp's CL:/ produces rational
     switch \( cnt % 8 \) {
     case 0 \:	do {	* to ++ = * from ++ \;
