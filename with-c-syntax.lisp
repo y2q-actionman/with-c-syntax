@@ -131,9 +131,6 @@
   (make-decl-specs :type-spec '(int)
 		   :lisp-type 'fixnum))
 
-(defun w-c-s-struct-initarg-symbol (num)
-  (intern (format nil "~D" num)))
-
 (defstruct w-c-s-struct-constructor-spec
   struct-name
   field-count)				; includes struct-tag field
@@ -147,8 +144,6 @@
 (defun w-c-s-struct-constructor-name (struct-name)
   (intern (concatenate 'string "MAKE-" (symbol-name struct-name))))
 
-;; TODO: consider struct-name's scope. If using defclass, it is global!
-;; TODO: support cv-qualifier.
 ;; NOTE: In C, max bits are limited to the normal type.
 ;; http://stackoverflow.com/questions/2647320/struct-bitfield-max-size-c99-c
 (defun finalize-struct-spec (sspec dspecs)
@@ -174,7 +169,7 @@
        (appendf (decl-specs-lisp-field-spec dspecs)
 		(decl-specs-lisp-field-spec spec-qual))
      ;; this struct
-     append
+     nconc
        (loop with tp = (decl-specs-lisp-type spec-qual)
 	  with constness = (member 'const (decl-specs-qualifier spec-qual))
 	  for index from 0
@@ -212,14 +207,12 @@
   (setf (decl-specs-w-c-s-type-tag dspecs)
 	(or (enum-spec-id espec) (gensym "unnamed-enum")))
   ;; addes values into lisp-decls
-  (loop as default-initform = 0 then `(1+ ,e-decl)
-     for e in (enum-spec-enumerator-list espec)
-     as e-decl = (init-declarator-declarator e)
-     as e-init = (init-declarator-initializer e)
-     collect (list e-decl (or e-init default-initform))
-     into bindings
-     finally
-       (setf (decl-specs-lisp-bindings dspecs) bindings))
+  (setf (decl-specs-lisp-bindings dspecs)
+	(loop as default-initform = 0 then `(1+ ,e-decl)
+	   for e in (enum-spec-enumerator-list espec)
+	   as e-decl = (init-declarator-declarator e)
+	   as e-init = (init-declarator-initializer e)
+	   collect (list e-decl (or e-init default-initform))))
   dspecs)
 
 (defun finalize-type-spec (dspecs)
@@ -307,11 +300,11 @@
   (finalize-type-spec dspecs)
   (setf (decl-specs-qualifier dspecs)
 	(remove-duplicates (decl-specs-qualifier dspecs)))
-  (when (> (length (decl-specs-storage-class dspecs)) 1)
-    (error "too many storage-class specified: ~A"
-	   (decl-specs-storage-class dspecs)))
   (setf (decl-specs-storage-class dspecs)
-	(first (decl-specs-storage-class dspecs)))
+	(if (> (length (decl-specs-storage-class dspecs)) 1)
+	    (error "too many storage-class specified: ~A"
+		   (decl-specs-storage-class dspecs))
+	    (first (decl-specs-storage-class dspecs))))
   dspecs)
 
 (defun array-init-adjust (a-spec init)
@@ -344,20 +337,22 @@
                       'function)         ; TODO: includes returning type, and arg type
                      (:aref
                       (loop with aref-type = (decl-specs-lisp-type dspecs)
-
-                         for (tp tp-args) in (nthcdr 2 decl)
+                         for (tp tp-args) in (nthcdr 1 decl)
                          if (eq :funcall tp)
                          do (error "an array of functions is not accepted")
                          else if (eq :aref tp)
                          collect (or tp-args '*) into aref-dim
                          else if (eq :pointer tp)
                          do (setf aref-type 'pseudo-pointer) (loop-finish)
+			 else
+			 do (assert nil)
                          finally
-                           (let ((tp-args-1 (cadr (second decl))))
-                             (push (or tp-args-1 '*) aref-dim))
                            (return `(simple-array ,aref-type ,aref-dim))))
                      ((nil)
-                      (decl-specs-lisp-type dspecs))))
+		      (let ((dspecs-type (decl-specs-lisp-type dspecs)))
+			(when (null dspecs-type)
+			  (error "a void variable cannot be initialized"))
+			dspecs-type))))
          (var-init (case decl-type
 		     (:pointer
                       (when (initializer-list-p init)
@@ -385,22 +380,17 @@
 			 (when (initializer-list-p init)
 			   (error "number cannot be initialized with a list"))
 			 (or init 0))
-			((subtypep var-type '(vector))
+			((subtypep var-type '(vector)) ; w-c-s-struct
 			 (let ((name (decl-specs-w-c-s-type-tag dspecs))
                                (init-list (if (initializer-list-p init)
                                               (initializer-list-list init) nil)))
 			   `(,(w-c-s-struct-constructor-name name)
 			      ,@init-list)))
-			(t
-			 init))))))
+			(t (error "Internal error: unknown type ~S" var-type)))))))
     (setf (init-declarator-lisp-name init-decl) var-name
           (init-declarator-lisp-initform init-decl) var-init
           (init-declarator-lisp-type init-decl) var-type)
     init-decl))
-
-(defun finalize-init-declarator-list (dspecs init-decls)
-  (loop for init-decl in init-decls
-     collect (finalize-init-declarator dspecs init-decl)))
 
 ;; for expressions
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -438,9 +428,9 @@
 (defun lispify-type-name (qls abs)
   (setf qls (finalize-decl-specs qls))
   (if abs
-      (let ((init-decl
-	     (finalize-init-declarator
-	      qls (make-init-declarator :declarator (cons nil abs)))))
+      (let ((init-decl (make-init-declarator
+			:declarator (cons nil abs)))) ; pushes its name as nil
+	(setf init-decl (finalize-init-declarator qls init-decl))
         (init-declarator-lisp-type init-decl))
       (decl-specs-lisp-type qls)))
 
@@ -533,27 +523,25 @@
 	    ,loop-end-tag))
     body-stat))
 
-(defun push-case-label (exp stat)
-  (let ((case-sym (gensym (format nil "(case ~S)" exp))))
+(defun push-case-label (case-label-exp stat)
+  (let ((go-tag-sym (gensym (format nil "(case ~S)" case-label-exp))))
     (setf (stat-case-label-list stat)
-	  (acons case-sym
-		 (list :exp exp)
+	  (acons go-tag-sym case-label-exp
 		 (stat-case-label-list stat)))
-    (push case-sym (stat-code stat))))
+    (push go-tag-sym (stat-code stat))))
 
 (defun extract-switch (exp stat)
   (let* ((exp-sym (gensym "(switch cond)"))
 	 (end-tag (gensym "(switch end)"))
 	 (jump-table			; create jump table with COND
 	  (loop with default-clause =`(t (go ,end-tag))
-	     for label in (stat-case-label-list stat)
-	     as label-sym = (car label)
-	     as label-exp = (getf (cdr label) :exp)
+	     for (go-tag-sym . case-label-exp)
+	     in (stat-case-label-list stat)
 
-	     if (eq label-exp 'default)
-	     do (setf default-clause `(t (go ,label-sym)))
+	     if (eq case-label-exp 'default)
+	     do (setf default-clause `(t (go ,go-tag-sym)))
 	     else
-	     collect `((eql ,exp-sym ,label-exp) (go ,label-sym))
+	     collect `((eql ,exp-sym ,case-label-exp) (go ,go-tag-sym))
 	     into clauses
 	     finally
                (return
@@ -692,8 +680,7 @@
          (func-param (getf (second name) :funcall))
          (param-ids
           (loop for (dspec tspecs) in func-param
-             collect (first tspecs)))
-	 (prelude-code nil))
+             collect (first tspecs))))
     (setf return (finalize-decl-specs return))
     (when K&R-decls
       (let* ((K&R-param-ids
@@ -701,11 +688,10 @@
         (unless (equal K&R-param-ids param-ids)
           (error "prototype is not matched with k&r-style params"))))
     (make-function-definition
-     :lisp-code `(,prelude-code
-		  (defun ,func-name ,param-ids
+     :lisp-code `((defun ,func-name ,param-ids
                     ,(expand-toplevel-stat
                       body
-		      :bindings
+		      :bindings		; TODO: check this is required or not
                       (mapcar #'(lambda (p) (list p p)) param-ids))))
      :lisp-type `(function ',(mapcar (constantly t) param-ids)
                            ',(decl-specs-lisp-type return)))))
@@ -826,7 +812,9 @@
                #'(lambda (dcls inits _t)
                    (declare (ignore _t))
 		   (setf dcls (finalize-decl-specs dcls))
-		   `(,dcls ,(finalize-init-declarator-list dcls inits))))
+		   `(,dcls
+		     ,(mapcar #'(lambda (i) (finalize-init-declarator dcls i))
+			      inits))))
    (decl-specs \;
                #'(lambda (dcls _t)
                    (declare (ignore _t))
@@ -868,8 +856,8 @@
 
   (type-spec
    void char short int long float double signed unsigned ; keywords
-   struct-or-union-spec                                  ; TODO
-   enum-spec                                             ; TODO
+   struct-or-union-spec
+   enum-spec
    typedef-name)                        ; not supported -- TODO!!
 
   (type-qualifier
@@ -1030,7 +1018,6 @@
 	(declare (ignore _lp _rp))
         `(,@dcl (:funcall nil)))))
 
-  ;; TODO: introduce some structure?
   (pointer
    (* type-qualifier-list
     #'(lambda (_kwd qls)
