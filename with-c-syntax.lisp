@@ -428,8 +428,7 @@
 (defun lispify-type-name (qls abs)
   (setf qls (finalize-decl-specs qls))
   (if abs
-      (let ((init-decl (make-init-declarator
-			:declarator (cons nil abs)))) ; pushes its name as nil
+      (let ((init-decl (make-init-declarator :declarator abs)))
 	(setf init-decl (finalize-init-declarator qls init-decl))
         (init-declarator-lisp-type init-decl))
       (decl-specs-lisp-type qls)))
@@ -987,7 +986,6 @@
         (append dcls ptr)))
    direct-declarator)
 
-  ;; see direct-abstract-declarator
   (direct-declarator
    (id
     #'list)
@@ -1099,12 +1097,17 @@
     #'(lambda (qls)
 	(lispify-type-name qls nil))))
 
+  ;; inserts 'nil' as a name
   (abstract-declarator
-   pointer
+   (pointer
+    #'(lambda (ptr)
+	`(nil ,@ptr)))
    (pointer direct-abstract-declarator
     #'(lambda (ptr dcls)
-        (append dcls ptr)))
-   direct-abstract-declarator)
+	`(nil ,@dcls ,@ptr)))
+   (direct-abstract-declarator
+    #'(lambda (adecl)
+	`(nil ,@adecl))))
 
   ;; returns like:
   ;; (:aref nil) (:funcall nil) (:aref 5 :funcall (int))
