@@ -108,6 +108,12 @@
     union a * p \;
     return t \;
     })
+  (eval-equal 100 ()
+    {
+    union hoge { int x \; int y \; } foo \;
+    foo \. x = 100 \;
+    return foo \. y \;
+    })
   t)
 
 (defun test-init-declarator-list ()
@@ -273,6 +279,13 @@
   ;; uses init-declarator
   (eval-equal 0 ()
     { int x = 0 \; return x \; })
+  (eval-equal 100 ()
+    {
+    int x = 50 \;
+    int y = x \;
+    int z = y + x \;
+    return z \;
+    })
   (assert-compile-error ()
     { int x = { 0 } \; })
   (eval-equal t ()

@@ -161,6 +161,7 @@
     (return-from finalize-struct-spec sspec))
   ;; fields
   (loop with struct-name = (decl-specs-w-c-s-type-tag dspecs)
+     with struct-type = (struct-or-union-spec-type sspec)
      with field-count = 1		; 0 is assigned to struct-tag
      for (spec-qual . struct-decls)
      in (struct-or-union-spec-struct-decl-list sspec)
@@ -186,13 +187,13 @@
 		  (not (subtypep `(unsigned-byte ,bits) tp)))
 	  do (error "invalid bitfield: ~A, ~A" tp s-decl) ; limit bits.
 	  collect
-	    (prog1
-		(make-w-c-s-struct-field-spec
-		 :field-name name
-		 :struct-name struct-name
-		 :index field-count
-		 :constness constness)
-	      (incf field-count)))
+	    (make-w-c-s-struct-field-spec
+	     :field-name name
+	     :struct-name struct-name
+	     :index (ecase struct-type
+		      (struct (prog1 field-count (incf field-count)))
+		      (union (prog1 1 (setf field-count 2) )))
+	     :constness constness))
      into fields
      finally
        (setf (decl-specs-lisp-type dspecs)
@@ -582,28 +583,34 @@
        (return (values bindings constructors fields))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun w-c-s-struct-tag (obj)
+    (aref obj 0))
+
   (defun w-c-s-struct-constructor (size tag &rest args)
     (loop with ret = (make-array `(,size))
-       initially (setf (aref ret 0) tag)
+       initially (setf (w-c-s-struct-tag ret) tag)
        for idx from 1 below size
        for arg in args
        do (setf (aref ret idx) arg)
-       finally (return ret))))
+       finally (return ret)))
+
+  (defun maybe-w-c-s-struct-p (obj)
+    (and (arrayp obj)
+	 (plusp (length obj))
+	 (symbolp (w-c-s-struct-tag obj)))))
+
 
 (defun expand-constructor-spec (constructors)
   (loop for ctor in constructors
      as struct-name = (w-c-s-struct-constructor-spec-struct-name ctor)
      as field-count = (w-c-s-struct-constructor-spec-field-count ctor)
-     collect `(,(w-c-s-struct-constructor-name struct-name)
+     as func-name = (w-c-s-struct-constructor-name struct-name)
+     collect func-name into names
+     collect `(,func-name
 		(&rest args)
                 (apply #'w-c-s-struct-constructor
-                       ,field-count ',struct-name args))))
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun maybe-w-c-s-struct-p (obj)
-    (and (arrayp obj)
-	 (plusp (length obj))
-	 (symbolp (aref obj 0)))))
+                       ,field-count ',struct-name args)) into flets
+     finally (return (values flets names))))
 
 (defun expand-field-spec (fields)
   (let ((fields-table (make-hash-table :test 'eq)))
@@ -630,19 +637,22 @@
 	     finally (return
                        (flet ((expand-to-flet-body (clauses default)
                                 `(if (maybe-w-c-s-struct-p ,func-arg)
-                                     (case (aref ,func-arg 0)
+                                     (case (w-c-s-struct-tag ,func-arg)
                                        ,@clauses
                                        (t ,default))
                                      ,default)))
                          (list (expand-to-flet-body case-body-r case-default-r)
                                (expand-to-flet-body case-body-w case-default-w)))))
-	collect `(,func-name (,func-arg) ,func-body-r)
-	collect `((setf ,func-name) (,func-newval ,func-arg) ,func-body-w))))
+        collect func-name into names
+	collect `(,func-name (,func-arg) ,func-body-r) into flets
+        collect `(setf ,func-name) into names
+	collect `((setf ,func-name) (,func-newval ,func-arg) ,func-body-w) into flets
+       finally (return (values flets names)))))
 
 (defun expand-toplevel-stat (stat &key bindings entry-point)
   (let* ((lexical-binds nil)
-	 (constructors nil)
-	 (fields nil))
+	 (flet-funcs nil)
+	 (flet-names nil))
     (when entry-point
       (nconcf lexical-binds (copy-list *toplevel-bindings*)))
     (when bindings
@@ -650,12 +660,19 @@
     (multiple-value-bind (binds ctors flds)
         (expand-decl-bindings (stat-declarations stat))
       (nconcf lexical-binds binds)
-      (setf constructors ctors
-	    fields flds))
+      (multiple-value-bind (funs names)
+	  (expand-constructor-spec ctors)
+	(nconcf flet-funcs funs)
+	(nconcf flet-names names))
+      (multiple-value-bind (funs names)
+	  (expand-field-spec flds)
+	(nconcf flet-funcs funs)
+	(nconcf flet-names names)))
     ;; TODO: if no pointers used, we can remove some facilities.
     (prog1
-	`(flet (,@(expand-constructor-spec constructors)
-		,@(expand-field-spec fields))
+	`(flet (,@flet-funcs)
+	   (declare (ignorable
+		     ,@(mapcar #'(lambda (x) `(function ,x)) flet-names)))
            (with-pseudo-pointer-scope ()
              (let* ,lexical-binds
                (with-dynamic-bound-symbols ,*dynamic-binding-required*
