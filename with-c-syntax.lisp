@@ -714,12 +714,22 @@
 	  (nconcf constructors ctors)
 	  (nconcf fields flds))
      finally
-       (return
-	`(flet (,@(expand-constructor-spec constructors)
-		,@(expand-field-spec fields))
-	   (let* ,lexical-bindings
-             (with-dynamic-bound-symbols ,*dynamic-binding-required*
-               (block nil ,@codes)))))))
+       (let (flet-funcs flet-names)
+	 (multiple-value-bind (funs names)
+	     (expand-constructor-spec constructors)
+	   (nconcf flet-funcs funs)
+	   (nconcf flet-names names))
+	 (multiple-value-bind (funs names)
+	     (expand-field-spec fields)
+	   (nconcf flet-funcs funs)
+	   (nconcf flet-names names))
+	 (return
+	   `(flet (,@flet-funcs)
+	      (declare (ignorable
+			,@(mapcar #'(lambda (x) `(function ,x)) flet-names)))
+	      (let* ,lexical-bindings
+		(with-dynamic-bound-symbols ,*dynamic-binding-required*
+		  (block nil ,@codes))))))))
 
 ;;; The parser
 (define-parser *expression-parser*
