@@ -67,6 +67,20 @@
 
   t)
 
+(defun test-trans-decl-static ()
+  (eval-equal nil ()
+    static int xxx \; )
+  (eval-equal 'inc-a ()
+    static int xxx = 0 \;
+    int inc-a \( \) {
+       return ++ xxx \;
+    })
+  (assert (= 1 (inc-a)))
+  (assert (= 2 (inc-a)))
+  (assert (= 3 (inc-a)))
+  (assert (= 4 (inc-a)))
+  t)
+
 (defun test-trans ()
   (test-trans-decl-simple)
   (test-trans-fdefinition-simple)

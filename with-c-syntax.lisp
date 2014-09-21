@@ -557,21 +557,40 @@
     stat))
 
 ;;: Toplevel
-(defun expand-decl-bindings (declaration-list)
+;; returns (values auto-binds register-binds static-binds
+;;                 extern-binds global-binds enum-const-binds
+;;                 constructors fields)
+(defun expand-decl-bindings (declaration-list default-storage-class)
   (loop for (dspecs init-decls) in declaration-list
-     append (loop for i in init-decls
-               collect (list (init-declarator-lisp-name i)
-                             (init-declarator-lisp-initform i)))
-     into bindings
-     append (decl-specs-lisp-bindings dspecs) into bindings
+     as storage-class = (decl-specs-storage-class dspecs)
+     as binds = (loop for i in init-decls
+                   collect (list (init-declarator-lisp-name i)
+                                 (init-declarator-lisp-initform i)))
+     if (or (eq storage-class 'auto)
+            (and (null storage-class) (eq default-storage-class 'auto)))
+       nconc binds into auto-binds
+     if (eq storage-class 'register)
+       nconc binds into register-binds
+     if (eq storage-class 'extern)
+       nconc binds into extern-binds
+     if (and (null storage-class) (eq default-storage-class 'global))
+       nconc binds into global-binds
+     if (eq storage-class 'static)
+       nconc binds into static-binds
+     append (decl-specs-lisp-bindings dspecs) into enum-const-binds
      append (decl-specs-lisp-constructor-spec dspecs) into constructors
      append (decl-specs-lisp-field-spec dspecs) into fields
      finally
-       (return (values bindings constructors fields))))
+       (return (values auto-binds register-binds extern-binds
+                       global-binds static-binds enum-const-binds
+                       constructors fields))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun w-c-s-struct-tag (obj)
     (aref obj 0))
+
+  (defun (setf w-c-s-struct-tag) (val obj)
+    (setf (aref obj 0) val))
 
   (defun w-c-s-struct-constructor (size tag &rest args)
     (loop with ret = (make-array `(,size))
@@ -586,95 +605,113 @@
 	 (plusp (length obj))
 	 (symbolp (w-c-s-struct-tag obj)))))
 
+(defun fbinding-func-names (fbinds)
+  (loop for f in fbinds
+     collect (first f)))
 
 (defun expand-constructor-spec (constructors)
   (loop for ctor in constructors
      as struct-name = (w-c-s-struct-constructor-spec-struct-name ctor)
      as field-count = (w-c-s-struct-constructor-spec-field-count ctor)
      as func-name = (w-c-s-struct-constructor-name struct-name)
-     collect func-name into names
      collect `(,func-name
 		(&rest args)
                 (apply #'w-c-s-struct-constructor
-                       ,field-count ',struct-name args)) into flets
-     finally (return (values flets names))))
+                       ,field-count ',struct-name args))))
 
 (defun expand-field-spec (fields)
-  (let ((fields-table (make-hash-table :test 'eq)))
-    ;; collect with their names
-    (loop for f in fields
-       as name = (w-c-s-struct-field-spec-field-name f)
-       do (push f (gethash name fields-table)))
-    ;; expand to flet func
-    (loop with func-arg = 'arg
-       with func-newval = 'newval
-       for k being the hash-key of fields-table using (hash-value vals)
-       as func-name = k
-       as (func-body-r func-body-w) = 
-	  (loop with case-default-r = `(,func-name ,func-arg)
-             with case-default-w = `(setf ,case-default-r ,func-newval)
-	     for v in vals
-	     as struct-name = (w-c-s-struct-field-spec-struct-name v)
-	     as index = (w-c-s-struct-field-spec-index v)
-             as access-form = `(aref ,func-arg ,index)
-             as case-clause-r = `(,struct-name ,access-form)
-             as case-clause-w = `(,struct-name (setf ,access-form ,func-newval))
-	     collect case-clause-r into case-body-r
-	     collect case-clause-w into case-body-w
-	     finally (return
-                       (flet ((expand-to-flet-body (clauses default)
-                                `(if (maybe-w-c-s-struct-p ,func-arg)
-                                     (case (w-c-s-struct-tag ,func-arg)
-                                       ,@clauses
-                                       (t ,default))
-                                     ,default)))
-                         (list (expand-to-flet-body case-body-r case-default-r)
-                               (expand-to-flet-body case-body-w case-default-w)))))
-        collect func-name into names
-	collect `(,func-name (,func-arg) ,func-body-r) into flets
-        collect `(setf ,func-name) into names
-	collect `((setf ,func-name) (,func-newval ,func-arg) ,func-body-w) into flets
-       finally (return (values flets names)))))
+  (let ((fields-table (make-hash-table :test 'eq))
+        (func-arg 'arg)
+        (func-newval 'newval))
+    (flet ((expand-to-flet-body (clauses default)
+             `(if (maybe-w-c-s-struct-p ,func-arg)
+                  (case (w-c-s-struct-tag ,func-arg)
+                    ,@clauses
+                    (t ,default))
+                  ,default)))
+      ;; collect with their names
+      (loop for f in fields
+         as name = (w-c-s-struct-field-spec-field-name f)
+         do (push f (gethash name fields-table)))
+      ;; expand to flet func
+      (loop for k being the hash-key of fields-table using (hash-value vals)
+         as func-name = k
+         as (func-body-r func-body-w) = 
+           (loop with case-default-r = `(,func-name ,func-arg)
+              with case-default-w = `(setf ,case-default-r ,func-newval)
+              for v in vals
+              as struct-name = (w-c-s-struct-field-spec-struct-name v)
+              as index = (w-c-s-struct-field-spec-index v)
+              as access-form = `(aref ,func-arg ,index)
+              as case-clause-r = `(,struct-name ,access-form)
+              as case-clause-w = `(,struct-name (setf ,access-form ,func-newval))
+              collect case-clause-r into case-body-r
+              collect case-clause-w into case-body-w
+              finally (return
+                        (list (expand-to-flet-body case-body-r case-default-r)
+                              (expand-to-flet-body case-body-w case-default-w))))
+         collect `(,func-name (,func-arg) ,func-body-r)
+         collect `((setf ,func-name) (,func-newval ,func-arg) ,func-body-w)))))
 
 (defun expand-toplevel-stat (stat &key bindings entry-point)
-  (let* ((lexical-binds nil)
-	 (flet-funcs nil)
-	 (flet-names nil))
-    (when entry-point
-      (nconcf lexical-binds (copy-list *toplevel-bindings*)))
-    (when bindings
-      (nconcf lexical-binds bindings))
-    (multiple-value-bind (binds ctors flds)
-        (expand-decl-bindings (stat-declarations stat))
-      (nconcf lexical-binds binds)
-      (multiple-value-bind (funs names)
-	  (expand-constructor-spec ctors)
-	(nconcf flet-funcs funs)
-	(nconcf flet-names names))
-      (multiple-value-bind (funs names)
-	  (expand-field-spec flds)
-	(nconcf flet-funcs funs)
-	(nconcf flet-names names)))
-    ;; TODO: if no pointers used, we can remove some facilities.
-    (prog1
-	`(flet (,@flet-funcs)
-	   (declare (ignorable
-		     ,@(mapcar #'(lambda (x) `(function ,x)) flet-names)))
-           (with-pseudo-pointer-scope ()
-             (let* ,lexical-binds
-               (with-dynamic-bound-symbols ,*dynamic-binding-required*
-                 (block nil (tagbody ,@(stat-code stat)))))))
-      (setf *dynamic-binding-required* nil)
-      ;; TODO: remove them
-      (setf *enum-declarations-alist* nil))))
+    ;; TODO: support all
+    (multiple-value-bind (autos registers externs globals statics enum-consts
+                                ctors flds)
+        (expand-decl-bindings (stat-declarations stat) 'auto)
+      (let* ((lexical-binds
+              (nconc autos registers
+                     bindings
+                     (if entry-point (copy-list *toplevel-bindings*))))
+             (flet-funcs
+              (nconc (expand-constructor-spec ctors)
+                     (expand-field-spec flds)))
+             (flet-names (fbinding-func-names flet-funcs))
+             (bad-pointers (intersection *dynamic-binding-required*
+                                         (mapcar #'first registers)))
+             (special-vals nil)
+             (global-defs nil)
+             (sym-macros nil))
+        ;; 'register' vars
+        (when bad-pointers
+          (warn "some variables are 'register', but its pointer is taken. 'register' is ignored (~S)."
+                bad-pointers))
+        ;; 'extern' vars.
+        (loop for (var init) in externs
+           when init
+           do (error "an 'extern' variable cannot have initializer (~S = ~S)" var init))
+        ;; 'global' vars.
+        (when globals
+          (error "In internal scope, no global vars cannot be defined (~S)." globals))
+        ;; 'static' vars.
+        (loop for (var init) in statics
+           as st-sym = (gensym (format nil "symbol-for-static-var ~S" var))
+           do (push st-sym special-vals)
+           do (push `(defvar ,st-sym ,init "generated by with-c-syntax, for static") global-defs)
+           do (push `(,var ,st-sym) sym-macros))
+        ;; enum consts
+        (nconcf sym-macros enum-consts)
+        ;; TODO: if no pointers used, we can remove some facilities.
+        (prog1
+            `(flet (,@flet-funcs)
+               (declare (ignorable
+                         ,@(mapcar #'(lambda (x) `(function ,x)) flet-names)))
+               (symbol-macrolet ,sym-macros
+                 (declare (special ,@special-vals))
+                 ,@global-defs
+                 (let* ,lexical-binds
+                   (with-dynamic-bound-symbols ,*dynamic-binding-required*
+                     (block nil (tagbody ,@(stat-code stat)))))))
+          (setf *dynamic-binding-required* nil)
+          ;; TODO: remove them
+          (setf *enum-declarations-alist* nil)))))
 
 (defstruct function-definition
   lisp-code
   lisp-type)
 
 (defun lispify-function-definition (name body &key
-				    (return *default-decl-specs*)
-				    (K&R-decls nil))
+                                                (return *default-decl-specs*)
+                                                (K&R-decls nil))
   (let* ((func-name (first name))
          (func-param (getf (second name) :funcall))
          (param-ids
@@ -683,7 +720,7 @@
     (setf return (finalize-decl-specs return))
     (when K&R-decls
       (let* ((K&R-param-ids
-              (mapcar #'first (expand-decl-bindings K&R-decls))))
+              (mapcar #'first (expand-decl-bindings K&R-decls 'auto))))
         (unless (equal K&R-param-ids param-ids)
           (error "prototype is not matched with k&r-style params"))))
     (make-function-definition
@@ -694,42 +731,58 @@
                       (mapcar #'(lambda (p) (list p p)) param-ids))))
      :lisp-type `(function ',(mapcar (constantly t) param-ids)
                            ',(decl-specs-lisp-type return)))))
-				    
+
 (defun expand-translation-unit (units)
-  (loop with codes = nil
-     with lexical-bindings = nil
-     with constructors = nil
-     with fields = nil
-
-     initially
-       (nconcf lexical-bindings (copy-list *toplevel-bindings*))
-
+  (loop
      for u in units
      if (function-definition-p u)
-     do (appendf codes (function-definition-lisp-code u))
+     append (function-definition-lisp-code u) into codes
      else
-     do (multiple-value-bind (binds ctors flds)
-            (expand-decl-bindings (list u))
-	  (nconcf lexical-bindings binds)
-	  (nconcf constructors ctors)
-	  (nconcf fields flds))
+     collect u into decls
      finally
-       (let (flet-funcs flet-names)
-	 (multiple-value-bind (funs names)
-	     (expand-constructor-spec constructors)
-	   (nconcf flet-funcs funs)
-	   (nconcf flet-names names))
-	 (multiple-value-bind (funs names)
-	     (expand-field-spec fields)
-	   (nconcf flet-funcs funs)
-	   (nconcf flet-names names))
-	 (return
-	   `(flet (,@flet-funcs)
-	      (declare (ignorable
-			,@(mapcar #'(lambda (x) `(function ,x)) flet-names)))
-	      (let* ,lexical-bindings
-		(with-dynamic-bound-symbols ,*dynamic-binding-required*
-		  (block nil ,@codes))))))))
+       (multiple-value-bind (autos registers externs globals statics enum-consts
+                                   ctors flds)
+           (expand-decl-bindings decls 'global)
+         (let* ((lexical-binds
+                 (copy-list *toplevel-bindings*))
+                (flet-funcs
+                 (nconc (expand-constructor-spec ctors)
+                        (expand-field-spec flds)))
+                (flet-names (fbinding-func-names flet-funcs))
+                (special-vals nil)
+                (global-defs nil)
+                (sym-macros nil))
+           ;; 'auto' and 'register'
+           (when (or autos registers)
+             (error "At top level, 'auto' or 'register' variables are not accepted (~S)"
+                    (append autos registers)))
+           ;; 'extern' vars.
+           (loop for (var init) in externs
+              when init
+              do (error "an 'extern' variable cannot have initializer (~S = ~S)" var init))
+           ;; 'global' vars.
+           (loop for (var init) in globals
+              do (push var special-vals)
+              do (push `(defvar ,var ,init "generated by with-c-syntax, for global") global-defs))
+           ;; 'static' vars.
+           (loop for (var init) in statics
+              as st-sym = (gensym (format nil "symbol-for-static-var ~S" var))
+              do (push st-sym special-vals)
+              do (push `(defvar ,st-sym ,init "generated by with-c-syntax, for static") global-defs)
+              do (push `(,var ,st-sym) sym-macros))
+           ;; enum consts
+           (nconcf sym-macros enum-consts)
+           ;; TODO: support all
+           (return
+             `(flet (,@flet-funcs)
+                (declare (ignorable
+                          ,@(mapcar #'(lambda (x) `(function ,x)) flet-names)))
+                (symbol-macrolet ,sym-macros
+                  (declare (special ,@special-vals))
+                  ,@global-defs
+                  (let* ,lexical-binds
+                    (with-dynamic-bound-symbols ,*dynamic-binding-required*
+                      (block nil ,@codes))))))))))
 
 ;;; The parser
 (define-parser *expression-parser*
