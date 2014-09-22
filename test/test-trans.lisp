@@ -81,6 +81,8 @@
   (assert (= 4 (inc-a)))
   t)
 
+;; TODO: add variadic arg test
+
 (defun test-trans ()
   (test-trans-decl-simple)
   (test-trans-fdefinition-simple)

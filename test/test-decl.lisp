@@ -24,42 +24,151 @@
     { int a = 1 \; int b = 2 \; int c = 3 \; return a \, b \, c \; })
   t)
 
-;; TODO: add storage-class tests!
+;; TODO: add 'global' decl -- into translation-unit tests.
+;; TODO: add 'static' decl's extent test.
+;; TODO: add typedef
 (defun test-decl-specs ()
-  (test '({ int \; }))
-
-  (test '({ auto int \; }))
-  (test '({ register int \; }))
-  (test '({ static int \; }))
-  (test '({ extern int \; }))
-  (test '({ typedef int \; }))
+  ;; storage-class
+  (eval-equal 1 ()
+    { int x = 1 \; return x \; })
+  (eval-equal 2 ()
+    { auto int x = 2 \; return x \; })
+  (eval-equal 3 ()
+    { register int x = 3 \; return x \; })
+  (eval-equal 4 ()
+    { static int x = 4 \; return x \; })
+  (eval-equal 5 ((x 5))
+    { extern int x \; return x \; })
+  (assert-compile-error ()
+    { extern int x = 999 \; })
+  (test '({ typedef int \; }))		; TODO!
   (assert-compile-error ()
     { auto auto auto int \; })
   (assert-compile-error ()
     { auto register int \; })
 
-  (test '({ auto \; }))
-  (test '({ register \; }))
-  (test '({ static \; }))
-  (test '({ extern \; }))
-  (test '({ typedef \; }))
+  (eval-equal 6 ()
+    { auto x = 6 \; return x \; })
+  (eval-equal 7 ()
+    { register x = 7 \; return x \; })
+  (eval-equal 8 ()
+    { static x = 8 \; return x \; })
+  (eval-equal 9 ((x 9))
+    { extern x \; return x \; })
+  (assert-compile-error ()
+    { extern x = 999 \; })
+  (test '({ typedef \; }))		; TODO!
   (assert-compile-error ()
     { auto auto \; })
   (assert-compile-error ()
     { auto register \; })
 
-  (test '({ void \; }))
-  (test '({ int \; }))
-  (test '({ char \; }))
-  (test '({ unsigned int \; }))
-  (test '({ long long int \; }))
+  (eval-equal nil ()
+    int func \( \) \;)
+  (assert-compile-error ()
+    auto int func \( \) \;)
+  (assert-compile-error ()
+    register int func \( \) \;)
+  (assert-compile-error ()
+    static int func \( \) \;)
+  (eval-equal nil ()
+    extern int func \( \) \;)
+  (assert-compile-error ()
+    typedef int func \( \) \;)
 
-  (test '({ const int \; }))
-  (test '({ volatile char \; }))
+  ;; type-spec
+  (assert-compile-error ()
+    { void x \; })
 
-  (test '({ const \; }))
+  (eval-equal 10 ()
+    { int x = 10 \; return x \; })
+  (eval-equal 11 ()
+    { signed int x = 11 \; return x \; })
+  (eval-equal 11 ()
+    { unsigned int x = 11 \; return x \; })
+  (assert-compile-error ()
+    { signed signed x \; })
+  (assert-compile-error ()
+    { signed unsigned x \; })
+  (assert-compile-error ()
+    { unsigned unsigned x \; })
+  (eval-equal 12 ()
+    { short int x = 12 \; return x \; })
+  (eval-equal 13 ()
+    { short signed int x = 13 \; return x \; })
+  (eval-equal 14 ()
+    { short unsigned int x = 14 \; return x \; })
+  (assert-compile-error ()
+    { short short x \; })
+  (eval-equal 15 ()
+    { long int x = 15 \; return x \; })
+  (eval-equal 16 ()
+    { signed long int x = 16 \; return x \; })
+  (eval-equal 17 ()
+    { unsigned long int x = 17 \; return x \; })
+  (eval-equal 18 ()
+    { long long int x = 18 \; return x \; })
+  (eval-equal 19 ()
+    { signed long long int x = 19 \; return x \; })
+  (eval-equal 20 ()
+    { unsigned long long int x = 20 \; return x \; })
+  (assert-compile-error ()
+    { long long long \; })
 
-  (test '({ const auto unsigned int \; }))
+  (eval-equal 21 ()
+    { char x = 21 \; return x \; })
+  (eval-equal 22 ()
+    { signed char x = 22 \; return x \; })
+  (eval-equal 23 ()
+    { char unsigned x = 23 \; return x \; })
+  (assert-compile-error ()
+    { short char \; })
+  (assert-compile-error ()
+    { long char \; })
+
+  (eval-equal 1f1 ()
+    { float x = 1f1 \; return x \; })
+  (eval-equal 2s2 ()			; This is our extension.
+    { short float x = 2s2 \; return x \; })
+  (assert-compile-error ()
+    { long float \; })
+  (assert-compile-error ()
+    { signed float \; })
+  (assert-compile-error ()
+    { unsigned float \; })
+
+  (eval-equal 3d3 ()
+    { double x = 3d3 \; return x \; })
+  (eval-equal 4l4 ()
+    { long double x = 4l4 \; return x \; })
+  (assert-compile-error ()
+    { short double \; })
+  (assert-compile-error ()
+    { signed double \; })
+  (assert-compile-error ()
+    { unsigned double \; })
+
+  ;; cv-qualifier
+  (eval-equal 30 ()
+    { const int x = 30 \; return x \; })
+  (eval-equal 31 ()
+    { int const x = 31 \; return x \; })
+  (eval-equal 32 ()
+    { const x = 32 \; return x \; })
+  ;; TODO: support this?
+  ;; (assert-compile-error ()
+  ;;   { int const x = 0 \; x = 1 \; })
+
+  (eval-equal 33 ()
+    { volatile int x = 33 \; return x \; })
+  (eval-equal 34 ()
+    { int volatile x = 34 \; return x \; })
+  (eval-equal 35 ()
+    { volatile x = 35 \; return x \; })
+
+  (eval-equal 36 ()
+    { const volatile register signed short int x = 36 \; return x \; })
+
   (assert-compile-error ()
     { const auto unsigned int float \; })
   t)
@@ -101,7 +210,6 @@
     struct a * p \;
     return t \;
     })
-  ;; TODO: add union tests!
   (eval-equal t ()
     {
     union a \;
@@ -133,11 +241,45 @@
 
 ;; TODO: add cv-qualifier tests!
 (defun test-spec-qualifier-list ()
-  (test '({ struct hoge { int x \; } \; }))
-  (test '({ struct hoge { const x \; } \; }))
-  (test '({ struct hoge { unsigned int x \; } \; }))
-  (test '({ struct hoge { const unsigned int x \; } \; }))
-  (test '({ struct hoge { const unsigned volatile int x \; } \; }))
+  (eval-equal 100 ()
+    {
+    struct hoge { int x \; } foo = { 100 } \;
+    return foo \. x \;
+    })
+  (eval-equal 101 ()
+    {
+    struct hoge { unsigned x \; } foo = { 101 } \;
+    return foo \. x \;
+    })
+
+  (eval-equal 100 ()
+    {
+    struct hoge { const x \; } foo = { 100 } \;
+    return foo \. x \;
+    })
+  (assert-runtime-error ()
+    {
+    struct hoge { const x \; } foo = { } \;
+    foo \. x = 99 \;
+    })
+
+  (eval-equal 200 ()
+    {
+    struct hoge { volatile x \; } foo = { } \;
+    foo \. x = 200 \;
+    return foo \. x \;
+    })
+
+  (eval-equal 300 ()
+    {
+    struct hoge { const unsigned volatile int x \; } foo = { 300 } \;
+    return foo \. x \;
+    })
+  (assert-runtime-error ()
+    {
+    struct hoge { const unsigned volatile int x \; } foo = { 300 } \;
+    foo \. x = 9999 \;
+    })
   t)
 
 (defun test-struct-declarator ()
@@ -198,80 +340,120 @@
 
 
 (defun test-param-type-list ()
-  ;; TODO: support cast
-  (test '({ \( int \( int \) \) x \; }))
-  (test '({ \( int \( unsigned int \) \) x \; }))
-  (test '({ \( int \( int * \) \) x \; }))
-  (test '({ \( int \( int * * \) \) x \; }))
-  (test '({ \( int \( const unsigned int * hoge \) \) x \; }))
-  (test '({ \( int \( const struct hogehoge * * \) \) x \; }))
-
+  ;; NOTE: These 'sizeof' test only checks these notations can be parsed or not..
+  (eval-equal 1 ()
+    { return sizeof \( int \( int \) \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int \( unsigned int \) \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int \( int * \) \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int \( int * * \) \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int \( const unsigned int * hoge \) \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int \( const struct hogehoge * * \) \) \; })
   t)
 
 (defun test-type-name ()
   ;; uses cast
+  (eval-equal 5 ()
+    { unsigned x = 5 \; return \( int \) x \; })
+  (eval-equal 8 ()
+    { int x = 8 \; return \( unsigned int \) x \; })
 
-  (test '({ \( int \) x \; }))
-  (test '({ \( unsigned int \) x \; }))
+  ;; NOTE: These 'sizeof' test only checks these notations can be parsed or not..
 
   ;; abstract-declarator -- pointer
-  (test '({ \( int * \) x \; }))
-  (test '({ \( int const * \) x \; })) 	; not included in pointer..
-  (test '({ \( int * const \) x \; }))
-  (test '({ \( int * * \) x \; }))
-  (test '({ \( int * const * const * \) x \; }))
+  (eval-equal 1 ()
+    { return sizeof \( int * \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int const * \) \; }) 	; not included in pointer..
+  (eval-equal 1 ()
+    { return sizeof \( int * const \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int * * \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int * const * const * \) \; })
 
   ;; abstract-declarator -- direct-abstract-declarator
-  (test '({ \( int \( * \) \) x \; }))
-  (test '({ \( int \( * \( int \) \) \) x \; }))
+  (eval-equal 1 ()
+    { return sizeof \( int \( * \) \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int \( * \( int \) \) \) \; })
 
-  (test '({ \( int [ 1 ] [ 2 ] \) x \; }))
-  (test '({ \( int [ 1 ] [ 2 ] [ 3 ] \) x \; }))
+  (eval-equal 2 ()
+    { return sizeof \( int [ 1 ] [ 2 ] \) \; })
+  (eval-equal 6 ()
+    { return sizeof \( int [ 1 ] [ 2 ] [ 3 ] \) \; })
+  (eval-equal 5 ()
+    { return sizeof \( int [ 5 ] \) \; })
 
-  ;; (test '({ \( int [ 5 ] \) x \; }))
+  (assert-compile-error ()		; empty dims
+    { return sizeof \( int [ ] \) \; })
+  (assert-compile-error ()		; empty dims
+    { return sizeof \( int [ ] [ ] [ ] \) \; })
 
-  ;; (test '({ \( int [ ] \) x \; }))
-  ;; (test '({ \( int [ ] [ ] [ ] \) x \; }))
+  (assert-compile-error ()		; array of funcs
+    { return sizeof \( int [ ] \( int \) \) \; })
 
-  ;; (test '({ \( int [ ] \( int \) \) x \; }))
-  ;; (test '({ \( int [ 1 ] \( int \) \) x \; }))
+  ;; 'sizeof' to function. (It is a weird extension..)
+  (eval-equal 1 ()			; using param-type-list
+    { return sizeof \( int \( int \) \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int \( int \, |...| \) \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int \( int \, int \) \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int \( int \, int \, const int \) \) \; })
 
-  (test '({ \( int \( int \) \) x \; })) ; using param-type-list
-  (test '({ \( int \( int \, |...| \) \) x \; }))
-  (test '({ \( int \( int \, int \) \) x \; }))
-  (test '({ \( int \( int \, int \, const int \) \) x \; }))
-
-  ;; (test '({ \( int [ ] \( \) \) x \; }))
-  ;; (test '({ \( int \( \) \( \) \) x \; }))
-
-  (test '({ \( int \( \) \) x \; }))
+  (assert-compile-error ()		; array of funcs
+    { return sizeof \( int [ ] \( \) \) \; })
+  (assert-compile-error ()		; func returns a func
+    { return sizeof \( int \( \) \( \) \) \; })
+  (eval-equal 1 ()			; K&R-style func
+    { return sizeof \( int \( \) \) \; })
 
   ;; abstract-declarator
-  (test '({ \( int * \( * \) \) x \; }))
-  (test '({ \( int * \( * \( int \) \) \) x \; }))
-
+  (eval-equal 1 ()
+    { return sizeof \( int * \( * \) \) \; })
+  (eval-equal 1 ()
+    { return sizeof \( int * \( * \( int \) \) \) \; })
   t)
 
 
 (defun test-declarator ()
   ;; uses init-declarator
 
-  (test '({ int x \; }))
-  (test '({ int * x \; }))
-  (test '({ int * * x \; }))
+  ;; NOTE: These tests only checks these notations can be parsed or not..
 
-  (test '({ int x \; }))
+  (eval-equal 0 ()
+    { int x = 0 \; return x \; })
+  (eval-equal 0 ()
+    { int * x = 0 \; return x \; })
+  (eval-equal 0 ()
+    { int * * x = 0 \; return x \; })
 
-  (test '({ int \( x \) \; }))
-  (test '({ int x [ 5 ] \; }))
+  (eval-equal nil ()
+    { int func \( x \) \; })
+  (eval-equal 0 ()
+    { int x [ 5 ] = { } \; return x [ 0 ] \; })
   (assert-compile-error ()
     { int x [ ] \; })
-  (test '({ int x \( int \) \; }))
-  (test '({ int x \( int \, float \) \; }))
-  (test '({ int x \( hoge \) \; }))
-  (test '({ int x \( hoge \, fuga \) \; }))
-  (test '({ int x \( hoge \, fuga \, piyo \) \; }))
-  (test '({ int x \( \) \; }))
+
+  ;; function declaration is treated as 'extern', so vanished..
+  (eval-equal nil ()
+    { int x \( int \) \; })
+  (eval-equal nil ()
+    { int x \( int \, float \) \; })
+  (eval-equal nil ()
+    { int x \( hoge \) \; })
+  (eval-equal nil ()
+    { int x \( hoge \, fuga \) \; })
+  (eval-equal nil ()
+    { int x \( hoge \, fuga \, piyo \) \; })
+  (eval-equal nil ()
+    { int x \( \) \; })
 
   t)
 
@@ -303,23 +485,35 @@
     int x [ 2 ] = { 0 \, 1 \, } \;
     return x [ 0 ] == 0 && x [ 1 ] == 1 \;
     })
-  ;; TODO: support this!
-  ;; (test '({ int x [ ]= { 0 \, 1 } \; }))
+
+  (eval-equal 1 ()
+    {
+    int x [ ] = { 0 \, 1 } \;
+    return x [ 1 ] \;
+    })
+  ;; TODO: add multi-dimensionals
   t)
 
 (defun test-array-pointer-decl ()
-  (test '(int * array_of_pointer [ 5 ] \; ))
-  (test '(int \( * pointer_to_array \) [ 5 ] \; ))
-  (test '(int * \( array_of_pointer [ 5 ] \) \; ))
-  (test '(int \( * array_of_func_ptr [ 5 ] \) \( int \, int \) \; ))
+  ;; NOTE: These tests only checks these notations can be parsed or not..
+  (eval-equal nil ()
+    static int * array_of_pointer [ 5 ] \;)
+  (eval-equal nil ()
+    static int \( * pointer_to_array \) [ 5 ] \; )
+  (eval-equal nil ()
+    static int * \( array_of_pointer [ 5 ] \) \; )
+  (eval-equal nil ()
+    static int \( * array_of_func_ptr [ 5 ] \) \( int \, int \) \; )
   (assert-compile-error ()
-    int * array_of_func [ 5 ] \( int \, int \) \; )
+    static int * array_of_func [ 5 ] \( int \, int \) \; )
   (assert-compile-error ()
-    int * func_returns_array \( int \, int \) [ 5 ] \; )
+    static int * func_returns_array \( int \, int \) [ 5 ] \; )
   (assert-compile-error ()
-    int * func_returns_func \( int x \, int y \) \( int z \) \;)
-  (test '(int * func_returns_pointer \( int \, int \) \; ))
-  (test '(int * \( * funcptr \) \( int \, int \) \; ))
+    static int * func_returns_func \( int x \, int y \) \( int z \) \;)
+  (eval-equal nil ()
+    int * func_returns_pointer \( int \, int \) \; )
+  (eval-equal nil ()
+    static int * \( * funcptr \) \( int \, int \) \; )
   ;; http://unixwiz.net/techtips/reading-cdecl.html
   ;; (test '(char * \( * \( * * foo [ ] [ 8 ] \) \( \) \) [ ] \;))
   t)

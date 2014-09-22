@@ -29,3 +29,10 @@
 					     ',body))
      (declare (ignore ret))
      (assert condition)))
+
+(defmacro assert-runtime-error ((&rest bindings) &body body)
+  `(multiple-value-bind (ret condition)
+       (ignore-errors (with-c-syntax ,bindings
+			,@body))
+     (declare (ignore ret))
+     (assert condition)))
