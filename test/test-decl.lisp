@@ -259,13 +259,13 @@
     })
   (assert-runtime-error ()
     {
-    struct hoge { const x \; } foo = { } \;
+    struct hoge { const x \; } foo \;
     foo \. x = 99 \;
     })
 
   (eval-equal 200 ()
     {
-    struct hoge { volatile x \; } foo = { } \;
+    struct hoge { volatile x \; } foo \;
     foo \. x = 200 \;
     return foo \. x \;
     })
@@ -437,7 +437,7 @@
   (eval-equal nil ()
     { int func \( x \) \; })
   (eval-equal 0 ()
-    { int x [ 5 ] = { } \; return x [ 0 ] \; })
+    { int x [ 5 ] \; return x [ 0 ] \; })
   (assert-compile-error ()
     { int x [ ] \; })
 
@@ -468,8 +468,8 @@
     int z = y + x \;
     return z \;
     })
-  (assert-compile-error ()
-    { int x = { 0 } \; })
+  ;; (assert-compile-error ()
+  ;;   { int x = { 0 \, 1 } \; })
   (eval-equal t ()
     {
     int x [ 2 ] = { 0 \, 1 } \;
@@ -490,6 +490,18 @@
     {
     int x [ ] = { 0 \, 1 } \;
     return x [ 1 ] \;
+    })
+  ;; (assert-compile-error ()
+  ;;   { int x [ ] [ ] = { 0 \, 1 } \; })
+  (eval-equal 3 ()
+    {
+    int x [ ] [ ] = { { 0 \, 1 } \, { 2 \, 3 } } \;
+    return x [ 1 ] [ 1 ] \;
+    })
+  (eval-equal 3 ()
+    {
+    int x [ 3 ] [ 3 ] = { { 0 \, 1 } \, { 2 \, 3 } } \;
+    return x [ 1 ] [ 1 ] \;
     })
   ;; TODO: add multi-dimensionals
   t)
@@ -541,7 +553,25 @@
     struct fuga { int x \, y \; } bar = { 1 \, 2 } \;
     return foo \. x == bar \. x && foo \. y == bar \. y \;
     })
-  ;; TODO: add nested struct initializer
+  (eval-equal 1 ()
+    {
+    struct hoge { int x \, y \; }  \;
+    struct fuga { struct hoge h \; } \;
+    struct fuga h = { { 1 } } \;
+    return h \. h \. x \;
+    })
+  (eval-equal 0 ()
+    {
+    struct hoge { int x \, y \; } \;
+    struct hoge arr [ 5 ] \;
+    return arr [ 4 ] \. x \;
+    })
+  (eval-equal 2 ()
+    {
+    struct hoge { int x \, y \; } \;
+    struct hoge arr [ 5 ] = { { 1 } \, { 2 } } \;
+    return arr [ 1 ] \. x \;
+    })
   t)
 
 ;; TODO: add initializer tests

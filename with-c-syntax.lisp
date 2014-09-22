@@ -79,6 +79,7 @@
 ;;; Variables, works with the parser.
 (defvar *toplevel-bindings* nil)
 (defvar *dynamic-binding-required* nil)
+(defvar *w-c-s-structs* nil)            ; TODO: remove this?
 
 ;;; Functions used by the parser.
 
@@ -99,9 +100,6 @@
   (lisp-name)
   (lisp-initform)
   (lisp-type))
-
-(defstruct initializer-list
-  list)
 
 (defstruct struct-or-union-spec
   type					; symbol. 'struct' or 'union'
@@ -139,7 +137,8 @@
   field-name
   struct-name
   index
-  constness)
+  constness
+  decl-specs)                           ; TODO: remove this?
 
 (defun w-c-s-struct-constructor-name (struct-name)
   (intern (concatenate 'string "MAKE-" (symbol-name struct-name))))
@@ -188,17 +187,22 @@
 	     :index (ecase struct-type
 		      (struct (prog1 field-count (incf field-count)))
 		      (union (prog1 1 (setf field-count 2) )))
-	     :constness constness))
+	     :constness constness
+             :decl-specs spec-qual))
      into fields
      finally
-       (setf (decl-specs-lisp-type dspecs)
-	     `(vector * ,field-count))
-       (append-item-to-right-f
-	(decl-specs-lisp-constructor-spec dspecs)
-	(make-w-c-s-struct-constructor-spec
-	 :struct-name struct-name :field-count field-count))
-       (appendf (decl-specs-lisp-field-spec dspecs)
-		fields))
+       (let ((ctr (make-w-c-s-struct-constructor-spec
+                   :struct-name struct-name :field-count field-count)))
+         (setf (decl-specs-lisp-type dspecs)
+               `(vector * ,field-count))
+         (append-item-to-right-f
+          (decl-specs-lisp-constructor-spec dspecs)
+          ctr)
+         (appendf (decl-specs-lisp-field-spec dspecs)
+                  fields)
+         (push `(,struct-name :constructor ,ctr
+                              :fields ,fields)
+               *w-c-s-structs*)))
   dspecs)
 
 ;; TODO: consider enum-name's scope. If using deftype, it is global!
@@ -307,45 +311,76 @@
 	    (first (decl-specs-storage-class dspecs))))
   dspecs)
 
-(defun array-init-adjust (a-spec init)
-  (let* ((a-dim (copy-list (third a-spec)))
-	 (merged-dim
-	  (let (dim-table) 	; (depth . max-len)
-	    (labels ((dim-calc (depth lis)
-				(let ((old-max (cdr (assoc depth dim-table))))
-				  (when (or (null old-max)
-					    (> (length lis) old-max))
-				    (setf dim-table
-					  (acons depth (length lis) dim-table))))
-				(loop for i in lis
-				   when (and i (listp i))
-				   do (dim-calc (1+ depth) i))))
-		       (dim-calc 0 init))
-	    (loop for (depth . i-elems) in (sort dim-table #'< :key #'car)
-	       as a-elems = (nth depth a-dim)
-	       if (null a-elems)
-	       do ;; Too many dimension, or nested initializer
-		 ;; (warn "too many dimentions in an initializer (~S, ~S)" a-spec init)
-		 (loop-finish)
-	       else if (eq a-elems '*)
-	       collect i-elems
-	       else if (<= i-elems a-elems)
-	       collect a-elems
-	       else
-	       do (warn "too much elements in an initializer (~S, ~S)"
-			 a-spec init)
-	       and collect a-elems)))
-         (default-val (if (subtypep (second a-spec) 'number) 0 nil))
-         (contents (make-array merged-dim
-                               :initial-element default-val)))
-    (labels ((var-init-setup (dims rev-aref init)
+(defun array-dimension-resolve (a-spec init)
+  (let ((a-dim (third a-spec))
+        dim-table) 	; (depth . max-len)
+    (labels ((dim-calc (depth lis)
+               (let ((old-max (cdr (assoc depth dim-table))))
+                 (when (or (null old-max)
+                           (> (length lis) old-max))
+                   (setf dim-table
+                         (acons depth (length lis) dim-table))))
+               (loop for i in lis
+                  when (and i (listp i))
+                  do (dim-calc (1+ depth) i))))
+      (dim-calc 0 init))
+    (setf dim-table (sort dim-table #'< :key #'car))
+    (loop for depth from 0
+       for a-elem in a-dim
+         as (_ . i-elem) = (assoc depth dim-table)
+         if (null i-elem)
+         collect a-elem
+         else if (eq a-elem '*)
+         collect i-elem
+         else if (<= i-elem a-elem)
+         collect a-elem
+         else
+         do (warn "too much elements in an initializer (~S, ~S)"
+                  a-spec init)
+       and collect a-elem)))
+
+(defun make-dimension-list (dims &optional default)
+  (if dims
+      (loop for i from 0 below (car dims)
+         collect (make-dimension-list (cdr dims) default))
+      default))
+
+(defun ref-dimension-list (lis dim-1 &rest dims)
+  (if (null dims)
+      (nth dim-1 lis)
+      (apply #'ref-dimension-list (nth dim-1 lis) (car dims) (cdr dims))))
+
+(defun (setf ref-dimension-list) (val lis dim-1 &rest dims)
+  (if (null dims)
+      (setf (nth dim-1 lis) val)
+      (setf (apply #'ref-dimension-list (nth dim-1 lis) (car dims) (cdr dims))
+            val)))
+  
+(defun setup-init-list (dims init default dspecs abst-declarator)
+  (let ((ret (make-dimension-list dims default)))
+    (labels ((var-init-setup (dims rev-aref init abst-decls)
                (if (null dims)
-                   (setf (apply #'aref contents (reverse rev-aref)) init)
+                   (setf (apply #'ref-dimension-list ret (reverse rev-aref))
+                         (expand-init-declarator-init dspecs abst-decls init))
                    (loop for i from 0 below (car dims)
-                      for init-i on init
-                      do (var-init-setup (cdr dims) (cons i rev-aref) (car init-i))))))
-      (var-init-setup merged-dim () init))
-    (values merged-dim contents)))
+                      for init-i in init
+                      do (var-init-setup (cdr dims) (cons i rev-aref) init-i (cdr abst-decls))))))
+      (var-init-setup dims () init abst-declarator))
+    ret))
+
+(defun make-dimension-list-cloner (lis)
+  (if (or (null lis)
+          (atom lis)
+          ;; dirty!!
+          (and (listp lis)
+               (first lis)
+               (symbolp (first lis))
+               (string= "MAKE-" (symbol-name (first lis))
+                        :end1 5 :end2 5)))
+      lis
+      `(list ,@(loop for i in lis
+                  collect (make-dimension-list-cloner i)))))
+  
 
 (defun expand-init-declarator-init (dspecs abst-declarator initializer)
   (let* ((var-type (ecase (car (first abst-declarator))
@@ -377,40 +412,46 @@
 			dspecs-type))))
          (var-init (case (car (first abst-declarator))
 		     (:pointer
-                      (when (initializer-list-p initializer)
-			(error "a pointer cannot take a initializer-list"))
                       initializer)
 		     (:funcall
 		      (unless (null initializer)
 			(error "a function cannot take a initializer")))
 		     (:aref
-		      (let ((array-dim (third var-type))
-                            (init-list (if (initializer-list-p initializer)
-                                           (initializer-list-list initializer) nil)))
+		      (let ((array-dim (third var-type)))
 			(when (and (or (null array-dim)
 				       (member '* array-dim))
 				   (null initializer))
 			  (error "array's dimension cannot be specified (~S, ~S)"
 				 var-type initializer))
-			(multiple-value-bind (merged-dim contents)
-			    (array-init-adjust var-type init-list)
-			    `(make-array ',merged-dim
-				     :element-type ',(second var-type)
-				     :initial-contents ,contents))))
+                        (let* ((merged-dim (array-dimension-resolve var-type initializer))
+                               (init-list (setup-init-list merged-dim initializer
+                                                           (expand-init-declarator-init
+                                                            dspecs
+                                                            (nthcdr (length merged-dim) abst-declarator)
+                                                            nil)
+                                                           dspecs (cdr abst-declarator))))
+                          `(make-array ',merged-dim
+                                       :element-type t ;; ',(second var-type)
+                                       :initial-contents
+                                       ,(make-dimension-list-cloner init-list)))))
 		     (t
 		      (cond
 			((subtypep var-type 'number) ; includes enum
-			 (when (initializer-list-p initializer)
-			   (error "number cannot be initialized with a list"))
 			 (or initializer 0))
 			((subtypep var-type '(vector)) ; w-c-s-struct
-			 (let ((name (decl-specs-w-c-s-type-tag dspecs))
-                               (init-list (if (initializer-list-p initializer)
-                                              (initializer-list-list initializer) nil)))
-			   `(,(w-c-s-struct-constructor-name name)
-			      ,@init-list)))
+                         (loop with name = (decl-specs-w-c-s-type-tag dspecs)
+                            with struct-info = (assoc name *w-c-s-structs*)
+                            for i in initializer
+                            for fs in (getf (cdr struct-info) :fields)
+                            collect (expand-init-declarator-init
+                                     (w-c-s-struct-field-spec-decl-specs fs)
+                                     (cdr abst-declarator) i)
+                            into inits
+                            finally
+                              (return `(,(w-c-s-struct-constructor-name name)
+                                         ,@inits))))
 			(t (error "Internal error: unknown type ~S" var-type)))))))
-    (values var-type var-init)))
+    (values var-init var-type)))
 
 
 (defun finalize-init-declarator (dspecs init-decl)
@@ -424,7 +465,7 @@
     (when (and (eq :funcall (car (second decl)))
 	       (not (member storage-class '(nil extern))))
       (error "a function cannot have storage-class except 'extern'"))
-    (multiple-value-bind (var-type var-init)
+    (multiple-value-bind (var-init var-type)
 	(expand-init-declarator-init dspecs (cdr decl) init)
       (setf (init-declarator-lisp-name init-decl) var-name
 	    (init-declarator-lisp-initform init-decl) var-init
@@ -1186,15 +1227,11 @@
    ({ initializer-list }
     #'(lambda (_lp inits _rp)
 	(declare (ignore _lp _rp))
-        (make-initializer-list :list inits)))
+        inits))
    ({ initializer-list \, }
     #'(lambda (_lp inits _cm _rp)
 	(declare (ignore _lp _cm _rp))
-        (make-initializer-list :list inits)))
-   ({ }                                 ; NOTE: I added this..
-    #'(lambda (_lp _rp)
-	(declare (ignore _lp _rp))
-        (make-initializer-list :list nil))))
+        inits)))
 
   (initializer-list
    (initializer
@@ -1574,7 +1611,10 @@
    (postfix-exp [ exp ]			; TODO: compound with multi-dimention
 		#'(lambda (exp op1 idx op2)
 		    (declare (ignore op1 op2))
-		    `(aref ,exp ,idx)))
+                    (if (and (listp exp) (eq (first exp) 'aref))
+                        (destructuring-bind (op exp &rest args) exp
+                          `(,op ,exp ,@args ,idx))
+                        `(aref ,exp ,idx))))
    (postfix-exp \( argument-exp-list \)
 		#'(lambda (exp op1 args op2)
 		    (declare (ignore op1 op2))
@@ -1624,6 +1664,7 @@
   (let* ((*enum-declarations-alist* nil)
 	 (*toplevel-bindings* bindings)
 	 (*dynamic-binding-required* nil)
+         (*w-c-s-structs* nil)
 	 (lisp-exp (parse-with-lexer (list-lexer form)
                                      *expression-parser*)))
     lisp-exp))
