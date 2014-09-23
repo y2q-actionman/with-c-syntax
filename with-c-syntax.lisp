@@ -38,10 +38,23 @@
       )
   :test 'equal)
 
-;;; Lexer
-(defvar *enum-declarations-alist* nil
+;;; Variables
+(defvar *enum-const-symbols* nil
   "list of (symbol initform)")
+(defvar *toplevel-bindings* nil)
+(defvar *dynamic-binding-requested* nil)
+(defvar *w-c-s-structs* nil
+  "hashtable: struct-name -> list of w-c-s-struct-spec.
+If a same name is supplied, it is stacked")
 
+(defmacro with-new-w-c-s-environment (() &body body)
+  `(let* ((*enum-const-symbols* nil)
+          (*toplevel-bindings* bindings)
+          (*dynamic-binding-requested* nil)
+          (*w-c-s-structs* (make-hash-table :test 'eq)))
+     ,@body))
+
+;;; Lexer
 (defun list-lexer (list)
   #'(lambda ()
       (let ((value (pop list)))
@@ -54,8 +67,7 @@
 			     (member value +keywords+
 				     :test #'string=
 				     :key #'symbol-name)))
-		     (en (member value *enum-declarations-alist*
-				 :key #'car)))
+		     (en (member value *enum-const-symbols*)))
 		 (cond (op
 			;; returns the symbol of our package.
 			(values (car op) value))
@@ -76,23 +88,15 @@
 	      (t
 	       (error "Unexpected value ~S" value))))))
 
-;;; Variables, works with the parser.
-(defvar *toplevel-bindings* nil)
-(defvar *dynamic-binding-required* nil)
-(defvar *w-c-s-structs* nil)            ; TODO: remove this?
-
-;;; Functions used by the parser.
-
-;; for declarations 
+;;; Declarations
 (defstruct decl-specs
   (type-spec nil)
   (storage-class nil)
   (qualifier nil)
-  lisp-type
-  (w-c-s-type-tag nil)			; enum, struct
+  lisp-type                             ; typename for Common Lisp
+  (w-c-s-type-tag nil)			; user supplied struct name (or enum name)
   (lisp-bindings nil)			; enum
-  (lisp-constructor-spec nil)		; struct
-  (lisp-field-spec nil))		; struct
+  (lisp-class-spec nil))                ; w-c-s-struct-spec
 
 (defstruct init-declarator
   declarator
@@ -129,83 +133,101 @@
   (make-decl-specs :type-spec '(int)
 		   :lisp-type 'fixnum))
 
-(defstruct w-c-s-struct-constructor-spec
-  struct-name
-  field-count)				; includes struct-tag field
+;; structure information
+(defstruct w-c-s-struct-spec
+  struct-name                           ; user supplied name (symbol)
+  internal-name                         ; internal name (gensym)
+  struct-type                           ; 'struct or 'union
+  ;; (:lisp-type ... :constness ... :decl-specs ...)
+  slot-defs)
 
-(defstruct w-c-s-struct-field-spec
-  field-name
-  struct-name
-  index
-  constness
-  decl-specs)                           ; TODO: remove this?
+(defun ensure-w-c-s-struct-spec (name)
+  (let ((wcsspec (first (gethash name *w-c-s-structs*))))
+    (unless wcsspec
+      (setf wcsspec
+            (make-w-c-s-struct-spec
+             :struct-name name
+             :internal-name (gensym (format nil "struct ~S " name))))
+      (push wcsspec (gethash name *w-c-s-structs*)))
+    wcsspec))
 
-(defun w-c-s-struct-constructor-name (struct-name)
-  (intern (concatenate 'string "MAKE-" (symbol-name struct-name))))
+(defun find-w-c-s-struct-spec (name assumed-internal-name)
+  (let ((wcsspec (first (gethash name *w-c-s-structs*))))
+    (when (null wcsspec)
+      (error "struct ~S is not defined" name))
+    (unless (eq (w-c-s-struct-spec-internal-name wcsspec)
+                assumed-internal-name)
+      (error "internal error: struct spec is confused: ~S" name))
+    wcsspec))
 
-;; NOTE: In C, max bits are limited to the normal type.
-;; http://stackoverflow.com/questions/2647320/struct-bitfield-max-size-c99-c
+(defun drop-w-c-s-struct-spec (wcsspec)
+  (let ((name (w-c-s-struct-spec-struct-name wcsspec)))
+    (symbol-macrolet ((place (gethash name *w-c-s-structs*)))
+      (setf place
+            (remove wcsspec place :key #'w-c-s-struct-spec-internal-name)))))
+
+(defun w-c-s-struct-initarg-symbol (index)
+  (intern (format nil "~D" index)))
+
+(defun maybe-w-c-s-struct-internal-name-p (obj)
+  (and (symbolp obj) (not (symbol-package obj))))
+
+;; processes structure-spec 
 (defun finalize-struct-spec (sspec dspecs)
-  (setf (decl-specs-lisp-type dspecs) '(vector)) ; default type
-  (setf (decl-specs-w-c-s-type-tag dspecs)
-	(or (struct-or-union-spec-id sspec)
-	    (gensym "unnamed-struct")))
-  ;; only declaration?
-  (when (null (struct-or-union-spec-struct-decl-list sspec))
-    (return-from finalize-struct-spec sspec))
-  ;; fields
-  (loop with struct-name = (decl-specs-w-c-s-type-tag dspecs)
-     with struct-type = (struct-or-union-spec-type sspec)
-     with field-count = 1		; 0 is assigned to struct-tag
-     for (spec-qual . struct-decls)
-     in (struct-or-union-spec-struct-decl-list sspec)
-     do (finalize-decl-specs spec-qual)
-     ;; other struct
-     do (appendf (decl-specs-lisp-bindings dspecs)
-		 (decl-specs-lisp-bindings spec-qual))
-       (appendf	(decl-specs-lisp-constructor-spec dspecs)
-		(decl-specs-lisp-constructor-spec spec-qual))
-       (appendf (decl-specs-lisp-field-spec dspecs)
-		(decl-specs-lisp-field-spec spec-qual))
-     ;; this struct
-     nconc
-       (loop with tp = (decl-specs-lisp-type spec-qual)
-	  with constness = (member 'const (decl-specs-qualifier spec-qual))
-	  for index from 0
-	  for s-decl in struct-decls
-	  as name = (or (car (init-declarator-declarator s-decl))
-			(gensym "(unnamed field)"))
-	  as bits = (struct-declarator-bits s-decl)
-	  if (and bits
-		  (not (subtypep `(signed-byte ,bits) tp))
-		  (not (subtypep `(unsigned-byte ,bits) tp)))
-	  do (error "invalid bitfield: ~A, ~A" tp s-decl) ; limit bits.
-	  collect
-	    (make-w-c-s-struct-field-spec
-	     :field-name name
-	     :struct-name struct-name
-	     :index (ecase struct-type
-		      (struct (prog1 field-count (incf field-count)))
-		      (union (prog1 1 (setf field-count 2) )))
-	     :constness constness
-             :decl-specs spec-qual))
-     into fields
-     finally
-       (let ((ctr (make-w-c-s-struct-constructor-spec
-                   :struct-name struct-name :field-count field-count)))
-         (setf (decl-specs-lisp-type dspecs)
-               `(vector * ,field-count))
-         (append-item-to-right-f
-          (decl-specs-lisp-constructor-spec dspecs)
-          ctr)
-         (appendf (decl-specs-lisp-field-spec dspecs)
-                  fields)
-         (push `(,struct-name :constructor ,ctr
-                              :fields ,fields)
-               *w-c-s-structs*)))
-  dspecs)
+  (let* ((wcsname (or (struct-or-union-spec-id sspec)
+                      (gensym "unnamed-struct")))
+         (wcsspec (ensure-w-c-s-struct-spec wcsname)))
+    (setf (decl-specs-w-c-s-type-tag dspecs) wcsname)
+    (setf (decl-specs-lisp-type dspecs)
+          (w-c-s-struct-spec-internal-name wcsspec))
+    ;; only declaration?
+    (when (null (struct-or-union-spec-struct-decl-list sspec))
+      (assert (struct-or-union-spec-id sspec)) ; this case is rejected by the parser.
+      (return-from finalize-struct-spec dspecs))
+    ;; Doubly defined?
+    (when (and (struct-or-union-spec-struct-decl-list sspec)
+               (w-c-s-struct-spec-slot-defs wcsspec))
+      (error "struct is defined twice (~S)" wcsname))
+    ;; Now defines a new struct.
+    (setf (w-c-s-struct-spec-struct-type wcsspec)
+          (struct-or-union-spec-type sspec))
+    (loop for (spec-qual . struct-decls)
+       in (struct-or-union-spec-struct-decl-list sspec)
+       do (finalize-decl-specs spec-qual)
+       ;; other struct
+       do (appendf (decl-specs-lisp-bindings dspecs)
+                   (decl-specs-lisp-bindings spec-qual))
+         (appendf (decl-specs-lisp-class-spec dspecs)
+                  (decl-specs-lisp-class-spec spec-qual))
+       ;; this struct
+       nconc
+         (loop with tp = (decl-specs-lisp-type spec-qual)
+            with constness = (member 'const (decl-specs-qualifier spec-qual))
+            for s-decl in struct-decls
+            as (decl-name . abst-decl) = (init-declarator-declarator s-decl)
+            as name = (or decl-name (gensym "(unnamed field)"))
+            as initform = (expand-init-declarator-init spec-qual abst-decl nil)
+            as bits = (struct-declarator-bits s-decl)
+            if (and bits
+                    (not (subtypep `(signed-byte ,bits) tp))
+                    (not (subtypep `(unsigned-byte ,bits) tp)))
+            ;; NOTE: In C, max bits are limited to the normal type.
+            ;; http://stackoverflow.com/questions/2647320/struct-bitfield-max-size-c99-c
+            do (error "invalid bitfield: ~A, ~A" tp s-decl) ; limit bits.
+            collect (list :lisp-type tp :constness constness
+                          :name name
+                          ;; If form is too complex, it is rest as unbound.
+                          :initform (if (constantp initform) initform nil)
+                          :decl-specs spec-qual))
+       into slot-specs
+       finally
+         (setf (w-c-s-struct-spec-slot-defs wcsspec) slot-specs))
+    ;; This wcsspec is treated by this dspecs
+    (append-item-to-right-f (decl-specs-lisp-class-spec dspecs)
+                            wcsspec)
+    dspecs))
 
-;; TODO: consider enum-name's scope. If using deftype, it is global!
+;; processes enum-spec 
 (defun finalize-enum-spec (espec dspecs)
   (setf (decl-specs-lisp-type dspecs) 'fixnum)
   (setf (decl-specs-w-c-s-type-tag dspecs)
@@ -216,6 +238,7 @@
 	   for e in (enum-spec-enumerator-list espec)
 	   as e-decl = (init-declarator-declarator e)
 	   as e-init = (init-declarator-initializer e)
+           do (push e-decl *enum-const-symbols*)
 	   collect (list e-decl (or e-init default-initform))))
   dspecs)
 
@@ -311,148 +334,110 @@
 	    (first (decl-specs-storage-class dspecs))))
   dspecs)
 
-(defun array-dimension-resolve (a-spec init)
-  (let ((a-dim (third a-spec))
-        dim-table) 	; (depth . max-len)
-    (labels ((dim-calc (depth lis)
-               (let ((old-max (cdr (assoc depth dim-table))))
-                 (when (or (null old-max)
-                           (> (length lis) old-max))
-                   (setf dim-table
-                         (acons depth (length lis) dim-table))))
-               (loop for i in lis
-                  when (and i (listp i))
-                  do (dim-calc (1+ depth) i))))
-      (dim-calc 0 init))
-    (setf dim-table (sort dim-table #'< :key #'car))
-    (loop for depth from 0
-       for a-elem in a-dim
-         as (_ . i-elem) = (assoc depth dim-table)
-         if (null i-elem)
-         collect a-elem
-         else if (eq a-elem '*)
-         collect i-elem
-         else if (<= i-elem a-elem)
-         collect a-elem
-         else
-         do (warn "too much elements in an initializer (~S, ~S)"
-                  a-spec init)
-       and collect a-elem)))
+(defun array-dimension-combine (array-dimension-list init)
+  (loop with init-dims = (dimension-list-max-dimensions init)
+     for depth from 0
+     for a-elem in array-dimension-list
+     as i-elem = (nth depth init-dims)
+     if (null i-elem)
+     collect a-elem
+     else if (eq a-elem '*)
+     collect i-elem
+     else if (<= i-elem a-elem)
+     collect a-elem
+     else
+     do (warn "too much elements in an initializer (~S, ~S)"
+              array-dimension-list init)
+     and collect a-elem))
 
-(defun make-dimension-list (dims &optional default)
-  (if dims
-      (loop for i from 0 below (car dims)
-         collect (make-dimension-list (cdr dims) default))
-      default))
-
-(defun ref-dimension-list (lis dim-1 &rest dims)
-  (if (null dims)
-      (nth dim-1 lis)
-      (apply #'ref-dimension-list (nth dim-1 lis) (car dims) (cdr dims))))
-
-(defun (setf ref-dimension-list) (val lis dim-1 &rest dims)
-  (if (null dims)
-      (setf (nth dim-1 lis) val)
-      (setf (apply #'ref-dimension-list (nth dim-1 lis) (car dims) (cdr dims))
-            val)))
-  
-(defun setup-init-list (dims init default dspecs abst-declarator)
-  (let ((ret (make-dimension-list dims default)))
-    (labels ((var-init-setup (dims rev-aref init abst-decls)
-               (if (null dims)
+(defun setup-init-list (dims dspecs abst-declarator init)
+  (let* ((default (expand-init-declarator-init dspecs
+                   (nthcdr (length dims) abst-declarator)
+                   nil))
+         (ret (make-dimension-list dims default)))
+    (labels ((var-init-setup (rest-dims rev-aref abst-decls init)
+               (if (null rest-dims)
                    (setf (apply #'ref-dimension-list ret (reverse rev-aref))
                          (expand-init-declarator-init dspecs abst-decls init))
-                   (loop for i from 0 below (car dims)
+                   (loop for d from 0 below (car rest-dims)
                       for init-i in init
-                      do (var-init-setup (cdr dims) (cons i rev-aref) init-i (cdr abst-decls))))))
-      (var-init-setup dims () init abst-declarator))
+                      do (assert (eq :aref (first (car abst-decls))))
+                      do (var-init-setup (cdr rest-dims) (cons d rev-aref)
+                                         (cdr abst-decls) init-i)))))
+      (var-init-setup dims () abst-declarator init))
     ret))
 
-(defun make-dimension-list-cloner (lis)
-  (if (or (null lis)
-          (atom lis)
-          ;; dirty!!
-          (and (listp lis)
-               (first lis)
-               (symbolp (first lis))
-               (string= "MAKE-" (symbol-name (first lis))
-                        :end1 5 :end2 5)))
-      lis
-      `(list ,@(loop for i in lis
-                  collect (make-dimension-list-cloner i)))))
-  
-
+;; returns (values var-init var-type)
 (defun expand-init-declarator-init (dspecs abst-declarator initializer)
-  (let* ((var-type (ecase (car (first abst-declarator))
-                     (:pointer
-                      'pseudo-pointer) ; TODO: includes 'what it points'
-                     (:funcall
-                      (when (eq :aref (car (second abst-declarator)))
-                        (error "a function returning an array is not accepted"))
-                      (when (eq :funcall (car (second abst-declarator)))
-                        (error "a function returning a function is not accepted"))
-                      'function)         ; TODO: includes returning type, and arg type
-                     (:aref
-                      (loop with aref-type = (decl-specs-lisp-type dspecs)
-                         for (tp tp-args) in abst-declarator
-                         if (eq :funcall tp)
-                         do (error "an array of functions is not accepted")
-                         else if (eq :aref tp)
-                         collect (or tp-args '*) into aref-dim
-                         else if (eq :pointer tp)
-                         do (setf aref-type 'pseudo-pointer) (loop-finish)
-			 else
-			 do (assert nil)
-                         finally
-                           (return `(simple-array ,aref-type ,aref-dim))))
-                     ((nil)
-		      (let ((dspecs-type (decl-specs-lisp-type dspecs)))
-			(when (null dspecs-type)
-			  (error "a void variable cannot be initialized"))
-			dspecs-type))))
-         (var-init (case (car (first abst-declarator))
-		     (:pointer
-                      initializer)
-		     (:funcall
-		      (unless (null initializer)
-			(error "a function cannot take a initializer")))
-		     (:aref
-		      (let ((array-dim (third var-type)))
-			(when (and (or (null array-dim)
-				       (member '* array-dim))
-				   (null initializer))
-			  (error "array's dimension cannot be specified (~S, ~S)"
-				 var-type initializer))
-                        (let* ((merged-dim (array-dimension-resolve var-type initializer))
-                               (init-list (setup-init-list merged-dim initializer
-                                                           (expand-init-declarator-init
-                                                            dspecs
-                                                            (nthcdr (length merged-dim) abst-declarator)
-                                                            nil)
-                                                           dspecs (cdr abst-declarator))))
-                          `(make-array ',merged-dim
-                                       :element-type t ;; ',(second var-type)
-                                       :initial-contents
-                                       ,(make-dimension-list-cloner init-list)))))
-		     (t
-		      (cond
-			((subtypep var-type 'number) ; includes enum
-			 (or initializer 0))
-			((subtypep var-type '(vector)) ; w-c-s-struct
-                         (loop with name = (decl-specs-w-c-s-type-tag dspecs)
-                            with struct-info = (assoc name *w-c-s-structs*)
-                            for i in initializer
-                            for fs in (getf (cdr struct-info) :fields)
-                            collect (expand-init-declarator-init
-                                     (w-c-s-struct-field-spec-decl-specs fs)
-                                     (cdr abst-declarator) i)
-                            into inits
-                            finally
-                              (return `(,(w-c-s-struct-constructor-name name)
-                                         ,@inits))))
-			(t (error "Internal error: unknown type ~S" var-type)))))))
-    (values var-init var-type)))
-
+  (ecase (car (first abst-declarator))
+    (:pointer
+     ;; TODO: includes 'what it points'
+     (values (or initializer 0) 'pseudo-pointer))
+    (:funcall
+     (when (eq :aref (car (second abst-declarator)))
+       (error "a function returning an array is not accepted"))
+     (when (eq :funcall (car (second abst-declarator)))
+       (error "a function returning a function is not accepted"))
+     (unless (null initializer)
+       (error "a function cannot take a initializer"))
+     ;; TODO: includes returning type, and arg type
+     (values nil 'function))
+    (:aref
+     (let* ((aref-type (decl-specs-lisp-type dspecs))
+            (aref-dim                   ; reads abst-declarator
+             (loop for (tp tp-args) in abst-declarator
+                if (eq :funcall tp)
+                do (error "an array of functions is not accepted")
+                else if (eq :aref tp)
+                collect (or tp-args '*)
+                else if (eq :pointer tp)
+                do (setf aref-type 'pseudo-pointer) (loop-finish)
+                else
+                do (assert nil)))
+            (merged-dim
+             (array-dimension-combine aref-dim initializer))
+            (lisp-elem-type
+             (if (subtypep aref-type 'number) aref-type t)) ; excludes compound types
+            (var-type
+             (progn
+               (when (and (or (null aref-dim)
+                              (member '* aref-dim))
+                          (null initializer))
+                 (error "array's dimension cannot be specified (~S, ~S)"
+                        aref-dim initializer))
+               `(simple-array ,lisp-elem-type ,merged-dim)))
+            (init-list
+             (setup-init-list merged-dim dspecs
+                              abst-declarator initializer))
+            (var-init
+             `(make-array ',merged-dim
+                          :element-type ',lisp-elem-type
+                          :initial-contents
+                          ,(make-dimension-list-load-form init-list (length merged-dim)))))
+       (values var-init var-type)))
+    ((nil)
+     (let ((var-type (decl-specs-lisp-type dspecs)))
+       (when (null var-type)
+         (error "a void variable cannot be initialized"))
+       (cond
+         ((subtypep var-type 'number) ; includes enum
+          (values (or initializer 0) var-type))
+         ((maybe-w-c-s-struct-internal-name-p var-type)
+          (let* ((wcs-tag (decl-specs-w-c-s-type-tag dspecs))
+                  ;; This is required, for treating a struct defined after declarations.
+                 (wcsspec (find-w-c-s-struct-spec wcs-tag var-type))
+                 (init-list
+                  (loop for idx from 0
+                     for i in initializer
+                     for slot in (w-c-s-struct-spec-slot-defs wcsspec)
+                     collect `(quote ,(w-c-s-struct-initarg-symbol idx))
+                     collect (expand-init-declarator-init
+                              (getf slot :decl-specs) (cdr abst-declarator) i))))
+            (values `(make-instance
+                      ',(w-c-s-struct-spec-internal-name wcsspec)
+                      ,@init-list)
+                    var-type)))
+         (t (error "Internal error: unknown type ~S" var-type)))))))
 
 (defun finalize-init-declarator (dspecs init-decl)
   (let* ((decl (init-declarator-declarator init-decl))
@@ -472,7 +457,7 @@
 	    (init-declarator-lisp-type init-decl) var-type)
     init-decl)))
 
-;; for expressions
+;;; Expressions
 (eval-when (:compile-toplevel :load-toplevel :execute)
   ;; These are directly called by the parser..
 (defun lispify-unary (op)
@@ -514,7 +499,7 @@
       (decl-specs-lisp-type qls)))
 
 
-;; for statements
+;;; Statements
 (defstruct stat
   (code nil)
   (declarations nil)        ; list of 'init-declarator'
@@ -636,21 +621,24 @@
 	    ,end-tag))
     stat))
 
-;;: Toplevel
+;;; Toplevel
 ;; returns (values auto-binds register-binds static-binds
 ;;                 extern-binds global-binds enum-const-binds
-;;                 constructors fields)
+;;                 dynamic-established-syms classdefs)
 (defun expand-decl-bindings (declaration-list default-storage-class)
-  (loop for (dspecs init-decls) in declaration-list
+  (loop with dynamic-established-syms = nil
+     for (dspecs init-decls) in declaration-list
      as storage-class = (decl-specs-storage-class dspecs)
      as (var-binds func-binds)
        = (loop for i in init-decls
-	    as b = (list (init-declarator-lisp-name i)
-			 (init-declarator-lisp-initform i))
+            as name = (init-declarator-lisp-name i)
+	    as b = (list name (init-declarator-lisp-initform i))
 	    if (subtypep (init-declarator-lisp-type i) 'function)
 	    collect b into func-binds
 	    else
 	    collect b into var-binds
+            and do (when (member name *dynamic-binding-requested*)
+                     (push name dynamic-established-syms))
 	    finally (return (list var-binds func-binds)))
      if (or (eq storage-class 'auto)
             (and (null storage-class) (eq default-storage-class 'auto)))
@@ -667,101 +655,51 @@
      append func-binds into extern-binds
 
      append (decl-specs-lisp-bindings dspecs) into enum-const-binds
-     append (decl-specs-lisp-constructor-spec dspecs) into constructors
-     append (decl-specs-lisp-field-spec dspecs) into fields
+     append (decl-specs-lisp-class-spec dspecs) into classes
      finally
        (return (values auto-binds register-binds extern-binds
                        global-binds static-binds enum-const-binds
-                       constructors fields))))
+                       dynamic-established-syms classes))))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun w-c-s-struct-tag (obj)
-    (aref obj 0))
+(defun expand-class-spec (classes)
+  (loop for wcsspec in classes
+     as sname = (w-c-s-struct-spec-struct-name wcsspec)
+     as iname = (w-c-s-struct-spec-internal-name wcsspec)
+     as cls-slots = 
+       (loop for slot-def in (w-c-s-struct-spec-slot-defs wcsspec)
+          for index from 0
+          collect
+            (destructuring-bind (&key name lisp-type constness initform
+                                      &allow-other-keys)
+                slot-def
+              `(,(gensym (format nil "field ~S " name))
+                 :initarg ,(w-c-s-struct-initarg-symbol index)
+                 ,(if constness :reader :accessor) ,name
+                 ,@(if initform `(:initform ,initform) nil)
+                 :type ,lisp-type)))
+     collect `(defclass ,iname () ,cls-slots) into codes
+     collect `(defclass ,sname (,iname) ()) into renames
+     finally (return (values codes renames))))
 
-  (defun (setf w-c-s-struct-tag) (val obj)
-    (setf (aref obj 0) val))
-
-  (defun w-c-s-struct-constructor (size tag &rest args)
-    (loop with ret = (make-array `(,size))
-       initially (setf (w-c-s-struct-tag ret) tag)
-       for idx from 1 below size
-       for arg in args
-       do (setf (aref ret idx) arg)
-       finally (return ret)))
-
-  (defun maybe-w-c-s-struct-p (obj)
-    (and (arrayp obj)
-	 (plusp (length obj))
-	 (symbolp (w-c-s-struct-tag obj)))))
-
-(defun fbinding-func-names (fbinds)
-  (loop for f in fbinds
-     collect (first f)))
-
-(defun expand-constructor-spec (constructors)
-  (loop for ctor in constructors
-     as struct-name = (w-c-s-struct-constructor-spec-struct-name ctor)
-     as field-count = (w-c-s-struct-constructor-spec-field-count ctor)
-     as func-name = (w-c-s-struct-constructor-name struct-name)
-     collect `(,func-name
-		(&rest args)
-                (apply #'w-c-s-struct-constructor
-                       ,field-count ',struct-name args))))
-
-(defun expand-field-spec (fields)
-  (let ((fields-table (make-hash-table :test 'eq))
-        (func-arg 'arg)
-        (func-newval 'newval))
-    (flet ((expand-to-flet-body (clauses default)
-             `(if (maybe-w-c-s-struct-p ,func-arg)
-                  (case (w-c-s-struct-tag ,func-arg)
-                    ,@clauses
-                    (t ,default))
-                  ,default)))
-      ;; collect with their names
-      (loop for f in fields
-         as name = (w-c-s-struct-field-spec-field-name f)
-         do (push f (gethash name fields-table)))
-      ;; expand to flet func
-      (loop for k being the hash-key of fields-table using (hash-value vals)
-         as func-name = k
-         as (func-body-r func-body-w) = 
-           (loop with case-default-r = `(,func-name ,func-arg)
-              with case-default-w = `(setf ,case-default-r ,func-newval)
-              for v in vals
-              as struct-name = (w-c-s-struct-field-spec-struct-name v)
-              as index = (w-c-s-struct-field-spec-index v)
-	      as constness = (w-c-s-struct-field-spec-constness v)
-              as access-form = `(aref ,func-arg ,index)
-              as case-clause-r = `(,struct-name ,access-form)
-              as case-clause-w = `(,struct-name (setf ,access-form ,func-newval))
-              collect case-clause-r into case-body-r
-              if (not constness)
-	      collect case-clause-w into case-body-w
-              finally (return
-                        (list (expand-to-flet-body case-body-r case-default-r)
-                              (expand-to-flet-body case-body-w case-default-w))))
-         collect `(,func-name (,func-arg) ,func-body-r)
-         collect `((setf ,func-name) (,func-newval ,func-arg) ,func-body-w)))))
-
-(defun expand-toplevel-stat (stat &key bindings entry-point)
-    ;; TODO: support all
+;; mode is :statement or :translation-unit
+(defun expand-toplevel (mode decls code additinal-binding)
     (multiple-value-bind (autos registers externs globals statics enum-consts
-                                ctors flds)
-        (expand-decl-bindings (stat-declarations stat) 'auto)
+                                dynamic-established-syms cls)
+        (expand-decl-bindings decls
+                              (ecase mode
+                                (:statement 'auto) (:translation-unit 'global)))
       (let* ((lexical-binds
-              (nconc autos registers
-                     bindings
-                     (if entry-point (copy-list *toplevel-bindings*))))
-             (flet-funcs
-              (nconc (expand-constructor-spec ctors)
-                     (expand-field-spec flds)))
-             (flet-names (fbinding-func-names flet-funcs))
+              (append autos registers additinal-binding))
 	     (register-vars (mapcar #'first registers))
-             (bad-pointers (intersection *dynamic-binding-required* register-vars))
+             (bad-pointers (intersection dynamic-established-syms register-vars))
              (special-vars nil)
              (global-defs nil)
              (sym-macros nil))
+        ;; 'auto' and 'register'
+        (when (and (eq mode :translation-unit)
+                   (or autos registers))
+          (error "At top level, 'auto' or 'register' variables are not accepted (~S)"
+                 (append autos registers)))
         ;; 'register' vars
         (when bad-pointers
           (warn "some variables are 'register', but its pointer is taken (~S)."
@@ -771,8 +709,12 @@
            unless (or (null init) (zerop init))
            do (error "an 'extern' variable cannot have initializer (~S = ~S)" var init))
         ;; 'global' vars.
-        (when globals
+        (when (and (eq mode :statement)
+                   globals)
           (error "In internal scope, no global vars cannot be defined (~S)." globals))
+        (loop for (var init) in globals
+           do (push var special-vars)
+           do (push `(defvar ,var ,init "generated by with-c-syntax, for global") global-defs))
         ;; 'static' vars.
         (loop for (var init) in statics
            as st-sym = (gensym (format nil "symbol-for-static-var ~S" var))
@@ -781,29 +723,52 @@
            do (push `(,var ,st-sym) sym-macros))
         ;; enum consts
         (nconcf sym-macros enum-consts)
-        ;; TODO: if no pointers used, we can remove some facilities.
+        ;; structs
+        (multiple-value-bind (codes renames)
+            (expand-class-spec cls)
+          (nconcf global-defs codes)
+          (when (eq mode :translation-unit)
+            (nconcf global-defs renames)))
         (prog1
-            `(flet (,@flet-funcs)
-               (declare (ignorable
-                         ,@(mapcar #'(lambda (x) `(function ,x)) flet-names)))
-               (symbol-macrolet ,sym-macros
-                 (declare (special ,@special-vars))
-                 ,@global-defs
-                 (let* ,lexical-binds
-		   (declare (dynamic-extent ,@register-vars))
-                   (with-dynamic-bound-symbols ,*dynamic-binding-required*
-                     (block nil (tagbody ,@(stat-code stat)))))))
-          (setf *dynamic-binding-required* nil)
-          ;; TODO: remove them
-          (setf *enum-declarations-alist* nil)))))
+            `(symbol-macrolet ,sym-macros
+               (declare (special ,@special-vars))
+               ,@global-defs
+               (let* ,lexical-binds
+                 (declare (dynamic-extent ,@register-vars))
+                 ;; If no pointers requied, remove dynamic binds.
+                 ;; This makes the compiler faster.
+                 ,(if *dynamic-binding-requested*
+                      `(with-dynamic-bound-symbols ,*dynamic-binding-requested*
+                         (block nil ,@code))
+                      `(block nil ,@code))))
+          ;; drop dynamic-binds
+          (loop for sym in dynamic-established-syms
+             do (setf *dynamic-binding-requested*
+                      (delete sym *dynamic-binding-requested*
+                              :test #'eq :count 1)))
+          ;; drop enum-binds
+          (loop for (sym _) in enum-consts
+             do (setf *enum-const-symbols*
+                      (delete sym *enum-const-symbols*
+                              :test #'eq :count 1)))
+          ;; drop structure-binds
+          (loop for c in cls
+             do (drop-w-c-s-struct-spec c))
+          ))))
+
+(defun expand-toplevel-stat (stat &key entry-point)
+  (expand-toplevel :statement
+                   (stat-declarations stat)
+                   `((tagbody ,@(stat-code stat)))
+                   (if entry-point *toplevel-bindings* nil)))
 
 (defstruct function-definition
   lisp-code
   lisp-type)
 
-(defun lispify-function-definition (name body &key
-                                                (return *default-decl-specs*)
-                                                (K&R-decls nil))
+(defun lispify-function-definition (name body
+                                    &key (return *default-decl-specs*)
+                                      (K&R-decls nil))
   (let* ((func-name (first name))
          (func-param (getf (second name) :funcall))
          (param-ids
@@ -817,10 +782,7 @@
           (error "prototype is not matched with k&r-style params"))))
     (make-function-definition
      :lisp-code `((defun ,func-name ,param-ids
-                    ,(expand-toplevel-stat
-                      body
-		      :bindings		; TODO: check this is required or not
-                      (mapcar #'(lambda (p) (list p p)) param-ids))))
+                    ,(expand-toplevel-stat body)))
      :lisp-type `(function ',(mapcar (constantly t) param-ids)
                            ',(decl-specs-lisp-type return)))))
 
@@ -832,49 +794,8 @@
      else
      collect u into decls
      finally
-       (multiple-value-bind (autos registers externs globals statics enum-consts
-                                   ctors flds)
-           (expand-decl-bindings decls 'global)
-         (let* ((lexical-binds
-                 (copy-list *toplevel-bindings*))
-                (flet-funcs
-                 (nconc (expand-constructor-spec ctors)
-                        (expand-field-spec flds)))
-                (flet-names (fbinding-func-names flet-funcs))
-                (special-vars nil)
-                (global-defs nil)
-                (sym-macros nil))
-           ;; 'auto' and 'register'
-           (when (or autos registers)
-             (error "At top level, 'auto' or 'register' variables are not accepted (~S)"
-                    (append autos registers)))
-           ;; 'extern' vars.
-           (loop for (var init) in externs
-              unless (or (null init) (zerop init))
-              do (error "an 'extern' variable cannot have initializer (~S = ~S)" var init))
-           ;; 'global' vars.
-           (loop for (var init) in globals
-              do (push var special-vars)
-              do (push `(defvar ,var ,init "generated by with-c-syntax, for global") global-defs))
-           ;; 'static' vars.
-           (loop for (var init) in statics
-              as st-sym = (gensym (format nil "symbol-for-static-var ~S" var))
-              do (push st-sym special-vars)
-              do (push `(defvar ,st-sym ,init "generated by with-c-syntax, for static") global-defs)
-              do (push `(,var ,st-sym) sym-macros))
-           ;; enum consts
-           (nconcf sym-macros enum-consts)
-           ;; TODO: support all
-           (return
-             `(flet (,@flet-funcs)
-                (declare (ignorable
-                          ,@(mapcar #'(lambda (x) `(function ,x)) flet-names)))
-                (symbol-macrolet ,sym-macros
-                  (declare (special ,@special-vars))
-                  ,@global-defs
-                  (let* ,lexical-binds
-                    (with-dynamic-bound-symbols ,*dynamic-binding-required*
-                      (block nil ,@codes))))))))))
+       (return (expand-toplevel :translation-unit
+                                decls codes *toplevel-bindings*))))
 
 ;;; The parser
 (define-parser *expression-parser*
@@ -1580,7 +1501,7 @@
           ;; TODO: consider it. We should this exp is setf-able or not?
           (if (symbolp exp)
               (progn
-                (push exp *dynamic-binding-required*)
+                (push exp *dynamic-binding-requested*)
                 `(make-pseudo-pointer* ,exp ',exp))
               `(make-pseudo-pointer ,exp))))a
    (* cast-exp
@@ -1661,13 +1582,10 @@
 
 ;;; Expander
 (defun c-expression-tranform (bindings form)
-  (let* ((*enum-declarations-alist* nil)
-	 (*toplevel-bindings* bindings)
-	 (*dynamic-binding-required* nil)
-         (*w-c-s-structs* nil)
-	 (lisp-exp (parse-with-lexer (list-lexer form)
-                                     *expression-parser*)))
-    lisp-exp))
+  (with-new-w-c-s-environment ()
+    (let ((lisp-exp (parse-with-lexer (list-lexer form)
+                                      *expression-parser*)))
+      lisp-exp)))
 
 ;;; Macro interface
 (defmacro with-c-syntax ((&rest bindings) &body body)

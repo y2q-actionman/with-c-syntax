@@ -174,6 +174,10 @@
   t)
 
 (defun test-struct-or-union-spec ()
+  (assert-compile-error ()
+    { struct \; })
+  (assert-compile-error ()
+    { union \; })
   (eval-equal 100 ()
     {
     struct hoge { int x \; } foo \;
@@ -220,7 +224,7 @@
     {
     union hoge { int x \; int y \; } foo \;
     foo \. x = 100 \;
-    return foo \. y \;
+    return foo \. x \;
     })
   t)
 
@@ -502,6 +506,11 @@
     {
     int x [ 3 ] [ 3 ] = { { 0 \, 1 } \, { 2 \, 3 } } \;
     return x [ 1 ] [ 1 ] \;
+    })
+  (eval-equal 3 ()
+    {
+    int x [ ] [ ] [ ] = { { { 0 \, 1 } \, { 2 \, 3 } } } \;
+    return x [ 0 ] [ 1 ] [ 1 ] \;
     })
   ;; TODO: add multi-dimensionals
   t)
