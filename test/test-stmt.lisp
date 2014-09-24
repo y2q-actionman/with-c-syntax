@@ -24,9 +24,6 @@
     return (+ 1 2) \;)
   t)
 
-(defstruct hoge-struct
-  (a 'hoge-struct-a))
-
 (defun test-postfix-exp ()
   (test-primary-exp)
   ;; aref
@@ -39,11 +36,20 @@
   (eval-equal '() ()
     return list \( \) \;)
   ;; struct ref
-  (let ((hoge-1 (make-hoge-struct)))
-    (eval-equal 'hoge-struct-a ()
-      return hoge-1 \. hoge-struct-a \;)
-    (eval-equal 'hoge-struct-a ((hoge-1 hoge-1))
-      return \( & hoge-1 \) -> hoge-struct-a \;))
+  (eval-equal 99 ()
+    {
+    struct hoge { int x \; } \;
+    struct hoge x = { 99 } \;
+    return x \. x \;
+    })
+  ;; TODO: sipport this!
+  #+ignore
+  (eval-equal 99 ()
+    {
+    struct hoge { int x \; } \;
+    struct hoge x = { 99 } \;
+    return \( & x \) -> x \;
+    })
   ;; post increment/decrement
   (let ((hoge 0))
     (eval-equal 0 ()
