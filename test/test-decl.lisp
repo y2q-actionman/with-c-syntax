@@ -573,8 +573,6 @@
     struct fuga h = { { 1 } } \;
     return h \. h \. x \;
     })
-  ;; TODO: support this
-  #+ignore
   (eval-equal 0 ()
     {
     struct hoge { int x \, y \; } \;

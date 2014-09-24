@@ -44,15 +44,15 @@
   "list of (symbol initform)")
 (defvar *toplevel-bindings* nil)
 (defvar *dynamic-binding-requested* nil)
-(defvar *w-c-s-structs* nil
-  "hashtable: struct-name -> list of w-c-s-struct-spec.
+(defvar *wcs-struct-specs* nil
+  "hashtable: struct-name -> list of wcs-struct-spec.
 If a same name is supplied, it is stacked")
 
-(defmacro with-new-w-c-s-environment (() &body body)
+(defmacro with-new-wcs-environment (() &body body)
   `(let* ((*enum-const-symbols* nil)
           (*toplevel-bindings* bindings)
           (*dynamic-binding-requested* nil)
-          (*w-c-s-structs* (make-hash-table :test 'eq)))
+          (*wcs-struct-specs* (make-hash-table :test 'eq)))
      ,@body))
 
 ;;; Lexer
@@ -95,9 +95,9 @@ If a same name is supplied, it is stacked")
   (storage-class nil)
   (qualifier nil)
   lisp-type                             ; typename for Common Lisp
-  (w-c-s-type-tag nil)			; user supplied struct name (or enum name)
+  (wcs-type-tag nil)			; user supplied struct name (or enum name)
   (lisp-bindings nil)			; enum
-  (lisp-class-spec nil))                ; w-c-s-struct-spec
+  (lisp-class-spec nil))                ; wcs-struct-spec
 
 (defstruct init-declarator
   declarator
@@ -135,76 +135,68 @@ If a same name is supplied, it is stacked")
 		   :lisp-type 'fixnum))
 
 ;; structure information
-(defstruct w-c-s-struct-spec
+(defstruct wcs-struct-spec
   struct-name                           ; user supplied name (symbol)
   internal-name                         ; internal name (gensym)
   struct-type                           ; 'struct or 'union
   ;; (:lisp-type ... :constness ... :decl-specs ...)
-  slot-defs)
+  slot-defs
+  runtime-spec)
 
-(defun ensure-w-c-s-struct-spec (name)
-  (let ((wcsspec (first (gethash name *w-c-s-structs*))))
+(defun ensure-wcs-struct-spec (name)
+  (let ((wcsspec (first (gethash name *wcs-struct-specs*))))
     (unless wcsspec
       (setf wcsspec
-            (make-w-c-s-struct-spec
+            (make-wcs-struct-spec
              :struct-name name
              :internal-name (gensym (format nil "struct ~S " name))))
-      (push wcsspec (gethash name *w-c-s-structs*)))
+      (push wcsspec (gethash name *wcs-struct-specs*)))
     wcsspec))
 
-(defun find-w-c-s-struct-spec (name)
-  (let ((wcsspec (first (gethash name *w-c-s-structs*))))
+(defun find-wcs-struct-spec (name)
+  (let ((wcsspec (first (gethash name *wcs-struct-specs*))))
     (when (null wcsspec)
       (error "struct ~S is not defined" name))
     wcsspec))
 
-(defun drop-w-c-s-struct-spec (wcsspec)
-  (let ((name (w-c-s-struct-spec-struct-name wcsspec)))
-    (symbol-macrolet ((place (gethash name *w-c-s-structs*)))
+(defun drop-wcs-struct-spec (wcsspec)
+  (let ((name (wcs-struct-spec-struct-name wcsspec)))
+    (symbol-macrolet ((place (gethash name *wcs-struct-specs*)))
       (setf place
-            (remove wcsspec place :key #'w-c-s-struct-spec-internal-name)))))
+            (remove wcsspec place :key #'wcs-struct-spec-internal-name)))))
 
-(defvar *w-c-s-struct-lisp-type* '(array))
-
-(defun maybe-w-c-s-struct-lisp-type-p (obj)
-  (equal obj *w-c-s-struct-lisp-type*))
-
-(defun make-w-c-s-struct (slot-spec &rest args)
-  (loop with size = (1+ (length slot-spec))
-     with ret = (make-array `(,size))
-     initially (setf (aref ret 0) slot-spec)
-     for idx from 1 below size
-     for arg in args
-     do (setf (aref ret idx) arg)
-     finally (return ret)))
-
-(defun w-c-s-struct-ref (wcs-struct slot-name)
-  (let* ((slot-spec (aref wcs-struct 0))
-	 (slot-idx (cdr (assoc slot-name slot-spec :test #'eq))))
-    (aref wcs-struct (1+ slot-idx))))
-
-(defun (setf w-c-s-struct-ref) (val wcs-struct slot-name)
-  (let* ((slot-spec (aref wcs-struct 0))
-	 (slot-idx (cdr (assoc slot-name slot-spec :test #'eq))))
-    (setf (aref wcs-struct (1+ slot-idx)) val)))
+(defun wcs-struct-spec-fill-runtime-spec (wcsspec)
+  (let* ((stype (wcs-struct-spec-struct-type wcsspec))
+         (cls-slots
+          (loop for slot-def in (wcs-struct-spec-slot-defs wcsspec)
+             for index from 0
+             collect
+               (destructuring-bind (&key name &allow-other-keys)
+                   slot-def
+                 name)))
+         (runtime-spec
+          (make-wcs-struct-runtime-spec cls-slots (eq stype 'union))))
+    (setf (wcs-struct-spec-runtime-spec wcsspec)
+          runtime-spec))
+  wcsspec)
 
 ;; processes structure-spec 
 (defun finalize-struct-spec (sspec dspecs)
   (let* ((wcsname (or (struct-or-union-spec-id sspec)
                       (gensym "unnamed-struct")))
-         (wcsspec (ensure-w-c-s-struct-spec wcsname)))
-    (setf (decl-specs-w-c-s-type-tag dspecs) wcsname)
-    (setf (decl-specs-lisp-type dspecs) *w-c-s-struct-lisp-type*)
+         (wcsspec (ensure-wcs-struct-spec wcsname)))
+    (setf (decl-specs-wcs-type-tag dspecs) wcsname)
+    (setf (decl-specs-lisp-type dspecs) *wcs-struct-lisp-type*)
     ;; only declaration?
     (when (null (struct-or-union-spec-struct-decl-list sspec))
       (assert (struct-or-union-spec-id sspec)) ; this case is rejected by the parser.
       (return-from finalize-struct-spec dspecs))
     ;; Doubly defined?
     (when (and (struct-or-union-spec-struct-decl-list sspec)
-               (w-c-s-struct-spec-slot-defs wcsspec))
+               (wcs-struct-spec-slot-defs wcsspec))
       (error "struct is defined twice (~S)" wcsname))
     ;; Now defines a new struct.
-    (setf (w-c-s-struct-spec-struct-type wcsspec)
+    (setf (wcs-struct-spec-struct-type wcsspec)
           (struct-or-union-spec-type sspec))
     (loop for (spec-qual . struct-decls)
        in (struct-or-union-spec-struct-decl-list sspec)
@@ -236,7 +228,7 @@ If a same name is supplied, it is stacked")
                           :decl-specs spec-qual))
        into slot-specs
        finally
-         (setf (w-c-s-struct-spec-slot-defs wcsspec) slot-specs))
+         (setf (wcs-struct-spec-slot-defs wcsspec) slot-specs))
     ;; This wcsspec is treated by this dspecs
     (append-item-to-right-f (decl-specs-lisp-class-spec dspecs)
                             wcsspec)
@@ -245,7 +237,7 @@ If a same name is supplied, it is stacked")
 ;; processes enum-spec 
 (defun finalize-enum-spec (espec dspecs)
   (setf (decl-specs-lisp-type dspecs) 'fixnum)
-  (setf (decl-specs-w-c-s-type-tag dspecs)
+  (setf (decl-specs-wcs-type-tag dspecs)
 	(or (enum-spec-id espec) (gensym "unnamed-enum")))
   ;; addes values into lisp-decls
   (setf (decl-specs-lisp-bindings dspecs)
@@ -437,18 +429,20 @@ If a same name is supplied, it is stacked")
        (cond
          ((subtypep var-type 'number) ; includes enum
           (values (or initializer 0) var-type))
-         ((maybe-w-c-s-struct-lisp-type-p var-type)
-          (let* ((wcs-tag (decl-specs-w-c-s-type-tag dspecs))
+         ((wcs-struct-lisp-type-p var-type)
+          (let* ((wcs-tag (decl-specs-wcs-type-tag dspecs))
                   ;; This is required, for treating a struct defined after declarations.
-                 (wcsspec (find-w-c-s-struct-spec wcs-tag))
+                 (wcsspec (find-wcs-struct-spec wcs-tag))
                  (init-list
                   (loop for idx from 0
                      for i in initializer
-                     for slot in (w-c-s-struct-spec-slot-defs wcsspec)
+                     for slot in (wcs-struct-spec-slot-defs wcsspec)
                      collect (expand-init-declarator-init
                               (getf slot :decl-specs) (cdr abst-declarator) i))))
-            (values `(make-w-c-s-struct
-                      ,(w-c-s-struct-spec-internal-name wcsspec)
+            (wcs-struct-spec-fill-runtime-spec wcsspec)
+            (values `(make-wcs-struct
+                      ;; internal-name is bound to the runtime-spec at top-level expansion.
+                      ,(wcs-struct-spec-internal-name wcsspec)
                       ,@init-list)
                     var-type)))
          (t (error "Internal error: unknown type ~S" var-type)))))))
@@ -677,17 +671,10 @@ If a same name is supplied, it is stacked")
 
 (defun expand-class-spec (classes)
   (loop for wcsspec in classes
-     as sname = (w-c-s-struct-spec-struct-name wcsspec)
-     as iname = (w-c-s-struct-spec-internal-name wcsspec)
-     as stype = (w-c-s-struct-spec-struct-type wcsspec)
-     as cls-slots = 
-       (loop for slot-def in (w-c-s-struct-spec-slot-defs wcsspec)
-          for index from 0
-          collect
-            (destructuring-bind (&key name &allow-other-keys)
-                slot-def
-	      `(,name . ,(ecase stype (struct index) (union 0)))))
-     collect `(,iname ',cls-slots) into class-binds
+     as sname = (wcs-struct-spec-struct-name wcsspec)
+     as iname = (wcs-struct-spec-internal-name wcsspec)
+     collect `(,iname ,(make-load-form (wcs-struct-spec-runtime-spec wcsspec)))
+       into class-binds
      collect `(,sname ,iname) into renames
      finally (return (values class-binds renames))))
 
@@ -704,7 +691,10 @@ If a same name is supplied, it is stacked")
              (bad-pointers (intersection dynamic-established-syms register-vars))
              (special-vars nil)
              (global-defs nil)
-             (sym-macros nil))
+             (sym-macros nil)
+             (struct-names nil)
+             (struct-names-sym (gensym "struct-names "))
+             (struct-names-form nil))
         ;; 'auto' and 'register'
         (when (and (eq mode :translation-unit)
                    (or autos registers))
@@ -738,19 +728,25 @@ If a same name is supplied, it is stacked")
             (expand-class-spec cls)
 	  (setf lexical-binds (nconc class-binds lexical-binds))
           (when (eq mode :translation-unit)
-	    (nconcf sym-macros renames)))
+	    (nconcf struct-names renames)))
+        (setf struct-names-form
+              `(list ,@(loop for (sym val) in struct-names
+                          collect `(cons ',sym ,val))))
         (prog1
             `(symbol-macrolet ,sym-macros
                (declare (special ,@special-vars))
                ,@global-defs
-               (let* ,lexical-binds
+               (let* (,@lexical-binds
+                      (,struct-names-sym ,struct-names-form))
                  (declare (dynamic-extent ,@register-vars))
-                 ;; If no pointers requied, remove dynamic binds.
-                 ;; This makes the compiler faster.
-                 ,(if *dynamic-binding-requested*
-                      `(with-dynamic-bound-symbols ,*dynamic-binding-requested*
-                         (block nil ,@code))
-                      `(block nil ,@code))))
+                 (flet ((make-wcs-struct-by-name (name &rest args)
+                          (apply #'make-wcs-struct (assoc name ,struct-names-sym) args)))
+                   ;; If no pointers requied, remove dynamic binds.
+                   ;; This makes the compiler faster.
+                   ,(if *dynamic-binding-requested*
+                        `(with-dynamic-bound-symbols ,*dynamic-binding-requested*
+                           (block nil ,@code))
+                        `(block nil ,@code)))))
           ;; drop dynamic-binds
           (loop for sym in dynamic-established-syms
              do (setf *dynamic-binding-requested*
@@ -763,7 +759,7 @@ If a same name is supplied, it is stacked")
                               :test #'eq :count 1)))
           ;; drop structure-binds
           (loop for c in cls
-             do (drop-w-c-s-struct-spec c))
+             do (drop-wcs-struct-spec c))
           ))))
 
 (defun expand-toplevel-stat (stat &key entry-point)
@@ -811,7 +807,7 @@ If a same name is supplied, it is stacked")
 (define-parser *expression-parser*
   (:muffle-conflicts t)
 
-  (:start-symbol w-c-s-entry-point)
+  (:start-symbol wcs-entry-point)
 
   ;; http://www.swansontec.com/sopc.html
   (:precedence (;; Primary expression
@@ -848,7 +844,7 @@ If a same name is supplied, it is stacked")
 
   ;; Our entry point.
   ;; top level forms in C, or statements
-  (w-c-s-entry-point
+  (wcs-entry-point
    (translation-unit
     #'(lambda (us) (expand-translation-unit us)))
    (labeled-stat
@@ -1557,11 +1553,11 @@ If a same name is supplied, it is stacked")
    (postfix-exp \. id
 		#'(lambda (exp _op id)
 		    (declare (ignore _op))
-		    `(w-c-s-struct-ref ,exp ',id)))
+		    `(wcs-struct-field ,exp ',id)))
    (postfix-exp -> id
 		#'(lambda (exp _op id)
 		    (declare (ignore _op))
-		    `(w-c-s-struct-ref (pseudo-pointer-dereference ,exp) ',id)))
+		    `(wcs-struct-field (pseudo-pointer-dereference ,exp) ',id)))
    (postfix-exp ++
                 (lispify-post-increment '+))
    (postfix-exp --
@@ -1592,7 +1588,7 @@ If a same name is supplied, it is stacked")
 
 ;;; Expander
 (defun c-expression-tranform (bindings form)
-  (with-new-w-c-s-environment ()
+  (with-new-wcs-environment ()
     (let ((lisp-exp (parse-with-lexer (list-lexer form)
                                       *expression-parser*)))
       lisp-exp)))

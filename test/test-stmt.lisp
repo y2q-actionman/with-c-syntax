@@ -42,8 +42,6 @@
     struct hoge x = { 99 } \;
     return x \. x \;
     })
-  ;; TODO: sipport this!
-  #+ignore
   (eval-equal 99 ()
     {
     struct hoge { int x \; } \;

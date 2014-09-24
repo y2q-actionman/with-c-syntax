@@ -6,4 +6,5 @@
   :components ((:file "package")
 	       (:file "util")
                (:file "pseudo-pointer")
+               (:file "wcs-struct")
 	       (:file "with-c-syntax")))
