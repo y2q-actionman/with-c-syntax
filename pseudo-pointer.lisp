@@ -39,58 +39,46 @@
          (p (+ base +pseudo-pointer-safebit+)))
     (values base p)))
 
-(defun pseudo-pointer-extract (p)
-  (let ((base (logandc2 p +pseudo-pointer-mask+))
-        (idx (- (logand p +pseudo-pointer-mask+)
-                +pseudo-pointer-safebit+)))
-    (values base idx)))
+(defun pseudo-pointer-extract (p &optional (errorp t))
+  (let* ((base (logandc2 p +pseudo-pointer-mask+))
+	 (idx (- (logand p +pseudo-pointer-mask+)
+		 +pseudo-pointer-safebit+))
+	 (entry (gethash base *pseudo-pointee-table*)))
+    (unless entry
+      (when errorp (error "dangling pointer ~A" p)))
+    (values entry idx base)))
 
 (defun pseudo-pointer-pointee (p)
-  (multiple-value-bind (base idx)
+  (multiple-value-bind (entry)
       (pseudo-pointer-extract p)
-    (declare (ignore idx))
-    (let ((entry (gethash base *pseudo-pointee-table*)))
-      (unless entry
-        (error "dangling pointer ~A" p))
-      (getf entry :pointee))))
+    (getf entry :pointee)))
 
 (defun pseudo-pointer-dereference (p)
-  (multiple-value-bind (base idx)
+  (multiple-value-bind (entry idx)
       (pseudo-pointer-extract p)
-    (let ((entry (gethash base *pseudo-pointee-table*)))
-      (unless entry
-        (error "dangling pointer ~A" p))
-      (funcall (getf entry :reader)
-	       (getf entry :pointee)
-               idx))))
+    (funcall (getf entry :reader)
+	     (getf entry :pointee)
+	     idx)))
 
 (defun (setf pseudo-pointer-dereference) (val p)
-  (multiple-value-bind (base idx)
+  (multiple-value-bind (entry idx)
       (pseudo-pointer-extract p)
-    (let ((entry (gethash base *pseudo-pointee-table*)))
-      (unless entry
-        (error "dangling pointer ~A" p))
-      (funcall (getf entry :writer)
-	       (getf entry :pointee)
-	       idx val))))
-
-(defun make-pseudo-pointer* (&rest pointee-candidates)
-  (multiple-value-bind (base p)
-      (alloc-pseudo-pointer)
-    (loop for pointee in pointee-candidates
-       as handler = (find-pseudo-pointer-handler pointee)
-       when handler
-       do (setf (gethash base *pseudo-pointee-table*)
-                (list :pointee pointee
-                      :reader (getf (cdr handler) :reader)
-                      :writer (getf (cdr handler) :writer)))
-         (return p)
-       finally
-         (error "pseudo pointers cannot hold this object ~S~%"
-                pointee-candidates))))
+    (funcall (getf entry :writer)
+	     (getf entry :pointee)
+	     idx val)))
 
 (defun make-pseudo-pointer (pointee)
-  (make-pseudo-pointer* pointee))
+  (multiple-value-bind (base p)
+      (alloc-pseudo-pointer)
+    (let ((handler (find-pseudo-pointer-handler pointee)))
+      (unless handler
+	(error "pseudo pointers cannot hold this object ~S~%"
+	       pointee))
+      (setf (gethash base *pseudo-pointee-table*)
+	    (list :pointee pointee
+		  :reader (getf (cdr handler) :reader)
+		  :writer (getf (cdr handler) :writer)))
+      p)))
 
 (defmacro with-pseudo-pointer-scope (() &body body)
   `(let ((*pseudo-pointee-table* (make-hash-table))

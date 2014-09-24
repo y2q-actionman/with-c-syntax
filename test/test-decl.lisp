@@ -37,8 +37,9 @@
     { register int x = 3 \; return x \; })
   (eval-equal 4 ()
     { static int x = 4 \; return x \; })
-  (eval-equal 5 ((x 5))
-    { extern int x \; return x \; })
+  (let ((x 5))
+    (eval-equal 5 ()
+      { extern int x \; return x \; }))
   (assert-compile-error ()
     { extern int x = 999 \; })
   (test '({ typedef int \; }))		; TODO!
@@ -53,8 +54,9 @@
     { register x = 7 \; return x \; })
   (eval-equal 8 ()
     { static x = 8 \; return x \; })
-  (eval-equal 9 ((x 9))
-    { extern x \; return x \; })
+  (let ((x 9))
+    (eval-equal 9 ()
+      { extern x \; return x \; }))
   (assert-compile-error ()
     { extern x = 999 \; })
   (test '({ typedef \; }))		; TODO!

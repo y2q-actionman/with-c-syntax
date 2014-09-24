@@ -42,7 +42,6 @@
 ;;; Variables
 (defvar *enum-const-symbols* nil
   "list of (symbol initform)")
-(defvar *toplevel-bindings* nil)
 (defvar *dynamic-binding-requested* nil)
 (defvar *wcs-struct-specs* nil
   "hashtable: struct-name -> list of wcs-struct-spec.
@@ -50,7 +49,6 @@ If a same name is supplied, it is stacked")
 
 (defmacro with-new-wcs-environment (() &body body)
   `(let* ((*enum-const-symbols* nil)
-          (*toplevel-bindings* bindings)
           (*dynamic-binding-requested* nil)
           (*wcs-struct-specs* (make-hash-table :test 'eq)))
      ,@body))
@@ -167,15 +165,15 @@ If a same name is supplied, it is stacked")
 
 (defun wcs-struct-spec-fill-runtime-spec (wcsspec)
   (let* ((stype (wcs-struct-spec-struct-type wcsspec))
-         (cls-slots
+         (runtime-spec
           (loop for slot-def in (wcs-struct-spec-slot-defs wcsspec)
              for index from 0
-             collect
-               (destructuring-bind (&key name &allow-other-keys)
-                   slot-def
-                 name)))
-         (runtime-spec
-          (make-wcs-struct-runtime-spec cls-slots (eq stype 'union))))
+             collect (getf slot-def :name) into names
+	     collect (getf slot-def :initform) into initforms
+	     finally
+	       (return
+		 (make-wcs-struct-runtime-spec names (eq stype 'union)
+					        initforms)))))
     (setf (wcs-struct-spec-runtime-spec wcsspec)
           runtime-spec))
   wcsspec)
@@ -673,28 +671,26 @@ If a same name is supplied, it is stacked")
   (loop for wcsspec in classes
      as sname = (wcs-struct-spec-struct-name wcsspec)
      as iname = (wcs-struct-spec-internal-name wcsspec)
-     collect `(,iname ,(make-load-form (wcs-struct-spec-runtime-spec wcsspec)))
-       into class-binds
+     as spec-form = (make-load-form (wcs-struct-spec-runtime-spec wcsspec))
+     collect `(,iname ,spec-form) into class-binds
      collect `(,sname ,iname) into renames
      finally (return (values class-binds renames))))
 
 ;; mode is :statement or :translation-unit
-(defun expand-toplevel (mode decls code additinal-binding)
+(defun expand-toplevel (mode decls code)
     (multiple-value-bind (autos registers externs globals statics enum-consts
                                 dynamic-established-syms cls)
         (expand-decl-bindings decls
                               (ecase mode
                                 (:statement 'auto) (:translation-unit 'global)))
       (let* ((lexical-binds
-              (append autos registers additinal-binding))
+              (append autos registers))
 	     (register-vars (mapcar #'first registers))
              (bad-pointers (intersection dynamic-established-syms register-vars))
              (special-vars nil)
              (global-defs nil)
              (sym-macros nil)
-             (struct-names nil)
-             (struct-names-sym (gensym "struct-names "))
-             (struct-names-form nil))
+	     (struct-defs nil))
         ;; 'auto' and 'register'
         (when (and (eq mode :translation-unit)
                    (or autos registers))
@@ -728,25 +724,22 @@ If a same name is supplied, it is stacked")
             (expand-class-spec cls)
 	  (setf lexical-binds (nconc class-binds lexical-binds))
           (when (eq mode :translation-unit)
-	    (nconcf struct-names renames)))
-        (setf struct-names-form
-              `(list ,@(loop for (sym val) in struct-names
-                          collect `(cons ',sym ,val))))
+	    (loop for (sym val) in renames
+	       do (push `(install-wcs-struct-runtime-spec ',sym ,val)
+			struct-defs))))
         (prog1
             `(symbol-macrolet ,sym-macros
                (declare (special ,@special-vars))
                ,@global-defs
-               (let* (,@lexical-binds
-                      (,struct-names-sym ,struct-names-form))
+               (let* (,@lexical-binds)
                  (declare (dynamic-extent ,@register-vars))
-                 (flet ((make-wcs-struct-by-name (name &rest args)
-                          (apply #'make-wcs-struct (assoc name ,struct-names-sym) args)))
-                   ;; If no pointers requied, remove dynamic binds.
-                   ;; This makes the compiler faster.
-                   ,(if *dynamic-binding-requested*
-                        `(with-dynamic-bound-symbols ,*dynamic-binding-requested*
-                           (block nil ,@code))
-                        `(block nil ,@code)))))
+		 ,@struct-defs
+		 ;; If no pointers requied, remove dynamic binds.
+		 ;; This makes the compiler faster.
+		 ,(if *dynamic-binding-requested*
+		      `(with-dynamic-bound-symbols ,*dynamic-binding-requested*
+			 (block nil ,@code))
+		      `(block nil ,@code))))
           ;; drop dynamic-binds
           (loop for sym in dynamic-established-syms
              do (setf *dynamic-binding-requested*
@@ -762,11 +755,10 @@ If a same name is supplied, it is stacked")
              do (drop-wcs-struct-spec c))
           ))))
 
-(defun expand-toplevel-stat (stat &key entry-point)
+(defun expand-toplevel-stat (stat)
   (expand-toplevel :statement
                    (stat-declarations stat)
-                   `((tagbody ,@(stat-code stat)))
-                   (if entry-point *toplevel-bindings* nil)))
+                   `((tagbody ,@(stat-code stat)))))
 
 (defstruct function-definition
   lisp-code
@@ -801,7 +793,7 @@ If a same name is supplied, it is stacked")
      collect u into decls
      finally
        (return (expand-toplevel :translation-unit
-                                decls codes *toplevel-bindings*))))
+                                decls codes))))
 
 ;;; The parser
 (define-parser *expression-parser*
@@ -848,16 +840,16 @@ If a same name is supplied, it is stacked")
    (translation-unit
     #'(lambda (us) (expand-translation-unit us)))
    (labeled-stat
-    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
+    #'(lambda (st) (expand-toplevel-stat st)))
    ;; exp-stat is not included, because it is gramatically ambiguous.
    (compound-stat
-    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
+    #'(lambda (st) (expand-toplevel-stat st)))
    (selection-stat
-    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
+    #'(lambda (st) (expand-toplevel-stat st)))
    (iteration-stat
-    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
+    #'(lambda (st) (expand-toplevel-stat st)))
    (jump-stat
-    #'(lambda (st) (expand-toplevel-stat st :entry-point t))))
+    #'(lambda (st) (expand-toplevel-stat st))))
 
 
   (translation-unit
@@ -908,7 +900,7 @@ If a same name is supplied, it is stacked")
    (decl-list decl
 	      #'append-item-to-right))
 
-  ;; returns 'decl-specs' structure
+  ;; returns a 'decl-specs' structure
   (decl-specs
    (storage-class-spec decl-specs
                        #'(lambda (cls dcls)
@@ -944,7 +936,7 @@ If a same name is supplied, it is stacked")
   (type-qualifier
    const volatile)                      ; keywords
 
-  ;; returns struct-or-union-spec structure
+  ;; returns a struct-or-union-spec structure
   (struct-or-union-spec
    (struct-or-union id { struct-decl-list }
                     #'(lambda (kwd id _l decl _r)
@@ -976,7 +968,7 @@ If a same name is supplied, it is stacked")
    (init-declarator-list \, init-declarator
                          #'concatinate-comma-list))
 
-  ;; returns init-declarator structure
+  ;; returns an init-declarator structure
   (init-declarator
    (declarator
     #'(lambda (d)
@@ -994,7 +986,7 @@ If a same name is supplied, it is stacked")
                             (declare (ignore _t))
 			    (cons qls dcls))))
 
-  ;; returns spec-qualifier-list structure
+  ;; returns a spec-qualifier-list structure
   (spec-qualifier-list
    (type-spec spec-qualifier-list
 	      #'(lambda (tp lis)
@@ -1017,7 +1009,7 @@ If a same name is supplied, it is stacked")
    (struct-declarator-list \, struct-declarator
 			   #'concatinate-comma-list))
 
-  ;; returns struct-declarator structure
+  ;; returns a struct-declarator structure
   (struct-declarator
    (declarator
     #'(lambda (d)
@@ -1031,7 +1023,7 @@ If a same name is supplied, it is stacked")
 	   (declare (ignore _c))
 	   (make-struct-declarator :bits bits))))
 
-  ;; returns enum-spec structure
+  ;; returns an enum-spec structure
   (enum-spec
    (enum id { enumerator-list }
          #'(lambda (_kwd id _l lis _r)
@@ -1052,7 +1044,7 @@ If a same name is supplied, it is stacked")
    (enumerator-list \, enumerator
                     #'concatinate-comma-list))
 
-  ;; returns enumerator structure
+  ;; returns an enumerator structure
   (enumerator
    (id
     #'(lambda (id)
@@ -1062,6 +1054,9 @@ If a same name is supplied, it is stacked")
            (declare (ignore _op))
 	   (make-enumerator :declarator id :initializer exp))))
 
+  ;; returns like:
+  ;; (name (:aref nil) (:funcall nil) (:aref 5) (:funcall int))
+  ;; processed in 'expand-init-declarator-init'
   (declarator
    (pointer direct-declarator
     #'(lambda (ptr dcls)
@@ -1148,7 +1143,6 @@ If a same name is supplied, it is stacked")
    (id-list \, id
     #'concatinate-comma-list))
 
-  ;; returns a struct, if initializer-list is used.
   (initializer
    assignment-exp
    ({ initializer-list }
@@ -1187,8 +1181,7 @@ If a same name is supplied, it is stacked")
     #'(lambda (adecl)
 	`(nil ,@adecl))))
 
-  ;; returns like:
-  ;; (:aref nil) (:funcall nil) (:aref 5 :funcall (int))
+  ;; see 'direct-declarator'
   (direct-abstract-declarator
    (\( abstract-declarator \)
     #'(lambda (_lp dcl _rp)
@@ -1489,7 +1482,7 @@ If a same name is supplied, it is stacked")
 
   (cast-exp
    unary-exp
-   (\( type-name \) cast-exp		; TODO: type-name must be defined
+   (\( type-name \) cast-exp
        #'(lambda (op1 type op2 exp)
 	   (declare (ignore op1 op2))
 	   `(coerce ,exp ',type))))
@@ -1508,7 +1501,8 @@ If a same name is supplied, it is stacked")
           (if (symbolp exp)
               (progn
                 (push exp *dynamic-binding-requested*)
-                `(make-pseudo-pointer* ,exp ',exp))
+		`(make-pseudo-pointer
+		  (if (arrayp ,exp) ,exp ',exp)))
               `(make-pseudo-pointer ,exp))))
    (* cast-exp
       #'(lambda (_op exp)
@@ -1520,22 +1514,27 @@ If a same name is supplied, it is stacked")
       (lispify-unary '-))
    (! cast-exp
       (lispify-unary 'not))
-   (sizeof unary-exp			; TODO: add struct
+   (sizeof unary-exp
 	   #'(lambda (_op exp)
 	       (declare (ignore _op))
+	       ;; calculate runtime
 	       `(if (arrayp ,exp)
 		    (array-total-size ,exp)
 		    1)))
-   (sizeof \( type-name \)		; TODO: add struct
+   (sizeof \( type-name \)
 	   #'(lambda (_op _lp tp _rp)
 	       (declare (ignore _op _lp _rp))
+	       ;; calculate compile-time
 	       (if (subtypep tp 'array)
-		   (array-total-size (make-array (third tp)))
+		   (let ((array-dim (third tp)))
+		     (when (member-if-not #'numberp array-dim)
+		       (error "The array dimension is incompleted: ~S" tp))
+		     (apply #'* array-dim))
 		   1))))
 
   (postfix-exp
    primary-exp
-   (postfix-exp [ exp ]			; TODO: compound with multi-dimention
+   (postfix-exp [ exp ]
 		#'(lambda (exp op1 idx op2)
 		    (declare (ignore op1 op2))
                     (if (and (listp exp) (eq (first exp) 'aref))
@@ -1587,12 +1586,11 @@ If a same name is supplied, it is stacked")
   )
 
 ;;; Expander
-(defun c-expression-tranform (bindings form)
+(defun c-expression-tranform (form)
   (with-new-wcs-environment ()
-    (let ((lisp-exp (parse-with-lexer (list-lexer form)
-                                      *expression-parser*)))
-      lisp-exp)))
+    (parse-with-lexer (list-lexer form)
+                      *expression-parser*)))
 
 ;;; Macro interface
-(defmacro with-c-syntax ((&rest bindings) &body body)
-  (c-expression-tranform bindings body))
+(defmacro with-c-syntax (() &body body)
+  (c-expression-tranform body))
