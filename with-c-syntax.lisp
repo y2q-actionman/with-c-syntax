@@ -42,7 +42,6 @@
 ;;; Variables
 (defvar *enum-const-symbols* nil
   "list of (symbol initform)")
-(defvar *toplevel-bindings* nil)
 (defvar *dynamic-binding-requested* nil)
 (defvar *wcs-struct-specs* nil
   "hashtable: struct-name -> list of wcs-struct-spec.
@@ -50,7 +49,6 @@ If a same name is supplied, it is stacked")
 
 (defmacro with-new-wcs-environment (() &body body)
   `(let* ((*enum-const-symbols* nil)
-          (*toplevel-bindings* bindings)
           (*dynamic-binding-requested* nil)
           (*wcs-struct-specs* (make-hash-table :test 'eq)))
      ,@body))
@@ -679,14 +677,14 @@ If a same name is supplied, it is stacked")
      finally (return (values class-binds renames))))
 
 ;; mode is :statement or :translation-unit
-(defun expand-toplevel (mode decls code additinal-binding)
+(defun expand-toplevel (mode decls code)
     (multiple-value-bind (autos registers externs globals statics enum-consts
                                 dynamic-established-syms cls)
         (expand-decl-bindings decls
                               (ecase mode
                                 (:statement 'auto) (:translation-unit 'global)))
       (let* ((lexical-binds
-              (append autos registers additinal-binding))
+              (append autos registers))
 	     (register-vars (mapcar #'first registers))
              (bad-pointers (intersection dynamic-established-syms register-vars))
              (special-vars nil)
@@ -762,11 +760,10 @@ If a same name is supplied, it is stacked")
              do (drop-wcs-struct-spec c))
           ))))
 
-(defun expand-toplevel-stat (stat &key entry-point)
+(defun expand-toplevel-stat (stat)
   (expand-toplevel :statement
                    (stat-declarations stat)
-                   `((tagbody ,@(stat-code stat)))
-                   (if entry-point *toplevel-bindings* nil)))
+                   `((tagbody ,@(stat-code stat)))))
 
 (defstruct function-definition
   lisp-code
@@ -801,7 +798,7 @@ If a same name is supplied, it is stacked")
      collect u into decls
      finally
        (return (expand-toplevel :translation-unit
-                                decls codes *toplevel-bindings*))))
+                                decls codes))))
 
 ;;; The parser
 (define-parser *expression-parser*
@@ -848,16 +845,16 @@ If a same name is supplied, it is stacked")
    (translation-unit
     #'(lambda (us) (expand-translation-unit us)))
    (labeled-stat
-    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
+    #'(lambda (st) (expand-toplevel-stat st)))
    ;; exp-stat is not included, because it is gramatically ambiguous.
    (compound-stat
-    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
+    #'(lambda (st) (expand-toplevel-stat st)))
    (selection-stat
-    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
+    #'(lambda (st) (expand-toplevel-stat st)))
    (iteration-stat
-    #'(lambda (st) (expand-toplevel-stat st :entry-point t)))
+    #'(lambda (st) (expand-toplevel-stat st)))
    (jump-stat
-    #'(lambda (st) (expand-toplevel-stat st :entry-point t))))
+    #'(lambda (st) (expand-toplevel-stat st))))
 
 
   (translation-unit
@@ -1587,12 +1584,11 @@ If a same name is supplied, it is stacked")
   )
 
 ;;; Expander
-(defun c-expression-tranform (bindings form)
+(defun c-expression-tranform (form)
   (with-new-wcs-environment ()
-    (let ((lisp-exp (parse-with-lexer (list-lexer form)
-                                      *expression-parser*)))
-      lisp-exp)))
+    (parse-with-lexer (list-lexer form)
+                      *expression-parser*)))
 
 ;;; Macro interface
-(defmacro with-c-syntax ((&rest bindings) &body body)
-  (c-expression-tranform bindings body))
+(defmacro with-c-syntax (() &body body)
+  (c-expression-tranform body))

@@ -37,8 +37,8 @@
   (assert (= 3 (w-c-s-add-args 1 2)))
   t)
 
-(defun w-c-s-while-loop ()
-  (with-c-syntax ((x 0))                ; closes 'x'
+(defun w-c-s-while-loop (&aux (x 0))
+  (with-c-syntax ()
     {
     while \( x < 100 \)
       x ++ \;
@@ -63,8 +63,8 @@
   (assert (= 5050 (w-c-s-for-loop)))
   t)
 
-(defun w-c-s-loop-continue-break ()
-  (with-c-syntax ((i 0) (sum 0))
+(defun w-c-s-loop-continue-break (&aux (i 0) (sum 0))
+  (with-c-syntax ()
    {
     for \( i = 0 \; i < 100 \; ++ i \) {
       if \( (oddp i) \)
@@ -82,7 +82,7 @@
   t)
 
 (defun w-c-s-switch (x &aux (ret nil))
-  (with-c-syntax ((x x))
+  (with-c-syntax ()
     {
       ;; format \( t \, "[~A] " \, x \) \;
       switch \( x \) {
@@ -117,8 +117,8 @@
   (assert (equal '(default) (w-c-s-switch 5)))
   t)
 
-(defun w-c-s-goto ()
-  (with-c-syntax ((ret nil))
+(defun w-c-s-goto (&aux (ret nil))
+  (with-c-syntax ()
     {
       goto d \;
 

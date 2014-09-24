@@ -70,7 +70,7 @@
     (assert (= hoge 0)))
   ;; '&' and '*'
   (let ((hoge 99))
-    (eval-equal 99 ((hoge hoge))
+    (eval-equal 99 ()
       return * & hoge \;)
     (eval-equal 99 ()
       return * & hoge \;))
@@ -93,10 +93,11 @@
 
 (defun test-cast-exp ()
   (test-unary-exp)
-  (eval-equal 10 ((hoge 10))
-    { return \( int \) hoge \; })
-  (eval-equal 10 ((hoge 10))
-    { return \( int \) \( int * \) hoge \; })
+  (let ((hoge 10))
+    (eval-equal 10 ()
+      { return \( int \) hoge \; })
+    (eval-equal 10 ()
+      { return \( int \) \( int * \) hoge \; }))
   t)
 
 (defun test-mult-exp ()
@@ -106,7 +107,7 @@
   (eval-equal 2 ()
     return 6 / 3 \;)
   (eval-equal 1 ()
-      return 3 % 2 \;)
+    return 3 % 2 \;)
   t)
 
 (defun test-addictive-exp ()
@@ -274,9 +275,9 @@
   (flet ((switch-test (x)
 	   (with-c-syntax ()
 	     switch \( x \) {
-	      case 1 \: return 'hoge \;
-	      case 2 \: return 'fuga \;
-    	      default \: return 'piyo \;
+             case 1 \: return 'hoge \;
+             case 2 \: return 'fuga \;
+             default \: return 'piyo \;
 	     })))
     (assert (eq 'hoge (switch-test 1)))
     (assert (eq 'fuga (switch-test 2)))
@@ -284,11 +285,12 @@
   t)
 
 (defun test-iteration-stmt ()
-  (eval-equal 100 ((x 0))
-    while \( 1 \) {
+  (let ((x 0))
+    (eval-equal 100 ()
+      while \( 1 \) {
       ++ x \;
       if \( x >= 100 \) return x \;
-      })
+      }))
 
   (let ((x 0))
     (eval-equal 100 ()
