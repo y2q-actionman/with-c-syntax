@@ -475,26 +475,7 @@ If a same name is supplied, it is stacked")
   #'(lambda (exp1 _ exp2)
       (declare (ignore _))
       `(,op ,exp1 ,exp2)))
-
-(defun lispify-post-increment (op)
-  #'(lambda (exp _)
-      (declare (ignore _))
-      (let ((tmp (gensym)))
-	`(let ((,tmp ,exp))
-	   (setf ,exp (,op ,tmp 1))
-	   ,tmp))))
-
-(defun lispify-augmented-assignment (op)
-  #'(lambda (exp1 _ exp2)
-      (declare (ignore _))
-      (let ((tmp (gensym)))
-	`(let ((,tmp ,exp1))
-	   (setf ,exp1
-		 (,op ,tmp ,exp2))))))
 )
-
-(defun ash-right (i c)
-  (ash i (- c)))
 
 (defun lispify-type-name (qls abs)
   (setf qls (finalize-decl-specs qls))
@@ -1384,25 +1365,25 @@ If a same name is supplied, it is stacked")
 		  (declare (ignore op))
 		  `(setf ,exp1 ,exp2)))
    (unary-exp *= assignment-exp
-	      (lispify-augmented-assignment '*))
+	      (lispify-binary 'mulf))
    (unary-exp /= assignment-exp
-	      (lispify-augmented-assignment '/))
+	      (lispify-binary 'divf))
    (unary-exp %= assignment-exp
-	      (lispify-augmented-assignment 'mod))
+	      (lispify-binary 'modf))
    (unary-exp += assignment-exp
-	      (lispify-augmented-assignment '+))
+	      (lispify-binary 'incf))
    (unary-exp -= assignment-exp
-	      (lispify-augmented-assignment '-))
+	      (lispify-binary 'decf))
    (unary-exp <<= assignment-exp
-	      (lispify-augmented-assignment 'ash))
+	      (lispify-binary 'ashf))
    (unary-exp >>= assignment-exp
-	      (lispify-augmented-assignment 'ash-right))
+	      (lispify-binary 'reverse-ashf))
    (unary-exp &= assignment-exp
-	      (lispify-augmented-assignment 'logand))
+	      (lispify-binary 'logandf))
    (unary-exp ^= assignment-exp
-	      (lispify-augmented-assignment 'logxor))
+	      (lispify-binary 'logxorf))
    (unary-exp \|= assignment-exp
-	      (lispify-augmented-assignment 'logior)))
+	      (lispify-binary 'logiorf)))
 
   (conditional-exp
    logical-or-exp
@@ -1462,7 +1443,7 @@ If a same name is supplied, it is stacked")
    (shift-expression << additive-exp
 		     (lispify-binary 'ash))
    (shift-expression >> additive-exp
-		     (lispify-binary 'ash-right)))
+		     (lispify-binary 'reverse-ash)))
 
   (additive-exp
    mult-exp
@@ -1558,9 +1539,13 @@ If a same name is supplied, it is stacked")
 		    (declare (ignore _op))
 		    `(wcs-struct-field (pseudo-pointer-dereference ,exp) ',id)))
    (postfix-exp ++
-                (lispify-post-increment '+))
+		#'(lambda (exp _op)
+		    (declare (ignore _op))
+		    `(post-incf ,exp 1)))
    (postfix-exp --
-                (lispify-post-increment '-)))
+		#'(lambda (exp _op)
+		    (declare (ignore _op))
+		    `(post-incf ,exp -1))))
 
   (primary-exp
    id

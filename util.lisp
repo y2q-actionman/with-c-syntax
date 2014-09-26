@@ -10,6 +10,9 @@
     (append-item-to-right lis i))
 )
 
+(defun reverse-ash (i c)
+  (ash i (- c)))
+
 ;; modify macros
 (define-modify-macro appendf (&rest args)
   append)
@@ -22,6 +25,42 @@
 
 (define-modify-macro maxf (&rest args)
   max)
+
+(define-modify-macro mulf (&rest args)
+  *)
+
+(define-modify-macro divf (&rest args)
+  /)
+
+(define-modify-macro modf (&rest args)
+  mod)
+
+(define-modify-macro ashf (shift)
+  ash)
+
+(define-modify-macro reverse-ashf (shift)
+  reverse-ash)
+
+(define-modify-macro logandf (&rest args)
+  logand)
+
+(define-modify-macro logxorf (&rest args)
+  logxor)
+
+(define-modify-macro logiorf (&rest args)
+  logior)
+
+(defmacro post-incf (form &optional (delta 1) &environment env)
+  (multiple-value-bind (dummies vals newval setter getter)
+      (get-setf-expansion form env)
+    (let ((ret-sym (gensym))
+	  (delta-sym (gensym)))
+      `(let* (,@(mapcar #'list dummies vals)
+	      (,ret-sym ,getter)
+	      (,delta-sym ,delta)
+	      (,(car newval) (+ ,ret-sym ,delta-sym)))
+	 (prog1 ,ret-sym
+	   ,setter)))))
 
 ;; (name me!)
 (defmacro with-dynamic-bound-symbols ((&rest symbols) &body body)
