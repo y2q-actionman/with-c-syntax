@@ -60,36 +60,40 @@
     p))
 
 ;; Dynamically finds a handler.
-(defvar *pseudo-pointer-handlers*
-  `((symbol :reader
-            ,#'(lambda (sym idx)
-                 (unless (zerop idx)
-                   (error "out of index to symbol-reference (~A)" idx))
-                 (symbol-value sym))
-            :writer
-            ,#'(lambda (sym idx val)
-                 (unless (zerop idx)
-                   (error "out of index to symbol-reference (~A)" idx))
-                 (set sym val)))
-    (sequence :reader
-              ,#'(lambda (seq idx)
-                   (elt seq idx))
-              :writer
-              ,#'(lambda (seq idx val)
-                   (setf (elt seq idx) val)))))
+(defun pphandle-symbol-reader (sym idx)
+  (unless (zerop idx)
+    (error "out of index to symbol-reference (~A)" idx))
+  (symbol-value sym))
+
+(defun pphandle-symbol-writer (sym idx val)
+  (unless (zerop idx)
+    (error "out of index to symbol-reference (~A)" idx))
+  (set sym val))
+
+(defun pphandle-sequence-reader (seq idx)
+  (elt seq idx))
+
+(defun pphandle-sequence-writer (seq idx val)
+  (setf (elt seq idx) val))
 
 (defun find-pseudo-pointer-handler (obj)
-  (assoc obj *pseudo-pointer-handlers*
-         :test #'typep))
+  (typecase obj
+    (symbol
+     (values #'pphandle-symbol-reader
+	     #'pphandle-symbol-writer))
+    (sequence
+     (values #'pphandle-sequence-reader
+	     #'pphandle-sequence-writer))
+    (otherwise
+     nil)))
 
 (defun pseudo-pointer-pointable-p (obj)
   (find-pseudo-pointer-handler obj))
 
 (defun make-pseudo-pointer (obj)
-  (let ((entry (find-pseudo-pointer-handler obj)))
-    (unless entry
+  (multiple-value-bind (reader writer)
+      (find-pseudo-pointer-handler obj)
+    (unless reader
       (error "pseudo pointers cannot hold this object ~S~%" obj))
-    (make-pseudo-pointer* obj
-			  (getf (cdr entry) :reader)
-			  (getf (cdr entry) :writer))))
+    (make-pseudo-pointer* obj reader writer)))
 
