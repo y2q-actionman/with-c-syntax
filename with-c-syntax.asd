@@ -5,6 +5,6 @@
   :depends-on (:alexandria :yacc)
   :components ((:file "package")
 	       (:file "util")
-               (:file "pseudo-pointer")
                (:file "wcs-struct")
+               (:file "pseudo-pointer")
 	       (:file "with-c-syntax")))

@@ -10,27 +10,10 @@
 (defvar *pseudo-pointee-table* (make-hash-table))
 (defvar *pseudo-pointer-next* 0)
 
-(defvar *pseudo-pointer-handlers*
-  `((symbol :reader
-            ,#'(lambda (sym idx)
-                 (unless (zerop idx)
-                   (error "out of index to symbol-reference (~A)" idx))
-                 (symbol-value sym))
-            :writer
-            ,#'(lambda (sym idx val)
-                 (unless (zerop idx)
-                   (error "out of index to symbol-reference (~A)" idx))
-                 (set sym val)))
-    (sequence :reader
-              ,#'(lambda (seq idx)
-                   (elt seq idx))
-              :writer
-              ,#'(lambda (seq idx val)
-                   (setf (elt seq idx) val)))))
-
-(defun find-pseudo-pointer-handler (obj)
-  (assoc obj *pseudo-pointer-handlers*
-         :test #'typep))
+(defmacro with-pseudo-pointer-scope (() &body body)
+  `(let ((*pseudo-pointee-table* (make-hash-table))
+         (*pseudo-pointer-next* 0))
+     ,@body))
 
 (defun alloc-pseudo-pointer ()
   (incf *pseudo-pointer-next*) ; This makes the base of the first pointer to 0
@@ -67,20 +50,46 @@
 	     (getf entry :pointee)
 	     idx val)))
 
-(defun make-pseudo-pointer (pointee)
+(defun make-pseudo-pointer* (pointee reader-fn writer-fn)
   (multiple-value-bind (base p)
       (alloc-pseudo-pointer)
-    (let ((handler (find-pseudo-pointer-handler pointee)))
-      (unless handler
-	(error "pseudo pointers cannot hold this object ~S~%"
-	       pointee))
-      (setf (gethash base *pseudo-pointee-table*)
-	    (list :pointee pointee
-		  :reader (getf (cdr handler) :reader)
-		  :writer (getf (cdr handler) :writer)))
-      p)))
+    (setf (gethash base *pseudo-pointee-table*)
+	  (list :pointee pointee
+		:reader reader-fn
+		:writer writer-fn))
+    p))
 
-(defmacro with-pseudo-pointer-scope (() &body body)
-  `(let ((*pseudo-pointee-table* (make-hash-table))
-         (*pseudo-pointer-next* 0))
-     ,@body))
+;; Dynamically finds a handler.
+(defvar *pseudo-pointer-handlers*
+  `((symbol :reader
+            ,#'(lambda (sym idx)
+                 (unless (zerop idx)
+                   (error "out of index to symbol-reference (~A)" idx))
+                 (symbol-value sym))
+            :writer
+            ,#'(lambda (sym idx val)
+                 (unless (zerop idx)
+                   (error "out of index to symbol-reference (~A)" idx))
+                 (set sym val)))
+    (sequence :reader
+              ,#'(lambda (seq idx)
+                   (elt seq idx))
+              :writer
+              ,#'(lambda (seq idx val)
+                   (setf (elt seq idx) val)))))
+
+(defun find-pseudo-pointer-handler (obj)
+  (assoc obj *pseudo-pointer-handlers*
+         :test #'typep))
+
+(defun pseudo-pointer-pointable-p (obj)
+  (find-pseudo-pointer-handler obj))
+
+(defun make-pseudo-pointer (obj)
+  (let ((entry (find-pseudo-pointer-handler obj)))
+    (unless entry
+      (error "pseudo pointers cannot hold this object ~S~%" obj))
+    (make-pseudo-pointer* obj
+			  (getf (cdr entry) :reader)
+			  (getf (cdr entry) :writer))))
+

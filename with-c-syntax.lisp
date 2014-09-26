@@ -485,6 +485,26 @@ If a same name is supplied, it is stacked")
         (init-declarator-lisp-type init-decl))
       (decl-specs-lisp-type qls)))
 
+;;; Pointers
+(defun lispify-address-of (exp)
+  (cond ((symbolp exp)
+	 (push exp *dynamic-binding-requested*)
+	 (let ((val (gensym)))
+	   `(let ((,val ,exp))
+	      (make-pseudo-pointer
+	       (if (pseudo-pointer-pointable-p ,val)
+		   ,val ',exp)))))
+	((and (listp exp)
+	      (eq 'aref (first exp)))
+	 (error "under implementation"))
+	((and (listp exp)
+	      (eq 'wcs-struct-field (first exp)))
+	 (error "under implementation"))
+	((and (listp exp)
+	      (eq 'pseudo-pointer-dereference (first exp)))
+	 (second exp))
+	(t
+	 (error "cannot take a pointer to form ~S" exp))))
 
 ;;; Statements
 (defstruct stat
@@ -1478,13 +1498,7 @@ If a same name is supplied, it is stacked")
    (& cast-exp
       #'(lambda (_op exp)
           (declare (ignore _op))
-          ;; TODO: consider it. We should this exp is setf-able or not?
-          (if (symbolp exp)
-              (progn
-                (push exp *dynamic-binding-requested*)
-		`(make-pseudo-pointer
-		  (if (arrayp ,exp) ,exp ',exp)))
-              `(make-pseudo-pointer ,exp))))
+	  (lispify-address-of exp)))
    (* cast-exp
       #'(lambda (_op exp)
           (declare (ignore _op))
