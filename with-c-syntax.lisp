@@ -486,6 +486,29 @@ If a same name is supplied, it is stacked")
       (decl-specs-lisp-type qls)))
 
 ;;; Pointers
+(defun wcs-aref (obj arg1 &rest args)
+  (etypecase obj
+    (pseudo-pointer
+     (if (null args)
+	 (pseudo-pointer-dereference (+ obj arg1))
+	 (apply #'wcs-aref
+		(pseudo-pointer-dereference (+ obj arg1))
+		args)))
+    (array
+     (apply #'aref obj arg1 args))))
+
+(defun (setf wcs-aref) (val obj arg1 &rest args)
+  (etypecase obj
+    (pseudo-pointer
+     (if (null args)
+	 (setf (pseudo-pointer-dereference (+ obj arg1)) val)
+	 (setf (apply #'wcs-aref
+		      (pseudo-pointer-dereference (+ obj arg1))
+		      args)
+	       val)))
+    (array
+     (setf (apply #'aref obj arg1 args) val))))
+
 (defun lispify-address-of (exp)
   (cond ((symbolp exp)
 	 (push exp *dynamic-binding-requested*)
@@ -495,8 +518,16 @@ If a same name is supplied, it is stacked")
 	       (if (pseudo-pointer-pointable-p ,val)
 		   ,val ',exp)))))
 	((and (listp exp)
-	      (eq 'aref (first exp)))
-	 (error "under implementation"))
+	      (eq 'wcs-aref (first exp)))
+	 (let ((val (gensym)) (args (nthcdr 2 exp)))
+	   `(let ((,val ,(second exp)))
+	      (unless (arrayp ,val)
+		(error "Getting a pointer to an array, but this is not an array: ~S"
+		       ,val))
+	      (+ (make-pseudo-pointer
+		  (make-reduced-dimension-array ,val
+						,@(butlast args)))
+		 ,@(last args)))))
 	((and (listp exp)
 	      (eq 'wcs-struct-field (first exp)))
 	 (let ((val (gensym)))
@@ -1538,10 +1569,9 @@ If a same name is supplied, it is stacked")
    (postfix-exp [ exp ]
 		#'(lambda (exp op1 idx op2)
 		    (declare (ignore op1 op2))
-                    (if (and (listp exp) (eq (first exp) 'aref))
-                        (destructuring-bind (op exp &rest args) exp
-                          `(,op ,exp ,@args ,idx))
-                        `(aref ,exp ,idx))))
+                    (if (and (listp exp) (eq (first exp) 'wcs-aref))
+			(append-item-to-right exp idx)
+                        `(wcs-aref ,exp ,idx))))
    (postfix-exp \( argument-exp-list \)
 		#'(lambda (exp op1 args op2)
 		    (declare (ignore op1 op2))

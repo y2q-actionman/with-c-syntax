@@ -108,4 +108,18 @@
         ,@(loop for i in lis
              collect (make-dimension-list-load-form i (1- max-depth))))))
   
-  
+;; array
+(defun make-reduced-dimension-array (array &rest subscripts)
+  (let* ((array-dims (array-dimensions array))
+	 (new-array-dimensions
+	  (nthcdr (length subscripts) array-dims))
+	 (new-array-start-subscripts
+	  (append subscripts
+		  (make-list (length new-array-dimensions)
+			     :initial-element 0)))
+	 (new-array-start-rm-index
+	  (apply #'array-row-major-index array new-array-start-subscripts)))
+    (make-array new-array-dimensions
+		:element-type (array-element-type array)
+		:displaced-to array
+		:displaced-index-offset new-array-start-rm-index)))

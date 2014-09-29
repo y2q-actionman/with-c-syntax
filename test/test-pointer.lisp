@@ -1,6 +1,6 @@
 (in-package :with-c-syntax)
 
-(defun test-pointer ()
+(defun test-pointer-of-dereference ()
   (eval-equal 1 ()
     {
     int x = 1 \;
@@ -8,6 +8,9 @@
     int * q = & * p \;
     return * q \;
     })
+  t)
+
+(defun test-pointer-to-struct ()
   ;; pointer to a struct
   (eval-equal t ()
     {
@@ -26,5 +29,52 @@
     * p = 999 \;
     return foo \. x == 0 && foo \. y == 0 && foo \. z == 999 \;
     })
+  t)
+
+(defun test-pointer-to-array ()
+  (eval-equal t ()
+    {
+    int hoge [ 3 ] = { 0 \, 1 \, 2 } \;
+    int * p = & hoge [ 0 ] \;
+    * p = 100 \;
+    * \( p + 1 \) = 101 \;
+    return hoge [ 0 ] == 100 && hoge [ 1 ] == 101 && hoge [ 2 ] == 2 \;
+    })
+
+  (eval-equal t ()
+    {
+    int hoge [ 3 ] = { 0 \, 1 \, 2 } \;
+    int * p = & hoge [ 0 ] \;
+    return p [ 0 ] == 0 && p [ 1 ] == 1 && p [ 2 ] == 2 \;
+    })
+
+  (eval-equal t ()
+    {
+    int hoge [ 3 ] = { 0 \, 1 \, 2 } \;
+    int * p = & hoge [ 0 ] \;
+    int * q = p \;
+    * p = 100 \;
+    p ++ \;
+    * p = 101 \;
+    p ++ \;
+    * p = 102 \;
+    return q [ 0 ] == 100 && q [ 1 ] == 101 && q [ 2 ] == 102 \;
+    })
+
+  (eval-equal 4 ()
+    {
+    int hoge [ 3 ] [ 3 ]
+      = { { 0 \, 1 \, 2 } \, { 3 \, 4 \, 5 } \, { 6 \, 7 \, 8 } } \;
+    int \( * p \) [ ] = & hoge [ 1 ] \;
+    return p [ 0 ] [ 1 ] \;
+    })
 
   t)
+
+
+(defun test-pointer ()
+  (test-pointer-of-dereference)
+  (test-pointer-to-struct)
+  (test-pointer-to-array)
+  t)
+
