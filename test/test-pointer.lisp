@@ -71,10 +71,32 @@
 
   t)
 
+(defun test-add (x y)
+  (+ x y))
+
+(defun test-pointer-to-func ()
+  ;; normal call
+  (eval-equal 3 ()
+    return test-add \( 1 \, 2 \) \;
+    )
+  ;; other forn
+  (eval-equal 3 ()
+    return #'test-add \( 1 \, 2 \) \;
+    )
+  ;; func-ptr
+  (eval-equal 3 ()
+    {
+    int \( * funcptr \) \( \) \;
+    funcptr = #'test-add \;
+    return funcptr \( 1 \, 2 \) \;
+    })
+  t)
+
 
 (defun test-pointer ()
   (test-pointer-of-dereference)
   (test-pointer-to-struct)
   (test-pointer-to-array)
+  (test-pointer-to-func)
   t)
 

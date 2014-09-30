@@ -1,10 +1,5 @@
 (in-package :with-c-syntax)
 
-;; TODO: remove this!
-(defun test (form)
-  (format t "~&~S~%   ~S~%" form 
-	  (c-expression-tranform form)))
-
 (defmacro eval-equal (val () &body body)
   (let ((exp (gensym)) (ret (gensym)))
     `(let ((,exp ,val)

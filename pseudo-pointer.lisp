@@ -1,6 +1,7 @@
 (in-package :with-c-syntax)
 
-(deftype pseudo-pointer ()
+(deftype pseudo-pointer (&optional (pointee-type t))
+  (declare (ignore pointee-type))
   'fixnum)
 
 (defconstant +pseudo-pointer-mask+    #b1111111)

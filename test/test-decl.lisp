@@ -42,7 +42,10 @@
       { extern int x \; return x \; }))
   (assert-compile-error ()
     { extern int x = 999 \; })
-  (test '({ typedef int \; }))		; TODO!
+  (eval-equal nil ()
+    { typedef int \; })
+  (assert-compile-error ()
+    { typedef int x = 999 \; })
   (assert-compile-error ()
     { auto auto auto int \; })
   (assert-compile-error ()
@@ -59,7 +62,10 @@
       { extern x \; return x \; }))
   (assert-compile-error ()
     { extern x = 999 \; })
-  (test '({ typedef \; }))		; TODO!
+  (eval-equal nil ()
+    { typedef x  \; })
+  (assert-compile-error ()
+    { typedef x = 999 \; })
   (assert-compile-error ()
     { auto auto \; })
   (assert-compile-error ()
@@ -589,6 +595,45 @@
     })
   t)
 
+;; TODO: remove the KLUDGE 'typedef guard'
+(defun test-typedefs ()
+  (eval-equal 1 ()
+    {
+    typedef int int_t \;
+    void \;                             ; typedef guard
+    int_t x = 1 \;
+    return x \;
+    })
+
+  (eval-equal 1 ()
+    {
+    struct hoge { int x \, y \; } \;
+    typedef struct hoge hoge_t \;
+    void \;                             ; typedef guard
+    hoge_t x = { 0 \, 1 } \;
+    return x \. y \;
+    })
+
+  (eval-equal 1 ()
+    {
+    struct hoge { int x \, y \; } \;
+    typedef struct hoge * hoge_p \;
+    void \;                             ; typedef guard
+    struct hoge x = { 0 \, 1 } \;
+    hoge_p px = & x \;
+    return px -> y \;
+    })
+
+  #+ignore
+  (eval-equal 1 ()
+    {
+    typedef int int_t \;
+    void \;                             ; typedef guard
+    int_t int_t = 1 \;
+    return int_t \;
+    })
+  t)
+
 ;; TODO: add initializer tests
 
 (defun test-decl ()
@@ -606,4 +651,5 @@
   (test-initializer-simple)
   (test-array-pointer-decl)
   (test-initializer-struct)
+  (test-typedefs)
   t)

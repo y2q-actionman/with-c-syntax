@@ -81,7 +81,26 @@
   (assert (= 4 (inc-a)))
   t)
 
-;; TODO: add variadic arg test
+(defun test-trans-varargs ()
+  (eval-equal 'sumn ()
+    int sumn \( int cnt \, |...| \) {
+       int i \, ret = 0 \;
+       va_list ap \;
+
+       va_start \( ap \, cnt \) \;
+
+       for \( i = 0 \; i < cnt \; i ++ \) {
+         ret += va_arg \( ap \) \;      ; TODO: fix incompatibilities
+       }
+
+       va_end \( ap \) \;
+
+       return ret \;
+    })
+  (assert (= 0 (sumn 0)))
+  (assert (= 3 (sumn 3 1 1 1)))
+  (assert (= 10 (sumn 4 1 2 3 4)))
+  t)
 
 (defun test-trans ()
   (test-trans-decl-simple)

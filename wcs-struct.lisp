@@ -48,8 +48,6 @@
    (fields :initarg :fields :initform #()
            :accessor wcs-struct-fields)))
 
-(defvar *wcs-struct-lisp-type* 'wcs-struct)
-
 (defun wcs-struct-lisp-type-p (obj)
   (eq obj 'wcs-struct))
 
