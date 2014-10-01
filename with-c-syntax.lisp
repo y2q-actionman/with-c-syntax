@@ -756,6 +756,7 @@ If a same name is supplied, it is stacked")
 ;;                 dynamic-established-syms classdefs)
 (defun expand-decl-bindings (declaration-list default-storage-class)
   (loop with dynamic-established-syms = nil
+     with funcptr-syms = nil
      for (dspecs init-decls) in declaration-list
      as storage-class = (decl-specs-storage-class dspecs)
      as (var-binds func-binds)
@@ -768,6 +769,8 @@ If a same name is supplied, it is stacked")
 	    collect b into var-binds
             and do (when (member name *dynamic-binding-requested*)
                      (push name dynamic-established-syms))
+            and do (when (member name *function-pointer-ids*)
+                     (push name funcptr-syms))
 	    finally (return (list var-binds func-binds)))
      if (or (eq storage-class 'auto)
             (and (null storage-class) (eq default-storage-class 'auto)))
@@ -790,7 +793,8 @@ If a same name is supplied, it is stacked")
      finally
        (return (values auto-binds register-binds extern-binds
                        global-binds static-binds typedef-binds
-                       enum-const-binds dynamic-established-syms classes))))
+                       enum-const-binds classes
+		       dynamic-established-syms funcptr-syms))))
 
 (defun expand-class-spec (classes)
   (loop for wcsspec in classes
@@ -804,7 +808,8 @@ If a same name is supplied, it is stacked")
 ;; mode is :statement or :translation-unit
 (defun expand-toplevel (mode decls code)
     (multiple-value-bind (autos registers externs globals statics typedefs
-                                enum-consts dynamic-established-syms cls)
+                                enum-consts classes
+				dynamic-established-syms funcptr-syms)
         (expand-decl-bindings decls
                               (ecase mode
                                 (:statement 'auto) (:translation-unit 'global)))
@@ -846,7 +851,7 @@ If a same name is supplied, it is stacked")
         (nconcf sym-macros enum-consts)
         ;; structs
         (multiple-value-bind (class-binds renames)
-            (expand-class-spec cls)
+            (expand-class-spec classes)
 	  (setf lexical-binds (nconc class-binds lexical-binds))
           (when (eq mode :translation-unit)
 	    (loop for (sym val) in renames
@@ -869,9 +874,6 @@ If a same name is supplied, it is stacked")
           (loop for sym in dynamic-established-syms
              do (setf *dynamic-binding-requested*
                       (delete sym *dynamic-binding-requested*
-                              :test #'eq :count 1)
-                      *function-pointer-ids*
-                      (delete sym *function-pointer-ids*
                               :test #'eq :count 1)))
           ;; drop typedefs
           (loop for (sym _) in typedefs
@@ -882,8 +884,13 @@ If a same name is supplied, it is stacked")
                       (delete sym *enum-const-symbols*
                               :test #'eq :count 1)))
           ;; drop structure-binds
-          (loop for c in cls
+          (loop for c in classes
              do (drop-wcs-struct-spec c))
+	  ;; drop function-pointer-ids
+          (loop for sym in funcptr-syms
+	     do (setf *function-pointer-ids*
+                      (delete sym *function-pointer-ids*
+                              :test #'eq :count 1)))
           ))))
 
 (defun expand-toplevel-stat (stat)
