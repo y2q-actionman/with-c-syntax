@@ -59,12 +59,12 @@
       (vector
        (setf (elt obj idx) val)))))
 
-(defun make-pseudo-pointer (pointee)
+(defun make-pseudo-pointer (pointee &optional (initial-offset 0))
   (multiple-value-bind (base p)
       (alloc-pseudo-pointer)
     (setf (gethash base *pseudo-pointee-table*)
 	  pointee)
-    p))
+    (+ p initial-offset)))
 
 (defun pseudo-pointer-pointable-p (obj)
   (typecase obj

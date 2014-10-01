@@ -48,9 +48,6 @@
    (fields :initarg :fields :initform #()
            :accessor wcs-struct-fields)))
 
-(defun wcs-struct-lisp-type-p (obj)
-  (eq obj 'wcs-struct))
-
 (defun make-wcs-struct (spec-obj &rest args)
   (etypecase spec-obj
     (wcs-struct-runtime-spec t)

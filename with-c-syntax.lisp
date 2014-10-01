@@ -495,7 +495,7 @@ If a same name is supplied, it is stacked")
           (values initializer var-type))
          ((subtypep var-type 'number) ; includes enum
           (values (or initializer 0) var-type))
-         ((wcs-struct-lisp-type-p var-type)
+         ((subtypep var-type 'wcs-struct)
           (let* ((wcs-tag (decl-specs-wcs-type-tag dspecs))
                   ;; This is required, for treating a struct defined after declarations.
                  (wcsspec (find-wcs-struct-spec wcs-tag))
@@ -605,18 +605,18 @@ If a same name is supplied, it is stacked")
                  (unless (arrayp ,val)
                    (error "Getting a pointer to an array, but this is not an array: ~S"
                           ,val))
-                 (+ (make-pseudo-pointer
-                     (make-reduced-dimension-array ,val
-                                                   ,@(butlast args)))
-                    ,@(last args)))))
+		 (make-pseudo-pointer
+		  (make-reduced-dimension-array ,val ,@(butlast args))
+		  ,@(last args)))))
            (wcs-struct-field
             (let ((val (gensym)))
               `(let ((,val ,(second exp)))
                  (unless (typep ,val 'wcs-struct)
                    (error "Getting a pointer to a struct member, but this is not a struct: ~S"
                           ,val))
-                 (+ (make-pseudo-pointer (wcs-struct-fields ,val))
-                    (wcs-struct-field-index ,val ,(third exp))))))
+                 (make-pseudo-pointer
+		  (wcs-struct-fields ,val)
+		  (wcs-struct-field-index ,val ,(third exp))))))
            (pseudo-pointer-dereference
             (second exp))))
 	(t
