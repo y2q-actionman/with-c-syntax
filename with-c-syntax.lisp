@@ -864,13 +864,9 @@ If a same name is supplied, it is stacked")
                (let* (,@lexical-binds)
                  (declare (dynamic-extent ,@register-vars))
 		 ,@struct-defs
-		 ;; If no pointers requied, remove dynamic binds.
-		 ;; This makes the compiler faster.
-		 ,(if *dynamic-binding-requested*
-		      `(with-dynamic-bound-symbols ,*dynamic-binding-requested*
-			 (block nil ,@code))
-		      `(block nil ,@code))))
-          ;; drop dynamic-binds and function-pointer-ids
+		 (with-dynamic-bound-symbols ,*dynamic-binding-requested*
+		   (block nil ,@code))))
+          ;; drop dynamic-binds
           (loop for sym in dynamic-established-syms
              do (setf *dynamic-binding-requested*
                       (delete sym *dynamic-binding-requested*

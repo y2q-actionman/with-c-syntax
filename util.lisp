@@ -64,9 +64,13 @@
 
 ;; (name me!)
 (defmacro with-dynamic-bound-symbols ((&rest symbols) &body body)
-  `(progv ',symbols (list ,@symbols)
-     (locally (declare (special ,@symbols))
-       ,@body)))
+  ;; If no symbols, removes PROGV.
+  ;; This makes faster code.
+  (if (null symbols)
+      `(progn ,@body)
+      `(progv ',symbols (list ,@symbols)
+	 (locally (declare (special ,@symbols))
+	   ,@body))))
 
 ;; treats a nested lists as an multid-imentional array.
 (defun make-dimension-list (dims &optional default)
