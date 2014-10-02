@@ -127,3 +127,13 @@
 		:element-type (array-element-type array)
 		:displaced-to array
 		:displaced-index-offset new-array-start-rm-index)))
+
+;; used in reader
+(defun make-string-from-chars (&rest chars)
+  (coerce (apply #'vector chars) 'string))
+
+(defun standard-whitespace-p (char)
+  (and (standard-char-p char)
+       (case char
+	 ((#\space #\newline) t)
+	 (otherwise nil))))

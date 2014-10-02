@@ -7,6 +7,7 @@
 	       (:file "util")
                (:file "wcs-struct")
                (:file "pseudo-pointer")
+               (:file "wcs-reader")
 	       (:file "with-c-syntax")))
 
 (asdf:defsystem :with-c-syntax.test
@@ -20,3 +21,5 @@
 	       (:file "test-trans")
 	       (:file "test-examples")
 	       (:file "test-all")))
+
+;; TODO: use 'acculate' dependencies.

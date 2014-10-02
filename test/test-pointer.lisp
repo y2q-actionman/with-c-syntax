@@ -99,4 +99,3 @@
   (test-pointer-to-array)
   (test-pointer-to-func)
   t)
-
