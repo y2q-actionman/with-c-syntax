@@ -6,4 +6,5 @@
   (test-pointer)
   (test-trans)
   (test-examples)
+  (test-reader)
   t)

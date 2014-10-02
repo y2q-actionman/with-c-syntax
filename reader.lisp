@@ -13,16 +13,19 @@
   (declare (ignore stream))
   (intern (string char)))
 
+(defun read-again-with-prefix (stream char)
+  (let* ((token (read stream t nil t))
+	 (buf (format nil "~C~S" char token))
+	 (*readtable* (first *readtable-history*)))
+    (read-from-string buf t nil)))
+  
 (defun read-lonely-single-symbol (stream char)
   (let ((next (read-char stream t nil t)))
     (cond ((standard-whitespace-p next)
 	   (intern (string char)))
 	  (t
 	   (unread-char next stream)
-	   (let* ((token (read stream t nil t))
-		  (buf (format nil "~C~S" char token))
-		  (*readtable* (first *readtable-history*)))
-	     (read-from-string buf t nil))))))
+	   (read-again-with-prefix stream char)))))
 
 (defun read-list-no-dot (stream char)
   (declare (ignore char))
@@ -56,30 +59,31 @@
       (#\=
        (intern (make-string-from-chars char next)))
       (t
-       (when next
-	 (unread-char next stream))
-       (intern (string char))))))
+       (unread-char next stream)
+       (read-single-character-symbol stream char)))))
 
 (defun read-single-or-equal-or-self-symbol (stream char)  
-   (let ((next (read-char stream t nil t)))
-    (cond ((or (char= next char)
-	       (char= next #\=))
+  (let ((next (read-char stream t nil t)))
+    (cond ((char= next char)
 	   (intern (make-string-from-chars char next)))
- 	  (t
-	   (when next
-	     (unread-char next stream))
-	   (intern (string char))))))
+	  (t
+	   (unread-char next stream)
+	   (read-single-or-equal-symbol stream char)))))
+
+(defun read-plus (stream char)
+  (let ((next (peek-char nil stream t nil t)))
+    (cond ((digit-char-p next *read-base*)
+	   (read-again-with-prefix stream char))
+	  (t
+	   (read-single-or-equal-or-self-symbol stream char)))))
 
 (defun read-minus (stream char)
   (let ((next (read-char stream t nil t)))
-     (case next
-      ((#\= #\> #\-)
-       (let ((str (coerce (vector char next) 'string)))
-	 (intern str)))
-     (t
-       (when next
-	 (unread-char next stream))
-       (intern (string char))))))
+    (cond ((char= next #\>)
+	   (intern (make-string-from-chars char next)))
+	  (t
+	   (unread-char next stream)
+	   (read-plus stream char)))))
 
 (defun read-shift (stream char)
   (let ((next (read-char stream t nil t)))
@@ -89,15 +93,11 @@
 	       (#\=
 		(intern (make-string-from-chars char next next2)))
 	       (t
-		(when next2
-		  (unread-char next2 stream))
+		(unread-char next2 stream)
 		(intern (make-string-from-chars char next))))))
-	  ((char= next #\=)	; compare op
-	   (intern (make-string-from-chars char next)))
 	  (t
-	   (when next
-	     (unread-char next stream))
-	   (intern (string char))))))
+	   (unread-char next stream)
+	   (read-single-or-equal-symbol stream char)))))
 
 (defun read-slash (stream char)
   (let ((next (peek-char nil stream t nil t)))
@@ -114,7 +114,7 @@
 		(loop-finish))))
        (values))
       (t
-       (read-lonely-single-symbol stream char)))))
+       (read-single-or-equal-symbol stream char)))))
 
 (defmacro enable-wcs-reader (&key (mode :conservative))
   (let ((level (ecase mode
@@ -141,7 +141,7 @@
 	 (set-macro-character #\: #'read-lonely-single-symbol t)
 	 ;; Disables 'consing dots'. But only when not in list.
 	 (set-macro-character #\. #'read-lonely-single-symbol t)
-	 ;; Replaces the list reader. This disbles 'consing dots' completely.
+	 ;; Replaces the list reader. This disables 'consing dots' completely.
 	 (set-macro-character #\( #'read-list-no-dot))
        ;; Overkill: destroys CL syntax COMPLETELY!
        (when (>= ,level 2)
@@ -162,14 +162,15 @@
 	 (set-macro-character #\% #'read-single-or-equal-symbol)
 	 (set-macro-character #\^ #'read-single-or-equal-symbol)
 	 (set-macro-character #\! #'read-single-or-equal-symbol)
-	 (set-macro-character #\+ #'read-single-or-equal-or-self-symbol) ; TODO: numeric
 	 (set-macro-character #\& #'read-single-or-equal-or-self-symbol)
 	 (set-macro-character #\| #'read-single-or-equal-or-self-symbol)
-	 (set-macro-character #\- #'read-minus) ; TODO: numeric
+	 (set-macro-character #\+ #'read-plus)
+	 (set-macro-character #\- #'read-minus)
 	 (set-macro-character #\< #'read-shift)
 	 (set-macro-character #\> #'read-shift)
 	 (set-macro-character #\/ #'read-slash)
-	 (set-macro-character #\: #'read-single-character-symbol))
+	 (set-macro-character #\: #'read-single-character-symbol)
+	 (set-macro-character #\. #'read-single-character-symbol))
        )))
 
 (defmacro disable-wcs-reader ()

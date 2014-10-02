@@ -1657,6 +1657,8 @@ If a same name is supplied, it is stacked")
       (lispify-unary '-))
    (! cast-exp
       (lispify-unary 'not))
+   (~ cast-exp
+      (lispify-unary 'lognot))
    (sizeof unary-exp
 	   #'(lambda (_op exp)
 	       (declare (ignore _op))
