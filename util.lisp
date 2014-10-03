@@ -1,5 +1,85 @@
 (in-package :with-c-syntax)
 
+;; Standard Common Lisp types.
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (alexandria:define-constant +standardized-atomic-type-specifiers+
+      '(arithmetic-error array atom
+	base-char base-string bignum bit bit-vector
+	broadcast-stream built-in-class
+	cell-error character class compiled-function complex
+	concatenated-stream condition cons control-error
+	division-by-zero double-float
+	echo-stream end-of-file error extended-char
+	file-error file-stream fixnum float
+	floating-point-inexact floating-point-invalid-operation
+	floating-point-overflow floating-point-underflow
+	function
+	generic-function
+	hash-table
+	integer
+	keyword
+	list logical-pathname long-float
+	method method-combination
+	nil null number
+	package package-error parse-error pathname
+	print-not-readable program-error
+	random-state ratio rational reader-error readtable
+	real restart
+	sequence serious-condition short-float signed-byte
+	simple-array simple-base-string simple-bit-vector
+	simple-condition simple-error simple-string
+	simple-type-error simple-vector simple-warning
+	single-float standard-char standard-class
+	standard-generic-function standard-method
+	standard-object storage-condition
+	stream stream-error string string-stream
+	structure-class structure-object
+	style-warning symbol synonym-stream
+	t two-way-stream type-error
+	unbound-slot unbound-variable undefined-function
+	unsigned-byte
+	vector
+	warning)
+    :test 'equal
+    :documentation "Hyperspec Figure 4-2.")
+
+  (alexandria:define-constant +standardized-compound-type-specifier-names+
+      '(and array
+	base-string bit-vector
+	complex cons
+	double-float
+	eql
+	float function
+	integer
+	long-float
+	member mod
+	not
+	or
+	rational real
+	satisfies short-float signed-byte simple-array
+	simple-base-string simple-bit-vector simple-string
+	simple-vector single-float string
+	unsigned-byte
+	values vector)
+    :test 'equal
+    :documentation "Hyperspec Figure 4-3.")
+  
+  (alexandria:define-constant +standardized-compound-only-type-specifier-names+
+      '(and eql member
+	mod not or
+	satisfies values)
+    :test 'equal
+    :documentation "Hyperspec Figure 4-4.")
+  
+  (alexandria:define-constant +standardized-type-specifier-names+
+      '#.(sort (copy-list
+		(union +standardized-atomic-type-specifiers+
+		       +standardized-compound-type-specifier-names+
+		       :test #'eq))
+	       #'string<)
+      :test 'equal
+      :documentation "Hyperspec Figure 4-6."))
+
 ;; These are referenced by the parser directly.
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun append-item-to-right (lis i)

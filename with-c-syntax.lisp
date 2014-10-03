@@ -39,6 +39,10 @@
 	)
     :test 'equal))
 
+(alexandria:define-constant +predefined-typedef-names+
+    '((size_t fixnum) (wchar_t fixnum) (va_list t))
+  :test 'equal)
+
 ;;; Variables
 (defvar *enum-const-symbols* nil
   "list of (symbol initform)")
@@ -69,11 +73,9 @@ If a same name is supplied, it is stacked")
 	      ((symbolp value)
                (alexandria:if-let
                    ((op (or (member value +operators+
-                                    :test #'string=
-                                    :key #'symbol-name)
+                                    :test #'string=)
                             (member value +keywords+
-                                    :test #'string=
-                                    :key #'symbol-name))))
+                                    :test #'string=))))
                  (values (car op) value) ; returns the symbol of our package.
                  (cond ((member value *enum-const-symbols*)
                         (values 'enumeration-const value))
@@ -141,11 +143,27 @@ If a same name is supplied, it is stacked")
   )
 
 ;; typedefs
+(defparameter *default-decl-specs*
+  (make-decl-specs))
+(defparameter *default-decl-specs-fixnum*
+  (make-decl-specs :lisp-type 'fixnum))
+
 (defun push-typedef-name (name dspecs)
   (push dspecs (gethash name *typedef-names*)))
 
 (defun find-typedef-name (name)
-  (first (gethash name *typedef-names*)))
+  (alexandria:if-let ((udef (gethash name *typedef-names*)))
+    (first udef)
+    (alexandria:if-let ((pdef (member name +predefined-typedef-names+
+				      :key #'first
+				      :test #'string=)))
+      (ecase (second (car pdef))
+	(fixnum *default-decl-specs-fixnum*)
+	((t) *default-decl-specs*))
+      (alexandria:if-let ((sdef (member name +standardized-atomic-type-specifiers+
+					:test #'eq)))
+	  (make-decl-specs :lisp-type (car sdef))
+	  nil))))
 
 (defun drop-typedef-name (name)
   (pop (gethash name *typedef-names*)))
@@ -276,7 +294,8 @@ If a same name is supplied, it is stacked")
 
      initially
        (when (null tp-list)
-         (setf (decl-specs-lisp-type dspecs) t)
+         (setf (decl-specs-lisp-type dspecs)
+	       (decl-specs-lisp-type *default-decl-specs*))
          (return dspecs))
        
      for tp-list-1 on tp-list
@@ -297,6 +316,25 @@ If a same name is supplied, it is stacked")
      do (unless (= 1 (length tp-list))
 	  (error "invalid decl-spec (~A)" tp-list))
        (return (finalize-enum-spec tp dspecs))
+
+     ;; numeric types
+     else if (member tp '(float double int char))
+     do (when numeric-type
+	  (error "invalid decl-spec (~A)" tp-list))
+       (setf numeric-type tp)
+     ;; numeric variants
+     else if (member tp '(signed unsigned))
+     do (when numeric-signedness
+	  (error "invalid decl-spec (~A)" tp-list))
+       (setf numeric-signedness tp)
+     else if (eq tp 'long)
+     do (unless (<= 0 numeric-length 1)
+	  (error "invalid decl-spec (~A)" tp-list))
+       (incf numeric-length)
+     else if (eq tp 'short)
+     do (unless (= 0 numeric-length)
+	  (error "invalid decl-spec (~A)" tp-list))
+       (decf numeric-length)
 
      else if (find-typedef-name tp)     ; typedef name
      do (let* ((td-dspecs (find-typedef-name tp))
@@ -328,26 +366,6 @@ If a same name is supplied, it is stacked")
                    (16 (appendf tp-list-1 '(short)))
                    (32 (appendf tp-list-1 '(long)))
                    (64 (appendf tp-list-1 '(long long))))))))
-
-     ;; numeric types
-     else if (member tp '(float double int char))
-     do (when numeric-type
-	  (error "invalid decl-spec (~A)" tp-list))
-       (setf numeric-type tp)
-     ;; numeric variants
-     else if (member tp '(signed unsigned))
-     do (when numeric-signedness
-	  (error "invalid decl-spec (~A)" tp-list))
-       (setf numeric-signedness tp)
-     else if (eq tp 'long)
-     do (unless (<= 0 numeric-length 1)
-	  (error "invalid decl-spec (~A)" tp-list))
-       (incf numeric-length)
-     else if (eq tp 'short)
-     do (unless (= 0 numeric-length)
-	  (error "invalid decl-spec (~A)" tp-list))
-       (decf numeric-length)
-
      else
      do (assert nil)
        
@@ -909,7 +927,8 @@ If a same name is supplied, it is stacked")
              else
              collect (first (second p)))))
     (setf return
-          (finalize-decl-specs (or return (make-decl-specs))))
+	  (if return (finalize-decl-specs return)
+	      *default-decl-specs*))
     (when K&R-decls
       (let* ((K&R-param-ids
               (mapcar #'first (expand-decl-bindings K&R-decls 'auto))))

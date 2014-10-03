@@ -105,4 +105,6 @@
 (defun test-trans ()
   (test-trans-decl-simple)
   (test-trans-fdefinition-simple)
+  (test-trans-decl-static)
+  (test-trans-varargs)
   t)
