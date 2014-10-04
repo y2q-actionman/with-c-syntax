@@ -72,6 +72,10 @@
     static int xxx \; )
   (eval-equal 'inc-a ()
     static int xxx = 0 \;
+    int reset-a \( \) {
+       xxx = 0 \;
+       return xxx \;
+    }
     int inc-a \( \) {
        return ++ xxx \;
     })
@@ -79,6 +83,7 @@
   (assert (= 2 (inc-a)))
   (assert (= 3 (inc-a)))
   (assert (= 4 (inc-a)))
+  (assert (= 0 (reset-a)))
   t)
 
 (defun test-trans-varargs ()

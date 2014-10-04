@@ -3,7 +3,7 @@
 (defun test-all ()
   (test-stmt)
   (test-decl)
-  (test-pointer)
+  (test-pointer-all)
   (test-trans)
   (test-examples)
   (test-reader)

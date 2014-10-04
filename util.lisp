@@ -2,7 +2,7 @@
 
 ;; Standard Common Lisp types.
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (alexandria:define-constant +standardized-atomic-type-specifiers+
+  (define-constant +standardized-atomic-type-specifiers+
       '(arithmetic-error array atom
 	base-char base-string bignum bit bit-vector
 	broadcast-stream built-in-class
@@ -43,7 +43,7 @@
     :test 'equal
     :documentation "Hyperspec Figure 4-2.")
 
-  (alexandria:define-constant +standardized-compound-type-specifier-names+
+  (define-constant +standardized-compound-type-specifier-names+
       '(and array
 	base-string bit-vector
 	complex cons
@@ -64,19 +64,19 @@
     :test 'equal
     :documentation "Hyperspec Figure 4-3.")
   
-  (alexandria:define-constant +standardized-compound-only-type-specifier-names+
+  (define-constant +standardized-compound-only-type-specifier-names+
       '(and eql member
 	mod not or
 	satisfies values)
     :test 'equal
     :documentation "Hyperspec Figure 4-4.")
   
-  (alexandria:define-constant +standardized-type-specifier-names+
-      '#.(sort (copy-list
-		(union +standardized-atomic-type-specifiers+
-		       +standardized-compound-type-specifier-names+
-		       :test #'eq))
-	       #'string<)
+  (define-constant +standardized-type-specifier-names+
+      (sort (copy-list
+	     (union +standardized-atomic-type-specifiers+
+		    +standardized-compound-type-specifier-names+
+		    :test #'eq))
+	    #'string<)
       :test 'equal
       :documentation "Hyperspec Figure 4-6."))
 
@@ -94,17 +94,8 @@
   (ash i (- c)))
 
 ;; modify macros
-(define-modify-macro appendf (&rest args)
-  append)
-
-(define-modify-macro nconcf (&rest args)
-  nconc)
-
 (define-modify-macro append-item-to-right-f (i)
   append-item-to-right)
-
-(define-modify-macro maxf (&rest args)
-  max)
 
 (define-modify-macro mulf (&rest args)
   *)
@@ -133,19 +124,18 @@
 (defmacro post-incf (form &optional (delta 1) &environment env)
   (multiple-value-bind (dummies vals newval setter getter)
       (get-setf-expansion form env)
-    (let ((ret-sym (gensym))
-	  (delta-sym (gensym)))
+    (with-gensyms (ret delta-tmp)
       `(let* (,@(mapcar #'list dummies vals)
-	      (,ret-sym ,getter)
-	      (,delta-sym ,delta)
-	      (,(car newval) (+ ,ret-sym ,delta-sym)))
-	 (prog1 ,ret-sym
+	      (,ret ,getter)
+	      (,delta-tmp ,delta)
+	      (,(car newval) (+ ,ret ,delta-tmp)))
+	 (prog1 ,ret
 	   ,setter)))))
 
 ;; (name me!)
 (defmacro with-dynamic-bound-symbols ((&rest symbols) &body body)
   ;; If no symbols, removes PROGV.
-  ;; This makes faster code.
+  ;; This makes faster codes.
   (if (null symbols)
       `(progn ,@body)
       `(progv ',symbols (list ,@symbols)
@@ -210,7 +200,7 @@
 
 ;; used in reader
 (defun make-string-from-chars (&rest chars)
-  (coerce (apply #'vector chars) 'string))
+  (coerce chars 'string))
 
 (defun standard-whitespace-p (char)
   (and (standard-char-p char)

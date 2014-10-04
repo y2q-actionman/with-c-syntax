@@ -108,10 +108,9 @@
       (#\*
        (loop for c = (peek-char #\* stream t nil t)
 	  when (char= c #\*)
-	  do (read-char stream t nil t)
-	    (let ((c2 (read-char stream t nil t)))
-	      (when (char= c2 #\/)
-		(loop-finish))))
+	  do (read-char stream t nil t)	; dispose the peeked one.
+	    (when (char= #\/ (read-char stream t nil t))
+	      (loop-finish)))
        (values))
       (t
        (read-single-or-equal-symbol stream char)))))

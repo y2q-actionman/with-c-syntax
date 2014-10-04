@@ -93,7 +93,7 @@
   t)
 
 
-(defun test-pointer ()
+(defun test-pointer-all ()
   (test-pointer-of-dereference)
   (test-pointer-to-struct)
   (test-pointer-to-array)

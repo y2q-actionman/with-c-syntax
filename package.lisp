@@ -1,8 +1,24 @@
 (in-package :cl-user)
 
 (defpackage :with-c-syntax
-  (:use :cl :yacc)
+  (:use :cl)
   (:import-from :alexandria
-		:define-constant)
+		#:alist-hash-table	; 1. Hash Tables
+		#:define-constant	; 2. Data and Control Flow
+		#:destructuring-ecase
+		#:if-let
+		#:when-let
+		#:appendf		; 3. Conses
+		#:nconcf
+		#:lastcar
+		#:removef		; 4. Sequences
+		#:deletef
+		#:once-only		; 6. Macro Writing
+		#:with-gensyms
+		#:maxf			; 10. Numbers
+		)
+  (:import-from :yacc
+        	#:define-parser
+                #:parse-with-lexer)
   (:export #:with-c-syntax
            #:c-expression-tranform))
