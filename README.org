@@ -32,9 +32,11 @@ NIL
 
 ** 1 から 100 までの和
 #+BEGIN_SRC lisp
-CL-USER> (with-c-syntax:with-c-syntax (i (sum 0))
+CL-USER> (with-c-syntax:with-c-syntax ()
 {
-  for \( i = 0 \; i < 100 \; ++ i \)
+  int i \, sum = 0 \;
+  
+  for \( i = 0 \; i <= 100 \; ++ i \)
     sum += i \;
   return sum \;
 })
@@ -43,14 +45,13 @@ CL-USER> (with-c-syntax:with-c-syntax (i (sum 0))
 
 ** Duff's Device
 #+BEGIN_SRC lisp
-(defun test-duff-device (to-seq from-seq cnt)
-  (with-c-syntax ((to-seq to-seq) (from-seq from-seq) (cnt cnt)
-                  to from n)
+(defun w-c-s-duff-device (to-seq from-seq cnt)
+  (with-c-syntax:with-c-syntax ()
     {
-    to = & to-seq \;
-    from = & from-seq \;
+    int * to = & to-seq \;
+    int * from = & from-seq \;
 
-    n = \( cnt + 7 \) / 8 \;
+    int n = \( cnt + 7 \) / 8 \;
     n = floor \( n \) \;                ; Lisp's CL:/ produces rational
     switch \( cnt % 8 \) {
     case 0 \:	do {	* to ++ = * from ++ \;
@@ -68,7 +69,7 @@ CL-USER> (with-c-syntax:with-c-syntax (i (sum 0))
 
 (setf arr1 (make-array 20 :initial-element 1))
 (setf arr2 (make-array 20 :initial-element 2))
-(test-duff-device arr1 arr2 10)
+(w-c-s-duff-device arr1 arr2 10)
 
 arr1 ;; => #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
 #+END_SRC
@@ -77,10 +78,8 @@ arr1 ;; => #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
 ** Macro with-c-syntax
 *** 構文
 #+BEGIN_EXAMPLE
-with-c-syntax ( { var | (var [init-form]) }* ) form* => result
+with-c-syntax () form* => result
 
-var -- a symbol
-init-form -- a form
 form -- a form
 result -- the value returned by the forms
 #+END_EXAMPLE
@@ -88,12 +87,21 @@ result -- the value returned by the forms
 *** 機能
 form で指定された式を、 *C 言語っぽい* syntax で解釈して実行します。
 
-form 中で使用する変数は、 with-c-syntax の最初の所で let の様に指定しま
-す。
+受け付けられる *C 言語っぽい* syntax は、以下の二種類です。
 
-現在のところ受け付けられる *C 言語っぽい* syntax は、 C 言語の複文
-(compound statement) の構文から、宣言 (declaration) を除いたものに相当
-します。
+- 複文 (compound statement) 相当のもの
+  
+  式文 (expression statemente) を除く、複文を受けつけます。
+
+  ~return~ で返した値が返ります。
+
+- 翻訳単位 (compilation unit) 相当のもの
+
+  変数宣言と関数定義を受けつけます。
+  指定された変数や関数を定義します。
+
+  最後に評価した symbol の名前が返ります。
+
 
 特殊な解釈をされるシンボルは、以下の通りです。
 #+BEGIN_EXAMPLE
@@ -127,9 +135,6 @@ if else switch
 while do for
 goto continue break return
 #+END_EXAMPLE
-
-現在のところ、 form に渡す Lisp 式は、シンボル '{' で始まり、 シンボル
-'}' で終わるものでなければなりません。
 
 *** 注意点
 現在は、専用のリーダなどはありません。 Lisp reader で読みこむことを想定

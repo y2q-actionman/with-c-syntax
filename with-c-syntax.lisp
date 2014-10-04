@@ -76,7 +76,7 @@ If a same name is supplied, it is stacked")
                                     :test #'string=)
                             (member value +keywords+
                                     :test #'string=))))
-                 (values (car op) value) ; returns the symbol of our package.
+                 (values (car op) (car op)) ; returns the symbol of our package.
                  (cond ((member value *enum-const-symbols*)
                         (values 'enumeration-const value))
                        ((gethash value *typedef-names*)
