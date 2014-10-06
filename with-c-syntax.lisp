@@ -966,10 +966,7 @@ If a same name is supplied, it is stacked")
 
 ;;; The parser
 (define-parser *expression-parser*
-  (:muffle-conflicts t)
-
-  (:start-symbol wcs-entry-point)
-
+  (:muffle-conflicts t)         ; for 'dangling else'.
   ;; http://www.swansontec.com/sopc.html
   (:precedence (;; Primary expression
 		(:left \( \) [ ] \. -> ++ --)
@@ -991,9 +988,7 @@ If a same name is supplied, it is stacked")
 		;; Assignment
 		(:right = += -= *= /= %= >>= <<= &= ^= \|=)
 		;; Comma
-		(:left \,)
-		))
-
+		(:left \,)))
   ;; http://www.cs.man.ac.uk/~pjj/bnf/c_syntax.bnf
   (:terminals
    #.(append +operators+
@@ -1002,6 +997,7 @@ If a same name is supplied, it is stacked")
 	       int-const char-const float-const
 	       string)
 	     '(lisp-expression)))
+  (:start-symbol wcs-entry-point)
 
   ;; Our entry point.
   ;; top level forms in C, or statements

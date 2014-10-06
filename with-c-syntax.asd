@@ -1,7 +1,7 @@
 (in-package :cl-user)
 
-(asdf:defsystem :with-c-syntax
-  :depends-on (:alexandria :yacc)
+(asdf:defsystem #:with-c-syntax
+  :depends-on (#:alexandria #:yacc)
   :components ((:file "package")
 	       (:file "util" :depends-on ("package"))
                (:file "wcs-struct" :depends-on ("package"))
@@ -11,9 +11,9 @@
 						   "pseudo-pointer"
                                                    "reader"))))
 
-(asdf:defsystem :with-c-syntax.test
+(asdf:defsystem #:with-c-syntax.test
   :pathname #.(make-pathname :directory '(:relative "test"))
-  :depends-on (:with-c-syntax)
+  :depends-on (#:with-c-syntax)
   :components ((:file "test-util")
                (:file "test-stmt" :depends-on ("test-util"))
 	       (:file "test-decl" :depends-on ("test-util"))
@@ -27,5 +27,3 @@
 					      "test-trans"
 					      "test-examples"
 					      "test-reader"))))
-
-;; TODO: use 'acculate' dependencies.
