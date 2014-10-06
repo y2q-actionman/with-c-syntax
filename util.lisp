@@ -162,7 +162,7 @@
   
 (defun dimension-list-max-dimensions (lis)
   (let ((max-depth 0)
-        (dim-table (make-hash-table))) 	; (depth . max-len)
+        (dim-table (make-hash-table :test 'eq))) ; (depth . max-len)
     (labels ((dim-calc (depth lis)
                (maxf max-depth depth)
                (maxf (gethash depth dim-table -1) (length lis))

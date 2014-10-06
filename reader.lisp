@@ -12,8 +12,8 @@
 
 (defvar *current-c-reader* nil
   "a list of plists. the plist is:
-:readtable -> current toplevel c reader.
-:level     -> specified default reader level
+:level     -> specified default reader level.
+:case      -> specified default reader case.
 :previous  -> the original readtable.")
 
 (defun read-in-previous-syntax (stream char n)
@@ -122,7 +122,7 @@
       (t
        (read-single-or-equal-symbol stream char)))))
 
-(defun install-c-reader (&key (readtable *readtable*) (level 0))
+(defun install-c-reader (readtable level)
   (let ((lev (translate-reader-level level)))
     (unless lev
       (error "Level ~S cannot be accepted" level))
@@ -176,23 +176,24 @@
 
 (defun read-in-c-syntax (stream char n)
   (declare (ignore char))
-  (let ((*readtable* (copy-readtable
-		      (getf (first *current-c-reader*) :readtable)))
-	(level (getf (first *current-c-reader*) :level)))
-    (install-c-reader :level (or n level))
-    (read-2chars-delimited-list #\} #\# stream t)))
+  (destructuring-bind (&key previous level case &allow-other-keys)
+      (first *current-c-reader*)
+    (let ((*readtable* (copy-readtable previous)))
+      (when case
+        (setf (readtable-case *readtable*) case))
+      (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
+      (install-c-reader *readtable* (or n level))
+      (read-2chars-delimited-list #\} #\# stream t))))
 
-(defmacro use-reader (&key (level :overkill))
+(defmacro use-reader (&key (level :overkill) case)
   (unless (translate-reader-level level)
     (error "Level ~S cannot be accepted" level))
+  (assert (member case '(nil :upcase :downcase :preserve :invert)))
   `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (let ((new-readtable (copy-readtable)))
-       (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax
-				     new-readtable)
-       (push (list :readtable new-readtable :level ,level
-		   :previous *readtable*)
-	     *current-c-reader*)
-       (setf *readtable* new-readtable))))
+     (push (list :level ,level :case ,case :previous *readtable*)
+           *current-c-reader*)
+     (setf *readtable* (copy-readtable))
+     (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)))
 
 (defmacro unuse-reader ()
   `(eval-when (:compile-toplevel :load-toplevel :execute)

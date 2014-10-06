@@ -306,10 +306,25 @@
 }#
 (unuse-reader)
 
+(use-reader :level :conservative :case :preserve)
+(defun test-reader-case-sensitive ()
+  (eval-equal nil ()
+    #{
+    {
+    int x \, X \;
+    x = 1 \;
+    X = 2 \;
+    return x == X \;
+    }
+    }#)
+  t)
+(unuse-reader)
+
 (defun test-reader ()
   (test-reader-conservative)
   (test-reader-aggressive)
   (test-reader-overkill)
   (test-reader-insane)
   (test-reader-insane-toplevel)
+  (test-reader-case-sensitive)
   t)

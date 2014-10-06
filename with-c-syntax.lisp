@@ -17,7 +17,7 @@
 	+ -
 	* / %
 	\( \)
-	++ -- sizeof
+	++ -- |sizeof|
 	& * + - ~ !
 	[ ] \. ->
 	)
@@ -25,22 +25,23 @@
 
   (define-constant +keywords+
       '(\;
-	auto register static extern typedef
-	void char short int long float double signed unsigned
-	const volatile
-	struct union
-	enum
+	|auto| |register| |static| |extern| |typedef|
+	|void| |char| |short| |int| |long|
+        |float| |double| |signed| |unsigned|
+	|const| |volatile|
+	|struct| |union|
+	|enum|
 	|...|
-	case default
+	|case| |default|
 	{ }
-	if else switch
-	while do for
-	goto continue break return
+	|if| |else| |switch|
+	|while| |do| |for|
+	|goto| |continue| |break| |return|
 	)
     :test 'equal))
 
 (define-constant +predefined-typedef-names+
-    '((size_t fixnum) (wchar_t fixnum) (va_list t))
+    '((|size_t| fixnum) (|wchar_t| fixnum) (|va_list| t))
   :test 'equal)
 
 ;;; Variables
@@ -64,41 +65,47 @@ If a same name is supplied, it is stacked")
      ,@body))
 
 ;;; Lexer
-(defun list-lexer (list)
-  #'(lambda ()
-      (let ((value (pop list)))
-	(typecase value
-	  (null
-	   (values nil nil))
-	  (symbol
-	   (if-let
-	       ((op (or (member value +operators+
-				:test #'string=)
-			(member value +keywords+
-				:test #'string=))))
-	     (values (car op) (car op)) ; returns the symbol of our package.
-	     (if-let
-		 ((ptypedef (member value +predefined-typedef-names+
-				    :test #'string= :key #'car)))
-	       (values 'typedef-id (caar ptypedef))
-	       (cond ((member value *enum-const-symbols*)
-		      (values 'enumeration-const value))
-		     ((gethash value *typedef-names*)
-		      (values 'typedef-id value))
-		     (t
-		      (values 'id value))))))
-	  (integer
-	   (values 'int-const value))
-	  (character
-	   (values 'char-const value))
-	  (float
-	   (values 'float-const value))
-	  (string
-	   (values 'string value))
-	  (list
-	   (values 'lisp-expression value))
-	  (t
-	   (error "Unexpected value ~S" value))))))
+(defun list-lexer (list symbol-case)
+  (let ((keyword-key-fn
+         (if (eq symbol-case :upcase)
+             #'string-upcase #'identity)))
+    #'(lambda ()
+        (let ((value (pop list)))
+          (typecase value
+            (null
+             (values nil nil))
+            (symbol
+             (if-let
+                 ((op (or (member value +operators+
+                                  :key keyword-key-fn
+                                  :test #'string=)
+                          (member value +keywords+
+                                  :key keyword-key-fn
+                                  :test #'string=))))
+               (values (car op) (car op)) ; returns the symbol of our package.
+               (if-let
+                   ((ptypedef (member value +predefined-typedef-names+
+                                       :key (compose keyword-key-fn #'car)
+                                       :test #'string=)))
+                 (values 'typedef-id (caar ptypedef))
+                 (cond ((member value *enum-const-symbols*)
+                        (values 'enumeration-const value))
+                       ((gethash value *typedef-names*)
+                        (values 'typedef-id value))
+                       (t
+                        (values 'id value))))))
+            (integer
+             (values 'int-const value))
+            (character
+             (values 'char-const value))
+            (float
+             (values 'float-const value))
+            (string
+             (values 'string value))
+            (list
+             (values 'lisp-expression value))
+            (t
+             (error "Unexpected value ~S" value)))))))
 
 ;;; Declarations
 (defstruct decl-specs
@@ -210,7 +217,7 @@ If a same name is supplied, it is stacked")
 	     collect (getf slot-def :initform) into initforms
 	     finally
 	       (return
-		 (make-wcs-struct-runtime-spec names (eq stype 'union)
+		 (make-wcs-struct-runtime-spec names (eq stype '|union|)
 					        initforms)))))
     (setf (wcs-struct-spec-runtime-spec wcsspec)
           runtime-spec))
@@ -245,7 +252,7 @@ If a same name is supplied, it is stacked")
        ;; this struct
        nconc
          (loop with tp = (decl-specs-lisp-type spec-qual)
-            with constness = (member 'const (decl-specs-qualifier spec-qual))
+            with constness = (member '|const| (decl-specs-qualifier spec-qual))
             for s-decl in struct-decls
             as (decl-name . abst-decl) = (init-declarator-declarator s-decl)
             as name = (or decl-name (gensym "unnamed-field-"))
@@ -303,37 +310,37 @@ If a same name is supplied, it is stacked")
      for tp-list-1 on tp-list
      for tp = (car tp-list-1)
 
-     if (eq tp 'void)			; void
+     if (eq tp '|void|)			; void
      do (unless (length= 1 tp-list)
 	  (error "invalid decl-spec (~A)" tp-list))
        (setf (decl-specs-lisp-type dspecs) nil)
-       (return dspecs)
+     and return dspecs
 
      else if (struct-or-union-spec-p tp) ; struct / union
      do (unless (length= 1 tp-list)
 	  (error "invalid decl-spec (~A)" tp-list))
-       (return (finalize-struct-spec tp dspecs))
+     and return (finalize-struct-spec tp dspecs)
 
      else if (enum-spec-p tp)	; enum
      do (unless (length= 1 tp-list)
 	  (error "invalid decl-spec (~A)" tp-list))
-       (return (finalize-enum-spec tp dspecs))
+     and return (finalize-enum-spec tp dspecs)
 
      ;; numeric types
-     else if (member tp '(float double int char))
+     else if (member tp '(|float| |double| |int| |char|))
      do (when numeric-type
 	  (error "invalid decl-spec (~A)" tp-list))
        (setf numeric-type tp)
      ;; numeric variants
-     else if (member tp '(signed unsigned))
+     else if (member tp '(|signed| |unsigned|))
      do (when numeric-signedness
 	  (error "invalid decl-spec (~A)" tp-list))
        (setf numeric-signedness tp)
-     else if (eq tp 'long)
+     else if (eq tp '|long|)
      do (unless (<= 0 numeric-length 1)
 	  (error "invalid decl-spec (~A)" tp-list))
        (incf numeric-length)
-     else if (eq tp 'short)
+     else if (eq tp '|short|)
      do (unless (= 0 numeric-length)
 	  (error "invalid decl-spec (~A)" tp-list))
        (decf numeric-length)
@@ -355,45 +362,45 @@ If a same name is supplied, it is stacked")
                    (decl-specs-typedef-init-decl td-dspecs))
              (return dspecs))
             ;; numeric. merge its contents to the parental one.
-            (short-float (appendf tp-list-1 '(short float)))
-            (single-float (appendf tp-list-1 '(float)))
-            (double-float (appendf tp-list-1 '(double)))
-            (long-float (appendf tp-list-1 '(long double)))
-            (fixnum (appendf tp-list-1 '(int)))
+            (short-float (appendf tp-list-1 '(|short| |float|)))
+            (single-float (appendf tp-list-1 '(|float|)))
+            (double-float (appendf tp-list-1 '(|double|)))
+            (long-float (appendf tp-list-1 '(|long| |double|)))
+            (fixnum (appendf tp-list-1 '(|int|)))
             (t (destructuring-bind (byte-type bits) td-dspecs-tp
                  (when (eq 'unsigned-byte byte-type)
-                   (appendf tp-list-1 '(unsigned)))
+                   (appendf tp-list-1 '(|unsigned|)))
                  (ecase bits
-                   (8 (appendf tp-list-1 '(char)))
-                   (16 (appendf tp-list-1 '(short)))
-                   (32 (appendf tp-list-1 '(long)))
-                   (64 (appendf tp-list-1 '(long long))))))))
+                   (8 (appendf tp-list-1 '(|char|)))
+                   (16 (appendf tp-list-1 '(|short|)))
+                   (32 (appendf tp-list-1 '(|long|)))
+                   (64 (appendf tp-list-1 '(|long| |long|))))))))
      else
      do (assert nil)
        
      finally
        (setf (decl-specs-lisp-type dspecs)
 	     (ecase numeric-type
-	       (float
+	       (|float|
 		(when (or numeric-signedness
 			  (not (member numeric-length '(-1 0))))
 		  (error "invalid decl-spec (~A)" tp-list))
 		(if (eq numeric-length -1)
 		    'short-float 'single-float))
-	       (double
+	       (|double|
 		(when (or numeric-signedness
 			  (not (member numeric-length '(0 1))))
 		  (error "invalid decl-spec (~A)" tp-list))
 		(if (eq numeric-length 1)
 		    'long-float 'double-float))
-	       (char
+	       (|char|
 		(unless (zerop numeric-length)
 		  (error "invalid decl-spec (~A)" tp-list))
-		(if (eq 'unsigned numeric-signedness) ; raw 'char' is signed
+		(if (eq '|unsigned| numeric-signedness) ; raw 'char' is signed
 		    '(unsigned-byte 8)
 		    '(signed-byte 8)))
-	       ((int nil)
-		(if (eq 'unsigned numeric-signedness)
+	       ((|int| nil)
+		(if (eq '|unsigned| numeric-signedness)
 		    (ecase numeric-length
 		      (2 '(unsigned-byte 64))
 		      (1 '(unsigned-byte 32))
@@ -539,10 +546,10 @@ If a same name is supplied, it is stacked")
          (abst-decl (rest decl))
 	 (storage-class (decl-specs-storage-class dspecs)))
     (when (and init
-               (member storage-class '(extern typedef)))
+               (member storage-class '(|extern| |typedef|)))
       (error "This variable (~S) cannot have any initializers" storage-class))
     (when (and (eq :funcall (car (second decl)))
-	       (not (member storage-class '(nil extern))))
+	       (not (member storage-class '(nil |extern|))))
       (error "a function cannot have storage-class except 'extern'"))
     (when-let (td-init-decl (decl-specs-typedef-init-decl dspecs))
       (appendf abst-decl
@@ -556,7 +563,7 @@ If a same name is supplied, it is stacked")
                  (eq 'pseudo-pointer (first var-type))
                  (subtypep (second var-type) 'function))
         (push var-name *function-pointer-ids*)))
-    (when (eq 'typedef storage-class)
+    (when (eq '|typedef| storage-class)
       (setf (decl-specs-typedef-init-decl dspecs) init-decl)
       (push-typedef-name var-name dspecs))
     init-decl))
@@ -692,9 +699,8 @@ If a same name is supplied, it is stacked")
 	       :break-statements (list ret))))
 
 (defun rewrite-break-statements (sym stat)
-  (loop for i in (stat-break-statements stat)
-     do (setf (second i) sym))
-  (setf (stat-break-statements stat) nil))
+  (loop for i in (shiftf (stat-break-statements stat) nil)
+     do (setf (second i) sym)))
 
 (defvar *unresolved-continue-tag* (gensym "unresolved-continue-"))
 
@@ -704,9 +710,8 @@ If a same name is supplied, it is stacked")
 	       :continue-statements (list ret))))
 
 (defun rewrite-continue-statements (sym stat)
-  (loop for i in (stat-continue-statements stat)
-     do (setf (second i) sym))
-  (setf (stat-continue-statements stat) nil))
+  (loop for i in (shiftf (stat-continue-statements stat) nil)
+     do (setf (second i) sym)))
 
 (defun extract-loop (body-stat
 		     &key (init nil) (cond t) (step nil)
@@ -734,9 +739,8 @@ If a same name is supplied, it is stacked")
 
 (defun push-case-label (case-label-exp stat)
   (let ((go-tag-sym (gensym (format nil "case-~S-" case-label-exp))))
-    (setf (stat-case-label-list stat)
-	  (acons go-tag-sym case-label-exp
-		 (stat-case-label-list stat)))
+    (push (cons go-tag-sym case-label-exp)
+          (stat-case-label-list stat))
     (push go-tag-sym (stat-code stat))))
 
 (defun extract-switch (exp stat)
@@ -745,9 +749,9 @@ If a same name is supplied, it is stacked")
 	 (jump-table			; create jump table with COND
 	  (loop with default-clause =`(t (go ,end-tag))
 	     for (go-tag-sym . case-label-exp)
-	     in (stat-case-label-list stat)
+	     in (shiftf (stat-case-label-list stat) nil)
 
-	     if (eq case-label-exp 'default)
+	     if (eq case-label-exp '|default|)
 	     do (setf default-clause `(t (go ,go-tag-sym)))
 	     else
 	     collect `((eql ,exp-sym ,case-label-exp) (go ,go-tag-sym))
@@ -759,7 +763,6 @@ If a same name is supplied, it is stacked")
                       ,@clauses
                       ,default-clause))))))
     (rewrite-break-statements end-tag stat)
-    (setf (stat-case-label-list stat) nil)
     (setf (stat-code stat)
 	  `(,jump-table
 	    ,@(stat-code stat)
@@ -788,18 +791,18 @@ If a same name is supplied, it is stacked")
             and do (when (member name *function-pointer-ids*)
                      (push name funcptr-syms))
 	    finally (return (list var-binds func-binds)))
-     if (or (eq storage-class 'auto)
-            (and (null storage-class) (eq default-storage-class 'auto)))
+     if (or (eq storage-class '|auto|)
+            (and (null storage-class) (eq default-storage-class '|auto|)))
        nconc var-binds into auto-binds
-     if (eq storage-class 'register)
+     if (eq storage-class '|register|)
        nconc var-binds into register-binds
-     if (eq storage-class 'extern)
+     if (eq storage-class '|extern|)
        nconc var-binds into extern-binds
-     if (and (null storage-class) (eq default-storage-class 'global))
+     if (and (null storage-class) (eq default-storage-class '|global|))
        nconc var-binds into global-binds
-     if (eq storage-class 'static)
+     if (eq storage-class '|static|)
        nconc var-binds into static-binds
-     if (eq storage-class 'typedef)
+     if (eq storage-class '|typedef|)
        nconc var-binds into typedef-binds
 
      append func-binds into extern-binds
@@ -829,7 +832,7 @@ If a same name is supplied, it is stacked")
 				dynamic-established-syms funcptr-syms)
         (expand-decl-bindings decls
                               (ecase mode
-                                (:statement 'auto) (:translation-unit 'global)))
+                                (:statement '|auto|) (:translation-unit '|global|)))
       (let* ((lexical-binds
               (append autos registers))
 	     (register-vars (mapcar #'first registers))
@@ -926,7 +929,7 @@ If a same name is supplied, it is stacked")
 	      *default-decl-specs*))
     (when K&R-decls
       (let ((K&R-param-ids
-	     (mapcar #'first (expand-decl-bindings K&R-decls 'auto))))
+	     (mapcar #'first (expand-decl-bindings K&R-decls '|auto|))))
         (unless (equal K&R-param-ids param-ids)
           (error "prototype is not matched with k&r-style params"))))
     (make-function-definition
@@ -971,7 +974,7 @@ If a same name is supplied, it is stacked")
   (:precedence (;; Primary expression
 		(:left \( \) [ ] \. -> ++ --)
 		;; Unary
-		(:right * & + - ! ~ ++ -- #+ignore(typecast) sizeof)
+		(:right * & + - ! ~ ++ -- #+ignore(typecast) |sizeof|)
 		;; Binary
 		(:left * / %)
 		(:left + -)
@@ -1091,16 +1094,17 @@ If a same name is supplied, it is stacked")
 	(make-decl-specs :qualifier `(,qlr)))))
 
   (storage-class-spec
-   auto register static extern typedef) ; keywords
+   |auto| |register| |static| |extern| |typedef|) ; keywords
 
   (type-spec
-   void char short int long float double signed unsigned ; keywords
+   |void| |char| |short| |int| |long|   ; keywords
+   |float| |double| |signed| |unsigned|
    struct-or-union-spec
    enum-spec
    typedef-name)
 
   (type-qualifier
-   const volatile)                      ; keywords
+   |const| |volatile|)                  ; keywords
 
   ;; returns a struct-or-union-spec structure
   (struct-or-union-spec
@@ -1120,7 +1124,7 @@ If a same name is supplied, it is stacked")
 			 :type kwd :id id))))
 
   (struct-or-union
-   struct union)                        ; keywords
+   |struct| |union|)                        ; keywords
 
   (struct-decl-list
    (struct-decl
@@ -1191,15 +1195,15 @@ If a same name is supplied, it is stacked")
 
   ;; returns an enum-spec structure
   (enum-spec
-   (enum id { enumerator-list }
+   (|enum| id { enumerator-list }
          #'(lambda (_kwd id _l lis _r)
              (declare (ignore _kwd _l _r))
 	     (make-enum-spec :id id :enumerator-list lis)))
-   (enum    { enumerator-list }
+   (|enum|    { enumerator-list }
          #'(lambda (_kwd _l lis _r)
              (declare (ignore _kwd _l _r))
 	     (make-enum-spec :enumerator-list lis)))
-   (enum id
+   (|enum| id
          #'(lambda (_kwd id)
              (declare (ignore _kwd))
 	     (make-enum-spec :id id))))
@@ -1405,15 +1409,15 @@ If a same name is supplied, it is stacked")
 	   (declare (ignore _c))
 	   (push id (stat-code stat))
 	   stat))
-   (case const-exp \: stat
+   (|case| const-exp \: stat
        #'(lambda (_k  exp _c stat)
 	   (declare (ignore _k _c))
 	   (push-case-label exp stat)
 	   stat))
-   (default \: stat
+   (|default| \: stat
        #'(lambda (_k _c stat)
 	   (declare (ignore _k _c))
-	   (push-case-label 'default stat)
+	   (push-case-label '|default| stat)
 	   stat)))
 
   (exp-stat
@@ -1453,80 +1457,80 @@ If a same name is supplied, it is stacked")
 	(merge-stat st1 st2 :merge-code t))))
 
   (selection-stat
-   (if \( exp \) stat
+   (|if| \( exp \) stat
        #'(lambda (op lp exp rp stat)
 	   (declare (ignore op lp rp))
 	   (extract-if-statement exp stat)))
-   (if \( exp \) stat else stat
+   (|if| \( exp \) stat |else| stat
        #'(lambda (op lp exp rp stat1 el stat2)
 	   (declare (ignore op lp rp el))
 	   (extract-if-statement exp stat1 stat2)))
-   (switch \( exp \) stat
+   (|switch| \( exp \) stat
 	   #'(lambda (_k _lp exp _rp stat)
 	       (declare (ignore _k _lp _rp))
 	       (extract-switch exp stat))))
 
   (iteration-stat
-   (while \( exp \) stat
+   (|while| \( exp \) stat
 	  #'(lambda (_k _lp cond _rp body)
 	      (declare (ignore _k _lp _rp))
 	      (extract-loop body :cond cond)))
-   (do stat while \( exp \) \;
+   (|do| stat |while| \( exp \) \;
      #'(lambda (_k1 body _k2 _lp cond _rp _t)
 	 (declare (ignore _k1 _k2 _lp _rp _t))
 	 (extract-loop body :cond cond :post-test-p t)))
-   (for \( exp \; exp \; exp \) stat
+   (|for| \( exp \; exp \; exp \) stat
 	#'(lambda (_k _lp init _t1 cond _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
 	    (extract-loop body :init init :cond cond :step step)))
-   (for \( exp \; exp \;     \) stat
+   (|for| \( exp \; exp \;     \) stat
 	#'(lambda (_k _lp init _t1 cond _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
 	    (extract-loop body :init init :cond cond)))
-   (for \( exp \;     \; exp \) stat
+   (|for| \( exp \;     \; exp \) stat
 	#'(lambda (_k _lp init _t1      _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
 	    (extract-loop body :init init :step step)))
-   (for \( exp \;     \;     \) stat
+   (|for| \( exp \;     \;     \) stat
 	#'(lambda (_k _lp init _t1      _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
 	    (extract-loop body :init init)))
-   (for \(     \; exp \; exp \) stat
+   (|for| \(     \; exp \; exp \) stat
 	#'(lambda (_k _lp      _t1 cond _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
 	    (extract-loop body :cond cond :step step)))
-   (for \(     \; exp \;     \) stat
+   (|for| \(     \; exp \;     \) stat
 	#'(lambda (_k _lp      _t1 cond _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
 	    (extract-loop body :cond cond)))
-   (for \(     \;     \; exp \) stat
+   (|for| \(     \;     \; exp \) stat
 	#'(lambda (_k _lp      _t1      _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
 	    (extract-loop body :step step)))
-   (for \(     \;     \;     \) stat
+   (|for| \(     \;     \;     \) stat
 	#'(lambda (_k _lp      _t1      _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
 	    (extract-loop body))))
 
   (jump-stat
-   (goto id \;
+   (|goto| id \;
 	 #'(lambda (_k id _t)
 	     (declare (ignore _k _t))
 	     (make-stat :code (list `(go ,id)))))
-   (continue \;
+   (|continue| \;
 	     #'(lambda (_k _t)
 		 (declare (ignore _k _t))
 		 (make-stat-unresolved-continue)))
-   (break \;
+   (|break| \;
 	  #'(lambda (_k _t)
 	      (declare (ignore _k _t))
 	      (make-stat-unresolved-break)))
-   (return exp \;
+   (|return| exp \;
 	   #'(lambda (_k exp _t)
 	       (declare (ignore _k _t))
 	       ;; use the block of PROG
 	       (make-stat :code (list `(return ,exp)))))
-   (return \;
+   (|return| \;
 	   #'(lambda (_k _t)
 	       (declare (ignore _k _t))
 	       ;; use the block of PROG
@@ -1673,14 +1677,14 @@ If a same name is supplied, it is stacked")
       (lispify-unary 'not))
    (~ cast-exp
       (lispify-unary 'lognot))
-   (sizeof unary-exp
+   (|sizeof| unary-exp
 	   #'(lambda (_op exp)
 	       (declare (ignore _op))
 	       ;; calculate runtime
 	       `(if (arrayp ,exp)
 		    (array-total-size ,exp)
 		    1)))
-   (sizeof \( type-name \)
+   (|sizeof| \( type-name \)
 	   #'(lambda (_op _lp tp _rp)
 	       (declare (ignore _op _lp _rp))
 	       ;; calculate compile-time
@@ -1727,7 +1731,7 @@ If a same name is supplied, it is stacked")
 
   (primary-exp
    id
-   const*
+   const
    string
    (\( exp \)
        #'(lambda  (_1 x _3)
@@ -1741,7 +1745,7 @@ If a same name is supplied, it is stacked")
    (argument-exp-list \, assignment-exp
                       #'concatinate-comma-list))
 
-  (const*
+  (const
    int-const
    char-const
    float-const
@@ -1749,9 +1753,9 @@ If a same name is supplied, it is stacked")
   )
 
 ;;; Expander
-(defun c-expression-tranform (form)
+(defun c-expression-tranform (form symbol-case)
   (with-new-wcs-environment ()
-    (parse-with-lexer (list-lexer form)
+    (parse-with-lexer (list-lexer form symbol-case)
                       *expression-parser*)))
 
 ;;; Macro interface
@@ -1760,6 +1764,8 @@ If a same name is supplied, it is stacked")
 	 nil)
 	((and (length= 1 body) (listp (first body)))
 	 ;; for using a reader.
-	 (c-expression-tranform (first body)))
+	 (c-expression-tranform (first body)
+                                (or (getf (first *current-c-reader*) :case)
+                                    (readtable-case *readtable*))))
 	(t
-	 (c-expression-tranform body))))
+	 (c-expression-tranform body (readtable-case *readtable*)))))

@@ -8,6 +8,7 @@
 		#:destructuring-ecase
 		#:if-let
 		#:when-let
+		#:compose
 		#:appendf		; 3. Conses
 		#:nconcf
 		#:lastcar
