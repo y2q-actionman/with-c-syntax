@@ -1,4 +1,4 @@
-(in-package :with-c-syntax)
+(in-package #:with-c-syntax)
 
 ;; This file contains the runtime respesentation of 'struct' in
 ;; with-c-syntax, named "wcs-struct".

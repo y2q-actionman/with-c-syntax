@@ -1,4 +1,4 @@
-(in-package :cl-user)
+(in-package #:cl-user)
 
 (asdf:defsystem #:with-c-syntax
   :depends-on (#:alexandria #:yacc)

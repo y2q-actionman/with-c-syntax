@@ -1,4 +1,4 @@
-(in-package :with-c-syntax)
+(in-package #:with-c-syntax)
 
 ;;; Constants
 (eval-when (:compile-toplevel :load-toplevel :execute)

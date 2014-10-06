@@ -1,4 +1,4 @@
-(in-package :with-c-syntax)
+(in-package #:with-c-syntax)
 
 (defun w-c-s-hello-world ()
   (with-c-syntax ()

@@ -1,4 +1,4 @@
-(in-package :with-c-syntax)
+(in-package #:with-c-syntax)
 
 (define-constant +reader-level-specifier-alist+
     '((0 . 0) (1 . 1) (2 . 2) (3 . 3)

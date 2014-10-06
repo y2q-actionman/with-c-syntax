@@ -1,8 +1,8 @@
-(in-package :cl-user)
+(in-package #:cl-user)
 
-(defpackage :with-c-syntax
-  (:use :cl)
-  (:import-from :alexandria
+(defpackage #:with-c-syntax
+  (:use #:cl)
+  (:import-from #:alexandria
 		#:alist-hash-table	; 1. Hash Tables
 		#:define-constant	; 2. Data and Control Flow
 		#:destructuring-ecase
@@ -18,7 +18,7 @@
 		#:once-only		; 6. Macro Writing
 		#:with-gensyms
 		#:maxf)			; 10. Numbers
-  (:import-from :yacc
+  (:import-from #:yacc
         	#:define-parser
                 #:parse-with-lexer)
   (:export #:with-c-syntax
