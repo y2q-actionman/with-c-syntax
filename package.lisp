@@ -13,12 +13,13 @@
 		#:lastcar
 		#:removef		; 4. Sequences
 		#:deletef
+		#:length=
 		#:once-only		; 6. Macro Writing
 		#:with-gensyms
-		#:maxf			; 10. Numbers
-		)
+		#:maxf)			; 10. Numbers
   (:import-from :yacc
         	#:define-parser
                 #:parse-with-lexer)
   (:export #:with-c-syntax
-           #:c-expression-tranform))
+	   #:use-reader
+	   #:unuse-reader))

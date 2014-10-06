@@ -304,18 +304,18 @@ If a same name is supplied, it is stacked")
      for tp = (car tp-list-1)
 
      if (eq tp 'void)			; void
-     do (unless (= 1 (length tp-list))
+     do (unless (length= 1 tp-list)
 	  (error "invalid decl-spec (~A)" tp-list))
        (setf (decl-specs-lisp-type dspecs) nil)
        (return dspecs)
 
      else if (struct-or-union-spec-p tp) ; struct / union
-     do (unless (= 1 (length tp-list))
+     do (unless (length= 1 tp-list)
 	  (error "invalid decl-spec (~A)" tp-list))
        (return (finalize-struct-spec tp dspecs))
 
      else if (enum-spec-p tp)	; enum
-     do (unless (= 1 (length tp-list))
+     do (unless (length= 1 tp-list)
 	  (error "invalid decl-spec (~A)" tp-list))
        (return (finalize-enum-spec tp dspecs))
 
@@ -344,7 +344,7 @@ If a same name is supplied, it is stacked")
           (case td-dspecs-tp
             ;; non-numeric
             ((nil wcs-struct wcs-enum t)
-             (unless (= 1 (length tp-list))
+             (unless (length= 1 tp-list)
                (error "invalid decl-spec (~A)" tp-list))
              (setf (decl-specs-lisp-type dspecs)
                    (decl-specs-lisp-type td-dspecs)
@@ -1756,4 +1756,10 @@ If a same name is supplied, it is stacked")
 
 ;;; Macro interface
 (defmacro with-c-syntax (() &body body)
-  (c-expression-tranform body))
+  (cond ((null body)
+	 nil)
+	((and (length= 1 body) (listp (first body)))
+	 ;; for using a reader.
+	 (c-expression-tranform (first body)))
+	(t
+	 (c-expression-tranform body))))
