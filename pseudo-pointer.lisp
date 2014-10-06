@@ -15,12 +15,14 @@
          (*pseudo-pointer-next* 0))
      ,@body))
 
-(defun alloc-pseudo-pointer ()
+(defun alloc-pseudo-pointer (pointee)
   (incf *pseudo-pointer-next*) ; This makes the base of the first pointer to 0
   (let* ((base (ash *pseudo-pointer-next*
                     (logcount +pseudo-pointer-mask+)))
          (p (+ base +pseudo-pointer-safebit+)))
-    (values base p)))
+    (setf (gethash base *pseudo-pointee-table*)
+	  pointee)
+    p))
 
 (defun pseudo-pointer-extract (p &optional (errorp t))
   (let* ((base (logandc2 p +pseudo-pointer-mask+))
@@ -28,7 +30,7 @@
 		 +pseudo-pointer-safebit+))
 	 (obj (gethash base *pseudo-pointee-table*)))
     (unless obj
-      (when errorp (error "dangling pointer ~A" p)))
+      (when errorp (error "danglinng pointer ~A" p)))
     (values obj idx base)))
 
 (defun pseudo-pointer-pointee (p)
@@ -60,10 +62,7 @@
        (setf (elt obj idx) val)))))
 
 (defun make-pseudo-pointer (pointee &optional (initial-offset 0))
-  (multiple-value-bind (base p)
-      (alloc-pseudo-pointer)
-    (setf (gethash base *pseudo-pointee-table*)
-	  pointee)
+  (let ((p (alloc-pseudo-pointer pointee)))
     (+ p initial-offset)))
 
 (defun pseudo-pointer-pointable-p (obj)
@@ -72,3 +71,7 @@
     (vector t)
     (array t)
     (t nil)))
+
+;;; TODO:
+;;; 1. Use weak hash-table. Its value may held by a weak pointer.
+;;; 2. Defragments.
