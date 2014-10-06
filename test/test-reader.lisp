@@ -292,7 +292,7 @@
 (use-reader :level :insane)
 #{ progn
 #[defun test\-reader\-insane\-toplevel #[]#
-  #[eval\-equal #!(* (+ 1 2) (- 3 4)) #[]#
+  #[eval\-equal #!(+ 1 (* 2 3) (- 4)) #[]#
      return 1+2*3-4;
   ]#
   #[eval\-equal 2 #[]#
