@@ -65,9 +65,9 @@ If a same name is supplied, it is stacked")
      ,@body))
 
 ;;; Lexer
-(defun list-lexer (list symbol-case)
+(defun list-lexer (list keyword-case)
   (let ((keyword-key-fn
-         (if (eq symbol-case :upcase)
+         (if (eq keyword-case :upcase)
              #'string-upcase #'identity)))
     #'(lambda ()
         (let ((value (pop list)))
@@ -1766,19 +1766,14 @@ If a same name is supplied, it is stacked")
   )
 
 ;;; Expander
-(defun c-expression-tranform (form symbol-case)
+(defun c-expression-tranform (form keyword-case)
   (with-new-wcs-environment ()
-    (parse-with-lexer (list-lexer form symbol-case)
+    (parse-with-lexer (list-lexer form keyword-case)
                       *expression-parser*)))
 
 ;;; Macro interface
-(defmacro with-c-syntax (() &body body)
-  (cond ((null body)
-	 nil)
-	((and (length= 1 body) (listp (first body)))
-	 ;; for using a reader.
-	 (c-expression-tranform (first body)
-                                (or (getf (first *current-c-reader*) :case)
-                                    (readtable-case *readtable*))))
-	(t
-	 (c-expression-tranform body (readtable-case *readtable*)))))
+(defmacro with-c-syntax ((&key (keyword-case (readtable-case *readtable*)))
+			 &body body)
+  (if body
+      (c-expression-tranform body keyword-case)
+      nil))

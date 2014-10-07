@@ -6,10 +6,9 @@
 	       (:file "util" :depends-on ("package"))
                (:file "wcs-struct" :depends-on ("package"))
                (:file "pseudo-pointer" :depends-on ("util"))
-               (:file "reader" :depends-on ("util"))
 	       (:file "with-c-syntax" :depends-on ("wcs-struct"
-						   "pseudo-pointer"
-                                                   "reader"))))
+						   "pseudo-pointer"))
+               (:file "reader" :depends-on ("with-c-syntax"))))
 
 (asdf:defsystem #:with-c-syntax.test
   :pathname #.(make-pathname :directory '(:relative "test"))

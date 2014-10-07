@@ -1,13 +1,16 @@
 (in-package #:with-c-syntax)
 
-(defmacro eval-equal (val () &body body)
+(defmacro eval-equal* (val form)
   (let ((exp (gensym)) (ret (gensym)))
     `(let ((,exp ,val)
-	   (,ret (with-c-syntax () ,@body)))
+	   (,ret ,form))
        (assert (equal ,exp ,ret)
 	       ()
 	       "eval-equal error: expected ~S, returned ~S~% form ~S"
-	       ,exp ,ret ',body))))
+	       ,exp ,ret ',form))))
+
+(defmacro eval-equal (val () &body body)
+  `(eval-equal* ,val (with-c-syntax () ,@body)))
 
 (defmacro assert-compile-error (() &body body)
   `(assert

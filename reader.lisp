@@ -164,20 +164,18 @@
     (set-macro-character #\. #'read-single-character-symbol nil readtable))
   readtable)
 
-(defun read-tokens-in-c-syntax (stream char n)
+(defun read-toplevel-in-c-syntax (stream char n)
   (destructuring-bind (&key previous level case &allow-other-keys)
       (first *current-c-reader*)
-    (let ((*readtable* (copy-readtable previous)))
-      (when case
-        (setf (readtable-case *readtable*) case))
-      (set-dispatch-macro-character #\# #\[ #'read-tokens-in-c-syntax)
+    (let* ((*readtable* (copy-readtable previous))
+	   (keyword-case (or case (readtable-case *readtable*))))
+      (setf (readtable-case *readtable*) keyword-case)
+      (set-dispatch-macro-character #\# #\{ #'read-toplevel-in-c-syntax)
       (install-c-reader *readtable* (or n level))
-      (read-2chars-delimited-list (cdr (assoc char +bracket-pair-alist+ :test #'eq))
-				  #\# stream t))))
-
-(defun read-toplevel-in-c-syntax (stream char n)
-  (let ((c-tokens (read-tokens-in-c-syntax stream char n)))
-    `(with-c-syntax () ,@c-tokens)))
+      `(with-c-syntax (:keyword-case ,keyword-case)
+	 ,@(read-2chars-delimited-list
+	    (cdr (assoc char +bracket-pair-alist+ :test #'eq))
+	    #\# stream t)))))
 
 (defmacro use-reader (&key (level :overkill) case)
   (unless (translate-reader-level level)
@@ -187,8 +185,7 @@
      (push (list :level ,level :case ,case :previous *readtable*)
            *current-c-reader*)
      (setf *readtable* (copy-readtable))
-     (set-dispatch-macro-character #\# #\{ #'read-toplevel-in-c-syntax)
-     (set-dispatch-macro-character #\# #\[ #'read-tokens-in-c-syntax)))
+     (set-dispatch-macro-character #\# #\{ #'read-toplevel-in-c-syntax)))
 
 (defmacro unuse-reader ()
   `(eval-when (:compile-toplevel :load-toplevel :execute)
