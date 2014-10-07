@@ -103,7 +103,9 @@ If a same name is supplied, it is stacked")
             (string
              (values 'string value))
             (list
-             (values 'lisp-expression value))
+	     (if (string= (first value) (funcall keyword-key-fn '|type|))
+		 (values 'lisp-type value)
+		 (values 'lisp-expression value)))
             (t
              (error "Unexpected value ~S" value)))))))
 
@@ -171,10 +173,7 @@ If a same name is supplied, it is stacked")
       (ecase (second (car pdef))
 	(fixnum *default-decl-specs-fixnum*)
 	((t) *default-decl-specs*))
-      (if-let ((sdef (member name +standardized-atomic-type-specifiers+
-			     :test #'eq)))
-	(make-decl-specs :lisp-type (car sdef))
-	nil))))
+      nil)))
 
 (defun drop-typedef-name (name)
   (pop (gethash name *typedef-names*)))
@@ -326,6 +325,10 @@ If a same name is supplied, it is stacked")
 	  (error "invalid decl-spec (~A)" tp-list))
      and return (finalize-enum-spec tp dspecs)
 
+     else if (listp tp)			; lisp type
+     do (setf (decl-specs-lisp-type dspecs) (second tp))
+     and return dspecs
+       
      ;; numeric types
      else if (member tp '(|float| |double| |int| |char|))
      do (when numeric-type
@@ -376,7 +379,7 @@ If a same name is supplied, it is stacked")
                    (32 (appendf tp-list-1 '(|long|)))
                    (64 (appendf tp-list-1 '(|long| |long|))))))))
      else
-     do (assert nil)
+     do (error "Unexpected internal type: ~S" tp)
        
      finally
        (setf (decl-specs-lisp-type dspecs)
@@ -488,7 +491,7 @@ If a same name is supplied, it is stacked")
                 do (setf aref-type `(pseudo-pointer ,aref-type))
                   (loop-finish)
                 else
-                do (assert nil)))
+                do (error "Unexpected internal type: ~S" tp)))
             (merged-dim
              (array-dimension-combine aref-dim initializer))
             (lisp-elem-type
@@ -537,7 +540,8 @@ If a same name is supplied, it is stacked")
                       ,(wcs-struct-spec-internal-name wcsspec)
                       ,@init-list)
                     var-type)))
-         (t (error "Internal error: unknown type ~S" var-type)))))))
+         (t				; unknown type. Maybe user supplied lisp-type.
+	  (values initializer var-type)))))))
 
 (defun finalize-init-declarator (dspecs init-decl)
   (let* ((decl (init-declarator-declarator init-decl))
@@ -996,7 +1000,7 @@ If a same name is supplied, it is stacked")
 	     '(enumeration-const id typedef-id
 	       int-const char-const float-const
 	       string)
-	     '(lisp-expression)))
+	     '(lisp-expression lisp-type)))
   (:start-symbol wcs-entry-point)
 
   ;; Our entry point.
@@ -1097,7 +1101,8 @@ If a same name is supplied, it is stacked")
    |float| |double| |signed| |unsigned|
    struct-or-union-spec
    enum-spec
-   typedef-name)
+   typedef-name
+   lisp-type)				; added
 
   (type-qualifier
    |const| |volatile|)                  ; keywords

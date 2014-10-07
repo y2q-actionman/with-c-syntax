@@ -26,24 +26,20 @@
   (declare (ignore stream))
   (intern (string char)))
 
-(defun read-again-with-prefix (stream char)
-  (let* ((token (read stream t nil t))
-	 (buf (format nil "~C~S" char token))
-	 (*readtable*
-	  (getf (first *current-c-reader*) :previous)))
-    (read-from-string buf t nil)))
-  
 (defun read-lonely-single-symbol (stream char)
-  (let ((next (peek-char nil stream t nil t)))
-    (cond ((standard-whitespace-p next)
-	   (read-char stream t nil t)
-	   (intern (string char)))
-	  (t
-	   (read-again-with-prefix stream char)))))
-
-(defun read-list-no-dot (stream char)
-  (declare (ignore char))
-  (read-delimited-list #\) stream t))
+  (loop with buf = (make-array '(1) :element-type 'character
+			       :initial-contents `(,char)
+			       :adjustable t :fill-pointer t)
+     for c = (peek-char nil stream t nil t)
+     until (terminating-char-p c)
+     do (read-char stream t nil t)
+       (vector-push-extend c buf)
+     finally
+       (if (length= 1 buf)
+	   (return (intern buf))
+	   (let ((*readtable* (copy-readtable)))
+	     (set-syntax-from-char char #\@) ; gets the constituent syntax.
+	     (return (read-from-string buf t nil))))))
 
 (defun read-2chars-delimited-list (c1 c2 &optional stream recursive-p)
   (loop for lis = (read-delimited-list c1 stream recursive-p)
@@ -52,20 +48,22 @@
      when (char= next c2)
      do (read-char stream t nil recursive-p) (loop-finish)
      else
-     collect (intern (string c1))))
+     collect (intern (string c1))))	; assumes c1 is terminating.
 
 (defun read-list-alternative (stream char n)
   (declare (ignore char n))
   (read-2chars-delimited-list #\] #\# stream t))
 
 (defun read-single-quote (stream char)
-  (loop for c = (read-char stream t nil t)
-     while (and c (char/= c char))
-     collect c into cs
-     finally
-       (when (> (length cs) 1)
-	 (error "Too many chars appeared within '...' : ~S" cs))
-       (return (first cs))))
+  (declare (ignore char))
+  (let ((c1 (read-char stream t nil t)))
+    (when (char= c1 #\')
+      (error "Empty char constant"))
+    (let ((c2 (read-char stream t nil t)))
+      (unless (char= c2 #\')
+	(error "Too many chars appeared between '' :~C, ~C, ..."
+	       c1 c2))
+      c1)))
 
 (defun read-single-or-equal-symbol (stream char)
   (let ((next (peek-char nil stream t nil t)))
@@ -113,11 +111,12 @@
        (read-line stream t nil t)
        (values))
       (#\*
-       (loop for c = (peek-char #\* stream t nil t)
-	  when (char= c #\*)
-	  do (read-char stream t nil t)	; dispose the peeked one.
-	    (when (char= #\/ (read-char stream t nil t))
-	      (loop-finish)))
+       (read-char stream t nil t)
+       (loop do
+	  (peek-char #\* stream t nil t)
+	  (read-char stream t nil t)
+	  (when (char= #\/ (read-char stream t nil t))
+	    (loop-finish)))
        (values))
       (t
        (read-single-or-equal-symbol stream char)))))
@@ -139,14 +138,12 @@
     (set-macro-character #\{ #'read-single-character-symbol nil readtable)
     (set-macro-character #\} #'read-single-character-symbol nil readtable)
     (set-macro-character #\[ #'read-single-character-symbol nil readtable)
-    (set-macro-character #\] #'read-single-character-symbol nil readtable)
-    ;; Disables 'consing dots'. But only when not in list.
-    (set-macro-character #\. #'read-lonely-single-symbol t readtable)
-    ;; Replaces the list reader. This disables 'consing dots' completely.
-    (set-macro-character #\( #'read-list-no-dot nil readtable))
+    (set-macro-character #\] #'read-single-character-symbol nil readtable))
   (when (>= level 2)			; Overkill
     ;; preserves list constructor.
     (set-dispatch-macro-character #\# #\[ #'read-list-alternative readtable)
+    ;; Disables 'consing dots', with replacement of ()
+    (set-macro-character #\. #'read-lonely-single-symbol t readtable)
     ;; removes 'multi-escape'
     (set-syntax-from-char #\| #\& readtable)
     ;; destroys CL syntax COMPLETELY!

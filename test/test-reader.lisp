@@ -41,20 +41,6 @@
     return hoge-array[2]\;
     }
     }#)
-  ;; '.'
-  (eval-equal 3 ()
-    #1{
-    {
-    struct{int x \;}hoge ={3}\;
-    return hoge . x \;
-    }
-    }#)
-  (eval-equal (cons 1 2) ()
-    #1{
-    {
-    return #!'(1 . 2) \;
-    }
-    }#)
   ;; check default-level
   (eval-equal 99 ()
     #{{return 99 \;}}#)
@@ -63,6 +49,20 @@
 
 (use-reader :level :overkill)
 (defun test-reader-overkill ()
+  ;; '.'
+  (eval-equal 3 ()
+    #2{
+    {
+    struct{int x;}hoge ={3}\;
+    return hoge . x;
+    }
+    }#)
+  (eval-equal (cons 1 2) ()
+    #2{
+    {
+    return #!'(1 . 2);
+    }
+    }#)
   #| semicolon |#
   (eval-equal 3 ()
     #2{{1;2;return 3;}}#

@@ -634,6 +634,14 @@
     })
   t)
 
+(defun test-lisptype-decls ()
+  (eval-equal '(1 2 3) ()
+    {
+    (type list) x = (list 1 2 3) \;
+    return x \;
+    })
+  t)
+
 ;; TODO: add initializer tests
 
 (defun test-decl ()
