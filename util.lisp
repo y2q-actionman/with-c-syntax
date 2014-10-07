@@ -133,3 +133,8 @@
       (multiple-value-bind (fn non-terminating-p)
 	  (get-macro-character char readtable)
 	(and fn (not non-terminating-p)))))
+
+(define-constant +bracket-pair-alist+
+    '((#\( . #\)) (#\[ . #\])
+      (#\{ . #\}) (#\< . #\>))
+  :test 'equal)

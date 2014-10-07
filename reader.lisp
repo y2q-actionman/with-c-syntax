@@ -50,17 +50,12 @@
      else
      collect (intern (string c1))))	; assumes c1 is terminating.
 
-(defun read-list-alternative (stream char n)
-  (declare (ignore char n))
-  (read-2chars-delimited-list #\] #\# stream t))
-
-(defun read-single-quote (stream char)
-  (declare (ignore char))
+(defun read-single-quote (stream c0)
   (let ((c1 (read-char stream t nil t)))
-    (when (char= c1 #\')
+    (when (char= c1 c0)
       (error "Empty char constant"))
     (let ((c2 (read-char stream t nil t)))
-      (unless (char= c2 #\')
+      (unless (char= c2 c0)
 	(error "Too many chars appeared between '' :~C, ~C, ..."
 	       c1 c2))
       c1)))
@@ -140,8 +135,6 @@
     (set-macro-character #\[ #'read-single-character-symbol nil readtable)
     (set-macro-character #\] #'read-single-character-symbol nil readtable))
   (when (>= level 2)			; Overkill
-    ;; preserves list constructor.
-    (set-dispatch-macro-character #\# #\[ #'read-list-alternative readtable)
     ;; Disables 'consing dots', with replacement of ()
     (set-macro-character #\. #'read-lonely-single-symbol t readtable)
     ;; removes 'multi-escape'
@@ -171,16 +164,20 @@
     (set-macro-character #\. #'read-single-character-symbol nil readtable))
   readtable)
 
-(defun read-in-c-syntax (stream char n)
-  (declare (ignore char))
+(defun read-tokens-in-c-syntax (stream char n)
   (destructuring-bind (&key previous level case &allow-other-keys)
       (first *current-c-reader*)
     (let ((*readtable* (copy-readtable previous)))
       (when case
         (setf (readtable-case *readtable*) case))
-      (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
+      (set-dispatch-macro-character #\# #\[ #'read-tokens-in-c-syntax)
       (install-c-reader *readtable* (or n level))
-      (read-2chars-delimited-list #\} #\# stream t))))
+      (read-2chars-delimited-list (cdr (assoc char +bracket-pair-alist+ :test #'eq))
+				  #\# stream t))))
+
+(defun read-toplevel-in-c-syntax (stream char n)
+  (let ((c-tokens (read-tokens-in-c-syntax stream char n)))
+    `(with-c-syntax () ,@c-tokens)))
 
 (defmacro use-reader (&key (level :overkill) case)
   (unless (translate-reader-level level)
@@ -190,7 +187,8 @@
      (push (list :level ,level :case ,case :previous *readtable*)
            *current-c-reader*)
      (setf *readtable* (copy-readtable))
-     (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)))
+     (set-dispatch-macro-character #\# #\{ #'read-toplevel-in-c-syntax)
+     (set-dispatch-macro-character #\# #\[ #'read-tokens-in-c-syntax)))
 
 (defmacro unuse-reader ()
   `(eval-when (:compile-toplevel :load-toplevel :execute)
