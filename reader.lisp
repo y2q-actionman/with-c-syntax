@@ -165,9 +165,9 @@
   readtable)
 
 (defun read-toplevel-in-c-syntax (stream char n)
-  (destructuring-bind (&key previous level case &allow-other-keys)
+  (destructuring-bind (&key level case &allow-other-keys)
       (first *current-c-reader*)
-    (let* ((*readtable* (copy-readtable previous))
+    (let* ((*readtable* (copy-readtable))
 	   (keyword-case (or case (readtable-case *readtable*))))
       (setf (readtable-case *readtable*) keyword-case)
       (set-dispatch-macro-character #\# #\{ #'read-toplevel-in-c-syntax)

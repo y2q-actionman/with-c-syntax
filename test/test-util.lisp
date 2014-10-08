@@ -9,8 +9,8 @@
 	       "eval-equal error: expected ~S, returned ~S~% form ~S"
 	       ,exp ,ret ',form))))
 
-(defmacro eval-equal (val () &body body)
-  `(eval-equal* ,val (with-c-syntax () ,@body)))
+(defmacro eval-equal (val (&rest wcs-args) &body body)
+  `(eval-equal* ,val (with-c-syntax (,@wcs-args) ,@body)))
 
 (defmacro assert-compile-error (() &body body)
   `(assert
@@ -19,7 +19,8 @@
      (ignore-errors
        (c-expression-tranform ',body
                               (or (getf (first *current-c-reader*) :case)
-                                  (readtable-case *readtable*)))))))
+                                  (readtable-case *readtable*))
+			      nil)))))
 
 (defmacro assert-runtime-error (() &body body)
   `(assert

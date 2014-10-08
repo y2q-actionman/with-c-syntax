@@ -9,7 +9,6 @@
     int a \; int b \; )
   t)
 
-;; TODO: support 'any' entry point
 (defun test-trans-fdefinition-simple ()
   (with-c-syntax ()
     int hoge1 \( x \, y \)
@@ -65,12 +64,18 @@
     )
   (assert (= 16 (hoge8 2)))
 
+  (with-c-syntax ()
+    int hoge9 \( int \)
+    { return 9 \; }
+    )
+  (assert (= 9 (hoge9 'a)))
+
   t)
 
 (defun test-trans-decl-static ()
   (eval-equal nil ()
     static int xxx \; )
-  (eval-equal 'inc-a ()
+  (with-c-syntax ()
     static int xxx = 0 \;
     int reset-a \( \) {
        xxx = 0 \;
@@ -86,8 +91,8 @@
   (assert (= 0 (reset-a)))
   t)
 
-(defun test-trans-varargs ()
-  (eval-equal 'sumn ()
+(defun test-trans-fdefinition-varargs ()
+  (with-c-syntax ()
     int sumn \( int cnt \, |...| \) {
        int i \, ret = 0 \;
        va_list ap \;
@@ -107,9 +112,19 @@
   (assert (= 10 (sumn 4 1 2 3 4)))
   t)
 
+(defun test-trans-fdefinition-and-storage-class ()
+  (eval-equal 3 (:entry-form (s-func 1 2))
+    static int s-func \( x \, y \)
+      int x \, y \;
+    { return x + y \; }
+   )
+  t)
+
+
 (defun test-trans ()
   (test-trans-decl-simple)
   (test-trans-fdefinition-simple)
   (test-trans-decl-static)
-  (test-trans-varargs)
+  (test-trans-fdefinition-varargs)
+  (test-trans-fdefinition-and-storage-class)
   t)

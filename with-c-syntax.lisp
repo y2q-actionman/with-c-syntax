@@ -55,13 +55,16 @@ If a same name is supplied, it is stacked")
   "hashtable: symbol -> list of decl-specs")
 (defvar *function-pointer-ids* nil
   "list of symbol")
+(defvar *toplevel-entry-form* nil)
 
-(defmacro with-new-wcs-environment (() &body body)
+(defmacro with-new-wcs-environment ((entry-form)
+				    &body body)
   `(let* ((*enum-const-symbols* nil)
           (*dynamic-binding-requested* nil)
           (*wcs-struct-specs* (make-hash-table :test 'eq))
           (*typedef-names* (make-hash-table :test 'eq))
-          (*function-pointer-ids* nil))
+          (*function-pointer-ids* nil)
+	  (*toplevel-entry-form* ,entry-form))
      ,@body))
 
 ;;; Lexer
@@ -553,8 +556,8 @@ If a same name is supplied, it is stacked")
                (member storage-class '(|extern| |typedef|)))
       (error "This variable (~S) cannot have any initializers" storage-class))
     (when (and (eq :funcall (car (second decl)))
-	       (not (member storage-class '(nil |extern|))))
-      (error "a function cannot have storage-class except 'extern'"))
+	       (not (member storage-class '(nil |extern| |static|))))
+      (error "a function cannot have such storage-class: ~S" storage-class))
     (when-let (td-init-decl (decl-specs-typedef-init-decl dspecs))
       (appendf abst-decl
                (cdr (init-declarator-declarator td-init-decl))))
@@ -621,11 +624,10 @@ If a same name is supplied, it is stacked")
 (defun lispify-address-of (exp)
   (cond ((symbolp exp)
 	 (push exp *dynamic-binding-requested*)
-	 (let ((val (gensym)))
-	   `(let ((,val ,exp))
-	      (make-pseudo-pointer
-	       (if (pseudo-pointer-pointable-p ,val)
-		   ,val ',exp)))))
+	 (once-only ((val exp))
+	   `(make-pseudo-pointer
+	     (if (pseudo-pointer-pointable-p ,val)
+		 ,val ',exp))))
         ((listp exp)
 	 (destructuring-ecase exp
 	   ((wcs-aref obj &rest args)
@@ -773,6 +775,65 @@ If a same name is supplied, it is stacked")
 	    ,end-tag))
     stat))
 
+;;; Translation Unit -- function definitions
+(defstruct function-definition
+  func-name		       ; user supplied name
+  internal-name		       ; the real name. used for static funcs.
+  lisp-code
+  lisp-type)
+
+(defun lispify-function-definition (name body &key return K&R-decls)
+  (let* ((func-name (first name))
+         (func-param (getf (second name) :funcall))
+         (variadic nil)
+	 (omitted nil)
+         (param-ids
+          (loop for p in func-param
+             if (eq p '|...|)
+             do (setf variadic t) (loop-finish)
+             else
+             collect
+	       (or (first (second p))	; first of declarator.
+		   (let ((var (gensym "omitted-arg-")))
+		     (push var omitted)
+		     var))))
+	 (return (if return (finalize-decl-specs return)
+		     *default-decl-specs*))
+	 (internal-name
+	  (case (decl-specs-storage-class return)
+	    (|static| (gensym "static-func-"))
+	    ((nil) func-name)
+	    (t (error "Cannot define a function of storage-class: ~S"
+		      (decl-specs-storage-class return))))))
+    (when K&R-decls
+      (let ((K&R-param-ids
+	     (mapcar #'first (expand-decl-bindings K&R-decls '|auto|))))
+        (unless (equal K&R-param-ids param-ids)
+          (error "prototype is not matched with k&r-style params"))))
+    (make-function-definition
+     :func-name func-name
+     :internal-name internal-name
+     :lisp-code
+     (let ((varargs-sym (gensym "varargs-"))
+           (body (expand-toplevel-stat body))) 
+       `((defun ,internal-name (,@param-ids ,@(if variadic `(&rest ,varargs-sym)))
+	   (declare (ignore ,@omitted))
+           ,(if variadic
+                `(macrolet ((va_start (ap &optional last)
+                              (declare (ignore last))
+                              `(setf ,ap ,',varargs-sym))
+                            (va_arg (ap &optional type)
+                              (declare (ignore type))
+                              `(pop ,ap))
+                            (va_end (ap)
+                              `(setf ,ap nil))
+                            (va_copy (dest src)
+                              `(setf ,dest (copy-list ,src))))
+                   ,body)
+                body))))
+     :lisp-type `(function ',(mapcar (constantly t) param-ids)
+                           ',(decl-specs-lisp-type return)))))
+
 ;;; Toplevel
 ;; returns (values auto-binds register-binds static-binds
 ;;                 extern-binds global-binds enum-const-binds
@@ -809,17 +870,13 @@ If a same name is supplied, it is stacked")
      if (eq storage-class '|typedef|)
        nconc var-binds into typedef-binds
        
-     if (eq storage-class '|static|)
-       append func-binds into static-funcs
-     else
-       append func-binds into extern-funcs
+     append func-binds into extern-binds
 
      append (decl-specs-lisp-bindings dspecs) into enum-const-binds
      append (decl-specs-lisp-class-spec dspecs) into classes
      finally
        (return (values auto-binds register-binds extern-binds
                        global-binds static-binds typedef-binds
-		       extern-funcs static-funcs
                        enum-const-binds classes
 		       (nreverse dynamic-established-syms)
 		       (nreverse funcptr-syms)))))
@@ -834,29 +891,29 @@ If a same name is supplied, it is stacked")
      finally (return (values class-binds renames))))
 
 ;; mode is :statement or :translation-unit
-(defun expand-toplevel (mode decls code)
+(defun expand-toplevel (mode decls fdefs code)
     (multiple-value-bind (autos registers externs globals statics typedefs
-				extern-funcs static-funcs
                                 enum-consts classes
 				dynamic-established-syms funcptr-syms)
         (expand-decl-bindings decls
                               (ecase mode
                                 (:statement '|auto|) (:translation-unit '|global|)))
-      (let* ((lexical-binds
-              (append autos registers))
-	     (register-vars (mapcar #'first registers))
-             (bad-pointers (intersection dynamic-established-syms register-vars))
+      (let* ((register-vars (mapcar #'first registers))
              (special-vars nil)
              (global-defs nil)
              (sym-macros nil)
-	     (struct-defs nil))
+             (local-macros nil)
+	     (struct-binds nil)
+	     (struct-defs nil)
+	     (func-defs nil))
         ;; 'auto' and 'register'
         (when (and (eq mode :translation-unit)
                    (or autos registers))
-          (error "At top level, 'auto' or 'register' variables are not accepted (~S)"
-                 (append autos registers)))
+          (error "At top level, 'auto' or 'register' variables are not accepted (~S, ~S)"
+                 autos registers))
         ;; 'register' vars
-        (when bad-pointers
+	(when-let ((bad-pointers
+		    (intersection dynamic-established-syms register-vars)))
           (warn "some variables are 'register', but its pointer is taken (~S)."
                 bad-pointers))
         ;; 'extern' vars.
@@ -869,39 +926,44 @@ If a same name is supplied, it is stacked")
           (error "In internal scope, no global vars cannot be defined (~S)." globals))
         (loop for (var init) in globals
            do (push var special-vars)
-           do (push `(defvar ,var ,init "generated by with-c-syntax, for global") global-defs))
+           do (push `(defvar ,var ,init "generated by with-c-syntax, for global")
+		    global-defs))
         ;; 'static' vars.
         (loop for (var init) in statics
            as st-sym = (gensym (format nil "static-var-~S-" var))
            do (push st-sym special-vars)
-           do (push `(defvar ,st-sym ,init "generated by with-c-syntax, for static") global-defs)
+           do (push `(defvar ,st-sym ,init "generated by with-c-syntax, for static")
+		    global-defs)
            do (push `(,var ,st-sym) sym-macros))
-        ;; 'extern' funcs -- only basic checks
-        (loop for (var init) in extern-funcs
-           unless (null init)
-           do (error "an 'extern' function cannot have initializer (~S = ~S)" var init))
-	;; TODO: 'static' funcs
-        ;; (loop for (var init) in static-funcs
-	;;    do (progn))
+	;; functions
+	(loop for fdef in fdefs
+	   as name = (function-definition-func-name fdef)
+	   as i-name = (function-definition-internal-name fdef)
+	   do (appendf func-defs (function-definition-lisp-code fdef))
+	   unless (eq name i-name)
+	   do (push `(,name (&rest args) `(,',i-name ,@args))
+		    local-macros))
         ;; enum consts
         (nconcf sym-macros enum-consts)
         ;; structs
-        (multiple-value-bind (class-binds renames)
+        (multiple-value-bind (binds renames)
             (expand-struct-spec classes)
-	  (setf lexical-binds (nconc class-binds lexical-binds))
+	  (setf struct-binds binds)
           (when (eq mode :translation-unit)
 	    (loop for (sym val) in renames
 	       do (push `(install-wcs-struct-runtime-spec ',sym ,val)
 			struct-defs))))
         (prog1
             `(symbol-macrolet ,sym-macros
-               (declare (special ,@special-vars))
-               ,@global-defs
-               (let* (,@lexical-binds)
-                 (declare (dynamic-extent ,@register-vars))
-		 ,@struct-defs
-		 (with-dynamic-bound-symbols ,*dynamic-binding-requested*
-		   (block nil ,@code))))
+	       (macrolet ,local-macros
+		 (declare (special ,@special-vars))
+		 ,@global-defs
+		 (let* (,@struct-binds ,@autos ,@registers)
+		   (declare (dynamic-extent ,@register-vars))
+		   ,@struct-defs
+		   (with-dynamic-bound-symbols ,*dynamic-binding-requested*
+		     ,@func-defs
+		     (block nil ,@code)))))
           ;; drop dynamic-binds
           (loop for sym in dynamic-established-syms
              do (deletef *dynamic-binding-requested*
@@ -924,61 +986,19 @@ If a same name is supplied, it is stacked")
 (defun expand-toplevel-stat (stat)
   (expand-toplevel :statement
                    (stat-declarations stat)
+		   nil
                    `((tagbody ,@(stat-code stat)))))
 
-(defstruct function-definition
-  lisp-code
-  lisp-type)
-
-(defun lispify-function-definition (name body &key return K&R-decls)
-  (let* ((func-name (first name))
-         (func-param (getf (second name) :funcall))
-         (variadic nil)
-         (param-ids
-          (loop for p in func-param
-             if (eq p '|...|)
-             do (setf variadic t) (loop-finish)
-             else
-             collect (first (second p)))))
-    (setf return
-	  (if return (finalize-decl-specs return)
-	      *default-decl-specs*))
-    (when K&R-decls
-      (let ((K&R-param-ids
-	     (mapcar #'first (expand-decl-bindings K&R-decls '|auto|))))
-        (unless (equal K&R-param-ids param-ids)
-          (error "prototype is not matched with k&r-style params"))))
-    (make-function-definition
-     :lisp-code
-     (let ((varargs-sym (gensym "varargs-"))
-           (body (expand-toplevel-stat body))) 
-       `((defun ,func-name (,@param-ids ,@(if variadic `(&rest ,varargs-sym)))
-           ,(if variadic
-                `(macrolet ((va_start (ap &optional last)
-                              (declare (ignore last))
-                              `(setf ,ap ,',varargs-sym))
-                            (va_arg (ap &optional type)
-                              (declare (ignore type))
-                              `(pop ,ap))
-                            (va_end (ap)
-                              `(setf ,ap nil))
-                            (va_copy (dest src)
-                              `(setf ,dest (copy-list ,src))))
-                   ,body)
-                body))))
-     :lisp-type `(function ',(mapcar (constantly t) param-ids)
-                           ',(decl-specs-lisp-type return)))))
-
 (defun expand-translation-unit (units)
-  (loop
-     for u in units
+  (loop for u in units
      if (function-definition-p u)
-     append (function-definition-lisp-code u) into codes
+     collect u into fdefs
      else
      collect u into decls
      finally
        (return (expand-toplevel :translation-unit
-                                decls codes))))
+                                decls fdefs
+				`(,*toplevel-entry-form*)))))
 
 ;;; The parser
 (define-parser *expression-parser*
@@ -1766,14 +1786,15 @@ If a same name is supplied, it is stacked")
   )
 
 ;;; Expander
-(defun c-expression-tranform (form keyword-case)
-  (with-new-wcs-environment ()
+(defun c-expression-tranform (form keyword-case entry-form)
+  (with-new-wcs-environment (entry-form)
     (parse-with-lexer (list-lexer form keyword-case)
                       *expression-parser*)))
 
 ;;; Macro interface
-(defmacro with-c-syntax ((&key (keyword-case (readtable-case *readtable*)))
+(defmacro with-c-syntax ((&key (keyword-case (readtable-case *readtable*))
+			       entry-form)
 			 &body body)
   (if body
-      (c-expression-tranform body keyword-case)
+      (c-expression-tranform body keyword-case entry-form)
       nil))
