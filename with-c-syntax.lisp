@@ -621,6 +621,11 @@ If a same name is supplied, it is stacked")
     (array
      (setf (apply #'aref obj arg1 args) val))))
 
+(defun lispify-cast (type exp)
+  (if (null type)
+      `(progn ,exp nil)                  ; like '(void)x;'
+      `(coerce ,exp ',type)))
+
 (defun lispify-address-of (exp)
   (cond ((symbolp exp)
 	 (push exp *dynamic-binding-requested*)
@@ -807,7 +812,13 @@ If a same name is supplied, it is stacked")
 		      (decl-specs-storage-class return))))))
     (when K&R-decls
       (let ((K&R-param-ids
-	     (mapcar #'first (expand-decl-bindings K&R-decls '|auto|))))
+             (loop for (dspecs init-decls) in K&R-decls
+                unless (member (decl-specs-storage-class dspecs)
+                               '(nil |auto| |register|) :test #'eq)
+                do (error "Invalid storage-class for arguments")
+                append
+                  (loop for i in init-decls
+                     collect (init-declarator-lisp-name i)))))
         (unless (equal K&R-param-ids param-ids)
           (error "prototype is not matched with k&r-style params"))))
     (make-function-definition
@@ -835,51 +846,77 @@ If a same name is supplied, it is stacked")
                            ',(decl-specs-lisp-type return)))))
 
 ;;; Toplevel
-;; returns (values auto-binds register-binds static-binds
-;;                 extern-binds global-binds enum-const-binds
-;;                 dynamic-established-syms classdefs)
-(defun expand-decl-bindings (declaration-list default-storage-class)
-  (loop with dynamic-established-syms = nil
+(defun expand-toplevel-init-decls (init-decls
+                                   mode storage-class
+                                   dynamic-established-syms)
+  (loop with lexical-binds = nil
+     with dynamic-extent-vars = nil
+     with special-vars = nil
+     with global-defs = nil
+     with sym-macros = nil
+     with typedef-names = nil
      with funcptr-syms = nil
-     for (dspecs init-decls) in declaration-list
-     as storage-class = (decl-specs-storage-class dspecs)
-     as (var-binds func-binds)
-       = (loop for i in init-decls
-            as name = (init-declarator-lisp-name i)
-	    as b = (list name (init-declarator-lisp-initform i))
-	    if (subtypep (init-declarator-lisp-type i) 'function)
-	    collect b into func-binds
-	    else
-	    collect b into var-binds
-            and do (when (member name *dynamic-binding-requested*)
-                     (push name dynamic-established-syms))
-            and do (when (member name *function-pointer-ids*)
-                     (push name funcptr-syms))
-	    finally (return (list var-binds func-binds)))
-     if (or (eq storage-class '|auto|)
-            (and (null storage-class) (eq default-storage-class '|auto|)))
-       nconc var-binds into auto-binds
-     if (eq storage-class '|register|)
-       nconc var-binds into register-binds
-     if (eq storage-class '|extern|)
-       nconc var-binds into extern-binds
-     if (and (null storage-class) (eq default-storage-class '|global|))
-       nconc var-binds into global-binds
-     if (eq storage-class '|static|)
-       nconc var-binds into static-binds
-     if (eq storage-class '|typedef|)
-       nconc var-binds into typedef-binds
-       
-     append func-binds into extern-binds
 
-     append (decl-specs-lisp-bindings dspecs) into enum-const-binds
-     append (decl-specs-lisp-class-spec dspecs) into classes
+     for i in init-decls
+     as name = (init-declarator-lisp-name i)
+     as init = (init-declarator-lisp-initform i)
+
+     ;; function declarations
+     if (subtypep (init-declarator-lisp-type i) 'function)
+     do (unless (or (null init) (zerop init))
+          (error "a function cannot have initializer (~S = ~S)" name init))
+     else do
+     ;; variables
+       (when (member name *dynamic-binding-requested*)
+         (push name dynamic-established-syms))
+       (when (member name *function-pointer-ids*)
+         (push name funcptr-syms))
+       (ecase storage-class
+         ;; 'auto' vars
+         (|auto|
+          (when (eq mode :translation-unit)
+            (error "At top level, 'auto' variables are not accepted (~S)" name))
+          (append-item-to-right-f lexical-binds `(,name ,init)))
+         ;; 'register' vars
+         (|register|
+          (when (eq mode :translation-unit)
+            (error "At top level, 'register' variables are not accepted (~S)" name))
+          (append-item-to-right-f lexical-binds `(,name ,init))
+          (when (member name dynamic-established-syms :test #'eq)
+            (warn "some variables are 'register', but its pointer is taken (~S)." name))
+          (append-item-to-right-f dynamic-extent-vars name))
+         ;; 'extern' vars.
+         (|extern|
+          (unless (or (null init) (zerop init))
+            (error "an 'extern' variable cannot have initializer (~S = ~S)" name init)))
+         ;; 'global' vars.
+         (|global|
+          (when (eq mode :statement)
+            (error "In internal scope, no global vars cannot be defined (~S)." name))
+          ;; TODO: consider..
+          ;; (append-item-to-right-f lexical-binds `(,name ,init))
+          (append-item-to-right-f special-vars name)
+          (append-item-to-right-f global-defs
+                                  `(defvar ,name ,init "generated by with-c-syntax, for global")))
+         ;; 'static' vars.
+         (|static|
+          (let ((st-sym (gensym (format nil "static-var-~S-" name))))
+            ;; TODO: consider..
+            ;; (append-item-to-right-f lexical-binds `(,st-sym ,init))
+            (append-item-to-right-f special-vars st-sym)
+            (append-item-to-right-f global-defs
+                                    `(defvar ,st-sym ,init "generated by with-c-syntax, for static"))
+            (append-item-to-right-f sym-macros `(,name ,st-sym))))
+         ;; 'typedef' vars
+         (|typedef|
+          (append-item-to-right-f typedef-names name)))
      finally
-       (return (values auto-binds register-binds extern-binds
-                       global-binds static-binds typedef-binds
-                       enum-const-binds classes
-		       (nreverse dynamic-established-syms)
-		       (nreverse funcptr-syms)))))
+       (return
+         (values lexical-binds dynamic-extent-vars
+                 special-vars global-defs sym-macros
+                 typedef-names funcptr-syms
+                 dynamic-established-syms))))
+
 
 (defun expand-struct-spec (classes)
   (loop for wcsspec in classes
@@ -892,96 +929,95 @@ If a same name is supplied, it is stacked")
 
 ;; mode is :statement or :translation-unit
 (defun expand-toplevel (mode decls fdefs code)
-    (multiple-value-bind (autos registers externs globals statics typedefs
-                                enum-consts classes
-				dynamic-established-syms funcptr-syms)
-        (expand-decl-bindings decls
-                              (ecase mode
-                                (:statement '|auto|) (:translation-unit '|global|)))
-      (let* ((register-vars (mapcar #'first registers))
-             (special-vars nil)
-             (global-defs nil)
-             (sym-macros nil)
-             (local-macros nil)
-	     (struct-binds nil)
-	     (struct-defs nil)
-	     (func-defs nil))
-        ;; 'auto' and 'register'
-        (when (and (eq mode :translation-unit)
-                   (or autos registers))
-          (error "At top level, 'auto' or 'register' variables are not accepted (~S, ~S)"
-                 autos registers))
-        ;; 'register' vars
-	(when-let ((bad-pointers
-		    (intersection dynamic-established-syms register-vars)))
-          (warn "some variables are 'register', but its pointer is taken (~S)."
-                bad-pointers))
-        ;; 'extern' vars.
-        (loop for (var init) in externs
-           unless (or (null init) (zerop init))
-           do (error "an 'extern' variable cannot have initializer (~S = ~S)" var init))
-        ;; 'global' vars.
-        (when (and (eq mode :statement)
-                   globals)
-          (error "In internal scope, no global vars cannot be defined (~S)." globals))
-        (loop for (var init) in globals
-           do (push var special-vars)
-           do (push `(defvar ,var ,init "generated by with-c-syntax, for global")
-		    global-defs))
-        ;; 'static' vars.
-        (loop for (var init) in statics
-           as st-sym = (gensym (format nil "static-var-~S-" var))
-           do (push st-sym special-vars)
-           do (push `(defvar ,st-sym ,init "generated by with-c-syntax, for static")
-		    global-defs)
-           do (push `(,var ,st-sym) sym-macros))
-	;; functions
-	(loop for fdef in fdefs
-	   as name = (function-definition-func-name fdef)
-	   as i-name = (function-definition-internal-name fdef)
-	   do (appendf func-defs (function-definition-lisp-code fdef))
-	   unless (eq name i-name)
-	   do (push `(,name (&rest args) `(,',i-name ,@args))
-		    local-macros))
-        ;; enum consts
-        (nconcf sym-macros enum-consts)
-        ;; structs
-        (multiple-value-bind (binds renames)
-            (expand-struct-spec classes)
-	  (setf struct-binds binds)
-          (when (eq mode :translation-unit)
-	    (loop for (sym val) in renames
-	       do (push `(install-wcs-struct-runtime-spec ',sym ,val)
-			struct-defs))))
-        (prog1
-            `(symbol-macrolet ,sym-macros
-	       (macrolet ,local-macros
-		 (declare (special ,@special-vars))
-		 ,@global-defs
-		 (let* (,@struct-binds ,@autos ,@registers)
-		   (declare (dynamic-extent ,@register-vars))
-		   ,@struct-defs
-		   (with-dynamic-bound-symbols ,*dynamic-binding-requested*
-		     ,@func-defs
-		     (block nil ,@code)))))
-          ;; drop dynamic-binds
-          (loop for sym in dynamic-established-syms
-             do (deletef *dynamic-binding-requested*
-			 sym :test #'eq :count 1))
-          ;; drop typedefs
-          (loop for (sym _) in typedefs
-             do (drop-typedef-name sym))
-          ;; drop enum-binds
-          (loop for (sym _) in enum-consts
-             do (deletef *enum-const-symbols*
-			 sym :test #'eq :count 1))
-          ;; drop structure-binds
-          (loop for c in classes
-             do (drop-wcs-struct-spec c))
-	  ;; drop function-pointer-ids
-          (loop for sym in funcptr-syms
-	     do (deletef *function-pointer-ids*
-			 sym :test #'eq :count 1))))))
+  (let ((default-storage-class
+         (ecase mode
+           (:statement '|auto|) (:translation-unit '|global|)))
+        lexical-binds
+        dynamic-extent-vars
+        special-vars
+        global-defs
+        sym-macros
+        local-macros
+        struct-defs
+        struct-specs
+        typedef-names
+        enum-const-names
+        func-defs
+        dynamic-established-syms
+        funcptr-syms)
+    ;; process decls
+    (loop for (dspecs init-decls) in decls
+       as storage-class = (or (decl-specs-storage-class dspecs)
+                              default-storage-class)
+       ;; enum consts
+       do (appendf sym-macros (decl-specs-lisp-bindings dspecs))
+         (appendf enum-const-names
+                  (mapcar #'first
+                          (decl-specs-lisp-bindings dspecs)))
+       ;; structs
+       do (appendf struct-specs (decl-specs-lisp-class-spec dspecs))
+         (multiple-value-bind (binds renames)
+             (expand-struct-spec (decl-specs-lisp-class-spec dspecs))
+           (appendf lexical-binds binds)
+           (when (eq mode :translation-unit)
+             (loop for (sym val) in renames
+                collect `(install-wcs-struct-runtime-spec ',sym ,val) into defs
+                finally (appendf struct-defs defs))))
+       ;; declarations
+       do
+         (multiple-value-bind 
+               (lexical-binds-1 dynamic-extent-vars-1
+                                special-vars-1 global-defs-1 sym-macros-1
+                                typedef-names-1 funcptr-syms-1
+                                dynamic-established-syms-1)
+             (expand-toplevel-init-decls init-decls mode storage-class
+                                         dynamic-established-syms)
+           (appendf lexical-binds lexical-binds-1)
+           (appendf dynamic-extent-vars dynamic-extent-vars-1)
+           (appendf special-vars special-vars-1)
+           (appendf global-defs global-defs-1)
+           (appendf sym-macros sym-macros-1)
+           (appendf typedef-names typedef-names-1)
+           (appendf funcptr-syms funcptr-syms-1)
+           (setf dynamic-established-syms dynamic-established-syms-1)))
+    ;; functions
+    (loop for fdef in fdefs
+       as name = (function-definition-func-name fdef)
+       as i-name = (function-definition-internal-name fdef)
+       do (appendf func-defs (function-definition-lisp-code fdef))
+       unless (eq name i-name)
+       collect `(,name (&rest args) `(,',i-name ,@args)) into renames
+       finally
+         (appendf local-macros renames))
+    (prog1
+        `(symbol-macrolet ,sym-macros
+           (macrolet ,local-macros
+               (declare (special ,@special-vars))
+             ,@global-defs
+             (let* (,@lexical-binds)
+               (declare (dynamic-extent ,@dynamic-extent-vars))
+               ,@struct-defs
+               (with-dynamic-bound-symbols ,*dynamic-binding-requested*
+                 ,@func-defs
+                 (block nil ,@code)))))
+      ;; drop dynamic-binds
+      (loop for sym in dynamic-established-syms
+         do (deletef *dynamic-binding-requested*
+                     sym :test #'eq :count 1))
+      ;; drop typedefs
+      (loop for sym in typedef-names
+         do (drop-typedef-name sym))
+      ;; drop enum-binds
+      (loop for sym in enum-const-names
+         do (deletef *enum-const-symbols*
+                     sym :test #'eq :count 1))
+      ;; drop structure-binds
+      (loop for c in struct-specs
+         do (drop-wcs-struct-spec c))
+      ;; drop function-pointer-ids
+      (loop for sym in funcptr-syms
+         do (deletef *function-pointer-ids*
+                     sym :test #'eq :count 1)))))
 
 (defun expand-toplevel-stat (stat)
   (expand-toplevel :statement
@@ -1685,7 +1721,7 @@ If a same name is supplied, it is stacked")
    (\( type-name \) cast-exp
        #'(lambda (op1 type op2 exp)
 	   (declare (ignore op1 op2))
-	   `(coerce ,exp ',type))))
+           (lispify-cast type exp))))
 
   ;; 'unary-operator' is included here
   (unary-exp

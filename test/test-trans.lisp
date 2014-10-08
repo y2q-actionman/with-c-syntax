@@ -4,54 +4,58 @@
 
 (defun test-trans-decl-simple ()
   (eval-equal nil ()
-    int a \; )
+    int *a* \; )
+  (assert (boundp '*a*))
+  (assert (= *a* 0))
   (eval-equal nil ()
-    int a \; int b \; )
+    int *a* \; int *b* \; )
+  (assert (boundp '*a*))
+  (assert (boundp '*b*))
   t)
 
 (defun test-trans-fdefinition-simple ()
   (with-c-syntax ()
     int hoge1 \( x \, y \)
       int x \, y \;
-    { return x + y \; }
-   )
+    { return x + y \; })
+  (assert (fboundp 'hoge1))
   (assert (= 3 (hoge1 1 2)))
 
   (with-c-syntax ()
     hoge2 \( x \, y \)
       int x \, y \;
-    { return x + y \; }
-    )
+    { return x + y \; })
+  (assert (fboundp 'hoge2))
   (assert (= 3 (hoge2 1 2)))
 
   (with-c-syntax ()
     int hoge3 \( \)
-    { return 3 \; }
-    )
+    { return 3 \; })
+  (assert (fboundp 'hoge3))
   (assert (= 3 (hoge3)))
 
   (with-c-syntax ()
     int hoge4 \( x \)
-    { return x + 4 \; }
-    )
+    { return x + 4 \; })
+  (assert (fboundp 'hoge4))
   (assert (= 9 (hoge4 5)))
 
   (with-c-syntax ()
     hoge5 \( \)
-    { return 5 \; } 
-    )
+    { return 5 \; })
+  (assert (fboundp 'hoge5))
   (assert (= 5 (hoge5)))
 
   (with-c-syntax ()
     hoge6 \( x \)
-    { return x + 6 \; }
-    )
+    { return x + 6 \; })
+  (assert (fboundp 'hoge6))
   (assert (= 12 (hoge6 6)))
 
   (with-c-syntax ()
     hoge7 \( int x \, float y \)
-    { return x + y \; }
-    )
+    { return x + y \; })
+  (assert (fboundp 'hoge7))
   (assert (<= 5 (hoge7 5 0.4) 6))
 
   (with-c-syntax ()
@@ -60,14 +64,15 @@
       struct test s = { x } \;
       s \. x *= 8 \;
       return s \. x \;
-    }
-    )
+    })
+  (assert (find-wcs-struct-runtime-spec 'test))
+  (assert (fboundp 'hoge8))
   (assert (= 16 (hoge8 2)))
 
   (with-c-syntax ()
     int hoge9 \( int \)
-    { return 9 \; }
-    )
+    { return 9 \; })
+  (assert (fboundp 'hoge9))
   (assert (= 9 (hoge9 'a)))
 
   t)
@@ -75,6 +80,7 @@
 (defun test-trans-decl-static ()
   (eval-equal nil ()
     static int xxx \; )
+  (assert (not (boundp 'xxx)))
   (with-c-syntax ()
     static int xxx = 0 \;
     int reset-a \( \) {
@@ -84,6 +90,9 @@
     int inc-a \( \) {
        return ++ xxx \;
     })
+  (assert (not (boundp 'xxx)))
+  (assert (fboundp 'reset-a))
+  (assert (fboundp 'inc-a))
   (assert (= 1 (inc-a)))
   (assert (= 2 (inc-a)))
   (assert (= 3 (inc-a)))
@@ -107,6 +116,7 @@
 
        return ret \;
     })
+  (assert (fboundp 'sumn))
   (assert (= 0 (sumn 0)))
   (assert (= 3 (sumn 3 1 1 1)))
   (assert (= 10 (sumn 4 1 2 3 4)))
@@ -118,6 +128,7 @@
       int x \, y \;
     { return x + y \; }
    )
+  (assert (not (fboundp 's-func)))
   t)
 
 

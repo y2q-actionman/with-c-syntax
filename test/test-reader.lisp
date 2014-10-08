@@ -94,10 +94,11 @@
       + 3;
     }#)
   #| ? : |#
-  (eval-equal* 2
-    #3{
-    return 1?x:y;
-    }#)
+  (muffle-unused-code-warning
+    (eval-equal* 2
+      #3{
+      return 1?x:y;
+      }#))
   #| ~ |#
   (eval-equal* (lognot 2)
     #3{
@@ -189,10 +190,11 @@
     { int hoge=x; hoge|=y; return hoge; }
     }#)
   #| || |#
-  (eval-equal* 2
-    #3{
-    return x||y;
-    }#)
+  (muffle-unused-code-warning
+    (eval-equal* 2
+      #3{
+      return x||y;
+      }#))
   #| + |#
   (eval-equal* 1
     #3{

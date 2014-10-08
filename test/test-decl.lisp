@@ -4,15 +4,16 @@
 
 (defun test-decl-simple ()
   (eval-equal nil ()
-    int a \;)
+    int *xxx* \;)
+  (assert (boundp '*xxx*))
   (eval-equal 1 ()
     { int a \; a = 1 \; return a \; })
   (eval-equal nil ()
-    { int a \; })
+    { int a \; \( void \) a \; })
   (eval-equal nil ()
     { int \; })             ; should be warned?
   (eval-equal nil ()
-    { int \; int a \; int \; int b \; })
+    { int \; int a \; int \; int b \; \( void \) a \, b \; })
   t)
 
 (defun test-decl-list ()
@@ -77,7 +78,7 @@
     auto int func \( \) \;)
   (assert-compile-error ()
     register int func \( \) \;)
-  (assert-compile-error ()
+  (eval-equal nil ()
     static int func \( \) \;)
   (eval-equal nil ()
     extern int func \( \) \;)
@@ -220,12 +221,14 @@
     {
     struct a \;
     struct a * p \;
+    \( void \) p \;
     return t \;
     })
   (eval-equal t ()
     {
     union a \;
     union a * p \;
+    \( void \) p \;
     return t \;
     })
   (eval-equal 100 ()
@@ -238,17 +241,17 @@
 
 (defun test-init-declarator-list ()
   (eval-equal t ()
-    { int a \; return t \; })
+    { int a \; \( void \) a \; return t \; })
   (eval-equal t ()
-    { int a \, b \; return t \; })
+    { int a \, b \; \( void \) a \, b \; return t \; })
   (eval-equal t ()
-    { int a \, b \, c \; return t \; })
+    { int a \, b \, c \; \( void \) a \, b \, c \; return t \; })
   (eval-equal 0 ()
     { int a = 0 \; return a \; })
   (eval-equal 1 ()
-    { int a \, b = 1 \; return b \; })
+    { int a \, b = 1 \; \( void \) a \; return b \; })
   (eval-equal t ()
-    { int a \, b = 1 \, c = 2 \; return b == 1 && c == 2 \; })
+    { int a \, b = 1 \, c = 2 \; \( void \) a \; return b == 1 && c == 2 \; })
   t)
 
 ;; TODO: add cv-qualifier tests!
@@ -300,7 +303,7 @@
 
 (defun test-struct-declarator ()
   (eval-equal t ()
-    { struct hoge { int x \; } foo \; return t \; })
+    { struct hoge { int x \; } foo \; \( void \) foo \; return t \; })
   (eval-equal t ()
     {
     struct hoge { int x \, y \; } foo \;
@@ -544,7 +547,7 @@
   (assert-compile-error ()
     static int * func_returns_func \( int x \, int y \) \( int z \) \;)
   (eval-equal nil ()
-    int * func_returns_pointer \( int \, int \) \; )
+    static int * func_returns_pointer \( int \, int \) \; )
   (eval-equal nil ()
     static int * \( * funcptr \) \( int \, int \) \; )
   ;; http://unixwiz.net/techtips/reading-cdecl.html

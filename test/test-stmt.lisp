@@ -166,22 +166,29 @@
 
 (defun test-logical-and-exp ()
   (test-inclusive-or-exp)
+  (muffle-unused-code-warning
+    (eval-equal nil ()
+      return (or) && 'b \;))
   (eval-equal 'b ()
     return 'a && 'b \;)
   t)
 
 (defun test-logical-or-exp ()
   (test-logical-and-exp)
-  (eval-equal 'a ()
-    return 'a \|\| 'b \;)
+  (muffle-unused-code-warning
+    (eval-equal 'a ()
+      return 'a \|\| 'b \;))
+  (eval-equal 'b ()
+    return (or) \|\| 'b \;)
   t)
 
 (defun test-conditional-exp ()
   (test-logical-or-exp)
-  (eval-equal 'then ()
-    return (and) ? 'then \: 'else \;)
-  (eval-equal 'else ()
-    return (or) ? 'then \: 'else \;)
+  (muffle-unused-code-warning
+    (eval-equal 'then ()
+      return (and) ? 'then \: 'else \;)
+    (eval-equal 'else ()
+      return (or) ? 'then \: 'else \;))
   t)
 
 (defun test-assignment-exp ()
@@ -265,12 +272,13 @@
 (defun test-selection-stmt ()
   (eval-equal 'then ()
     if \( (and) \) return 'then \; )
-  (eval-equal 'nil ()
-    if \( (or) \) return 'then \; )
-  (eval-equal 'then ()
-    if \( (and) \) return 'then \; else return 'else \;)
-  (eval-equal 'else ()
-    if \( (or) \) return 'then \; else return 'else \;)
+  (muffle-unused-code-warning
+    (eval-equal 'nil ()
+      if \( (or) \) return 'then \; )
+    (eval-equal 'then ()
+      if \( (and) \) return 'then \; else return 'else \;)
+    (eval-equal 'else ()
+      if \( (or) \) return 'then \; else return 'else \;))
 
   (flet ((switch-test (x)
 	   (with-c-syntax ()
@@ -387,24 +395,26 @@
 
 (defun test-jump-stmt ()
   ;; (simple) goto
-  (eval-equal 'y ()
-    {
+  (muffle-unused-code-warning
+    (eval-equal 'y ()
+      {
       goto y \;
       x \: return 'x \;
       y \: return 'y \;
-    })
+      }))
   ;; break, continue
   (let ((i nil) (ret 0))
-    (eval-equal 5050 ()
-      {
-      for \( i = 1 \; \; ++ i \) {
-  	if \( ! \( i <= 100 \) \) break \;
-        ret += i \;
-	continue \;
-	(assert nil () "never comes here") \;
-      }
-      return ret \;
-      }))
+    (muffle-unused-code-warning
+      (eval-equal 5050 ()
+        {
+        for \( i = 1 \; \; ++ i \) {
+  	  if \( ! \( i <= 100 \) \) break \;
+          ret += i \;
+          continue \;
+          (assert nil () "never comes here") \;
+        }
+        return ret \;
+        })))
   ;; return
   (eval-equal 1 ()
     return 1 \; )

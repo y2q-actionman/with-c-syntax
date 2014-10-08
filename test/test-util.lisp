@@ -27,3 +27,9 @@
     (nth-value
      1 
      (ignore-errors (with-c-syntax () ,@body)))))
+
+(defmacro muffle-unused-code-warning (&body body)
+  `(locally
+       (declare
+        #+sbcl(sb-ext:muffle-conditions sb-ext:code-deletion-note))
+     ,@body))
