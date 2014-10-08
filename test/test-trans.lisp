@@ -131,6 +131,23 @@
   (assert (not (fboundp 's-func)))
   t)
 
+(defun test-trans-func-local-static ()
+  (with-c-syntax ()
+    int accumulator \( n \) {
+       static acc = 100 \;
+       if \( n < 0 \) {
+          acc = 0 \;
+          return 0 \;
+       } else {
+          return acc += n \;
+       }
+    })
+  (assert (fboundp 'accumulator))
+  (assert (= 100 (accumulator 0)))
+  (assert (= 101 (accumulator 1)))
+  (assert (= 103 (accumulator 2)))
+  t)
+
 
 (defun test-trans ()
   (test-trans-decl-simple)
