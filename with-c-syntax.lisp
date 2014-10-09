@@ -246,11 +246,9 @@ If a same name is supplied, it is stacked")
     (loop for (spec-qual . struct-decls)
        in (struct-or-union-spec-struct-decl-list sspec)
        do (finalize-decl-specs spec-qual)
-       ;; other struct
-       do (appendf (decl-specs-lisp-bindings dspecs)
-                   (decl-specs-lisp-bindings spec-qual))
-         (appendf (decl-specs-lisp-class-spec dspecs)
-                  (decl-specs-lisp-class-spec spec-qual))
+       ;; included struct decls
+       append (decl-specs-lisp-bindings spec-qual) into other-bindings
+       append (decl-specs-lisp-class-spec spec-qual) into other-class-specs
        ;; this struct
        nconc
          (loop with tp = (decl-specs-lisp-type spec-qual)
@@ -260,11 +258,11 @@ If a same name is supplied, it is stacked")
             as name = (or decl-name (gensym "unnamed-field-"))
             as initform = (expand-init-declarator-init spec-qual abst-decl nil)
             as bits = (struct-declarator-bits s-decl)
+            ;; NOTE: In C, max bits are limited to the normal type.
+            ;; http://stackoverflow.com/questions/2647320/struct-bitfield-max-size-c99-c
             if (and bits
                     (not (subtypep `(signed-byte ,bits) tp))
                     (not (subtypep `(unsigned-byte ,bits) tp)))
-            ;; NOTE: In C, max bits are limited to the normal type.
-            ;; http://stackoverflow.com/questions/2647320/struct-bitfield-max-size-c99-c
             do (error "invalid bitfield: ~A, ~A" tp s-decl) ; limit bits.
             collect (list :lisp-type tp :constness constness
                           :name name
@@ -273,6 +271,8 @@ If a same name is supplied, it is stacked")
                           :decl-specs spec-qual))
        into slot-specs
        finally
+	 (appendf (decl-specs-lisp-bindings dspecs) other-bindings)
+         (appendf (decl-specs-lisp-class-spec dspecs) other-class-specs)
          (setf (wcs-struct-spec-slot-defs wcsspec) slot-specs))
     ;; This wcsspec is treated by this dspecs
     (append-item-to-right-f (decl-specs-lisp-class-spec dspecs)
@@ -312,77 +312,72 @@ If a same name is supplied, it is stacked")
      for tp-list-1 on tp-list
      for tp = (car tp-list-1)
 
-     if (eq tp '|void|)			; void
-     do (unless (length= 1 tp-list)
-	  (error "invalid decl-spec (~A)" tp-list))
-       (setf (decl-specs-lisp-type dspecs) nil)
-     and return dspecs
-
-     else if (struct-or-union-spec-p tp) ; struct / union
-     do (unless (length= 1 tp-list)
-	  (error "invalid decl-spec (~A)" tp-list))
-     and return (finalize-struct-spec tp dspecs)
-
-     else if (enum-spec-p tp)	; enum
-     do (unless (length= 1 tp-list)
-	  (error "invalid decl-spec (~A)" tp-list))
-     and return (finalize-enum-spec tp dspecs)
-
-     else if (listp tp)			; lisp type
-     do (setf (decl-specs-lisp-type dspecs) (second tp))
-     and return dspecs
-       
-     ;; numeric types
-     else if (member tp '(|float| |double| |int| |char|))
-     do (when numeric-type
-	  (error "invalid decl-spec (~A)" tp-list))
-       (setf numeric-type tp)
-     ;; numeric variants
-     else if (member tp '(|signed| |unsigned|))
-     do (when numeric-signedness
-	  (error "invalid decl-spec (~A)" tp-list))
-       (setf numeric-signedness tp)
-     else if (eq tp '|long|)
-     do (unless (<= 0 numeric-length 1)
-	  (error "invalid decl-spec (~A)" tp-list))
-       (incf numeric-length)
-     else if (eq tp '|short|)
-     do (unless (= 0 numeric-length)
-	  (error "invalid decl-spec (~A)" tp-list))
-       (decf numeric-length)
-
-     else if (find-typedef-name tp)     ; typedef name
-     do (let* ((td-dspecs (find-typedef-name tp))
-               (td-dspecs-tp (decl-specs-lisp-type td-dspecs)))
-          (case td-dspecs-tp
-            ;; non-numeric
-            ((nil wcs-struct wcs-enum t)
-             (unless (length= 1 tp-list)
-               (error "invalid decl-spec (~A)" tp-list))
-             (setf (decl-specs-lisp-type dspecs)
-                   (decl-specs-lisp-type td-dspecs)
-                   (decl-specs-wcs-type-tag dspecs)
-                   (decl-specs-wcs-type-tag td-dspecs)
-                   ;; TODO: ??
-                   (decl-specs-typedef-init-decl dspecs)
-                   (decl-specs-typedef-init-decl td-dspecs))
-             (return dspecs))
-            ;; numeric. merge its contents to the parental one.
-            (short-float (appendf tp-list-1 '(|short| |float|)))
-            (single-float (appendf tp-list-1 '(|float|)))
-            (double-float (appendf tp-list-1 '(|double|)))
-            (long-float (appendf tp-list-1 '(|long| |double|)))
-            (fixnum (appendf tp-list-1 '(|int|)))
-            (t (destructuring-bind (byte-type bits) td-dspecs-tp
-                 (when (eq 'unsigned-byte byte-type)
-                   (appendf tp-list-1 '(|unsigned|)))
-                 (ecase bits
-                   (8 (appendf tp-list-1 '(|char|)))
-                   (16 (appendf tp-list-1 '(|short|)))
-                   (32 (appendf tp-list-1 '(|long|)))
-                   (64 (appendf tp-list-1 '(|long| |long|))))))))
-     else
-     do (error "Unexpected internal type: ~S" tp)
+     do
+       (cond
+	 ((eq tp '|void|)		; void
+	  (unless (length= 1 tp-list)
+	    (error "invalid decl-spec (~A)" tp-list))
+	  (setf (decl-specs-lisp-type dspecs) nil)
+	  (return dspecs))
+	 ((struct-or-union-spec-p tp)	; struct / union
+	  (unless (length= 1 tp-list)
+	    (error "invalid decl-spec (~A)" tp-list))
+	  (return (finalize-struct-spec tp dspecs)))
+	 ((enum-spec-p tp)		; enum
+	  (unless (length= 1 tp-list)
+	    (error "invalid decl-spec (~A)" tp-list))
+	  (return (finalize-enum-spec tp dspecs)))
+	 ((listp tp)			; lisp type
+	  (setf (decl-specs-lisp-type dspecs) (second tp))
+	  (return dspecs))
+	 ((find-typedef-name tp)	; typedef name
+	  (let* ((td-dspecs (find-typedef-name tp))
+		 (td-dspecs-tp (decl-specs-lisp-type td-dspecs)))
+	    (case td-dspecs-tp
+	      ;; non-numeric
+	      ((nil wcs-struct wcs-enum t)
+	       (unless (length= 1 tp-list)
+		 (error "invalid decl-spec (~A)" tp-list))
+	       (setf (decl-specs-lisp-type dspecs)
+		     (decl-specs-lisp-type td-dspecs)
+		     (decl-specs-wcs-type-tag dspecs)
+		     (decl-specs-wcs-type-tag td-dspecs)
+		     ;; TODO: ??
+		     (decl-specs-typedef-init-decl dspecs)
+		     (decl-specs-typedef-init-decl td-dspecs))
+	       (return dspecs))
+	      ;; numeric. merge its contents to the parental one.
+	      (short-float (appendf tp-list-1 '(|short| |float|)))
+	      (single-float (appendf tp-list-1 '(|float|)))
+	      (double-float (appendf tp-list-1 '(|double|)))
+	      (long-float (appendf tp-list-1 '(|long| |double|)))
+	      (fixnum (appendf tp-list-1 '(|int|)))
+	      (t (destructuring-bind (byte-type bits) td-dspecs-tp
+		   (when (eq 'unsigned-byte byte-type)
+		     (appendf tp-list-1 '(|unsigned|)))
+		   (ecase bits
+		     (8 (appendf tp-list-1 '(|char|)))
+		     (16 (appendf tp-list-1 '(|short|)))
+		     (32 (appendf tp-list-1 '(|long|)))
+		     (64 (appendf tp-list-1 '(|long| |long|)))))))))
+	 (t				; numeric types
+	  (ecase tp
+	    ((|float| |double| |int| |char|)
+	     (when numeric-type
+	       (error "invalid decl-spec (~A)" tp-list))
+	     (setf numeric-type tp))
+	    ((|signed| |unsigned|)
+	     (when numeric-signedness
+	       (error "invalid decl-spec (~A)" tp-list))
+	     (setf numeric-signedness tp))
+	    (|long|
+	     (unless (<= 0 numeric-length 1)
+	       (error "invalid decl-spec (~A)" tp-list))
+	     (incf numeric-length))
+	    (|short|
+	     (unless (= 0 numeric-length)
+	       (error "invalid decl-spec (~A)" tp-list))
+	     (decf numeric-length)))))
        
      finally
        (setf (decl-specs-lisp-type dspecs)
@@ -817,9 +812,7 @@ If a same name is supplied, it is stacked")
                 unless (member (decl-specs-storage-class dspecs)
                                '(nil |auto| |register|) :test #'eq)
                 do (error "Invalid storage-class for arguments")
-                append
-                  (loop for i in init-decls
-                     collect (init-declarator-lisp-name i)))))
+		nconc (mapcar #'init-declarator-lisp-name init-decls))))
         (unless (equal K&R-param-ids param-ids)
           (error "prototype is not matched with k&r-style params"))))
     (let ((varargs-sym (gensym "varargs-"))
