@@ -1,0 +1,13 @@
+(in-package #:with-c-syntax.stdlib.iso646)
+
+(define-symbol-macro |and| #:&&)
+(define-symbol-macro |and_eq| #:&=)
+(define-symbol-macro |bitand| #:&)
+(define-symbol-macro |bitor| #:\|)
+(define-symbol-macro |compl| #:~)
+(define-symbol-macro |not| #:!)
+(define-symbol-macro |not_eq| #:!=)
+(define-symbol-macro |or| #:\|\|)
+(define-symbol-macro |or_eq| #:\|=)
+(define-symbol-macro |xor| #:^)
+(define-symbol-macro |xor_eq| #:^=)

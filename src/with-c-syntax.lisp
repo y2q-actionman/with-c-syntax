@@ -40,9 +40,8 @@
 	)
     :test 'equal))
 
-(define-constant +predefined-typedef-names+
-    '((|size_t| fixnum) (|wchar_t| fixnum) (|va_list| t))
-  :test 'equal)
+(defvar *predefined-typedef-names* nil
+  "List of (typedef-name type). added by loading stdlibs")
 
 ;;; Variables
 (defvar *enum-const-symbols* nil
@@ -87,7 +86,7 @@ If a same name is supplied, it is stacked")
                                   :test #'string=))))
                (values (car op) (car op)) ; returns the symbol of our package.
                (if-let
-                   ((ptypedef (member value +predefined-typedef-names+
+                   ((ptypedef (member value *predefined-typedef-names*
                                        :key #'(lambda (x)
                                                 (funcall keyword-key-fn (car x)))
                                        :test #'string=)))
@@ -171,7 +170,7 @@ If a same name is supplied, it is stacked")
 (defun find-typedef-name (name)
   (if-let ((udef (gethash name *typedef-names*)))
     (first udef)
-    (if-let ((pdef (member name +predefined-typedef-names+
+    (if-let ((pdef (member name *predefined-typedef-names*
 			   :key #'first
 			   :test #'string=)))
       (ecase (second (car pdef))
@@ -406,7 +405,7 @@ If a same name is supplied, it is stacked")
 		    (ecase numeric-length
 		      (2 '(unsigned-byte 64))
 		      (1 '(unsigned-byte 32))
-		      (0 'fixnum)	; FIXME: consider unsigned?
+		      (0 '(integer 0 #.(max most-positive-fixnum 65535)))
 		      (-1 '(unsigned-byte 16)))
 		    (ecase numeric-length
 		      (2 '(signed-byte 64))
@@ -827,14 +826,7 @@ If a same name is supplied, it is stacked")
          ,(if variadic
               `(macrolet ((va_start (ap &optional last)
                             (declare (ignore last))
-                            `(setf ,ap ,',varargs-sym))
-                          (va_arg (ap &optional type)
-                            (declare (ignore type))
-                            `(pop ,ap))
-                          (va_end (ap)
-                            `(setf ,ap nil))
-                          (va_copy (dest src)
-                            `(setf ,dest (copy-list ,src))))
+                            `(setf ,ap ,',varargs-sym)))
                  ,body)
               body))
        :lisp-type `(function ',(mapcar (constantly t) param-ids)
