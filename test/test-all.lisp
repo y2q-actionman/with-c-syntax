@@ -1,4 +1,4 @@
-(in-package #:with-c-syntax)
+(in-package #:with-c-syntax.test)
 
 (defun test-all ()
   (test-stmt)

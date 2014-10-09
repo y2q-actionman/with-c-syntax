@@ -8,7 +8,6 @@
 		#:destructuring-ecase
 		#:if-let
 		#:when-let
-		#:compose
 		#:appendf		; 3. Conses
 		#:nconcf
 		#:lastcar
@@ -23,4 +22,14 @@
                 #:parse-with-lexer)
   (:export #:with-c-syntax
 	   #:use-reader
-	   #:unuse-reader))
+	   #:unuse-reader
+           ;; TODO:
+           #:pseudo-pointer
+           ;; TODO: move to stdarg
+           #:va_arg
+           #:va_end
+           #:va_start
+           #:va_copy))
+
+(defpackage #:with-c-syntax.test
+  (:use #:cl #:with-c-syntax))

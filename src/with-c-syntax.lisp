@@ -88,7 +88,8 @@ If a same name is supplied, it is stacked")
                (values (car op) (car op)) ; returns the symbol of our package.
                (if-let
                    ((ptypedef (member value +predefined-typedef-names+
-                                       :key (compose keyword-key-fn #'car)
+                                       :key #'(lambda (x)
+                                                (funcall keyword-key-fn (car x)))
                                        :test #'string=)))
                  (values 'typedef-id (caar ptypedef))
                  (cond ((member value *enum-const-symbols*)
@@ -301,7 +302,7 @@ If a same name is supplied, it is stacked")
   (loop with numeric-type = nil 
      with numeric-signedness = nil	; 'signed, 'unsigned, or nil
      with numeric-length = 0		; -1(short), 1(long), 2(long long), or 0
-     with tp-list = (decl-specs-type-spec dspecs)
+     with tp-list of-type list = (decl-specs-type-spec dspecs)
 
      initially
        (when (null tp-list)

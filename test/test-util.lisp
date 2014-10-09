@@ -1,4 +1,4 @@
-(in-package #:with-c-syntax)
+(in-package #:with-c-syntax.test)
 
 (defmacro eval-equal* (val form)
   (let ((exp (gensym)) (ret (gensym)))
@@ -17,10 +17,8 @@
     (nth-value
      1
      (ignore-errors
-       (c-expression-tranform ',body
-                              (or (getf (first *current-c-reader*) :case)
-                                  (readtable-case *readtable*))
-			      nil)))))
+       (macroexpand
+        '(with-c-syntax () ,@body))))))
 
 (defmacro assert-runtime-error (() &body body)
   `(assert

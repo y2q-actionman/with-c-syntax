@@ -1,4 +1,4 @@
-(in-package #:with-c-syntax)
+(in-package #:with-c-syntax.test)
 
 ;;; translation-unit
 
@@ -64,7 +64,7 @@
       s \. x *= 8 \;
       return s \. x \;
     })
-  (assert (find-wcs-struct-runtime-spec 'test))
+  (assert (with-c-syntax::find-wcs-struct-runtime-spec 'test))
   (assert (fboundp 'hoge8))
   (assert (= 16 (hoge8 2)))
 

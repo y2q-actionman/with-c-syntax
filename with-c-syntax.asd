@@ -3,12 +3,25 @@
 (asdf:defsystem #:with-c-syntax
   :depends-on (#:alexandria #:yacc)
   :components ((:file "package")
-	       (:file "util" :depends-on ("package"))
-               (:file "wcs-struct" :depends-on ("package"))
-               (:file "pseudo-pointer" :depends-on ("util"))
-	       (:file "with-c-syntax" :depends-on ("wcs-struct"
-						   "pseudo-pointer"))
-               (:file "reader" :depends-on ("with-c-syntax"))))
+               (:module "src"
+                :components
+                ((:file "util")
+                 (:file "wcs-struct")
+                 (:file "pseudo-pointer" :depends-on ("util"))
+                 (:file "with-c-syntax" :depends-on ("wcs-struct"
+                                                     "pseudo-pointer"))
+                 (:file "reader" :depends-on ("with-c-syntax")))
+                :depends-on ("package"))
+               (:module "libc"
+                :components
+                ((:file "float")
+                 (:file "iso646")
+                 (:file "limits")
+                 (:file "stdarg")
+                 (:file "stdbool")
+                 (:file "stddef")
+                 (:file "stdint"))
+                :depends-on ("src"))))
 
 (asdf:defsystem #:with-c-syntax.test
   :pathname #.(make-pathname :directory '(:relative "test"))
