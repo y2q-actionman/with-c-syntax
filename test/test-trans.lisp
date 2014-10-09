@@ -6,7 +6,6 @@
   (eval-equal nil ()
     int *a* \; )
   (assert (boundp '*a*))
-  (assert (= *a* 0))
   (eval-equal nil ()
     int *a* \; int *b* \; )
   (assert (boundp '*a*))
@@ -78,8 +77,8 @@
   t)
 
 (defun test-trans-decl-static ()
-  (eval-equal nil ()
-    static int xxx \; )
+  (eval-equal 99 (:entry-form xxx)
+    static int xxx = 99 \; )
   (assert (not (boundp 'xxx)))
   (with-c-syntax ()
     static int xxx = 0 \;

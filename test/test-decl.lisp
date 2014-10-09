@@ -532,14 +532,26 @@
 
 (defun test-array-pointer-decl ()
   ;; NOTE: These tests only checks these notations can be parsed or not..
-  (eval-equal nil ()
-    static int * array_of_pointer [ 5 ] \;)
-  (eval-equal nil ()
-    static int \( * pointer_to_array \) [ 5 ] \; )
-  (eval-equal nil ()
-    static int * \( array_of_pointer [ 5 ] \) \; )
-  (eval-equal nil ()
-    static int \( * array_of_func_ptr [ 5 ] \) \( int \, int \) \; )
+  (eval-equal t ()
+    {
+    int * array_of_pointer [ 5 ] \;
+    return (arrayp array_of_pointer) \;
+    })
+  (eval-equal t ()
+    {
+    int \( * pointer_to_array \) [ 5 ] \;
+    return (typep pointer_to_array 'pseudo-pointer) \;
+    })
+  (eval-equal t ()
+    {
+    int * \( array_of_pointer [ 5 ] \) \;
+    return (arrayp array_of_pointer) \;
+    })
+  (eval-equal t ()
+    {
+    int \( * array_of_func_ptr [ 5 ] \) \( int \, int \) \;
+    return (arrayp array_of_func_ptr) \;
+    })
   (assert-compile-error ()
     static int * array_of_func [ 5 ] \( int \, int \) \; )
   (assert-compile-error ()
@@ -548,8 +560,11 @@
     static int * func_returns_func \( int x \, int y \) \( int z \) \;)
   (eval-equal nil ()
     static int * func_returns_pointer \( int \, int \) \; )
-  (eval-equal nil ()
-    static int * \( * funcptr \) \( int \, int \) \; )
+  (eval-equal t ()
+    {
+    int * \( * funcptr \) \( int \, int \) \;
+    return (typep funcptr 'pseudo-pointer) \;
+    })
   ;; http://unixwiz.net/techtips/reading-cdecl.html
   ;; (test '(char * \( * \( * * foo [ ] [ 8 ] \) \( \) \) [ ] \;))
   t)
