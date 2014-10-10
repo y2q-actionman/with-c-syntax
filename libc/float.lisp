@@ -1,18 +1,4 @@
-(in-package #:with-c-syntax.stdlib.float)
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-(defun mantissa-radix-change (mantissa from-radix to-radix)
-  (+ (floor (* (1- mantissa)
-               (log from-radix to-radix)))
-     (if (= from-radix to-radix) 1 0))))
-  
-;; XXX:
-;; In ANSI CL, we have no way to accessing the Floating Point Mode.
-;; We must use implementation-dependent features...
-;; 
-;; CMUCL: http://www.umiacs.umd.edu/~resnik/ling645_sp2002/cmu_manual/node22.html
-(defconstant FLT_ROUNDS
-  -1)
+(in-package #:with-c-syntax.stdlib)
 
 ;; single-float
 (defconstant FLT_RADIX
@@ -140,6 +126,14 @@
 (defconstant SFLT_MAX_10_EXP
   #.(floor (log most-positive-short-float 10)))
 
+;; XXX:
+;; In ANSI CL, we have no way to accessing the Floating Point Mode.
+;; We must use implementation-dependent features...
+;; 
+;; CMUCL: http://www.umiacs.umd.edu/~resnik/ling645_sp2002/cmu_manual/node22.html
+(defconstant FLT_ROUNDS
+  -1)
+
 ;; C99
 (defconstant DECIMAL_DIG
   #.(max SFLT_DIG FLT_DIG DBL_DIG LDBL_DIG))
@@ -168,3 +162,54 @@
 ;; destroying this assumption -- in the far and far future.
 (defconstant FLT_EVAL_METHOD
   -1)
+
+(eval-when (:load-toplevel :execute)
+;; single-float
+(define-preprocessor-symbol 'FLT_RADIX 'FLT_RADIX)
+(define-preprocessor-symbol 'FLT_MANT_DIG 'FLT_MANT_DIG)
+(define-preprocessor-symbol 'FLT_EPSILON 'FLT_EPSILON)
+(define-preprocessor-symbol 'FLT_DIG 'FLT_DIG)
+(define-preprocessor-symbol 'FLT_MIN_EXP 'FLT_MIN_EXP)
+(define-preprocessor-symbol 'FLT_MIN 'FLT_MIN)
+(define-preprocessor-symbol 'FLT_MIN_10_EXP 'FLT_MIN_10_EXP)
+(define-preprocessor-symbol 'FLT_MAX_EXP 'FLT_MAX_EXP)
+(define-preprocessor-symbol 'FLT_MAX 'FLT_MAX)
+(define-preprocessor-symbol 'FLT_MAX_10_EXP 'FLT_MAX_10_EXP)
+;; double-float
+(define-preprocessor-symbol 'DBL_RADIX 'DBL_RADIX)
+(define-preprocessor-symbol 'DBL_MANT_DIG 'DBL_MANT_DIG)
+(define-preprocessor-symbol 'DBL_EPSILON 'DBL_EPSILON)
+(define-preprocessor-symbol 'DBL_DIG 'DBL_DIG)
+(define-preprocessor-symbol 'DBL_MIN_EXP 'DBL_MIN_EXP)
+(define-preprocessor-symbol 'DBL_MIN 'DBL_MIN)
+(define-preprocessor-symbol 'DBL_MIN_10_EXP 'DBL_MIN_10_EXP)
+(define-preprocessor-symbol 'DBL_MAX_EXP 'DBL_MAX_EXP)
+(define-preprocessor-symbol 'DBL_MAX 'DBL_MAX)
+(define-preprocessor-symbol 'DBL_MAX_10_EXP 'DBL_MAX_10_EXP)
+;; long-float
+(define-preprocessor-symbol 'LDBL_RADIX 'LDBL_RADIX)
+(define-preprocessor-symbol 'LDBL_MANT_DIG 'LDBL_MANT_DIG)
+(define-preprocessor-symbol 'LDBL_EPSILON 'LDBL_EPSILON)
+(define-preprocessor-symbol 'LDBL_DIG 'LDBL_DIG)
+(define-preprocessor-symbol 'LDBL_MIN_EXP 'LDBL_MIN_EXP)
+(define-preprocessor-symbol 'LDBL_MIN 'LDBL_MIN)
+(define-preprocessor-symbol 'LDBL_MIN_10_EXP 'LDBL_MIN_10_EXP)
+(define-preprocessor-symbol 'LDBL_MAX_EXP 'LDBL_MAX_EXP)
+(define-preprocessor-symbol 'LDBL_MAX 'LDBL_MAX)
+(define-preprocessor-symbol 'LDBL_MAX_10_EXP 'LDBL_MAX_10_EXP)
+;; short-float; 'extension
+(define-preprocessor-symbol 'SFLT_RADIX 'SFLT_RADIX)
+(define-preprocessor-symbol 'SFLT_MANT_DIG 'SFLT_MANT_DIG)
+(define-preprocessor-symbol 'SFLT_EPSILON 'SFLT_EPSILON)
+(define-preprocessor-symbol 'SFLT_DIG 'SFLT_DIG)
+(define-preprocessor-symbol 'SFLT_MIN_EXP 'SFLT_MIN_EXP)
+(define-preprocessor-symbol 'SFLT_MIN 'SFLT_MIN)
+(define-preprocessor-symbol 'SFLT_MIN_10_EXP 'SFLT_MIN_10_EXP)
+(define-preprocessor-symbol 'SFLT_MAX_EXP 'SFLT_MAX_EXP)
+(define-preprocessor-symbol 'SFLT_MAX 'SFLT_MAX)
+(define-preprocessor-symbol 'SFLT_MAX_10_EXP 'SFLT_MAX_10_EXP)
+;; system
+(define-preprocessor-symbol 'FLT_ROUNDS 'FLT_ROUNDS)
+(define-preprocessor-symbol 'DECIMAL_DIG 'DECIMAL_DIG)
+(define-preprocessor-symbol 'FLT_EVAL_METHOD 'FLT_EVAL_METHOD)
+)

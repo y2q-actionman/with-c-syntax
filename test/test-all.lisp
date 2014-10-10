@@ -7,4 +7,5 @@
   (test-trans)
   (test-examples)
   (test-reader)
+  (test-preprocessor)
   t)

@@ -1,6 +1,4 @@
-(in-package #:with-c-syntax.stdlib.stddef)
-
-(defconstant NULL 0)
+(in-package #:with-c-syntax.stdlib)
 
 (defun offsetof* (tag sym)
   (let ((spec-obj (with-c-syntax::find-wcs-struct-runtime-spec tag)))
@@ -10,22 +8,12 @@
 (defmacro offsetof (struct-tag sym)
   `(offsetof* ',struct-tag ',sym))
 
-(deftype |ptrdiff_t| ()
-  'fixnum)
-
-(deftype |size_t| ()
-  'fixnum)
-
-(deftype |wchar_t| ()
-  'fixnum)
-
 (eval-when (:load-toplevel :execute)
-  (pushnew '(|ptrdiff_t| fixnum)
-           *predefined-typedef-names*
-           :test #'equal)
-  (pushnew '(|size_t| fixnum)
-           *predefined-typedef-names*
-           :test #'equal)
-  (pushnew '(|wchar_t| fixnum)
-           *predefined-typedef-names*
-           :test #'equal))
+  (define-preprocessor-symbol 'NULL 0)
+  (define-predefined-typedef-and-aliases '|ptrdiff_t| 'fixnum
+    '(|ptrdiff_t| |PTRDIFF_T|))
+  (define-predefined-typedef-and-aliases '|size_t| 'fixnum
+    '(|size_t| |SIZE_T|))
+  (define-predefined-typedef-and-aliases '|wchar_t| 'fixnum
+    '(|wchar_t| |WCHAR_T|))
+  )

@@ -1,116 +1,76 @@
 (in-package #:with-c-syntax)
 
-;;; Constants
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (define-constant +operators+
-      '(|,|
-	= *= /= %= += -= <<= >>= &= ^= \|=
-	? |:|
-	\|\|
-	&&
-	\|
-	^
-	&
-	== !=
-	< > <= >=
-	>> <<
-	+ -
-	* / %
-	\( \)
-	++ -- |sizeof|
-	& * + - ~ !
-	[ ] \. ->
-	)
-    :test 'equal)
-
-  (define-constant +keywords+
-      '(\;
-	|auto| |register| |static| |extern| |typedef|
-	|void| |char| |short| |int| |long|
-        |float| |double| |signed| |unsigned|
-	|const| |volatile|
-	|struct| |union|
-	|enum|
-	|...|
-	|case| |default|
-	{ }
-	|if| |else| |switch|
-	|while| |do| |for|
-	|goto| |continue| |break| |return|
-	)
-    :test 'equal))
-
-(defvar *predefined-typedef-names* nil
-  "List of (typedef-name type). added by loading stdlibs")
-
 ;;; Variables
 (defvar *enum-const-symbols* nil
-  "list of (symbol initform)")
-(defvar *dynamic-binding-requested* nil)
+  "[stub] list of (symbol initform)")
+
 (defvar *wcs-struct-specs* (make-hash-table :test 'eq)
-  "hashtable: struct-name -> list of wcs-struct-spec.
+  "[stub] hashtable: struct-name -> list of wcs-struct-spec.
 If a same name is supplied, it is stacked")
+
 (defvar *typedef-names* (make-hash-table :test 'eq)
-  "hashtable: symbol -> list of decl-specs")
+  "[stub] hashtable: symbol -> list of decl-specs")
+
+(defvar *dynamic-binding-requested* nil
+  "list of symbol.
+If a pseudo-pointer is created for a symbol, the symbol is added to
+here, because such a symbol must be handled *carefully*.
+This variable is closed for every translation-units.")
+
 (defvar *function-pointer-ids* nil
-  "list of symbol")
-(defvar *toplevel-entry-form* nil)
+  "list of symbol.
+If a variable is declared as a pointer to a function, the symbol is
+added to here. Such a symbol is specially treated by the
+function-calling expression.
+This variable is closed for every translation-units.")
+
+(defvar *toplevel-entry-form* nil
+  "[stub] a list")
 
 (defmacro with-new-wcs-environment ((entry-form)
 				    &body body)
-  `(let* ((*enum-const-symbols* nil)
-          (*dynamic-binding-requested* nil)
-          (*wcs-struct-specs* (make-hash-table :test 'eq))
-          (*typedef-names* (make-hash-table :test 'eq))
-          (*function-pointer-ids* nil)
-	  (*toplevel-entry-form* ,entry-form))
+  `(let ((*enum-const-symbols* *enum-const-symbols*)
+         (*wcs-struct-specs* (copy-hash-table *wcs-struct-specs*))
+         (*typedef-names* (copy-hash-table *typedef-names*))
+         (*dynamic-binding-requested* nil)
+         (*function-pointer-ids* nil)
+         (*toplevel-entry-form* ,entry-form))
      ,@body))
 
 ;;; Lexer
-(defun list-lexer (list keyword-case)
-  (let ((keyword-key-fn
-         (if (eq keyword-case :upcase)
-             #'string-upcase #'identity)))
-    #'(lambda ()
-        (let ((value (pop list)))
-          (typecase value
-            (null
-             (values nil nil))
-            (symbol
-             (if-let
-                 ((op (or (member value +operators+
-                                  :key keyword-key-fn
-                                  :test #'string=)
-                          (member value +keywords+
-                                  :key keyword-key-fn
-                                  :test #'string=))))
-               (values (car op) (car op)) ; returns the symbol of our package.
-               (if-let
-                   ((ptypedef (member value *predefined-typedef-names*
-                                       :key #'(lambda (x)
-                                                (funcall keyword-key-fn (car x)))
-                                       :test #'string=)))
-                 (values 'typedef-id (caar ptypedef))
-                 (cond ((member value *enum-const-symbols*)
-                        (values 'enumeration-const value))
-                       ((gethash value *typedef-names*)
-                        (values 'typedef-id value))
-                       (t
-                        (values 'id value))))))
-            (integer
-             (values 'int-const value))
-            (character
-             (values 'char-const value))
-            (float
-             (values 'float-const value))
-            (string
-             (values 'string value))
-            (list
-	     (if (string= (first value) (funcall keyword-key-fn '|type|))
-		 (values 'lisp-type value)
-		 (values 'lisp-expression value)))
-            (t
-             (error "Unexpected value ~S" value)))))))
+(defun list-lexer (list)
+  #'(lambda ()
+      (let ((value (pop list)))
+        (typecase value
+          (null
+           (values nil nil))
+          (symbol
+           (if-let
+               ((op (or (member value +operators+
+                                :test #'string=)
+                        (member value +keywords+
+                                :test #'string=))))
+             (values (car op) (car op)) ; returns the symbol of our package.
+             (cond ((member value *enum-const-symbols*)
+                    (values 'enumeration-const value))
+                   ((gethash value *typedef-names*)
+                    (values 'typedef-id value))
+                   (t
+                    (values 'id value)))))
+          (integer
+           (values 'int-const value))
+          (character
+           (values 'char-const value))
+          (float
+           (values 'float-const value))
+          (string
+           (values 'string value))
+          (list
+           (if (string= (first value) '|type|)
+               (values 'lisp-type value)
+               (values 'lisp-expression value)))
+          (t
+           (error "Unexpected value ~S" value))))))
 
 ;;; Declarations
 (defstruct decl-specs
@@ -161,8 +121,6 @@ If a same name is supplied, it is stacked")
 ;; typedefs
 (defparameter *default-decl-specs*
   (make-decl-specs))
-(defparameter *default-decl-specs-fixnum*
-  (make-decl-specs :lisp-type 'fixnum))
 
 (defun push-typedef-name (name dspecs)
   (push dspecs (gethash name *typedef-names*)))
@@ -170,16 +128,14 @@ If a same name is supplied, it is stacked")
 (defun find-typedef-name (name)
   (if-let ((udef (gethash name *typedef-names*)))
     (first udef)
-    (if-let ((pdef (member name *predefined-typedef-names*
-			   :key #'first
-			   :test #'string=)))
-      (ecase (second (car pdef))
-	(fixnum *default-decl-specs-fixnum*)
-	((t) *default-decl-specs*))
-      nil)))
+    nil))
 
 (defun drop-typedef-name (name)
   (pop (gethash name *typedef-names*)))
+
+(defun define-predefined-typedef (name lisp-type)
+  (push-typedef-name name
+                     (make-decl-specs :lisp-type lisp-type)))
 
 ;; structure information
 (defstruct wcs-struct-spec
@@ -299,8 +255,7 @@ If a same name is supplied, it is stacked")
 
 (defun finalize-type-spec (dspecs)
   (loop with numeric-type = nil 
-     with numeric-signedness = nil	; 'signed, 'unsigned, or nil
-     with numeric-length = 0		; -1(short), 1(long), 2(long long), or 0
+     with numeric-symbols = nil
      with tp-list of-type list = (decl-specs-type-spec dspecs)
 
      initially
@@ -332,86 +287,41 @@ If a same name is supplied, it is stacked")
 	  (return dspecs))
 	 ((find-typedef-name tp)	; typedef name
 	  (let* ((td-dspecs (find-typedef-name tp))
-		 (td-dspecs-tp (decl-specs-lisp-type td-dspecs)))
-	    (case td-dspecs-tp
-	      ;; non-numeric
-	      ((nil wcs-struct wcs-enum t)
-	       (unless (length= 1 tp-list)
-		 (error "invalid decl-spec (~A)" tp-list))
-	       (setf (decl-specs-lisp-type dspecs)
-		     (decl-specs-lisp-type td-dspecs)
-		     (decl-specs-wcs-type-tag dspecs)
-		     (decl-specs-wcs-type-tag td-dspecs)
-		     ;; TODO: ??
-		     (decl-specs-typedef-init-decl dspecs)
-		     (decl-specs-typedef-init-decl td-dspecs))
-	       (return dspecs))
-	      ;; numeric. merge its contents to the parental one.
-	      (short-float (appendf tp-list-1 '(|short| |float|)))
-	      (single-float (appendf tp-list-1 '(|float|)))
-	      (double-float (appendf tp-list-1 '(|double|)))
-	      (long-float (appendf tp-list-1 '(|long| |double|)))
-	      (fixnum (appendf tp-list-1 '(|int|)))
-	      (t (destructuring-bind (byte-type bits) td-dspecs-tp
-		   (when (eq 'unsigned-byte byte-type)
-		     (appendf tp-list-1 '(|unsigned|)))
-		   (ecase bits
-		     (8 (appendf tp-list-1 '(|char|)))
-		     (16 (appendf tp-list-1 '(|short|)))
-		     (32 (appendf tp-list-1 '(|long|)))
-		     (64 (appendf tp-list-1 '(|long| |long|)))))))))
+	         (td-dspecs-tp (decl-specs-lisp-type td-dspecs))
+                 (n-entry (rassoc td-dspecs-tp
+                                  +numeric-types-alist+
+                                  :test #'equal)))
+            (if n-entry
+                ;; numeric. merge its contents to the parental one.
+                (appendf tp-list-1 (car n-entry))
+                ;; non-numeric
+                (progn
+                  (unless (length= 1 tp-list)
+                    (error "invalid decl-spec (~A)" tp-list))
+                  (setf (decl-specs-lisp-type dspecs)
+                        (decl-specs-lisp-type td-dspecs)
+                        (decl-specs-wcs-type-tag dspecs)
+                        (decl-specs-wcs-type-tag td-dspecs)
+                        (decl-specs-typedef-init-decl dspecs)
+                        (decl-specs-typedef-init-decl td-dspecs))
+                  (return dspecs)))))
 	 (t				; numeric types
-	  (ecase tp
-	    ((|float| |double| |int| |char|)
-	     (when numeric-type
-	       (error "invalid decl-spec (~A)" tp-list))
-	     (setf numeric-type tp))
-	    ((|signed| |unsigned|)
-	     (when numeric-signedness
-	       (error "invalid decl-spec (~A)" tp-list))
-	     (setf numeric-signedness tp))
-	    (|long|
-	     (unless (<= 0 numeric-length 1)
-	       (error "invalid decl-spec (~A)" tp-list))
-	     (incf numeric-length))
-	    (|short|
-	     (unless (= 0 numeric-length)
-	       (error "invalid decl-spec (~A)" tp-list))
-	     (decf numeric-length)))))
+          (when (member tp '(|float| |double| |int| |char|) :test #'eq)
+            (when numeric-type
+              (error "invalid decl-spec (~A)" tp-list))
+            (setf numeric-type tp))
+          (push tp numeric-symbols)))
        
      finally
+       (unless numeric-type
+         (push '|int| numeric-symbols))
+       (setf numeric-symbols (sort numeric-symbols #'string<))
        (setf (decl-specs-lisp-type dspecs)
-	     (ecase numeric-type
-	       (|float|
-		(when (or numeric-signedness
-			  (not (member numeric-length '(-1 0))))
-		  (error "invalid decl-spec (~A)" tp-list))
-		(if (eq numeric-length -1)
-		    'short-float 'single-float))
-	       (|double|
-		(when (or numeric-signedness
-			  (not (member numeric-length '(0 1))))
-		  (error "invalid decl-spec (~A)" tp-list))
-		(if (eq numeric-length 1)
-		    'long-float 'double-float))
-	       (|char|
-		(unless (zerop numeric-length)
-		  (error "invalid decl-spec (~A)" tp-list))
-		(if (eq '|unsigned| numeric-signedness) ; raw 'char' is signed
-		    '(unsigned-byte 8)
-		    '(signed-byte 8)))
-	       ((|int| nil)
-		(if (eq '|unsigned| numeric-signedness)
-		    (ecase numeric-length
-		      (2 '(unsigned-byte 64))
-		      (1 '(unsigned-byte 32))
-		      (0 '(integer 0 #.(max most-positive-fixnum 65535)))
-		      (-1 '(unsigned-byte 16)))
-		    (ecase numeric-length
-		      (2 '(signed-byte 64))
-		      (1 '(signed-byte 32))
-		      (0 'fixnum)
-		      (-1 '(signed-byte 16)))))))
+             (if-let ((n-entry (assoc numeric-symbols
+                                      +numeric-types-alist+
+                                      :test #'equal)))
+               (cdr n-entry)
+               (error "invalid numeric type: ~A" numeric-symbols)))
        (return dspecs)))
 
 (defun finalize-decl-specs (dspecs)
@@ -554,6 +464,7 @@ If a same name is supplied, it is stacked")
 	       (not (member storage-class '(nil |extern| |static|))))
       (error "a function cannot have such storage-class: ~S" storage-class))
     (when-let (td-init-decl (decl-specs-typedef-init-decl dspecs))
+      ;; expand typedef contents
       (appendf abst-decl
                (cdr (init-declarator-declarator td-init-decl))))
     (multiple-value-bind (var-init var-type)
@@ -783,6 +694,10 @@ If a same name is supplied, it is stacked")
   func-body
   lisp-type)
 
+(defmacro get-varargs (dst)
+  (declare (ignore dst))
+  (error "trying to get variadic args list out of variadic funcs"))
+
 (defun lispify-function-definition (name body &key return K&R-decls)
   (let* ((func-name (first name))
          (func-param (getf (second name) :funcall))
@@ -824,8 +739,7 @@ If a same name is supplied, it is stacked")
        :func-body
        `((declare (ignore ,@omitted))
          ,(if variadic
-              `(macrolet ((va_start (ap &optional last)
-                            (declare (ignore last))
+              `(macrolet ((get-varargs (ap)
                             `(setf ,ap ,',varargs-sym)))
                  ,body)
               body))
@@ -1813,7 +1727,9 @@ If a same name is supplied, it is stacked")
 ;;; Expander
 (defun c-expression-tranform (form keyword-case entry-form)
   (with-new-wcs-environment (entry-form)
-    (parse-with-lexer (list-lexer form keyword-case)
+    (parse-with-lexer (list-lexer (preprocessor form
+                                                :allow-upcase-keyword
+                                                (eq keyword-case :upcase)))
                       *expression-parser*)))
 
 ;;; Macro interface
