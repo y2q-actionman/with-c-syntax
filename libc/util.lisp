@@ -15,9 +15,9 @@
 (defun unsigned-byte-max (bits)
   (1- (expt 2 bits))))
 
-(defun define-predefined-typedef-and-aliases (name type aliases)
+(defun define-predefined-typedef-and-aliases (name type)
   ;; typedefs name -> type
   (define-predefined-typedef name type)
   ;; addes package-free alias
-  (loop for i in aliases
-       do (define-preprocessor-symbol i name)))
+  (define-preprocessor-macro (symbol-name name) name)
+  (define-preprocessor-macro (string-upcase (symbol-name name)) name t))

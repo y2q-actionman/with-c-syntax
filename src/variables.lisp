@@ -36,6 +36,8 @@
 	|if| |else| |switch|
 	|while| |do| |for|
 	|goto| |continue| |break| |return|
+        |__lisp_type|
+        |__offsetof|
 	)
     :test 'equal))
 

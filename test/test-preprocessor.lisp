@@ -167,34 +167,6 @@
     return MB_LEN_MAX >= 1 \;)
   t)
 
-(defun test-stdlib-stdbool ()
-  (eval-equal 1 ()
-    {
-    bool x = 1 \;
-    return x \;
-    })
-  (eval-equal 1 ()
-    return |__bool_true_false_are_defined| \;)
-  (eval-equal t ()
-    return true \;)
-  (eval-equal nil ()
-    return false \;)
-  t)
-
-(defun test-stdlib-stddef ()
-  (eval-equal 1 ()
-    {
-    bool x = 1 \;
-    return x \;
-    })
-  (eval-equal 1 ()
-    return |__bool_true_false_are_defined| \;)
-  (eval-equal t ()
-    return true \;)
-  (eval-equal nil ()
-    return false \;)
-  t)
-
 (defun test-stdlib-stddef ()
   (eval-equal 0 ()
     return NULL \;)
@@ -213,12 +185,44 @@
     wchar_t x = 3 \;
     return x \;
     })
+
+  (assert-compile-error ()
+    return offsetof \( int \, i \) \;)
+  (assert-compile-error ()
+    return offsetof \( struct s \, i \) \;)
+    
+  (eval-equal t ()
+    {
+    struct s {
+        int i \;
+        char c \;
+        double d \;
+        char a [ 0 ] \;
+    } \;
+
+    struct s dummy \;
+    \( void \) dummy \;
+
+    return offsetof \( struct s \, i \) >= 0
+     && offsetof \( struct s \, c \) >= offsetof \( struct s \, i \)
+     && offsetof \( struct s \, d \) >= offsetof \( struct s \, c \)
+     && offsetof \( struct s \, a \) >= offsetof \( struct s \, d \) \;
+    })
+  t)
+
+(defun test-typedef-hack ()
+  (eval-equal 1 ()
+    {
+    typedef int int_t \;
+    int_t x = 1 \;
+    return x \;
+    })
   t)
 
 (defun test-preprocessor ()
   (test-stdlib-float)
   (test-stdlib-iso646)
   (test-stdlib-limits)
-  (test-stdlib-stdbool)
   (test-stdlib-stddef)
+  (test-typedef-hack)
   t)

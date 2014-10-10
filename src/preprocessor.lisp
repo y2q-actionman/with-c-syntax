@@ -1,6 +1,31 @@
 (in-package #:with-c-syntax)
 
-(defvar *preprocessor-symbol-macro* nil)
+(defun preprocessor-initial-set ()
+  (flet ((make-entry (sym)
+           (cons (symbol-name sym) sym)))
+    (nconc (mapcar #'make-entry +operators+)
+           (mapcar #'make-entry +keywords+))))
+
+(defun preprocessor-initial-set-for-upcase ()
+  (flet ((make-entry (sym)
+           (let ((ucase (string-upcase (symbol-name sym))))
+             (if (string/= sym ucase)
+                 (cons ucase sym)
+                 nil))))
+    (delete nil
+            (nconc (mapcar #'make-entry +operators+)
+                   (mapcar #'make-entry +keywords+)))))
+
+(defvar *preprocessor-macro*
+  (preprocessor-initial-set))
+
+(defvar *preprocessor-macro-for-upcase*
+  (preprocessor-initial-set-for-upcase))
+
+(defun preprocessor-macro-compare (x y)
+  (if (and (symbolp x) (symbolp y))
+      (eq x y)
+      (string= x y)))
 
 (defun preprocessor-call-macro (lis-head name fn)
   ;; firstly, finds first '('
@@ -28,38 +53,29 @@
        else
        collect (get-arg) into args
        finally
-         (pprint args)
          (return (values (apply fn args)
                          lis-head)))))
 
+;; TODO: recursive expansion
 (defun preprocessor (lis &key allow-upcase-keyword)
   (loop with ret = nil
+     with typedef-hack = nil
      for i = (pop lis)
      while i
-     ;; keyword case conversion
-     when allow-upcase-keyword
-     do(when (symbolp i)
-         (when-let
-             ((op (or (member i +operators+
-                              :key #'string-upcase
-                              :test #'string=)
-                      (member i +keywords+
-                              :key #'string-upcase
-                              :test #'string=))))
-           (push (car op) ret)
-           (setf i nil)))
-       (when (and (listp i)
-                  (string= (first i) (string-upcase '|type|)))
-         (push `(|type| ,@(rest i)) ret)
-         (setf i nil))
      ;; preprocessor macro
      when (symbolp i)
-     do (let* ((entry (assoc i *preprocessor-symbol-macro*
-                             :test #'string=))
+     do (let* ((entry
+                (or (assoc i *preprocessor-macro*
+                           :test #'preprocessor-macro-compare)
+                    (if allow-upcase-keyword
+                        (assoc i *preprocessor-macro-for-upcase*
+                               :test #'preprocessor-macro-compare))))
                (name (car entry))
                (val (cdr entry)))
           (when entry
-            (cond ((functionp val)    ; preprocessor funcion
+            (cond ((null val)           ; no-op
+                   nil)                   
+                  ((functionp val)    ; preprocessor funcion
                    (multiple-value-bind (ex-val new-lis)
                        (preprocessor-call-macro lis name val)
                      (push ex-val ret)
@@ -72,11 +88,27 @@
      when i
      do (push i ret)
 
+     ;; typedef hack -- addes "void \;" after each typedef.
+     if (eq (first ret) '|typedef|)
+     do (setf typedef-hack t)
+     else if (and typedef-hack
+                  (eq (first ret) '\;))
+     do (setf typedef-hack nil)
+       (push '|void| ret)
+       (push '\; ret)
+     end
+
      finally
        (return (nreverse ret))))
 
-(defun define-preprocessor-symbol (name val)
-  (if-let ((entry (assoc name *preprocessor-symbol-macro*
-                         :test #'string=)))
-    (setf (cdr entry) val)
-    (push (cons name val) *preprocessor-symbol-macro*)))
+(defun define-preprocessor-macro (name val &optional for-upcase)
+  ;; TODO: cleanup..
+  (if for-upcase
+      (if-let ((entry (assoc name *preprocessor-macro-for-upcase*
+                             :test #'preprocessor-macro-compare)))
+        (setf (cdr entry) val)
+        (push (cons name val) *preprocessor-macro-for-upcase*))
+      (if-let ((entry (assoc name *preprocessor-macro*
+                             :test #'preprocessor-macro-compare)))
+        (setf (cdr entry) val)
+        (push (cons name val) *preprocessor-macro*))))

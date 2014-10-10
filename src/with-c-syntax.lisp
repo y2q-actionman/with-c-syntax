@@ -4,6 +4,10 @@
 (defvar *enum-const-symbols* nil
   "[stub] list of (symbol initform)")
 
+(defvar *global-wcs-struct-specs* (make-hash-table :test 'eq)
+  "[stub] hashtable: struct-name -> list of wcs-struct-spec.
+If a same name is supplied, it is stacked")
+
 (defvar *wcs-struct-specs* (make-hash-table :test 'eq)
   "[stub] hashtable: struct-name -> list of wcs-struct-spec.
 If a same name is supplied, it is stacked")
@@ -30,7 +34,7 @@ This variable is closed for every translation-units.")
 (defmacro with-new-wcs-environment ((entry-form)
 				    &body body)
   `(let ((*enum-const-symbols* *enum-const-symbols*)
-         (*wcs-struct-specs* (copy-hash-table *wcs-struct-specs*))
+         (*wcs-struct-specs* (copy-hash-table *global-wcs-struct-specs*))
          (*typedef-names* (copy-hash-table *typedef-names*))
          (*dynamic-binding-requested* nil)
          (*function-pointer-ids* nil)
@@ -45,18 +49,17 @@ This variable is closed for every translation-units.")
           (null
            (values nil nil))
           (symbol
-           (if-let
-               ((op (or (member value +operators+
-                                :test #'string=)
-                        (member value +keywords+
-                                :test #'string=))))
-             (values (car op) (car op)) ; returns the symbol of our package.
-             (cond ((member value *enum-const-symbols*)
-                    (values 'enumeration-const value))
-                   ((gethash value *typedef-names*)
-                    (values 'typedef-id value))
-                   (t
-                    (values 'id value)))))
+           (cond ((or (member value +operators+ :test #'eq)
+                      (member value +keywords+ :test #'eq))
+                  ;; They must be belongs this package.
+                  ;; (done by the preprocessor)
+                  (values value value))
+                 ((member value *enum-const-symbols* :test #'eq)
+                  (values 'enumeration-const value))
+                 ((gethash value *typedef-names*)
+                  (values 'typedef-id value))
+                 (t
+                  (values 'id value))))
           (integer
            (values 'int-const value))
           (character
@@ -66,9 +69,7 @@ This variable is closed for every translation-units.")
           (string
            (values 'string value))
           (list
-           (if (string= (first value) '|type|)
-               (values 'lisp-type value)
-               (values 'lisp-expression value)))
+           (values 'lisp-expression value))
           (t
            (error "Unexpected value ~S" value))))))
 
@@ -142,13 +143,15 @@ This variable is closed for every translation-units.")
   struct-name                           ; user supplied name (symbol)
   internal-name                         ; internal name (gensym)
   struct-type                           ; 'struct or 'union
-  ;; (:lisp-type ... :constness ... :decl-specs ...)
-  slot-defs
-  runtime-spec)
+  slot-defs  ; (:lisp-type ... :constness ... :decl-specs ...)
+  ;; runtime-spec
+  field-index-alist
+  initforms
+  )
 
-(defun ensure-wcs-struct-spec (name)
+(defun ensure-wcs-struct-spec (name force-create)
   (let ((wcsspec (first (gethash name *wcs-struct-specs*))))
-    (unless wcsspec
+    (when (or force-create (not wcsspec))
       (setf wcsspec
             (make-wcs-struct-spec
              :struct-name name
@@ -167,25 +170,37 @@ This variable is closed for every translation-units.")
       (removef place wcsspec :key #'wcs-struct-spec-internal-name))))
 
 (defun wcs-struct-spec-fill-runtime-spec (wcsspec)
-  (let* ((stype (wcs-struct-spec-struct-type wcsspec))
-         (runtime-spec
-          (loop for slot-def in (wcs-struct-spec-slot-defs wcsspec)
-             for index from 0
-             collect (getf slot-def :name) into names
-	     collect (getf slot-def :initform) into initforms
-	     finally
-	       (return
-		 (make-wcs-struct-runtime-spec names (eq stype '|union|)
-					        initforms)))))
-    (setf (wcs-struct-spec-runtime-spec wcsspec)
-          runtime-spec))
+  (loop with union-p = (eq (wcs-struct-spec-struct-type wcsspec)
+                           '|union|)
+     for slot-def in (wcs-struct-spec-slot-defs wcsspec)
+     for idx from 0
+     collect (cons (getf slot-def :name) (if union-p 0 idx))
+     into index-alist
+     collect (getf slot-def :initform) into initforms
+     finally
+       (setf (wcs-struct-spec-field-index-alist wcsspec) index-alist
+             (wcs-struct-spec-initforms wcsspec) initforms))
   wcsspec)
+
+(defun make-wcs-struct-spec-load-form-for-runtime (wcsspec)
+  `(make-wcs-struct-spec
+    :struct-name ',(wcs-struct-spec-struct-name wcsspec)
+    :internal-name ',(wcs-struct-spec-internal-name wcsspec)
+    :struct-type ',(wcs-struct-spec-struct-type wcsspec)
+    :field-index-alist ',(wcs-struct-spec-field-index-alist wcsspec)
+    :initforms ',(wcs-struct-spec-initforms wcsspec)))
+
+(defun install-global-wcs-struct-spec (name wcsspec)
+  (push wcsspec (gethash name *global-wcs-struct-specs*)))
+
+(defun find-global-wcs-struct-spec (name)
+  (first (gethash name *global-wcs-struct-specs*)))
 
 ;; processes structure-spec 
 (defun finalize-struct-spec (sspec dspecs)
   (let* ((wcsname (or (struct-or-union-spec-id sspec)
                       (gensym "unnamed-struct-")))
-         (wcsspec (ensure-wcs-struct-spec wcsname)))
+         (wcsspec (ensure-wcs-struct-spec wcsname nil)))
     (setf (decl-specs-wcs-type-tag dspecs) wcsname)
     (setf (decl-specs-lisp-type dspecs) 'wcs-struct)
     ;; only declaration?
@@ -195,7 +210,7 @@ This variable is closed for every translation-units.")
     ;; Doubly defined?
     (when (and (struct-or-union-spec-struct-decl-list sspec)
                (wcs-struct-spec-slot-defs wcsspec))
-      (error "struct is defined twice (~S)" wcsname))
+      (setf wcsspec (ensure-wcs-struct-spec wcsname t)))
     ;; Now defines a new struct.
     (setf (wcs-struct-spec-struct-type wcsspec)
           (struct-or-union-spec-type sspec))
@@ -229,7 +244,8 @@ This variable is closed for every translation-units.")
        finally
 	 (appendf (decl-specs-lisp-bindings dspecs) other-bindings)
          (appendf (decl-specs-lisp-class-spec dspecs) other-class-specs)
-         (setf (wcs-struct-spec-slot-defs wcsspec) slot-specs))
+         (setf (wcs-struct-spec-slot-defs wcsspec) slot-specs)
+         (wcs-struct-spec-fill-runtime-spec wcsspec))
     ;; This wcsspec is treated by this dspecs
     (append-item-to-right-f (decl-specs-lisp-class-spec dspecs)
                             wcsspec)
@@ -283,6 +299,7 @@ This variable is closed for every translation-units.")
 	    (error "invalid decl-spec (~A)" tp-list))
 	  (return (finalize-enum-spec tp dspecs)))
 	 ((listp tp)			; lisp type
+          (assert (eq (first tp) '|__lisp_type|))
 	  (setf (decl-specs-lisp-type dspecs) (second tp))
 	  (return dspecs))
 	 ((find-typedef-name tp)	; typedef name
@@ -442,7 +459,6 @@ This variable is closed for every translation-units.")
                      for slot in (wcs-struct-spec-slot-defs wcsspec)
                      collect (expand-init-declarator-init
                               (getf slot :decl-specs) (cdr abst-declarator) i))))
-            (wcs-struct-spec-fill-runtime-spec wcsspec)
             (values `(make-wcs-struct
                       ;; internal-name is bound to the runtime-spec at top-level expansion.
                       ,(wcs-struct-spec-internal-name wcsspec)
@@ -567,6 +583,22 @@ This variable is closed for every translation-units.")
            (not (member func-exp *function-pointer-ids*)))
       `(,func-exp ,@args)
       `(funcall ,func-exp ,@args)))
+
+(defun lispify-offsetof (dspecs id)
+  (setf dspecs (finalize-decl-specs dspecs))
+  (let* ((type-tag (decl-specs-wcs-type-tag dspecs))
+         (wcsspec
+          (progn (unless type-tag
+                   (error "offsetof used for not a struct type: ~S" type-tag))
+                 (find-wcs-struct-spec type-tag)))
+         (ret
+          (progn (unless wcsspec
+                   (error "offsetof used for not a struct type"))
+                 (assoc id (wcs-struct-spec-field-index-alist wcsspec)
+                        :test #'eq))))
+    (unless ret
+      (error "offsetof used for a non-member: ~S" id))
+    (cdr ret)))
 
 ;;; Statements
 (defstruct stat
@@ -827,7 +859,7 @@ This variable is closed for every translation-units.")
   (loop for wcsspec in classes
      as sname = (wcs-struct-spec-struct-name wcsspec)
      as iname = (wcs-struct-spec-internal-name wcsspec)
-     as spec-form = (make-load-form (wcs-struct-spec-runtime-spec wcsspec))
+     as spec-form = (make-wcs-struct-spec-load-form-for-runtime wcsspec)
      collect `(,iname ,spec-form) into class-binds
      collect `(,sname ,iname) into renames
      finally (return (values class-binds renames))))
@@ -864,7 +896,7 @@ This variable is closed for every translation-units.")
            (appendf lexical-binds binds)
            (when (eq mode :translation-unit)
              (loop for (sym val) in renames
-                collect `(install-wcs-struct-runtime-spec ',sym ,val) into defs
+                collect `(install-global-wcs-struct-spec ',sym ,val) into defs
                 finally (appendf global-defs defs))))
        ;; declarations
        do
@@ -970,8 +1002,8 @@ This variable is closed for every translation-units.")
 	     +keywords+
 	     '(enumeration-const id typedef-id
 	       int-const char-const float-const
-	       string)
-	     '(lisp-expression lisp-type)))
+	       string
+               lisp-expression)))
   (:start-symbol wcs-entry-point)
 
   ;; Our entry point.
@@ -1073,7 +1105,8 @@ This variable is closed for every translation-units.")
    struct-or-union-spec
    enum-spec
    typedef-name
-   lisp-type)				; added
+   (|__lisp_type| lisp-expression)      ; extension
+   (|__lisp_type| id))                  ; extension
 
   (type-qualifier
    |const| |volatile|)                  ; keywords
@@ -1709,7 +1742,12 @@ This variable is closed for every translation-units.")
        #'(lambda  (_1 x _3)
 	   (declare (ignore _1 _3))
 	   x))
-   lisp-expression)			; added
+   lisp-expression			; added
+   (|__offsetof| \( decl-specs \, id \)   ; added
+                 #'(lambda (_op _lp dcl _cm id _rp)
+                     (declare (ignore _op _lp _cm _rp))
+                     (lispify-offsetof dcl id))))
+
 
   (argument-exp-list
    (assignment-exp

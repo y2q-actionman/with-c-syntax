@@ -613,7 +613,6 @@
     })
   t)
 
-;; TODO: remove the KLUDGE 'typedef guard'
 (defun test-typedefs ()
   (eval-equal 1 ()
     {
@@ -651,11 +650,18 @@
     return int_t \;
     })
   t)
+;; removal of 'typedef guard' is tested at test-preprocessor
 
 (defun test-lisptype-decls ()
   (eval-equal '(1 2 3) ()
     {
-    (type list) x = (list 1 2 3) \;
+    __lisp_type list x = (list 1 2 3) \;
+    return x \;
+    })
+  (eval-equal #(1 2 3) ()
+    {
+    __lisp_type (simple-array t (3)) x
+      = (make-array '(3) :initial-contents '(1 2 3)) \;
     return x \;
     })
   t)

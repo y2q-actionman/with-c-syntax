@@ -28,7 +28,7 @@
            ;; TODO:
            #:pseudo-pointer
            ;; opened for stdlib
-           #:define-preprocessor-symbol
+           #:define-preprocessor-macro
            #:define-predefined-typedef
            #:get-varargs))
 
@@ -38,7 +38,7 @@
   (:import-from #:alexandria
                 #:length=)
   (:import-from #:with-c-syntax
-                #:define-preprocessor-symbol
+                #:define-preprocessor-macro
                 #:define-predefined-typedef
                 #:get-varargs))
 

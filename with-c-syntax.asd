@@ -22,9 +22,7 @@
                  (:file "iso646")
                  (:file "limits")
                  (:file "stdarg")
-                 (:file "stdbool")
-                 (:file "stddef")
-                 (:file "stdint"))
+                 (:file "stddef"))
                 :depends-on ("src"))))
 
 (asdf:defsystem #:with-c-syntax.test
