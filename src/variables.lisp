@@ -1,4 +1,4 @@
-(in-package #:with-c-syntax)
+(in-package #:with-c-syntax.core)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (define-constant +operators+
@@ -18,9 +18,15 @@
 	\( \)
 	++ -- |sizeof|
 	& * + - ~ !
-	[ ] \. ->
-	)
-    :test 'equal)
+	[ ] \. ->)
+    :test 'equal
+    :documentation
+    "* Value Type
+a list :: consists of symbols.
+
+* Description
+This constant holds a list of symbols denoting C operators.
+")
 
   (define-constant +keywords+
       '(\;
@@ -37,9 +43,17 @@
 	|while| |do| |for|
 	|goto| |continue| |break| |return|
         |__lisp_type|
-        |__offsetof|
-	)
-    :test 'equal))
+        |__offsetof|)
+    :test 'equal
+    :documentation
+    "* Value Type
+a list :: consists of symbols.
+
+* Description
+This constant holds a list of symbols denoting C keywords and keywords
+of extension of with-c-syntax.
+")
+  )
 
 (define-constant +numeric-types-alist+
     '(((|int|)                          . fixnum)
@@ -63,4 +77,11 @@
       ((|double| |long|)                . long-float))
   :test 'equal
   :documentation
-  "alist of (<c-symbol-list> . <lisp-type>). c-symbol-list is sorted alphabetically")
+  "* Value Type
+a list :: consists of alists -- (list-of-symbols . <lisp-type>)
+
+* Description
+This constant holds relationships between notations of C type and
+Common Lisp types.
+For each entry of alist, the car is sorted alphabetically.
+")

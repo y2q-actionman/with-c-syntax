@@ -1,20 +1,36 @@
-(in-package #:with-c-syntax)
+(in-package #:with-c-syntax.core)
 
 (define-constant +reader-level-specifier-alist+
     '((0 . 0) (1 . 1) (2 . 2) (3 . 3)
       (:conservative . 0) (:aggressive . 1)
       (:overkill . 2) (:insane . 3))
-  :test 'equal)
+  :test 'equal
+  :documentation
+  "* Value Type
+alist :: <atom> -> <fixnum>.
+
+* Description
+This constant holds an alist translates 'reader level'.
+See ~use-reader~.
+")
 
 (defun translate-reader-level (rlspec)
   (cdr (assoc rlspec +reader-level-specifier-alist+
 	      :test #'eq)))
 
 (defvar *current-c-reader* nil
-  "a list of plists. the plist is:
-:level     -> specified default reader level.
-:case      -> specified default reader case.
-:previous  -> the original readtable.")
+  "* Value Type
+a list :: consists of plists.
+
+* Description
+This variable holds the current c-syntax reader environments,
+establised by the ~use-reader~.
+
+Its contents is a list of plists. The plists holds below:
+- :level    -> the specified reader level.
+- :case     -> the specified reader case.
+- :previous -> the readtable used when ~use-reader~ called.
+")
 
 (defun read-in-previous-syntax (stream char n)
   (declare (ignore char n))
@@ -148,6 +164,8 @@
     ;; No compatibilities between CL symbols.
     (set-macro-character #\? #'read-single-character-symbol nil readtable)
     (set-macro-character #\~ #'read-single-character-symbol nil readtable)
+    (set-macro-character #\: #'read-single-character-symbol nil readtable)
+    (set-macro-character #\. #'read-single-character-symbol nil readtable)
     (set-macro-character #\= #'read-single-or-equal-symbol nil readtable)
     (set-macro-character #\* #'read-single-or-equal-symbol nil readtable)
     (set-macro-character #\% #'read-single-or-equal-symbol nil readtable)
@@ -159,9 +177,7 @@
     (set-macro-character #\- #'read-minus nil readtable)
     (set-macro-character #\< #'read-shift nil readtable)
     (set-macro-character #\> #'read-shift nil readtable)
-    (set-macro-character #\/ #'read-slash nil readtable)
-    (set-macro-character #\: #'read-single-character-symbol nil readtable)
-    (set-macro-character #\. #'read-single-character-symbol nil readtable))
+    (set-macro-character #\/ #'read-slash nil readtable))
   readtable)
 
 (defun read-toplevel-in-c-syntax (stream char n)
@@ -178,6 +194,112 @@
 	    #\# stream t)))))
 
 (defmacro use-reader (&key (level :overkill) case)
+  "* Syntax
+~use-reader~ &key level case => readtable
+
+* Arguments and Values
+- level :: one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
+           ~:overkill~, or ~:insane~. The default is ~:overkill~.
+- case :: one of ~:upcase~, ~:downcase~, ~:preserve~, ~:invert~, or
+          nil. The default is nil.
+
+* Description
+This macro establishes a C syntax reader.
+
+~use-reader~ introduces a dispatching macro character '#{'.  Inside
+'#{' and '}#', the reader uses completely different syntax, and
+wrapped with ~with-c-syntax~ form.
+
+** Syntax Levels
+For inside '#{' and '}#', four syntaxes are defined. These syntaxes
+are selected by the infix parameter of the '#{' dispatching macro
+character. If it not specified, The default is the ~level~ specified
+at ~use-reader~.
+
+*** Level 0 (conservative)
+This is used when ~level~ is 0 or ~:conservative~.
+
+In this level, these reader macros are installed.
+
+- '#!' :: '#!' reads a next s-exp in the previous syntax. This works
+          as an escape from '#{' and '}#'
+- ',' :: ',' is read as a symbol. (In ANSI CL, a comma is defined as
+         an invalid char outside the backquote syntax.)
+- ':' :: Reads a solely ':' as a symbol. Not a solely one (as a
+         package marker) works as is.
+
+*** Level 1 (aggressive)
+This is used when ~level~ is 1 or ~:aggressive~.
+
+In this level, these reader macros are installed.
+
+- '{', '}', '[', ']' :: These become a terminating character,
+                        and read as a symbol.
+
+*** Level 2 (overkill)
+This is used when ~level~ is 2 or ~:overkill~.
+
+In this level, these reader macros are installed.
+
+- '.' :: Reads a solely '.' as a symbol. The 'consing dot' feature
+         is lost.
+- '\' :: The '\' becomes a ordinally constituent character. The
+         'multiple escaping' feature is lost.
+- ''' (single-quote) :: the single-quote works as a character literal
+                        of the C. The 'quote' feature is lost.
+- ';' :: ';' becomes a terminating character, and read as a symbol.
+         The 'comment' feature is lost.
+- '(' and ')' :: parenthesis become a terminating character, and read
+                 as a symbol.  The 'reading a list' feature is lost.
+
+In this level, '(' and ')' loses its functionalities. For constructing
+a list, the '#!' syntax must be used.
+
+*** Level 3 (insane)
+This is used when ~level~ is 3 or ~:insane~.
+
+In this level, these characters become terminating, and read as a
+symbol listed below.
+
+- '?' :: '?'
+- '~' :: '~'
+- ':' :: ':'
+- '.' :: '.'
+- '=' :: '=' or '=='
+- '*' :: '*' or '*='
+- '^' :: '^' or '^='
+- '!' :: '!' or '!='
+- '&' :: '&', '&&', or '&='
+- '|' :: '|', '||', or '|='
+- '+' :: '+', '++', or '+='
+- '-' :: '-', '--', '-=', or '->'
+- '>' :: '>', '>>', or '>>='
+- '<' :: '<', '<<', or '<<='
+- '/' :: '/', '//', or '/='
+
+And, '//' means a line comment, '/* ... */' means a block comment.
+
+In this level, there is no compatibilities between symbols of Common
+Lisp.  Especially, for denoting a symbol has terminating characters,
+escapes are required. (ex. most\-positive\-fixnum)
+
+** Syntax Cases
+When ~case~ is not nil, the specified case is used as the
+readtable-case inside '#{' and '}#', and the case is passed to the
+wrapping ~with-c-syntax~ form.
+
+When ~case~ is nil, the readtable-case of ~*readtable*~ at using
+'#{' is used.
+
+* Side Effects
+Changes *readtable*.
+
+* Notes
+There is no support for trigraphs or digraphs.
+
+* See Also
+~with-c-syntax~, ~unuse-reader~.
+"
   (unless (translate-reader-level level)
     (error "Level ~S cannot be accepted" level))
   (assert (member case '(nil :upcase :downcase :preserve :invert)))
@@ -185,9 +307,26 @@
      (push (list :level ,level :case ,case :previous *readtable*)
            *current-c-reader*)
      (setf *readtable* (copy-readtable))
-     (set-dispatch-macro-character #\# #\{ #'read-toplevel-in-c-syntax)))
+     (set-dispatch-macro-character #\# #\{ #'read-toplevel-in-c-syntax)
+     *readtable*))
 
 (defmacro unuse-reader ()
+  "* Syntax
+~unuse-reader~ <no arguments> => readtable
+
+* Arguments and Values
+- readtable :: a readtable
+
+* Description
+This macro disposes the c reader established by ~use-reader~, and
+restores the previous readtable.
+
+* Side Effects
+Changes *readtable*.
+
+* See Also
+~unuse-reader~.
+"
   `(eval-when (:compile-toplevel :load-toplevel :execute)
      (let ((prev-reader (pop *current-c-reader*)))
        (setf *readtable* (getf prev-reader :previous)))))

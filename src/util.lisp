@@ -1,4 +1,4 @@
-(in-package #:with-c-syntax)
+(in-package #:with-c-syntax.core)
 
 ;; These are referenced by the parser directly.
 (eval-when (:compile-toplevel :load-toplevel :execute)

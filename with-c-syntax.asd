@@ -18,11 +18,11 @@
                (:module "libc"
                 :components
                 ((:file "util")
-                 (:file "float")
-                 (:file "iso646")
-                 (:file "limits")
-                 (:file "stdarg")
-                 (:file "stddef"))
+                 (:file "float" :depends-on ("util"))
+                 (:file "iso646" :depends-on ("util"))
+                 (:file "limits" :depends-on ("util"))
+                 (:file "stdarg" :depends-on ("util"))
+                 (:file "stddef" :depends-on ("util")))
                 :depends-on ("src"))))
 
 (asdf:defsystem #:with-c-syntax.test

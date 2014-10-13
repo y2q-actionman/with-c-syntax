@@ -1,38 +1,136 @@
-(in-package #:with-c-syntax)
+(in-package #:with-c-syntax.core)
 
 ;;; Variables
 (defvar *enum-const-symbols* nil
-  "[stub] list of (symbol initform)")
+  "* Value Type
+a list :: consists of a list (symbol initform).
+
+* Description
+This variable holds definions of enum constants, locally for
+compliation units.
+
+This variable is expected to be dynamically established per
+~with-c-syntax~.
+
+* Notes
+There is no way to define enum globally.
+
+* See Also
+~with-c-compilation-unit~.
+")
 
 (defvar *global-wcs-struct-specs* (make-hash-table :test 'eq)
-  "[stub] hashtable: struct-name -> list of wcs-struct-spec.
-If a same name is supplied, it is stacked")
+  "* Value Type
+a hashtable :: a symbol -> a list of wcs-struct-spec.
+
+* Description
+This variable holds definitions of structs or unions, globally across
+compliation units.
+
+Global definitions are establised by ~install-global-wcs-struct-spec~.
+
+* See Also
+~with-c-compilation-unit~.
+")
 
 (defvar *wcs-struct-specs* (make-hash-table :test 'eq)
-  "[stub] hashtable: struct-name -> list of wcs-struct-spec.
-If a same name is supplied, it is stacked")
+  "* Value Type
+a hashtable :: a symbol -> a list of wcs-struct-spec.
+
+* Description
+This variable holds definitions of structs or unions, locally for
+compilation units.
+
+This variable is expected to be dynamically established per
+~with-c-syntax~.
+
+* See Also
+~with-c-compilation-unit~.
+")
 
 (defvar *typedef-names* (make-hash-table :test 'eq)
-  "[stub] hashtable: symbol -> list of decl-specs")
+  "* Value Type
+a hashtable :: a symbol -> list of decl-specs
+
+* Description
+This variable holds definitions of typedefs. If in ~with-c-syntax~,
+its value is local for compilation. If not so, its value is global
+across compilation units.
+
+Global definitions are establised by ~define-predefined-typedef~.
+
+This variable is expected to be dynamically established per
+~with-c-syntax~.
+
+* Notes
+This variable is should be defined like ~*wcs-struct-specs*~ and
+~*global-wcs-struct-specs*~ ?.
+
+* See Also
+~with-c-compilation-unit~.
+")
 
 (defvar *dynamic-binding-requested* nil
-  "list of symbol.
+  "* Value Type 
+a list :: consistes of symbols.
+
+* Description
+This variable holds a list of symbols, which are pointed by a pointer.
 If a pseudo-pointer is created for a symbol, the symbol is added to
-here, because such a symbol must be handled *carefully*.
-This variable is closed for every translation-units.")
+here (because such a symbol must be handled *carefully*).
+
+This variable is expected to be dynamically established per
+~with-c-syntax~.
+
+* See Also
+~with-c-compilation-unit~.
+")
 
 (defvar *function-pointer-ids* nil
-  "list of symbol.
-If a variable is declared as a pointer to a function, the symbol is
-added to here. Such a symbol is specially treated by the
-function-calling expression.
-This variable is closed for every translation-units.")
+  "* Value Type
+a list :: consists of symbols.
+
+* Description
+This variable holds a list of symbols, which are declared as a pointer
+to a function.  (Because such a symbol is specially treated by the
+function-calling expression.)
+
+This variable is expected to be dynamically established per
+~with-c-syntax~.
+
+* See Also
+~with-c-compilation-unit~.
+")
 
 (defvar *toplevel-entry-form* nil
-  "[stub] a list")
+  "* Value Type
+a list
 
-(defmacro with-new-wcs-environment ((entry-form)
-				    &body body)
+* Description
+This variable holds a form inserted as an entry point.
+
+This is used only when compiling a translation unit. Not used for
+other cases.
+
+This variable is expected to be dynamically established per
+~with-c-syntax~.
+
+* See Also
+~with-c-compilation-unit~.
+")
+
+(defmacro with-c-compilation-unit ((entry-form) &body body)
+  "* Syntax
+~with-c-compilation-unit~ (entry-forn) &body form* => result*
+
+* Arguments and Values
+- entry-form  :: a form
+- forms       :: a implicit progn
+- results     :: the values returned by forms
+
+* Description
+This macro establishes variable bindings for new compilation.
+"
   `(let ((*enum-const-symbols* *enum-const-symbols*)
          (*wcs-struct-specs* (copy-hash-table *global-wcs-struct-specs*))
          (*typedef-names* (copy-hash-table *typedef-names*))
@@ -135,6 +233,18 @@ This variable is closed for every translation-units.")
   (pop (gethash name *typedef-names*)))
 
 (defun define-predefined-typedef (name lisp-type)
+  "* Syntax
+~define-predefined-typedef~ name lisp-type => obj
+
+* Arguments and Values
+- name      :: a symbol
+- lisp-type :: a type specifier
+- obj       :: an internal object of with-c-syntax
+
+* Description
+This functions establishes a definition of a struct or an union
+globally across compliation units.
+"
   (push-typedef-name name
                      (make-decl-specs :lisp-type lisp-type)))
 
@@ -146,8 +256,7 @@ This variable is closed for every translation-units.")
   slot-defs  ; (:lisp-type ... :constness ... :decl-specs ...)
   ;; runtime-spec
   field-index-alist
-  initforms
-  )
+  initforms)
 
 (defun ensure-wcs-struct-spec (name force-create)
   (let ((wcsspec (first (gethash name *wcs-struct-specs*))))
@@ -621,7 +730,7 @@ This variable is closed for every translation-units.")
 	     :case-label-list (append (stat-case-label-list s1)
 				      (stat-case-label-list s2))))
 
-(defun extract-if-statement (exp then-stat
+(defun expand-if-statement (exp then-stat
 			     &optional (else-stat nil))
   (let* ((stat (if else-stat
 		   (merge-stat then-stat else-stat)
@@ -662,7 +771,7 @@ This variable is closed for every translation-units.")
   (loop for i in (shiftf (stat-continue-statements stat) nil)
      do (setf (second i) sym)))
 
-(defun extract-loop (body-stat
+(defun expand-loop (body-stat
 		     &key (init nil) (cond t) (step nil)
 		     (post-test-p nil))
   (let ((loop-body-tag (gensym "loop-body-"))
@@ -692,7 +801,7 @@ This variable is closed for every translation-units.")
           (stat-case-label-list stat))
     (push go-tag-sym (stat-code stat))))
 
-(defun extract-switch (exp stat)
+(defun expand-switch (exp stat)
   (let* ((exp-sym (gensym "switch-cond-"))
 	 (end-tag (gensym "switch-end-"))
 	 (jump-table			; create jump table with COND
@@ -727,6 +836,25 @@ This variable is closed for every translation-units.")
   lisp-type)
 
 (defmacro get-varargs (dst)
+  "* Syntax
+~get-varargs~ place => obj
+
+* Arguments and Values
+- place :: a place
+- obj   :: a list
+
+* Description
+This macro sets the variadic arguments of the with-c-syntax function
+to the place. If this is called outside of a variadic function, an
+error is signaled.
+
+* Notes
+This is not intended for calling directly. The ~va_start~ proprocessor
+macro uses this.
+
+When defining a variadic function, a macro has same name is locally
+established.
+"
   (declare (ignore dst))
   (error "trying to get variadic args list out of variadic funcs"))
 
@@ -772,6 +900,7 @@ This variable is closed for every translation-units.")
        `((declare (ignore ,@omitted))
          ,(if variadic
               `(macrolet ((get-varargs (ap)
+                            "locally establised get-varargs macro."
                             `(setf ,ap ,',varargs-sym)))
                  ,body)
               body))
@@ -1465,57 +1594,57 @@ This variable is closed for every translation-units.")
    (|if| \( exp \) stat
        #'(lambda (op lp exp rp stat)
 	   (declare (ignore op lp rp))
-	   (extract-if-statement exp stat)))
+	   (expand-if-statement exp stat)))
    (|if| \( exp \) stat |else| stat
        #'(lambda (op lp exp rp stat1 el stat2)
 	   (declare (ignore op lp rp el))
-	   (extract-if-statement exp stat1 stat2)))
+	   (expand-if-statement exp stat1 stat2)))
    (|switch| \( exp \) stat
 	   #'(lambda (_k _lp exp _rp stat)
 	       (declare (ignore _k _lp _rp))
-	       (extract-switch exp stat))))
+	       (expand-switch exp stat))))
 
   (iteration-stat
    (|while| \( exp \) stat
 	  #'(lambda (_k _lp cond _rp body)
 	      (declare (ignore _k _lp _rp))
-	      (extract-loop body :cond cond)))
+	      (expand-loop body :cond cond)))
    (|do| stat |while| \( exp \) \;
      #'(lambda (_k1 body _k2 _lp cond _rp _t)
 	 (declare (ignore _k1 _k2 _lp _rp _t))
-	 (extract-loop body :cond cond :post-test-p t)))
+	 (expand-loop body :cond cond :post-test-p t)))
    (|for| \( exp \; exp \; exp \) stat
 	#'(lambda (_k _lp init _t1 cond _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (extract-loop body :init init :cond cond :step step)))
+	    (expand-loop body :init init :cond cond :step step)))
    (|for| \( exp \; exp \;     \) stat
 	#'(lambda (_k _lp init _t1 cond _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (extract-loop body :init init :cond cond)))
+	    (expand-loop body :init init :cond cond)))
    (|for| \( exp \;     \; exp \) stat
 	#'(lambda (_k _lp init _t1      _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (extract-loop body :init init :step step)))
+	    (expand-loop body :init init :step step)))
    (|for| \( exp \;     \;     \) stat
 	#'(lambda (_k _lp init _t1      _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (extract-loop body :init init)))
+	    (expand-loop body :init init)))
    (|for| \(     \; exp \; exp \) stat
 	#'(lambda (_k _lp      _t1 cond _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (extract-loop body :cond cond :step step)))
+	    (expand-loop body :cond cond :step step)))
    (|for| \(     \; exp \;     \) stat
 	#'(lambda (_k _lp      _t1 cond _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (extract-loop body :cond cond)))
+	    (expand-loop body :cond cond)))
    (|for| \(     \;     \; exp \) stat
 	#'(lambda (_k _lp      _t1      _t2 step _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (extract-loop body :step step)))
+	    (expand-loop body :step step)))
    (|for| \(     \;     \;     \) stat
 	#'(lambda (_k _lp      _t1      _t2      _rp body)
 	    (declare (ignore _k _lp _t1 _t2 _rp))
-	    (extract-loop body))))
+	    (expand-loop body))))
 
   (jump-stat
    (|goto| id \;
@@ -1762,18 +1891,35 @@ This variable is closed for every translation-units.")
    enumeration-const)
   )
 
-;;; Expander
-(defun c-expression-tranform (form keyword-case entry-form)
-  (with-new-wcs-environment (entry-form)
-    (parse-with-lexer (list-lexer (preprocessor form
-                                                :allow-upcase-keyword
-                                                (eq keyword-case :upcase)))
-                      *expression-parser*)))
-
 ;;; Macro interface
 (defmacro with-c-syntax ((&key (keyword-case (readtable-case *readtable*))
 			       entry-form)
 			 &body body)
-  (if body
-      (c-expression-tranform body keyword-case entry-form)
-      nil))
+  "* Syntax
+~with-c-syntax~ (&key keyword-case entry-form) form* => result*
+
+* Arguments and Values
+- keyword-case :: one of ~:upcase~, ~:downcase~, ~:preserve~, or
+                  ~:invert~.  The default is the current readtable
+                  case.
+- entry-form :: a form.
+- forms   :: forms interpreted by this macro.
+- results :: the values returned by the ~forms~
+
+* Description
+This macro is a entry point of the with-c-syntax system.  ~forms~ are
+interpreted as C syntax, executed, and return values.
+
+~keyword-case~ specifies case sensitibily. Especially, if ~:upcase~ is
+specified, some case-insensitive feature is enabled for convenience.
+
+~entry-form~ is inserted as a entry point when compiling a translation
+unit.
+"
+  (when body
+    (with-c-compilation-unit (entry-form)
+      (parse-with-lexer
+       (list-lexer (preprocessor body
+                                 :allow-upcase-keyword
+                                 (eq keyword-case :upcase)))
+       *expression-parser*))))

@@ -1,18 +1,88 @@
-(in-package #:with-c-syntax)
+(in-package #:with-c-syntax.core)
 
 (deftype pseudo-pointer (&optional (pointee-type t))
+  "* Supertypes
+fixnum
+
+* Description
+The base type of internal representation of pointers in with-c-syntax.
+
+* Compound Type Specifier Syntax
+~psendo-pointer~ &optional (pointee-type t)
+
+* Compound Type Specifier Arguments
+- pointee-type :: the type of the object pointer by the pointer.
+
+* Compound Type Specifier Description
+This notation includes the type of the pointed object.
+
+* Notes
+At this stage, the ~pointee-type~ is ignored by the type system.
+"  
   (declare (ignore pointee-type))
   'fixnum)
 
-(defconstant +pseudo-pointer-mask+    #b1111111)
-(defconstant +pseudo-pointer-safebit+ #b1000000)
+(defconstant +pseudo-pointer-mask+    #b1111111
+  "* Value Type
+a fixnum.
 
-(defvar *pseudo-pointee-table* (make-hash-table :test 'eq))
-(defvar *pseudo-pointer-next* 0)
+* Description:
+This constant holds the bitmask splits the pseudo-pointer bit
+representation to the 'base part' and the 'index part'.
+
+The 'base part' is used for a key of ~*pseudo-pointee-table*~.
+The 'index part' is used for a offset of the pointee value.
+")
+
+(defconstant +pseudo-pointer-safebit+ #b1000000
+  "* Value Type
+a fixnum.
+
+* Description
+This constant holds the 'sign bit' of the 'index part' of the
+pseudo-pointer bit representation.
+
+For the 'index part', the representation is like here:
+
+- #b1000000 :: 0
+- #b1000001 - #b1111111 :: +1 ~ +63
+- #b0111111 - #b0000000 :: -1 ~ -64
+
+If the 'index part' exceeds this limitation, its result is unpredictable.
+")
+
+(defvar *pseudo-pointee-table* (make-hash-table :test 'eq)
+  "* Value Type
+a hash-table :: <pseudo-pointer> -> <object>
+
+* Description
+This table relates the 'base part' of a pseudo-pointer to the pointee
+object.
+")
+
+(defvar *pseudo-pointer-next* 0
+  "* Value Type
+a pseudo-pointer.
+
+* Description
+This variable the next allocating pseudo-pointer.
+")
 
 (defmacro with-pseudo-pointer-scope (() &body body)
-  `(let ((*pseudo-pointee-table* (make-hash-table :test 'eq))
-         (*pseudo-pointer-next* 0))
+  "* Syntax
+~with-pseudo-pointer-scope~ () form* => result*
+
+* Arguments and Values
+- forms   :: a implicit progn
+- results :: the values returned by the ~forms~
+
+* Description
+This macro establishes a new environment for pseudo-pointers.
+
+A pointer allocated inside this macro is invalidated out of this.
+"
+  `(let ((*pseudo-pointee-table* (copy-hash-table *pseudo-pointee-table*))
+         (*pseudo-pointer-next* *pseudo-pointer-next*))
      ,@body))
 
 (defun alloc-pseudo-pointer (pointee)

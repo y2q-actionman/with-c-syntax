@@ -64,7 +64,7 @@
       s \. x *= 8 \;
       return s \. x \;
     })
-  (assert (with-c-syntax::find-global-wcs-struct-spec 'test))
+  (assert (with-c-syntax.core::find-global-wcs-struct-spec 'test)) ; TODO: use make-wcs-struct
   (assert (fboundp 'hoge8))
   (assert (= 16 (hoge8 2)))
 

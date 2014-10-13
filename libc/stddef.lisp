@@ -5,6 +5,6 @@
   (define-predefined-typedef-and-aliases '|ptrdiff_t| 'fixnum)
   (define-predefined-typedef-and-aliases '|size_t| 'fixnum)
   (define-predefined-typedef-and-aliases '|wchar_t| 'fixnum)
-  (define-preprocessor-macro "OFFSETOF" 'with-c-syntax::|__offsetof| t)
-  (define-preprocessor-macro "offsetof" 'with-c-syntax::|__offsetof|)
+  (define-preprocessor-macro "OFFSETOF" 'with-c-syntax.core::|__offsetof| t)
+  (define-preprocessor-macro "offsetof" 'with-c-syntax.core::|__offsetof|)
   )

@@ -210,6 +210,11 @@
     })
   t)
 
+(defun test-strcat ()
+  (eval-equal "abc" ()
+    return "a" "b" "c" \; )
+  t)
+
 (defun test-typedef-hack ()
   (eval-equal 1 ()
     {
@@ -224,5 +229,6 @@
   (test-stdlib-iso646)
   (test-stdlib-limits)
   (test-stdlib-stddef)
+  (test-strcat)
   (test-typedef-hack)
   t)

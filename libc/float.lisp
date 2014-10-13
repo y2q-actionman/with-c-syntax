@@ -127,8 +127,8 @@
   #.(floor (log most-positive-short-float 10)))
 
 ;; XXX:
-;; In ANSI CL, we have no way to accessing the Floating Point Mode.
-;; We must use implementation-dependent features...
+;; In ANSI CL, There is no way to accessing the Floating Point Mode.
+;; I must use implementation-dependent features...
 ;; 
 ;; CMUCL: http://www.umiacs.umd.edu/~resnik/ling645_sp2002/cmu_manual/node22.html
 (defconstant FLT_ROUNDS
@@ -154,7 +154,7 @@
 ;;   arguments in any manner consistent with associative (and possibly
 ;;   commutative) rearrangement.
 ;; 
-;; This implies 'FLT_EVAL_METHOD == -1' when we use 3 or more args for
+;; This implies 'FLT_EVAL_METHOD == -1' when I use 3 or more args for
 ;; numeric operations.
 ;; 
 ;; In today's with-c-syntax, any numeric operations are restricted to

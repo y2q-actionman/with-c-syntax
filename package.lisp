@@ -1,7 +1,7 @@
 (in-package #:cl-user)
 
 ;;; with-c-syntax core.
-(defpackage #:with-c-syntax
+(defpackage #:with-c-syntax.core
   (:use #:cl)
   (:import-from #:alexandria
                 #:copy-hash-table	; 1. Hash Tables
@@ -22,25 +22,48 @@
   (:import-from #:yacc
         	#:define-parser
                 #:parse-with-lexer)
-  (:export #:with-c-syntax
-	   #:use-reader
-	   #:unuse-reader
-           ;; TODO:
-           #:pseudo-pointer
-           ;; opened for stdlib
-           #:define-preprocessor-macro
-           #:define-predefined-typedef
-           #:get-varargs))
+  (:export
+   ;; preprocessor.lisp
+   #:define-preprocessor-macro
+   ;; pseudo-pointer.lisp
+   #:pseudo-pointer
+   #:with-pseudo-pointer-scope
+   ;; reader.lisp
+   #:use-reader
+   #:unuse-reader
+   ;; wcs-struct.lisp
+   #:wcs-struct
+   #:make-wcs-struct
+   #:wcs-struct-field
+   ;; with-c-syntax.lisp
+   #:define-predefined-typedef
+   #:get-varargs
+   #:with-c-syntax))
 
 ;;; C stdlibs.
 (defpackage #:with-c-syntax.stdlib
   (:use #:cl)
   (:import-from #:alexandria
                 #:length=)
-  (:import-from #:with-c-syntax
+  (:import-from #:with-c-syntax.core
                 #:define-preprocessor-macro
                 #:define-predefined-typedef
                 #:get-varargs))
+
+;;; user package
+(defpackage #:with-c-syntax
+  (:use #:cl)
+  (:import-from #:with-c-syntax.core
+                #:with-c-syntax
+                #:use-reader
+                #:unuse-reader
+                #:pseudo-pointer)
+  (:export #:with-c-syntax
+           #:use-reader
+           #:unuse-reader
+           ;; types
+           #:pseudo-pointer
+           ))
 
 ;;; for test.
 (defpackage #:with-c-syntax.test
