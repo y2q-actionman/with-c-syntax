@@ -24,6 +24,7 @@
                 #:parse-with-lexer)
   (:export
    ;; preprocessor.lisp
+   #:preprocessor
    #:define-preprocessor-macro
    ;; pseudo-pointer.lisp
    #:pseudo-pointer
@@ -56,15 +57,11 @@
   (:import-from #:with-c-syntax.core
                 #:with-c-syntax
                 #:use-reader
-                #:unuse-reader
-                #:pseudo-pointer)
+                #:unuse-reader)
   (:export #:with-c-syntax
            #:use-reader
-           #:unuse-reader
-           ;; types
-           #:pseudo-pointer
-           ))
+           #:unuse-reader))
 
 ;;; for test.
 (defpackage #:with-c-syntax.test
-  (:use #:cl #:with-c-syntax))
+  (:use #:cl #:with-c-syntax.core))

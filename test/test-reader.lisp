@@ -2,11 +2,6 @@
 
 (use-reader :level :conservative)
 (defun test-reader-conservative ()
-  ;; #!
-  (eval-equal* 7
-    #0{
-    return #!(+ 4 3) \;
-    }#)
   ;; comma
   (eval-equal* 2
     #0{
@@ -49,6 +44,11 @@
 
 (use-reader :level :overkill)
 (defun test-reader-overkill ()
+  ;; `
+  (eval-equal* 7
+    #2{
+    return `(+ 4 3);
+    }#)
   ;; '.'
   (eval-equal* 3
     #2{
@@ -60,7 +60,7 @@
   (eval-equal* (cons 1 2)
     #2{
     {
-    return #!'(1 . 2);
+    return `'(1 . 2);
     }
     }#)
   #| semicolon |#
@@ -71,6 +71,32 @@
   (eval-equal* #\a
     #2{
     return 'a'\;
+    }#)
+  ;; double quote
+  (eval-equal* "abc"
+    #2{
+    return "abc";
+    }#)
+  (eval-equal* (coerce '(#\Backspace #\Page #\Newline
+			 #\Tab #\\ #\' #\" #\?)
+		       'string)
+    #2{
+    return "\b\f\n\t\\\'\"\?";
+    }#)
+  ;; depends ascii
+  (eval-equal* (coerce (list (code-char #x07) (code-char #x0d)
+			     (code-char #x0b))
+		       'string)
+    #2{
+    return "\a\r\v";
+    }#)
+  (eval-equal* (string (code-char 99))
+    #2{
+    return "\99";
+    }#)
+  (eval-equal* (string (code-char #x99))
+    #2{
+    return "\x99";
     }#)
   #| parens |#
   (eval-equal* "a"
@@ -315,7 +341,7 @@ int test-reader-toplevel-overkill(){
 
 #3{
 int test\-reader\-toplevel\-insane(){
-  assert (1+2*3-4 == #!(+ 1 (* 2 3) (- 4)));
+  assert (1+2*3-4 == `(+ 1 (* 2 3) (- 4)));
   return t;
 }
 }#

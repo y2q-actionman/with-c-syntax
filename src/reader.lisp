@@ -32,7 +32,7 @@ Its contents is a list of plists. The plists holds below:
 - :previous -> the readtable used when ~use-reader~ called.
 ")
 
-(defun read-in-previous-syntax (stream char n)
+(defun read-in-previous-syntax (stream char &optional n)
   (declare (ignore char n))
   (let ((*readtable*
 	 (getf (first *current-c-reader*) :previous)))
@@ -75,6 +75,46 @@ Its contents is a list of plists. The plists holds below:
 	(error "Too many chars appeared between '' :~C, ~C, ..."
 	       c1 c2))
       c1)))
+
+;; XXX: This code assumes ASCII is used for char-code..
+(defun read-escaped-char (stream)
+  (flet ((numeric-escape (radix init)
+	   (loop with tmp = init
+	      for c = (peek-char nil stream t nil t)
+	      as weight = (digit-char-p c radix)
+	      while weight
+	      do (read-char stream t nil t)
+		(setf tmp (+ (* tmp radix) weight))
+	      finally (return (code-char tmp)))))
+    (let ((c0 (read-char stream t nil t)))
+      (ecase c0
+	(#\a (code-char #x07))		; alarm
+	(#\b #\Backspace)
+	(#\f #\Page)
+	(#\n #\Newline)
+	(#\r (code-char #x0d))		; carriage return
+	(#\t #\Tab)
+	(#\v (code-char #x0b))		; vartical tab
+	(#\\ #\\)
+	(#\' #\')
+	(#\" #\")
+	(#\? #\?)
+	((#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\0)
+	 (numeric-escape 10 (digit-char-p c0)))
+	(#\x
+	 (numeric-escape 16 0))))))
+
+(defun read-double-quote (stream c0)
+  (loop with str = (make-array '(0) :element-type 'character
+			       :adjustable t :fill-pointer t)
+     for c = (read-char stream t nil t)
+     if (char= c c0)
+     do (loop-finish)
+     else if (char= c #\\)
+     do (vector-push-extend (read-escaped-char stream) str)
+     else
+     do (vector-push-extend c str)
+     finally (return str)))
 
 (defun read-single-or-equal-symbol (stream char)
   (let ((next (peek-char nil stream t nil t)))
@@ -137,8 +177,6 @@ Its contents is a list of plists. The plists holds below:
     (unless lev
       (error "Level ~S cannot be accepted" level))
     (setf level lev))
-  ;; accessing normal syntax
-  (set-dispatch-macro-character #\# #\! #'read-in-previous-syntax readtable)
   (when (>= level 0)			; Conservative
     ;; Comma is read as a symbol.
     (set-macro-character #\, #'read-single-character-symbol nil readtable)
@@ -151,12 +189,15 @@ Its contents is a list of plists. The plists holds below:
     (set-macro-character #\[ #'read-single-character-symbol nil readtable)
     (set-macro-character #\] #'read-single-character-symbol nil readtable))
   (when (>= level 2)			; Overkill
+    ;; accessing normal syntax
+    (set-macro-character #\` #'read-in-previous-syntax readtable)
     ;; Disables 'consing dots', with replacement of ()
     (set-macro-character #\. #'read-lonely-single-symbol t readtable)
     ;; removes 'multi-escape'
     (set-syntax-from-char #\| #\& readtable)
     ;; destroys CL syntax COMPLETELY!
     (set-macro-character #\' #'read-single-quote nil readtable)
+    (set-macro-character #\" #'read-double-quote nil readtable)
     (set-macro-character #\; #'read-single-character-symbol nil readtable)
     (set-macro-character #\( #'read-single-character-symbol nil readtable)
     (set-macro-character #\) #'read-single-character-symbol nil readtable))
@@ -221,8 +262,6 @@ This is used when ~level~ is 0 or ~:conservative~.
 
 In this level, these reader macros are installed.
 
-- '#!' :: '#!' reads a next s-exp in the previous syntax. This works
-          as an escape from '#{' and '}#'
 - ',' :: ',' is read as a symbol. (In ANSI CL, a comma is defined as
          an invalid char outside the backquote syntax.)
 - ':' :: Reads a solely ':' as a symbol. Not a solely one (as a
@@ -241,19 +280,26 @@ This is used when ~level~ is 2 or ~:overkill~.
 
 In this level, these reader macros are installed.
 
-- '.' :: Reads a solely '.' as a symbol. The 'consing dot' feature
-         is lost.
+- '`' :: '`' reads a next s-exp in the previous syntax. This works as
+         an escape from '#{' and '}#' The 'backquote' functionality is
+         lost.
+- '.' :: Reads a solely '.' as a symbol. The 'consing dot'
+         functionality is lost.
 - '\' :: The '\' becomes a ordinally constituent character. The
-         'multiple escaping' feature is lost.
-- ''' (single-quote) :: the single-quote works as a character literal
-                        of the C. The 'quote' feature is lost.
+         'multiple escaping' functionality is lost.
+- ''' (single-quote) :: The single-quote works as a character literal
+                        of C. The 'quote' functionality is lost.
+- '\"' (double-quote) :: The double-quote works as a string literal of
+                         C. Especially, escaping is treated as C. The
+                         original functionality is lost.
 - ';' :: ';' becomes a terminating character, and read as a symbol.
-         The 'comment' feature is lost.
+         The 'comment' functionality is lost.
 - '(' and ')' :: parenthesis become a terminating character, and read
-                 as a symbol.  The 'reading a list' feature is lost.
+                 as a symbol.  The 'reading a list' functionality is
+                 lost.
 
 In this level, '(' and ')' loses its functionalities. For constructing
-a list, the '#!' syntax must be used.
+a list, the '`' syntax must be used.
 
 *** Level 3 (insane)
 This is used when ~level~ is 3 or ~:insane~.
