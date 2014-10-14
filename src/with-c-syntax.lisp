@@ -263,8 +263,7 @@ globally across compliation units.
     (when (or force-create (not wcsspec))
       (setf wcsspec
             (make-wcs-struct-spec
-             :struct-name name
-             :internal-name (gensym (format nil "struct ~S " name))))
+             :struct-name name))
       (push wcsspec (gethash name *wcs-struct-specs*)))
     wcsspec))
 
@@ -275,8 +274,8 @@ globally across compliation units.
 
 (defun drop-wcs-struct-spec (wcsspec)
   (let ((name (wcs-struct-spec-struct-name wcsspec)))
-    (symbol-macrolet ((place (gethash name *wcs-struct-specs*)))
-      (removef place wcsspec :key #'wcs-struct-spec-internal-name))))
+    (removef (gethash name *wcs-struct-specs*)
+	     wcsspec :key #'wcs-struct-spec-internal-name)))
 
 (defun wcs-struct-spec-fill-runtime-spec (wcsspec)
   (loop with union-p = (eq (wcs-struct-spec-struct-type wcsspec)
@@ -294,7 +293,6 @@ globally across compliation units.
 (defun make-wcs-struct-spec-load-form-for-runtime (wcsspec)
   `(make-wcs-struct-spec
     :struct-name ',(wcs-struct-spec-struct-name wcsspec)
-    :internal-name ',(wcs-struct-spec-internal-name wcsspec)
     :struct-type ',(wcs-struct-spec-struct-type wcsspec)
     :field-index-alist ',(wcs-struct-spec-field-index-alist wcsspec)
     :initforms ',(wcs-struct-spec-initforms wcsspec)))
@@ -318,7 +316,7 @@ globally across compliation units.
       (return-from finalize-struct-spec dspecs))
     ;; Doubly defined?
     (when (and (struct-or-union-spec-struct-decl-list sspec)
-               (wcs-struct-spec-slot-defs wcsspec))
+               (wcs-struct-spec-internal-name wcsspec))
       (setf wcsspec (ensure-wcs-struct-spec wcsname t)))
     ;; Now defines a new struct.
     (setf (wcs-struct-spec-struct-type wcsspec)
@@ -354,6 +352,8 @@ globally across compliation units.
 	 (appendf (decl-specs-lisp-bindings dspecs) other-bindings)
          (appendf (decl-specs-lisp-class-spec dspecs) other-class-specs)
          (setf (wcs-struct-spec-slot-defs wcsspec) slot-specs)
+	 (setf (wcs-struct-spec-internal-name wcsspec)
+	       (gensym (format nil "struct ~S " wcsname)))
          (wcs-struct-spec-fill-runtime-spec wcsspec))
     ;; This wcsspec is treated by this dspecs
     (append-item-to-right-f (decl-specs-lisp-class-spec dspecs)
@@ -568,11 +568,16 @@ globally across compliation units.
                      for slot in (wcs-struct-spec-slot-defs wcsspec)
                      collect (expand-init-declarator-init
                               (getf slot :decl-specs) (cdr abst-declarator) i))))
-            (values `(make-wcs-struct
-                      ;; internal-name is bound to the runtime-spec at top-level expansion.
-                      ,(wcs-struct-spec-internal-name wcsspec)
-                      ,@init-list)
-                    var-type)))
+            (values
+	     (if (wcs-struct-spec-internal-name wcsspec) ; defined in this compilation unit.
+		 `(make-wcs-struct
+		   ;; internal-name is bound to the runtime-spec at top-level expansion.
+		   ,(wcs-struct-spec-internal-name wcsspec)
+		   ,@init-list)
+		 `(make-wcs-struct
+		   ',(wcs-struct-spec-struct-name wcsspec)
+		   ,@init-list))
+	     var-type)))
          (t				; unknown type. Maybe user supplied lisp-type.
 	  (values initializer var-type)))))))
 
@@ -989,8 +994,9 @@ established.
      as sname = (wcs-struct-spec-struct-name wcsspec)
      as iname = (wcs-struct-spec-internal-name wcsspec)
      as spec-form = (make-wcs-struct-spec-load-form-for-runtime wcsspec)
+     when iname
      collect `(,iname ,spec-form) into class-binds
-     collect `(,sname ,iname) into renames
+     and collect `(,sname ,iname) into renames
      finally (return (values class-binds renames))))
 
 ;; mode is :statement or :translation-unit

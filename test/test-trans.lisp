@@ -147,6 +147,20 @@
   (assert (= 103 (accumulator 2)))
   t)
 
+(defun test-trans-other-unit-struct ()
+  (with-c-syntax ()
+    struct xxx-struct { int x \; } \;)
+  (assert (make-wcs-struct 'xxx-struct))
+  (with-c-syntax ()
+    hoge \( x \) {
+      struct xxx-struct s = { x } \;
+      s \. x *= 8 \;
+      return s \. x \;
+    })
+  ;; (assert (= 16 (hoge 2)))
+  t)
+  
+
 
 (defun test-trans ()
   (test-trans-decl-simple)
