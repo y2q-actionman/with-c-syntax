@@ -2,129 +2,128 @@
 
 ;; single-float
 (defconstant FLT_RADIX
-  #.(float-radix 1f0))
+  (float-radix 1f0))
 
 (defconstant FLT_MANT_DIG
-  #.(float-digits 1f0))
+  (float-digits 1f0))
 
 (defconstant FLT_EPSILON
   single-float-epsilon)
 
 (defconstant FLT_DIG
-  #.(mantissa-radix-change
+  (mantissa-radix-change
      FLT_MANT_DIG FLT_RADIX 10))
 
 (defconstant FLT_MIN_EXP
-  #.(nth-value 1 (decode-float least-positive-normalized-single-float)))
+  (nth-value 1 (decode-float least-positive-normalized-single-float)))
 
 (defconstant FLT_MIN
   least-positive-normalized-single-float)
 
 (defconstant FLT_MIN_10_EXP
-  #.(ceiling (log least-positive-normalized-single-float 10)))
+  (ceiling (log least-positive-normalized-single-float 10)))
   
 (defconstant FLT_MAX_EXP
-  #.(nth-value 1 (decode-float most-positive-single-float)))
+  (nth-value 1 (decode-float most-positive-single-float)))
 
 (defconstant FLT_MAX
   most-positive-single-float)
 
 (defconstant FLT_MAX_10_EXP
-  #.(floor (log most-positive-single-float 10)))
+  (floor (log most-positive-single-float 10)))
 
 ;; double-float
 (defconstant DBL_RADIX                ; extension
-  #.(float-radix 1d0))
+  (float-radix 1d0))
 
 (defconstant DBL_MANT_DIG
-  #.(float-digits 1d0))
+  (float-digits 1d0))
 
 (defconstant DBL_EPSILON
   double-float-epsilon)
 
 (defconstant DBL_DIG
-  #.(mantissa-radix-change DBL_MANT_DIG DBL_RADIX 10))
+  (mantissa-radix-change DBL_MANT_DIG DBL_RADIX 10))
 
 (defconstant DBL_MIN_EXP
-  #.(nth-value 1 (decode-float least-positive-normalized-double-float)))
+  (nth-value 1 (decode-float least-positive-normalized-double-float)))
 
 (defconstant DBL_MIN
   least-positive-normalized-double-float)
 
 (defconstant DBL_MIN_10_EXP
-  #.(ceiling (log least-positive-normalized-double-float 10)))
+  (ceiling (log least-positive-normalized-double-float 10)))
   
 (defconstant DBL_MAX_EXP
-  #.(nth-value 1 (decode-float most-positive-double-float)))
+  (nth-value 1 (decode-float most-positive-double-float)))
 
 (defconstant DBL_MAX
   most-positive-double-float)
 
 (defconstant DBL_MAX_10_EXP
-  #.(floor (log most-positive-double-float 10)))
+  (floor (log most-positive-double-float 10)))
 
 ;; long-float
 (defconstant LDBL_RADIX                ; extension
-  #.(float-radix 1l0))
+  (float-radix 1l0))
 
 (defconstant LDBL_MANT_DIG
-  #.(float-digits 1l0))
+  (float-digits 1l0))
 
 (defconstant LDBL_EPSILON
   long-float-epsilon)
 
 (defconstant LDBL_DIG
-  #.(mantissa-radix-change LDBL_MANT_DIG LDBL_RADIX 10))
+  (mantissa-radix-change LDBL_MANT_DIG LDBL_RADIX 10))
 
 (defconstant LDBL_MIN_EXP
-  #.(nth-value 1 (decode-float least-positive-normalized-long-float)))
+  (nth-value 1 (decode-float least-positive-normalized-long-float)))
 
 (defconstant LDBL_MIN
   least-positive-normalized-long-float)
 
 (defconstant LDBL_MIN_10_EXP
-  #.(ceiling (log least-positive-normalized-long-float 10)))
+  (ceiling (log least-positive-normalized-long-float 10)))
   
 (defconstant LDBL_MAX_EXP
-  #.(nth-value 1 (decode-float most-positive-long-float)))
+  (nth-value 1 (decode-float most-positive-long-float)))
 
 (defconstant LDBL_MAX
   most-positive-long-float)
 
 (defconstant LDBL_MAX_10_EXP
-  #.(floor (log most-positive-long-float 10)))
+  (floor (log most-positive-long-float 10)))
 
 ;; short-float; extension
 (defconstant SFLT_RADIX
-  #.(float-radix 1s0))
+  (float-radix 1s0))
 
 (defconstant SFLT_MANT_DIG
-  #.(float-digits 1s0))
+  (float-digits 1s0))
 
 (defconstant SFLT_EPSILON
   short-float-epsilon)
 
 (defconstant SFLT_DIG
-  #.(mantissa-radix-change
-     SFLT_MANT_DIG SFLT_RADIX 10))
+  (mantissa-radix-change SFLT_MANT_DIG SFLT_RADIX 10))
 
 (defconstant SFLT_MIN_EXP
-  #.(nth-value 1 (decode-float least-positive-normalized-short-float)))
+  (nth-value 1 (decode-float least-positive-normalized-short-float)))
 
 (defconstant SFLT_MIN
   least-positive-normalized-short-float)
 
 (defconstant SFLT_MIN_10_EXP
-  #.(ceiling (log least-positive-normalized-short-float 10)))
+  (ceiling (log least-positive-normalized-short-float 10)))
   
 (defconstant SFLT_MAX_EXP
-  #.(nth-value 1 (decode-float most-positive-short-float)))
+  (nth-value 1 (decode-float most-positive-short-float)))
 
 (defconstant SFLT_MAX
   most-positive-short-float)
 
 (defconstant SFLT_MAX_10_EXP
-  #.(floor (log most-positive-short-float 10)))
+  (floor (log most-positive-short-float 10)))
 
 ;; XXX:
 ;; In ANSI CL, There is no way to accessing the Floating Point Mode.
@@ -136,7 +135,7 @@
 
 ;; C99
 (defconstant DECIMAL_DIG
-  #.(max SFLT_DIG FLT_DIG DBL_DIG LDBL_DIG))
+  (max SFLT_DIG FLT_DIG DBL_DIG LDBL_DIG))
 
 ;; XXX:
 ;; 
