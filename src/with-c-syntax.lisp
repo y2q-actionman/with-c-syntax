@@ -464,7 +464,7 @@ globally across compliation units.
 (defun array-dimension-combine (array-dimension-list init)
   (loop with init-dims = (dimension-list-max-dimensions init)
      for a-elem in array-dimension-list
-     for (i-elem . i-elem-rest) = init-dims then i-elem-rest
+     for i-elem = (pop init-dims)
      if (null i-elem)
      collect a-elem
      else if (eq a-elem '*)
