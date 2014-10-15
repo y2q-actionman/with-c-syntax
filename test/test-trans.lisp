@@ -147,9 +147,13 @@
   (assert (= 103 (accumulator 2)))
   t)
 
+;; TODO: support this..
+#|
+(eval-when (:compile-toplevel)
+(with-c-syntax ()
+  struct xxx-struct { int x \; } \;))
+
 (defun test-trans-other-unit-struct ()
-  (with-c-syntax ()
-    struct xxx-struct { int x \; } \;)
   (assert (make-wcs-struct 'xxx-struct))
   (with-c-syntax ()
     hoge \( x \) {
@@ -159,8 +163,7 @@
     })
   ;; (assert (= 16 (hoge 2)))
   t)
-  
-
+|#
 
 (defun test-trans ()
   (test-trans-decl-simple)

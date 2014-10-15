@@ -14,7 +14,7 @@
   (ash i (- c)))
 
 ;; modify macros
-(define-modify-macro append-item-to-right-f (i)
+(define-modify-macro push-right (i)
   append-item-to-right)
 
 (define-modify-macro mulf (&rest args)

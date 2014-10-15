@@ -38,7 +38,7 @@
    #:make-wcs-struct
    #:wcs-struct-field
    ;; with-c-syntax.lisp
-   #:define-predefined-typedef
+   #:add-typedef
    #:get-varargs
    #:with-c-syntax))
 
@@ -49,7 +49,7 @@
                 #:length=)
   (:import-from #:with-c-syntax.core
                 #:define-preprocessor-macro
-                #:define-predefined-typedef
+                #:add-typedef
                 #:get-varargs))
 
 ;;; user package

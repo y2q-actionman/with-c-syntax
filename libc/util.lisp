@@ -20,7 +20,6 @@
   (define-preprocessor-macro (string-upcase name) val t))
 
 (defun define-predefined-typedef-and-aliases (sym type)
-  ;; typedefs name -> type
-  (define-predefined-typedef sym type)
+  (add-typedef sym type)		; typedefs name -> type
   ;; addes package-free alias
   (define-preprocessor-macro-with-upcase (symbol-name sym) sym))

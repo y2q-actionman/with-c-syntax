@@ -32,7 +32,7 @@ specification of ~spec-obj~.
 If ~spec-obj~ is a symbol, it must be a name of a globally defined
 struct or union. To define a struct or an union globally, use
 ~with-c-syntax~ and declare it in a toplevel of translation-unit.
- (For hackers: See the usage of ~install-global-wcs-struct-spec~.)
+ (For hackers: See the usage of ~add-wcs-struct-spec~.)
 
 If ~spec-obj~ is an instance of wcs-struct-spec, it is used directly.
 This style is used in ~with-c-syntax~.
@@ -46,18 +46,23 @@ specified by the ~spec-obj~.
   (etypecase spec-obj
     (wcs-struct-spec t)
     (symbol (setf spec-obj
-		  (or (find-global-wcs-struct-spec spec-obj)
+		  (or (find-wcs-struct-spec spec-obj)
 		      (error "no wcs-struct defined: ~S" spec-obj)))))
-  (let* ((default-args (wcs-struct-spec-initforms spec-obj))
-         (field-index-alist (wcs-struct-spec-field-index-alist spec-obj))
-         (size (length field-index-alist))
-         (init-args-len (length init-args))
-         (field-inits
-          (append init-args (nthcdr init-args-len default-args))))
-    (make-instance
-     'wcs-struct
-     :field-index-table (alist-hash-table field-index-alist)
-     :fields (make-array `(,size) :initial-contents field-inits))))
+  (loop with union-p = (eq (wcs-struct-spec-struct-type spec-obj) '|union|)
+     with field-index-table = (make-hash-table :test #'eq)
+     for idx from 0
+     for init-arg = (pop init-args)
+     for slot-def in (wcs-struct-spec-slot-defs spec-obj)
+     do (setf (gethash (getf slot-def :name) field-index-table)
+	      (if union-p 0 idx))
+     collect (or init-arg (getf slot-def :initform))
+     into field-inits
+     finally
+       (return
+	 (make-instance 'wcs-struct
+			:field-index-table field-index-table
+			:fields (make-array `(,idx)
+					    :initial-contents field-inits)))))
 
 (defun wcs-struct-field-index (wcs-struct field-name)
   (let* ((table (slot-value wcs-struct 'field-index-table))
