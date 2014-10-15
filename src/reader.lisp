@@ -108,12 +108,10 @@ Its contents is a list of plists. The plists holds below:
   (loop with str = (make-array '(0) :element-type 'character
 			       :adjustable t :fill-pointer t)
      for c = (read-char stream t nil t)
-     if (char= c c0)
-     do (loop-finish)
-     else if (char= c #\\)
-     do (vector-push-extend (read-escaped-char stream) str)
-     else
-     do (vector-push-extend c str)
+     until (char= c c0)
+     do (vector-push-extend
+         (if (char= c #\\) (read-escaped-char stream) c)
+         str)
      finally (return str)))
 
 (defun read-single-or-equal-symbol (stream char)
@@ -163,11 +161,10 @@ Its contents is a list of plists. The plists holds below:
        (values))
       (#\*
        (read-char stream t nil t)
-       (loop do
-	  (peek-char #\* stream t nil t)
-	  (read-char stream t nil t)
-	  (when (char= #\/ (read-char stream t nil t))
-	    (loop-finish)))
+       (loop for after-* = (progn (peek-char #\* stream t nil t)
+                                  (read-char stream t nil t)
+                                  (read-char stream t nil t))
+          until (char= after-* #\/))
        (values))
       (t
        (read-single-or-equal-symbol stream char)))))

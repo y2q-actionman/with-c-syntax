@@ -41,28 +41,21 @@ readtable-case is :upcase
     (unless (string= begin '|(|)
       (error "some symbols (~S) found between preprocessor macro and the first '('"
              begin)))
-  (flet ((get-arg ()
-           (loop for i = (pop lis-head)
-              if (null lis-head)
-              do (error "reached end of symbols at finding preprocessor macro args")
-              else if (string= i '|)|)
-              do (push i lis-head)
-                (loop-finish)
-              else if (string= i '|,|)
-              do (loop-finish)
-              else
-              collect i)))
-    (loop as next = (first lis-head)
-       if (null next)
-       do (error "reached end of symbols at finding preprocessor macro args")
-       else if (string= next '|)|)
-       do (pop lis-head)
-         (loop-finish)
-       else
-       collect (get-arg) into args
+  (labels ((pop-next-or-error ()
+             (unless lis-head
+               (error "reached end of symbols at finding preprocessor macro args"))
+             (pop lis-head))
+           (get-arg (start)
+             (loop for i = start then (pop-next-or-error)
+                until (or (string= i '|,|)
+                          (if (string= i '|)|)
+                              (progn (push i lis-head) t)))
+                collect i)))
+    (loop for i = (pop-next-or-error)
+       until (string= i '|)|)
+       collect (get-arg i) into args
        finally
-         (return (values (apply fn args)
-                         lis-head)))))
+         (return (values (apply fn args) lis-head)))))
 
 (defun preprocessor (lis &key allow-upcase-keyword)
   "* Syntax
