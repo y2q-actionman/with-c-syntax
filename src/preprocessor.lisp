@@ -102,25 +102,25 @@ symbols.
      while i
      ;; preprocessor macro
      when (symbolp i)
-     do (let* ((entry
-                (or (assoc i *preprocessor-macro*
-                           :test #'preprocessor-macro-compare)
-                    (if allow-upcase-keyword
-                        (assoc i *preprocessor-macro-for-upcase*
-                               :test #'preprocessor-macro-compare))))
-               (val (cdr entry)))
-          (when entry
-            (cond ((null val)           ; no-op
-                   nil)                   
-                  ((functionp val)    ; preprocessor funcion
-                   (multiple-value-bind (ex-val new-lis)
-                       (preprocessor-call-macro lis val)
-                     (push ex-val ret)
-                     (setf lis new-lis)
-                     (setf i nil)))
-                  (t                  ; symbol expansion
-                   (push val ret)
-                   (setf i nil)))))
+     do (when-let*
+            ((entry
+              (or (assoc i *preprocessor-macro*
+                         :test #'preprocessor-macro-compare)
+                  (if allow-upcase-keyword
+                      (assoc i *preprocessor-macro-for-upcase*
+                             :test #'preprocessor-macro-compare))))
+             (expansion (cdr entry)))
+          (cond ((null expansion)     ; no-op
+                 nil)                   
+                ((functionp expansion) ; preprocessor funcion
+                 (multiple-value-bind (ex-val new-lis)
+                     (preprocessor-call-macro lis expansion)
+                   (push ex-val ret)
+                   (setf lis new-lis)
+                   (setf i nil)))
+                (t                  ; symbol expansion
+                 (push expansion ret)
+                 (setf i nil))))
      ;; string concatenation
      when (stringp i)
      do (loop with str = i

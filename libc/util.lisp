@@ -15,9 +15,12 @@
 (defun unsigned-byte-max (bits)
   (1- (expt 2 bits))))
 
-(defun define-predefined-typedef-and-aliases (name type)
+(defun define-preprocessor-macro-with-upcase (name val)
+  (define-preprocessor-macro name val)
+  (define-preprocessor-macro (string-upcase name) val t))
+
+(defun define-predefined-typedef-and-aliases (sym type)
   ;; typedefs name -> type
-  (define-predefined-typedef name type)
+  (define-predefined-typedef sym type)
   ;; addes package-free alias
-  (define-preprocessor-macro (symbol-name name) name)
-  (define-preprocessor-macro (string-upcase (symbol-name name)) name t))
+  (define-preprocessor-macro-with-upcase (symbol-name sym) sym))

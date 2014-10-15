@@ -700,19 +700,12 @@ globally across compliation units.
 
 (defun lispify-offsetof (dspecs id)
   (setf dspecs (finalize-decl-specs dspecs))
-  (let* ((type-tag (decl-specs-wcs-type-tag dspecs))
-         (wcsspec
-          (progn (unless type-tag
-                   (error "offsetof used for not a struct type: ~S" type-tag))
-                 (find-wcs-struct-spec type-tag)))
-         (ret
-          (progn (unless wcsspec
-                   (error "offsetof used for not a struct type"))
-                 (assoc id (wcs-struct-spec-field-index-alist wcsspec)
-                        :test #'eq))))
-    (unless ret
-      (error "offsetof used for a non-member: ~S" id))
-    (cdr ret)))
+  (when-let* ((type-tag (decl-specs-wcs-type-tag dspecs))
+              (wcsspec (find-wcs-struct-spec type-tag))
+              (entry (assoc id (wcs-struct-spec-field-index-alist wcsspec)
+                            :test #'eq)))
+    (return-from lispify-offsetof (cdr entry)))
+  (error "Bad 'offsetof' usage"))
 
 ;;; Statements
 (defstruct stat

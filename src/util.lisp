@@ -62,10 +62,10 @@
 	 (locally (declare (special ,@symbols))
 	   ,@body))))
 
-;; treats a nested lists as an multid-imentional array.
+;; treats a nested lists as an multi-dimentional array.
 (defun make-dimension-list (dims &optional default)
   (if dims
-      (loop for i from 0 below (car dims)
+      (loop repeat (car dims)
          collect (make-dimension-list (cdr dims) default))
       default))
 
