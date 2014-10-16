@@ -64,7 +64,7 @@
       s \. x *= 8 \;
       return s \. x \;
     })
-  (assert (make-wcs-struct 'test))
+  (assert (make-struct 'test))
   (assert (fboundp 'hoge8))
   (assert (= 16 (hoge8 2)))
 
@@ -154,7 +154,7 @@
   struct xxx-struct { int x \; } \;))
 
 (defun test-trans-other-unit-struct ()
-  (assert (make-wcs-struct 'xxx-struct))
+  (assert (make-struct 'xxx-struct))
   (with-c-syntax ()
     hoge \( x \) {
       struct xxx-struct s = { x } \;

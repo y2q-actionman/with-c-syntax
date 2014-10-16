@@ -20,9 +20,9 @@ into the compilation unit.
 ~add-typedef~, ~find-typedef~, ~remove-typedef~.
 ")
 
-(defvar *wcs-struct-specs* (make-hash-table :test 'eq)
+(defvar *struct-specs* (make-hash-table :test 'eq)
   "* Value Type
-a hashtable :: a symbol -> a list of wcs-struct-spec.
+a hashtable :: a symbol -> a list of struct-spec.
 
 * Description
 This variable holds definitions of structs or unions.
@@ -36,12 +36,10 @@ definitions into the compilation unit.
 ~with-c-compilation-unit~.
 
 * See Also
-~add-wcs-struct-spec~, ~find-wcs-struct-spec~,
-~remove-wcs-struct-spec~
+~add-struct-spec~, ~find-struct-spec~, ~remove-struct-spec~
 ")
 
 (defvar *dynamic-binding-requested* nil
-  ;; TODO: update like *typedef-names*
   "* Value Type 
 a list :: consistes of symbols.
 
@@ -50,15 +48,14 @@ This variable holds a list of symbols, which are pointed by a pointer.
 If a pseudo-pointer is created for a symbol, the symbol is added to
 here (because such a symbol must be handled *carefully*).
 
-This variable is expected to be dynamically established per
-~with-c-syntax~.
+* Notes
+At the beginning of ~with-c-syntax~, it binds this variable to nil.
 
 * Affected By
 ~with-c-compilation-unit~.
 ")
 
 (defvar *function-pointer-ids* nil
-  ;; TODO: update like *typedef-names*
   "* Value Type
 a list :: consists of symbols.
 
@@ -67,15 +64,14 @@ This variable holds a list of symbols, which are declared as a pointer
 to a function.  (Because such a symbol is specially treated by the
 function-calling expression.)
 
-This variable is expected to be dynamically established per
-~with-c-syntax~.
+* Notes
+At the beginning of ~with-c-syntax~, it binds this variable to nil.
 
 * Affected By
 ~with-c-compilation-unit~.
 ")
 
 (defvar *toplevel-entry-form* nil
-  ;; TODO: update like *typedef-names*
   "* Value Type
 a list
 
@@ -85,8 +81,9 @@ This variable holds a form inserted as an entry point.
 This is used only when compiling a translation unit. Not used for
 other cases.
 
-This variable is expected to be dynamically established per
-~with-c-syntax~.
+* Notes
+At the beginning of ~with-c-syntax~, it binds this variable to its
+~entry-form~ argument.
 
 * Affected By
 ~with-c-compilation-unit~.
@@ -104,7 +101,7 @@ This variable is expected to be dynamically established per
 * Description
 This macro establishes variable bindings for new compilation.
 "
-  `(let ((*wcs-struct-specs* (copy-hash-table *wcs-struct-specs*))
+  `(let ((*struct-specs* (copy-hash-table *struct-specs*))
          (*typedef-names* (copy-hash-table *typedef-names*))
          (*dynamic-binding-requested* nil)
          (*function-pointer-ids* nil)
@@ -181,11 +178,14 @@ This macro establishes variable bindings for new compilation.
   (make-load-form-saving-slots obj :environment environment))
 
 (defstruct (spec-qualifier-list
-             (:include decl-specs))
-  )
+             (:include decl-specs)))
 
 (defmethod make-load-form ((obj spec-qualifier-list) &optional environment)
-  (make-load-form-saving-slots obj :environment environment))
+  (make-load-form-saving-slots
+   obj
+   :slot-names '(type-spec storage-class qualifier
+   		 lisp-type tag typedef-init-decl)
+   :environment environment))
 
 (defstruct (struct-declarator
              (:include init-declarator))
@@ -194,12 +194,10 @@ This macro establishes variable bindings for new compilation.
 
 (defstruct enum-spec
   (id nil)				; enum tag
-  ;; list of enumerator
-  (enumerator-list nil))
+  (enumerator-list nil))                ; list of enumerator
 
 (defstruct (enumerator
-	     (:include init-declarator))
-  )
+	     (:include init-declarator)))
 
 ;; typedefs
 (defun add-typedef (name object)
@@ -230,34 +228,33 @@ This functions addes a typedef definition.
   (pop (gethash name *typedef-names*)))
 
 ;; structure information
-(defstruct wcs-struct-spec
+(defstruct struct-spec
   struct-name	     ; user supplied struct tag (symbol)
   struct-type	     ; 'struct or 'union
   slot-defs  ; (:lisp-type ... :constness ... :decl-specs ...)
   ;; compile-time only
-  internal-link-symbol ; internal name between compile-time and runtime. See ~expand-toplevel~.
-  )
+  (internal-link-symbol nil)) ; internal name between compile-time and runtime.
 
-(defmethod make-load-form ((wcsspec wcs-struct-spec) &optional environment)
+(defmethod make-load-form ((sspec struct-spec) &optional environment)
   (make-load-form-saving-slots
-   wcsspec
+   sspec
    :slot-names '(struct-name struct-type slot-defs)
    :environment environment))
 
-(defun add-wcs-struct-spec (name wcsspec)
-  (push wcsspec (gethash name *wcs-struct-specs*)))
+(defun add-struct-spec (name sspec)
+  (push sspec (gethash name *struct-specs*)))
 
-(defun find-wcs-struct-spec (name)
-  (first (gethash name *wcs-struct-specs*)))
+(defun find-struct-spec (name)
+  (first (gethash name *struct-specs*)))
 
-(defun remove-wcs-struct-spec (name)
-  (pop (gethash name *wcs-struct-specs*)))
+(defun remove-struct-spec (name)
+  (pop (gethash name *struct-specs*)))
 
 ;; processes structure-spec 
 (defun finalize-struct-spec (sspec dspecs)
   (setf (decl-specs-tag dspecs) (or (struct-or-union-spec-id sspec)
 				    (gensym "unnamed-struct-"))
-	(decl-specs-lisp-type dspecs) 'wcs-struct)
+	(decl-specs-lisp-type dspecs) 'struct)
   ;; only declaration?
   (when (null (struct-or-union-spec-struct-decl-list sspec))
     (assert (struct-or-union-spec-id sspec)) ; this case is rejected by the parser.
@@ -287,30 +284,29 @@ This functions addes a typedef definition.
 		  (not (subtypep `(unsigned-byte ,bits) tp)))
 	  do (error "invalid bitfield: ~A, ~A" tp s-decl) ; limit bits.
 	  collect (list :lisp-type tp :constness constness
-			:name name
-			;; If form is too complex, it is rest as unbound.
-			:initform (if (constantp initform) initform nil)
-			:decl-specs spec-qual))
+			:name name :initform initform
+			:decl-specs spec-qual
+                        :abst-declarator abst-decl))
      into slot-specs
      finally
-       (let ((wcsspec
-	      (make-wcs-struct-spec
+       (let ((sspec
+	      (make-struct-spec
 	       :struct-name (decl-specs-tag dspecs)
 	       :struct-type (struct-or-union-spec-type sspec)
 	       :slot-defs slot-specs
 	       :internal-link-symbol
 	       (gensym (format nil "struct ~S " (struct-or-union-spec-id sspec))))))
-	 (add-wcs-struct-spec (decl-specs-tag dspecs) wcsspec)
-	 ;; This wcsspec is treated by this dspecs
-	 (push-right (decl-specs-struct-spec dspecs) wcsspec)))
+	 (add-struct-spec (decl-specs-tag dspecs) sspec)
+	 ;; This sspec is treated by this dspecs
+	 (push-right (decl-specs-struct-spec dspecs) sspec)))
     dspecs)
 
 ;; processes enum-spec 
-(deftype wcs-enum ()
+(deftype enum ()
   'fixnum)
 
 (defun finalize-enum-spec (espec dspecs)
-  (setf (decl-specs-lisp-type dspecs) 'wcs-enum)
+  (setf (decl-specs-lisp-type dspecs) 'enum)
   (setf (decl-specs-tag dspecs)
 	(or (enum-spec-id espec) (gensym "unnamed-enum-")))
   ;; addes values into lisp-decls
@@ -409,14 +405,15 @@ This functions addes a typedef definition.
                    (nthcdr (length dims) abst-declarator)
                    nil))
          (ret (make-dimension-list dims default)))
-    (labels ((var-init-setup (rest-dims rev-aref abst-decls init)
+    (labels ((var-init-setup (rest-dims subscripts abst-decls init)
                (if (null rest-dims)
-                   (setf (apply #'ref-dimension-list ret (reverse rev-aref))
+                   (setf (apply #'ref-dimension-list ret subscripts)
                          (expand-init-declarator-init dspecs abst-decls init))
                    (loop for d from 0 below (car rest-dims)
                       for init-i in init
                       do (assert (eq :aref (first (car abst-decls))))
-                      do (var-init-setup (cdr rest-dims) (cons d rev-aref)
+                      do (var-init-setup (cdr rest-dims)
+                                         (append-item-to-right subscripts d)
                                          (cdr abst-decls) init-i)))))
       (var-init-setup dims () abst-declarator init))
     ret))
@@ -459,13 +456,12 @@ This functions addes a typedef definition.
             (lisp-elem-type
              (if (subtypep aref-type 'number) aref-type t)) ; excludes compound types
             (var-type
-             (progn
-               (when (and error-on-incompleted
-			  (or (null aref-dim) (member '* aref-dim))
-                          (null initializer))
-		   (error "array's dimension cannot be specified (~S, ~S)"
-			  aref-dim initializer))
-               `(simple-array ,lisp-elem-type ,merged-dim)))
+             (if (and error-on-incompleted
+                      (or (null aref-dim) (member '* aref-dim))
+                      (null initializer))
+                 (error "array's dimension cannot be specified (~S, ~S)"
+                        aref-dim initializer)
+                 `(simple-array ,lisp-elem-type ,merged-dim)))
             (var-init
              `(make-array ',merged-dim
                           :element-type ',lisp-elem-type
@@ -484,26 +480,25 @@ This functions addes a typedef definition.
           (values initializer var-type))
          ((subtypep var-type 'number) ; includes enum
           (values (or initializer 0) var-type))
-         ((subtypep var-type 'wcs-struct)
-          (let* ((wcsspec (find-wcs-struct-spec (decl-specs-tag dspecs)))
+         ((subtypep var-type 'struct)
+          (let* ((sspec (find-struct-spec (decl-specs-tag dspecs)))
 		 (var-init
-		  (if (not wcsspec)
+		  (if (not sspec)
 		      (if error-on-incompleted
 			  (error "struct ~S not defined" (decl-specs-tag dspecs))
 			  nil)
-		      (let ((init-list
-			     (loop for idx from 0
-				for i in initializer
-				for slot in (wcs-struct-spec-slot-defs wcsspec)
-				collect (expand-init-declarator-init
-					 (getf slot :decl-specs) (cdr abst-declarator) i))))
-			`(make-wcs-struct
-			  ,(if (wcs-struct-spec-internal-link-symbol wcsspec)
-			       (wcs-struct-spec-internal-link-symbol wcsspec)
-			       `',(wcs-struct-spec-struct-name wcsspec))
-			  ,@init-list)))))
+                      `(make-struct
+                        ,(if-let ((sym (struct-spec-internal-link-symbol sspec)))
+                                 sym
+                                 `',(struct-spec-struct-name sspec))
+                        ,@(loop for init in initializer
+                             for slot in (struct-spec-slot-defs sspec)
+                             collect (expand-init-declarator-init
+                                      (getf slot :decl-specs)
+                                      (getf slot :abst-declarator)
+                                      init))))))
             (values var-init var-type)))
-         (t				; unknown type. Maybe user supplied lisp-type.
+         (t             ; unknown type. Maybe user supplied lisp-type.
 	  (values initializer var-type)))))))
 
 (defun finalize-init-declarator (dspecs init-decl)
@@ -515,15 +510,15 @@ This functions addes a typedef definition.
     (when (and init
                (member storage-class '(|extern| |typedef|)))
       (error "This variable (~S) cannot have any initializers" storage-class))
-    (when (and (eq :funcall (car (second decl)))
-	       (not (member storage-class '(nil |extern| |static|))))
-      (error "a function cannot have such storage-class: ~S" storage-class))
+    ;; expand typedef contents
     (when-let (td-init-decl (decl-specs-typedef-init-decl dspecs))
-      ;; expand typedef contents
       (appendf abst-decl
                (cdr (init-declarator-declarator td-init-decl))))
     (multiple-value-bind (var-init var-type)
 	(expand-init-declarator-init dspecs abst-decl init)
+      (when (and (subtypep var-type 'function)
+                 (not (member storage-class '(nil |extern| |static|))))
+        (error "a function cannot have such storage-class: ~S" storage-class))
       (setf (init-declarator-lisp-name init-decl) var-name
 	    (init-declarator-lisp-initform init-decl) var-init
 	    (init-declarator-lisp-type init-decl) var-type)
@@ -554,37 +549,34 @@ This functions addes a typedef definition.
   (setf qls (finalize-decl-specs qls))
   (if abs
       (let ((init-decl (make-init-declarator :declarator abs)))
-	(setf init-decl (finalize-init-declarator qls init-decl))
+	(finalize-init-declarator qls init-decl)
         (init-declarator-lisp-type init-decl))
       (decl-specs-lisp-type qls)))
 
-;;; Pointers
-(defun wcs-aref (obj arg1 &rest args)
+(defun lispify-subscript (obj arg1 &rest args)
   (etypecase obj
     (pseudo-pointer
-     (if (null args)
-	 (pseudo-pointer-dereference (+ obj arg1))
-	 (apply #'wcs-aref
-		(pseudo-pointer-dereference (+ obj arg1))
-		args)))
+     (let ((deref-obj (pseudo-pointer-dereference (+ obj arg1))))
+       (if (null args)
+           deref-obj
+           (apply #'lispify-subscript deref-obj args))))
     (array
      (apply #'aref obj arg1 args))))
 
-(defun (setf wcs-aref) (val obj arg1 &rest args)
+(defun (setf lispify-subscript) (val obj arg1 &rest args)
   (etypecase obj
     (pseudo-pointer
-     (if (null args)
-	 (setf (pseudo-pointer-dereference (+ obj arg1)) val)
-	 (setf (apply #'wcs-aref
-		      (pseudo-pointer-dereference (+ obj arg1))
-		      args)
-	       val)))
+     (symbol-macrolet 
+         ((deref-obj (pseudo-pointer-dereference (+ obj arg1))))
+       (if (null args)
+           (setf deref-obj val)
+           (setf (apply #'lispify-subscript deref-obj args) val))))
     (array
      (setf (apply #'aref obj arg1 args) val))))
 
 (defun lispify-cast (type exp)
   (if (null type)
-      `(progn ,exp nil)                  ; like '(void)x;'
+      `(progn ,exp (values))            ; like '(void)x;'
       `(coerce ,exp ',type)))
 
 (defun lispify-address-of (exp)
@@ -596,7 +588,7 @@ This functions addes a typedef definition.
 		 ,val ',exp))))
         ((listp exp)
 	 (destructuring-ecase exp
-	   ((wcs-aref obj &rest args)
+	   ((lispify-subscript obj &rest args)
 	    (once-only (obj)
               `(if (arrayp ,obj)
 		   (make-pseudo-pointer
@@ -604,12 +596,12 @@ This functions addes a typedef definition.
 		    ,(lastcar args))
                    (error "Getting a pointer to an array, but this is not an array: ~S"
                           ,obj))))
-           ((wcs-struct-field obj field)
+           ((struct-field obj field)
 	    (once-only (obj)
-              `(if (typep ,obj 'wcs-struct)
+              `(if (typep ,obj 'struct)
 		   (make-pseudo-pointer
-		    (wcs-struct-fields ,obj)
-		    (wcs-struct-field-index ,obj ,field))
+		    (struct-fields ,obj)
+		    (struct-field-index ,obj ,field))
                    (error "Getting a pointer to a struct member, but this is not a struct: ~S"
                           ,obj))))
            ((pseudo-pointer-dereference obj)
@@ -626,12 +618,11 @@ This functions addes a typedef definition.
 (defun lispify-offsetof (dspecs id)
   (setf dspecs (finalize-decl-specs dspecs))
   (when-let* ((tag (decl-specs-tag dspecs))
-              (wcsspec (find-wcs-struct-spec tag))
+              (sspec (find-struct-spec tag))
               (entry
-	       (loop for slot in (wcs-struct-spec-slot-defs wcsspec)
-		  for index from 0
-		  when (eq (getf slot :name) id)
-		  return index)))
+	       (loop for slot in (struct-spec-slot-defs sspec)
+                  until (eq (getf slot :name) id)
+                  count slot)))
     (return-from lispify-offsetof entry))
   (error "Bad 'offsetof' usage"))
 
@@ -728,24 +719,21 @@ This functions addes a typedef definition.
     (push go-tag-sym (stat-code stat))))
 
 (defun expand-switch (exp stat)
-  (let* ((exp-sym (gensym "switch-cond-"))
-	 (end-tag (gensym "switch-end-"))
+  (let* ((end-tag (gensym "switch-end-"))
 	 (jump-table			; create jump table with COND
-	  (loop with default-clause =`(t (go ,end-tag))
+	  (loop with default-clause = `(t (go ,end-tag))
 	     for (go-tag-sym . case-label-exp)
 	     in (shiftf (stat-case-label-list stat) nil)
 
 	     if (eq case-label-exp '|default|)
 	     do (setf default-clause `(t (go ,go-tag-sym)))
 	     else
-	     collect `((eql ,exp-sym ,case-label-exp) (go ,go-tag-sym))
+	     collect `(,case-label-exp (go ,go-tag-sym))
 	     into clauses
 	     finally
-               (return
-                 `(let ((,exp-sym ,exp))
-                    (cond
-                      ,@clauses
-                      ,default-clause))))))
+               (return `(case ,exp
+                          ,@clauses
+                          ,default-clause)))))
     (rewrite-break-statements end-tag stat)
     (setf (stat-code stat)
 	  `(,jump-table
@@ -784,7 +772,8 @@ established.
   (declare (ignore dst))
   (error "trying to get variadic args list out of variadic funcs"))
 
-(defun lispify-function-definition (name body &key return K&R-decls)
+(defun lispify-function-definition (name body
+                                    &key K&R-decls (return (make-decl-specs)))
   (let* ((func-name (first name))
          (func-param (getf (second name) :funcall))
          (variadic nil)
@@ -799,8 +788,7 @@ established.
 		   (let ((var (gensym "omitted-arg-")))
 		     (push var omitted)
 		     var))))
-	 (return (finalize-decl-specs
-		  (if return return (make-decl-specs))))
+	 (return (finalize-decl-specs return))
 	 (storage-class
 	  (case (decl-specs-storage-class return)
 	    (|static| '|static|)
@@ -863,15 +851,15 @@ established.
          (|auto|
           (when (eq mode :translation-unit)
             (error "At top level, 'auto' variables are not accepted (~S)" name))
-          (push-right lexical-binds `(,name ,init)))
+          (push `(,name ,init) lexical-binds))
          ;; 'register' vars
          (|register|
           (when (eq mode :translation-unit)
             (error "At top level, 'register' variables are not accepted (~S)" name))
-          (push-right lexical-binds `(,name ,init))
+          (push `(,name ,init) lexical-binds)
           (when (member name dynamic-established-syms :test #'eq)
             (warn "some variables are 'register', but its pointer is taken (~S)." name))
-          (push-right dynamic-extent-vars name))
+          (push name dynamic-extent-vars))
          ;; 'extern' vars.
          (|extern|
           (unless (or (null init) (zerop init))
@@ -881,41 +869,44 @@ established.
           (when (eq mode :statement)
             (error "In internal scope, no global vars cannot be defined (~S)." name))
 	  (let ((init-sym (gensym (format nil "global-var-~S-tmp-" name))))
-	    (push-right lexical-binds `(,init-sym ,init))
-	    (push-right special-vars name)
-	    (push-right global-defs
-			`(defparameter ,name ,init-sym
-			   "generated by with-c-syntax, for global"))))
+	    (push `(,init-sym ,init) lexical-binds)
+	    (push name special-vars)
+	    (push `(defparameter ,name ,init-sym
+			   "generated by with-c-syntax, for global")
+                  global-defs)))
          ;; 'static' vars.
          (|static|
 	  (ecase mode
 	    (:statement
 	     ;; initialized 'only-once'
 	     (let ((st-sym (gensym (format nil "static-var-~S-storage-" name))))
-	       (push-right lexical-binds
-			   `(,name (if (boundp ',st-sym)
-				       (symbol-value ',st-sym)
-				       (setf (symbol-value ',st-sym) ,init))))))
+	       (push `(,name (if (boundp ',st-sym)
+                                 (symbol-value ',st-sym)
+                                 (setf (symbol-value ',st-sym) ,init)))
+                     lexical-binds)))
 	    (:translation-unit
 	     ;; lexically bound
-	     (push-right lexical-binds `(,name ,init)))))
+	     (push `(,name ,init) lexical-binds))))
          ;; 'typedef' vars
          (|typedef|
-          (push-right typedef-names name)))
+          (push name typedef-names)))
      finally
        (return
-         (values lexical-binds dynamic-extent-vars
-                 special-vars global-defs
-                 typedef-names funcptr-syms
+         (values (nreverse lexical-binds)
+                 (nreverse dynamic-extent-vars)
+                 (nreverse special-vars)
+                 (nreverse global-defs)
+                 (nreverse typedef-names)
+                 (nreverse funcptr-syms)
                  dynamic-established-syms))))
 
 
 (defun expand-struct-spec (sspecs)
-  (loop for wcsspec in sspecs
-     as sname = (wcs-struct-spec-struct-name wcsspec)
-     as iname = (wcs-struct-spec-internal-link-symbol wcsspec)
+  (loop for sspec in sspecs
+     as sname = (struct-spec-struct-name sspec)
+     as iname = (shiftf (struct-spec-internal-link-symbol sspec) nil)
      when iname
-     collect `(,iname ,wcsspec) into class-binds
+     collect `(,iname ,sspec) into class-binds
      and collect `(,sname ,iname) into renames
      finally (return (values class-binds renames))))
 
@@ -928,12 +919,12 @@ established.
         dynamic-extent-vars
         special-vars
         global-defs
-        local-funcs
-        struct-specs
         typedef-names
-        func-defs
+        funcptr-syms
+        struct-specs
         dynamic-established-syms
-        funcptr-syms)
+        func-defs
+        local-funcs)
     ;; process decls
     (loop for (dspecs init-decls) in decls
        as storage-class = (or (decl-specs-storage-class dspecs)
@@ -947,7 +938,7 @@ established.
            (appendf lexical-binds binds)
            (when (eq mode :translation-unit)
              (loop for (sym val) in renames
-                collect `(add-wcs-struct-spec ',sym ,val) into defs
+                collect `(add-struct-spec ',sym ,val) into defs
                 finally (appendf global-defs defs))))
        ;; declarations
        do
@@ -972,11 +963,11 @@ established.
        as body = (function-definition-func-body fdef)
        do (ecase (function-definition-storage-class fdef)
             (|global|
-             (push-right func-defs
-			 `(defun ,name ,args ,@body)))
+             (push `(defun ,name ,args ,@body) func-defs))
             (|static|
-             (push-right local-funcs
-			 `(,name ,args ,@body)))))
+             (push `(,name ,args ,@body) local-funcs))))
+    (nreversef func-defs)
+    (nreversef local-funcs)
     (prog1
         `(let* (,@lexical-binds)
            (declare (dynamic-extent ,@dynamic-extent-vars)
@@ -988,7 +979,7 @@ established.
                ,@code)))
       ;; drop expanded definitions
       (loop for c in struct-specs
-         do (remove-wcs-struct-spec (wcs-struct-spec-struct-name c)))
+         do (remove-struct-spec (struct-spec-struct-name c)))
       (loop for sym in typedef-names
          do (remove-typedef sym))
       ;; drop symbols specially treated in this unit.
@@ -1750,9 +1741,9 @@ established.
    (postfix-exp [ exp ]
 		#'(lambda (exp op1 idx op2)
 		    (declare (ignore op1 op2))
-                    (if (and (listp exp) (eq (first exp) 'wcs-aref))
+                    (if (and (listp exp) (eq (first exp) 'lispify-subscript))
 			(append-item-to-right exp idx)
-                        `(wcs-aref ,exp ,idx))))
+                        `(lispify-subscript ,exp ,idx))))
    (postfix-exp \( argument-exp-list \)
 		#'(lambda (exp op1 args op2)
 		    (declare (ignore op1 op2))
@@ -1764,11 +1755,11 @@ established.
    (postfix-exp \. id
 		#'(lambda (exp _op id)
 		    (declare (ignore _op))
-		    `(wcs-struct-field ,exp ',id)))
+		    `(struct-field ,exp ',id)))
    (postfix-exp -> id
 		#'(lambda (exp _op id)
 		    (declare (ignore _op))
-		    `(wcs-struct-field (pseudo-pointer-dereference ,exp) ',id)))
+		    `(struct-field (pseudo-pointer-dereference ,exp) ',id)))
    (postfix-exp ++
 		#'(lambda (exp _op)
 		    (declare (ignore _op))

@@ -611,6 +611,13 @@
     struct hoge arr [ 5 ] = { { 1 } \, { 2 } } \;
     return arr [ 1 ] \. x \;
     })
+
+  (eval-equal 2 ()
+    {
+    struct hoge { int x [ 5 ] \; } \;
+    struct hoge xx = { { 0 \, 1 \, 2 \, 3 \, 4 } } \;
+    return xx \. x [ 2 ] \;
+    })
   t)
 
 (defun test-typedefs ()

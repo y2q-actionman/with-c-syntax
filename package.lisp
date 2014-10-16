@@ -13,6 +13,7 @@
 		#:when-let*
 		#:appendf		; 3. Conses
 		#:nconcf
+		#:nreversef
 		#:lastcar
 		#:removef		; 4. Sequences
 		#:deletef
@@ -33,10 +34,10 @@
    ;; reader.lisp
    #:use-reader
    #:unuse-reader
-   ;; wcs-struct.lisp
-   #:wcs-struct
-   #:make-wcs-struct
-   #:wcs-struct-field
+   ;; struct.lisp
+   #:struct
+   #:make-struct
+   #:struct-field
    ;; with-c-syntax.lisp
    #:add-typedef
    #:get-varargs

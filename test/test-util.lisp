@@ -9,8 +9,8 @@
 	       "eval-equal error: expected ~S, returned ~S~% form ~S"
 	       ,exp ,ret ',form))))
 
-(defmacro eval-equal (val (&rest wcs-args) &body body)
-  `(eval-equal* ,val (with-c-syntax (,@wcs-args) ,@body)))
+(defmacro eval-equal (val (&rest options) &body body)
+  `(eval-equal* ,val (with-c-syntax (,@options) ,@body)))
 
 (defmacro assert-compile-error (() &body body)
   `(assert
