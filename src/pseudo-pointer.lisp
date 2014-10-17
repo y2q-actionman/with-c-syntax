@@ -86,7 +86,7 @@ A pointer allocated inside this macro is invalidated out of this.
      ,@body))
 
 (defun alloc-pseudo-pointer (pointee)
-  (incf *pseudo-pointer-next*) ; This makes the base of the first pointer to 0
+  (incf *pseudo-pointer-next*)
   (let* ((base (ash *pseudo-pointer-next*
                     (logcount +pseudo-pointer-mask+)))
          (p (+ base +pseudo-pointer-safebit+)))

@@ -91,16 +91,16 @@ symbols.
 "
   (loop with ret = nil
      with typedef-hack = nil
-     for i = (pop lis)
-     while i
+     for token = (pop lis)
+     while token
      ;; preprocessor macro
-     when (symbolp i)
+     when (symbolp token)
      do (when-let*
             ((entry
-              (or (assoc i *preprocessor-macro*
+              (or (assoc token *preprocessor-macro*
                          :test #'preprocessor-macro-compare)
                   (if allow-upcase-keyword
-                      (assoc i *preprocessor-macro-for-upcase*
+                      (assoc token *preprocessor-macro-for-upcase*
                              :test #'preprocessor-macro-compare))))
              (expansion (cdr entry)))
           (cond ((null expansion)     ; no-op
@@ -110,23 +110,22 @@ symbols.
                      (preprocessor-call-macro lis expansion)
                    (push ex-val ret)
                    (setf lis new-lis)
-                   (setf i nil)))
+                   (setf token nil)))
                 (t                  ; symbol expansion
                  (push expansion ret)
-                 (setf i nil))))
+                 (setf token nil))))
      ;; string concatenation
-     when (stringp i)
-     do (loop with str = i
-           for next = (first lis)
-           while (stringp next)
-           do (pop lis)
-             (setf str (concatenate 'string str next))
+     when (stringp token)
+     do (loop for i = (pop lis)
+           while (stringp i)
+	   collect i into strs
            finally
-             (push str ret)
-             (setf i nil))
+	     (push i lis)
+             (push (apply #'concatenate 'string token strs) ret)
+             (setf token nil))
      ;; otherwise..
-     when i
-     do (push i ret)
+     when token
+     do (push token ret)
 
      ;; typedef hack -- addes "void \;" after each typedef.
      if (eq (first ret) '|typedef|)
