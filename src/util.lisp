@@ -122,17 +122,14 @@
 (defun make-string-from-chars (&rest chars)
   (coerce chars 'string))
 
-(defun standard-whitespace-p (char)
-  (and (standard-char-p char)
-       (case char
-	 ((#\space #\newline) t)
-	 (otherwise nil))))
-
 (defun terminating-char-p (char &optional (readtable *readtable*))
-  (or (standard-whitespace-p char)
-      (multiple-value-bind (fn non-terminating-p)
-	  (get-macro-character char readtable)
-	(and fn (not non-terminating-p)))))
+  (case char
+    ((#\tab #\newline #\linefeed #\page #\return #\space)
+     t)
+    (otherwise
+     (multiple-value-bind (fn non-terminating-p)
+	 (get-macro-character char readtable)
+       (and fn (not non-terminating-p))))))
 
 (define-constant +bracket-pair-alist+
     '((#\( . #\)) (#\[ . #\])

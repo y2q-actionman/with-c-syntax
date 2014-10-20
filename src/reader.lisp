@@ -92,7 +92,7 @@ Its contents is a list of plists. The plists holds below:
 	(#\b #\Backspace)
 	(#\f #\Page)
 	(#\n #\Newline)
-	(#\r (code-char #x0d))		; carriage return
+	(#\r #\Return)
 	(#\t #\Tab)
 	(#\v (code-char #x0b))		; vartical tab
 	(#\\ #\\)

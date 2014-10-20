@@ -6,7 +6,7 @@
   (test-pointer-all)
   (test-trans)
   (test-wcs)
-  (test-examples)
   (test-reader)
   (test-preprocessor)
+  (test-examples)
   t)
