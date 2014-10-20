@@ -23,7 +23,8 @@
 		#:maxf)			; 10. Numbers
   (:import-from #:yacc
         	#:define-parser
-                #:parse-with-lexer)
+                #:parse-with-lexer
+		#:yacc-parse-error)
   (:export
    ;; preprocessor.lisp
    #:preprocessor

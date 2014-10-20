@@ -1,30 +1,29 @@
 (in-package #:with-c-syntax.test)
 
-(defmacro eval-equal* (val form)
-  (let ((exp (gensym)) (ret (gensym)))
-    `(let ((,exp ,val)
+(defmacro eval-equal (val (&rest options) &body body)
+  (let ((val-sym (gensym))
+	(ret (gensym)) 
+	(form `(with-c-syntax (,@options) ,@body)))
+    `(let ((,val-sym ,val)
 	   (,ret ,form))
-       (assert (equal ,exp ,ret)
+       (assert (equal ,val-sym ,ret)
 	       ()
 	       "eval-equal error: expected ~S, returned ~S~% form ~S"
-	       ,exp ,ret ',form))))
+	       ,val-sym ,ret ',form))))
 
-(defmacro eval-equal (val (&rest options) &body body)
-  `(eval-equal* ,val (with-c-syntax (,@options) ,@body)))
-
-(defmacro assert-compile-error (() &body body)
+(defmacro assert-compile-error ((&rest options) &body body)
   `(assert
     (nth-value
      1
      (ignore-errors
        (macroexpand
-        '(with-c-syntax () ,@body))))))
+        '(with-c-syntax (,@options) ,@body))))))
 
-(defmacro assert-runtime-error (() &body body)
+(defmacro assert-runtime-error ((&rest options) &body body)
   `(assert
     (nth-value
      1 
-     (ignore-errors (with-c-syntax () ,@body)))))
+     (ignore-errors (with-c-syntax (,@options) ,@body)))))
 
 (defmacro muffle-unused-code-warning (&body body)
   `(locally

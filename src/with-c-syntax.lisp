@@ -1798,17 +1798,20 @@ established.
   )
 
 ;;; Macro interface
-(defmacro with-c-syntax ((&key (keyword-case (readtable-case *readtable*))
-			       entry-form)
+(defmacro with-c-syntax ((&key (keyword-case (readtable-case *readtable*)
+					     keyword-case-supplied-p)
+			       (entry-form nil entry-form-supplied-p)
+			       (try-add-{} t try-add-{}-supplied-p))
 			 &body body)
   "* Syntax
-~with-c-syntax~ (&key keyword-case entry-form) form* => result*
+~with-c-syntax~ (&key keyword-case entry-form try-add-{}) form* => result*
 
 * Arguments and Values
 - keyword-case :: one of ~:upcase~, ~:downcase~, ~:preserve~, or
                   ~:invert~.  The default is the current readtable
                   case.
 - entry-form :: a form.
+- try-add-{} :: a boolean.
 - forms   :: forms interpreted by this macro.
 - results :: the values returned by the ~forms~
 
@@ -1821,11 +1824,37 @@ specified, some case-insensitive feature is enabled for convenience.
 
 ~entry-form~ is inserted as a entry point when compiling a translation
 unit.
+
+If ~try-add-{}~ is t and an error occured at parsing, with-c-syntax
+adds '{' and '}' into the head and tail of ~form~ respectively, and
+tries to parse again.
 "
-  (when body
-    (with-c-compilation-unit (entry-form)
-      (parse-with-lexer
-       (list-lexer (preprocessor body
-                                 :allow-upcase-keyword
-                                 (eq keyword-case :upcase)))
-       *expression-parser*))))
+  (labels ((expand-c-syntax (body retry-add-{})
+	     (handler-case 
+		 (with-c-compilation-unit (entry-form)
+		   (parse-with-lexer
+		    (list-lexer (preprocessor body
+					      :allow-upcase-keyword
+					      (eq keyword-case :upcase)))
+		    *expression-parser*))
+	       (yacc-parse-error (condition)
+		 (if retry-add-{}
+		     (expand-c-syntax (append '({) body '(})) nil)
+		     (error condition))))))
+    (cond
+      ((null body) nil)
+      ((and (length= 1 body)		; with-c-syntax is nested.
+	    (eq (first (first body)) 'with-c-syntax))
+       (destructuring-bind (_ (&rest keyargs) &body body2)
+	   (first body)
+	 (declare (ignore _))
+	 `(with-c-syntax (,@keyargs
+			  ,@(if keyword-case-supplied-p
+				`(:keyword-case ,keyword-case))
+			  ,@(if entry-form-supplied-p
+				`(:entry-form ,entry-form))
+			  ,@(if try-add-{}-supplied-p
+				`(:try-add-{} ,try-add-{})))
+	    ,@body2)))
+      (t
+       (expand-c-syntax body try-add-{})))))
