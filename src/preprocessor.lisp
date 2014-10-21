@@ -1,40 +1,48 @@
 (in-package #:with-c-syntax.core)
 
 (defun preprocessor-initial-set ()
-  (flet ((make-entry (sym)
-           (cons (symbol-name sym) sym)))
-    (nconc (mapcar #'make-entry +operators+)
-           (mapcar #'make-entry +keywords+))))
-
-(defun preprocessor-initial-set-for-upcase ()
-  (loop for (name . macro) in (preprocessor-initial-set)
+  (loop for sym in (append +operators+ +keywords+)
+     as name = (symbol-name sym)
      as ucase = (string-upcase name)
+     as macro = sym
+     collect `((,name nil) . ,macro)
      when (string/= name ucase)
-     collect (cons ucase macro)))
+     collect `((,ucase :upcase) . ,macro)))
 
-(defvar *preprocessor-macro*
+(defparameter *preprocessor-macro*
   (preprocessor-initial-set)
   "* Value Type
-alist :: <symbol or string> -> <nil, function, symbol, or any literal object>.
-
+a vector of alist.
+The alist is :: (<symbol or string> case-spec)
+                 -> <function, or any literal object>.
+ 
 * Description
 This variable holds preprocessor macro definitions.
+
+~case-spec~ is one of the following:
+nil     :: means this macro definision is all readtable-case.
+:upcase :: means this macro definision is only for the :upcase of
+           readtable-case.
 ")
 
-(defvar *preprocessor-macro-for-upcase*
-  (preprocessor-initial-set-for-upcase)
-  "* Value Type
-alist :: <symbol or string> -> <nil, function, symbol, or any literal object>.
+(defun push-preprocessor-macro (name val case-spec)
+  (push `((,name ,case-spec) . ,val)
+	*preprocessor-macro*))
 
-* Description
-This variable holds preprocessor macro definitions, used when current
-readtable-case is :upcase
-")
+(defun find-preprocessor-macro (name case-spec)
+  (loop for entry in *preprocessor-macro*
+     as (e-name e-case) = (car entry)
+     when (and (or (eq e-case nil)
+		   (eq e-case case-spec))
+	       (if (and (symbolp e-name) (symbolp name))
+		   (eq e-name name)
+		   (string= e-name name)))
+     return entry))
 
-(defun preprocessor-macro-compare (x y)
-  (if (and (symbolp x) (symbolp y))
-      (eq x y)
-      (string= x y)))
+;; TODO: test
+(defun pop-preprocessor-macro (name case-spec)
+  (when-let (entry (find-preprocessor-macro name case-spec))
+    (deletef *preprocessor-macro* entry :test #'eq)))
 
 (defun preprocessor-call-macro (lis-head fn)
   (let ((begin (pop lis-head)))
@@ -57,13 +65,13 @@ readtable-case is :upcase
        finally
          (return (values (apply fn args) lis-head)))))
 
-(defun preprocessor (lis &key allow-upcase-keyword)
+(defun preprocessor (lis &optional (case-spec nil))
   "* Syntax
 ~preprocessor~ list-of-tokens &key allow-upcase-keyword => preprocesed-list
 
 * Arguments and Values
 - list-of-tokens       :: a list
-- allow-upcase-keyword :: a generalized boolean
+- case-spec            :: ~:upcase~, or nil.
 - preprocesed-list     :: a list
 
 * Description
@@ -83,8 +91,9 @@ of its functionalities are implemented.  Current working is below:
   is a workaround for avoiding the problem between 'the lexer hack'
   and the look-aheading of cl-yacc.
 
-If ~allow-upcase-keyword~ is t, enables preprocessor macros for upcase
-symbols.
+~case-spec~ specifies which macro definitions are used. If ~:upcase~
+is specified, macro definitions for ~:upcase~ reader is used
+additionally.
 
 * Notes
 - TODO: recursive expansion
@@ -96,12 +105,7 @@ symbols.
      ;; preprocessor macro
      when (symbolp token)
      do (when-let*
-            ((entry
-              (or (assoc token *preprocessor-macro*
-                         :test #'preprocessor-macro-compare)
-                  (if allow-upcase-keyword
-                      (assoc token *preprocessor-macro-for-upcase*
-                             :test #'preprocessor-macro-compare))))
+            ((entry (find-preprocessor-macro token case-spec))
              (expansion (cdr entry)))
           (cond ((null expansion)     ; no-op
                  nil)                   
@@ -140,21 +144,25 @@ symbols.
      finally
        (return (nreverse ret))))
 
-(defun define-preprocessor-macro (name val &optional for-upcase)
+(defun define-preprocessor-macro (name val &optional (case-spec nil))
   "* Syntax
 ~define-preprocessor-macro~ name val &optional for-upcase => macro-def
 
 * Arguments and Values
 - name       :: a string or symbol.
 - val        :: an object.
-- for-upcase :: a generalized boolean.
+- case-spec  :: ~:upcase~, or nil.
 - macro-def  :: an object (same as ~val~)
 
 * Description
 This function establishes a preprocessor macro.  When the preprocessor
 finds a symbol matching ~name~, it is expanded by ~val~.
 
-If ~for-upcase~ is t, a macro is defined for upcase symbols.
+If ~case-spec~ is , a macro is defined for upcase symbols.
+
+~case-spec~ specifies for which case the macro is defined.  If
+~:upcase~ is specified, the macro is defined only for the ~:upcase~
+reader. If nil, the macro is defined for all readtable-case.
 
 ** Matching rule
 - If ~name~ is a string, the matching functions is 'string='. Packages
@@ -184,11 +192,6 @@ this sequence
 calls the function like:
   (funcall #'a-func-of-MAC '(a) '(b b) '(c c c))
 "
-  (macrolet ((setup-macro (place)
-               `(if-let ((entry (assoc name ,place
-                                      :test #'preprocessor-macro-compare)))
-                  (setf (cdr entry) val)
-                  (push (cons name val) ,place))))
-    (if for-upcase
-        (setup-macro *preprocessor-macro-for-upcase*)
-        (setup-macro *preprocessor-macro*))))
+  (if-let ((entry (find-preprocessor-macro name case-spec)))
+    (setf (cdr entry) val)
+    (push-preprocessor-macro name val case-spec)))

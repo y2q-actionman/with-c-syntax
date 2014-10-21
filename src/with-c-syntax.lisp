@@ -168,6 +168,9 @@ This macro establishes variable bindings for new compilation.
   (lisp-initform)
   (lisp-type))
 
+(defmethod make-load-form ((obj init-declarator) &optional environment)
+  (make-load-form-saving-slots obj :environment environment))
+
 (defstruct struct-or-union-spec
   type					; symbol. 'struct' or 'union'
   (id nil)
@@ -191,13 +194,21 @@ This macro establishes variable bindings for new compilation.
              (:include init-declarator))
   (bits nil))
 
+(defmethod make-load-form ((obj struct-declarator) &optional environment)
+  (make-load-form-saving-slots obj :environment environment))
 
 (defstruct enum-spec
   (id nil)				; enum tag
   (enumerator-list nil))                ; list of enumerator
 
+(defmethod make-load-form ((obj enum-spec) &optional environment)
+  (make-load-form-saving-slots obj :environment environment))
+
 (defstruct (enumerator
 	     (:include init-declarator)))
+
+(defmethod make-load-form ((obj enumerator) &optional environment)
+  (make-load-form-saving-slots obj :environment environment))
 
 ;; typedefs
 (defun add-typedef (name object)
@@ -231,14 +242,14 @@ This functions addes a typedef definition.
 (defstruct struct-spec
   struct-name	     ; user supplied struct tag (symbol)
   struct-type	     ; 'struct or 'union
-  slot-defs  ; (:lisp-type ... :constness ... :decl-specs ...)
+  member-defs	     ; (:lisp-type ... :constness ... :decl-specs ...)
   ;; compile-time only
   (internal-link-symbol nil)) ; internal name between compile-time and runtime.
 
 (defmethod make-load-form ((sspec struct-spec) &optional environment)
   (make-load-form-saving-slots
    sspec
-   :slot-names '(struct-name struct-type slot-defs)
+   :slot-names '(struct-name struct-type member-defs)
    :environment environment))
 
 (defun add-struct-spec (name sspec)
@@ -274,7 +285,7 @@ This functions addes a typedef definition.
 	  with constness = (member '|const| (decl-specs-qualifier spec-qual))
 	  for s-decl in struct-decls
 	  as (decl-name . abst-decl) = (init-declarator-declarator s-decl)
-	  as name = (or decl-name (gensym "unnamed-field-"))
+	  as name = (or decl-name (gensym "unnamed-member-"))
 	  as initform = (expand-init-declarator-init spec-qual abst-decl nil)
 	  as bits = (struct-declarator-bits s-decl)
 	  ;; NOTE: In C, max bits are limited to the normal type.
@@ -287,13 +298,13 @@ This functions addes a typedef definition.
 			:name name :initform initform
 			:decl-specs spec-qual
                         :abst-declarator abst-decl))
-     into slot-specs
+     into member-defs
      finally
        (let ((sspec
 	      (make-struct-spec
 	       :struct-name (decl-specs-tag dspecs)
 	       :struct-type (struct-or-union-spec-type sspec)
-	       :slot-defs slot-specs
+	       :member-defs member-defs
 	       :internal-link-symbol
 	       (gensym (format nil "struct ~S " (struct-or-union-spec-id sspec))))))
 	 (add-struct-spec (decl-specs-tag dspecs) sspec)
@@ -492,10 +503,10 @@ This functions addes a typedef definition.
                                  sym
                                  `',(struct-spec-struct-name sspec))
                         ,@(loop for init in initializer
-                             for slot in (struct-spec-slot-defs sspec)
+                             for mem in (struct-spec-member-defs sspec)
                              collect (expand-init-declarator-init
-                                      (getf slot :decl-specs)
-                                      (getf slot :abst-declarator)
+                                      (getf mem :decl-specs)
+                                      (getf mem :abst-declarator)
                                       init))))))
             (values var-init var-type)))
          (t             ; unknown type. Maybe user supplied lisp-type.
@@ -534,6 +545,10 @@ This functions addes a typedef definition.
 ;;; Expressions
 (eval-when (:compile-toplevel :load-toplevel :execute)
   ;; These are directly called by the parser..
+(defun concatinate-comma-list (lis op i)
+  (declare (ignore op))
+  (append-item-to-right lis i))
+
 (defun lispify-unary (op)
   #'(lambda (_ exp)
       (declare (ignore _))
@@ -596,12 +611,12 @@ This functions addes a typedef definition.
 		    ,(lastcar args))
                    (error "Getting a pointer to an array, but this is not an array: ~S"
                           ,obj))))
-           ((struct-field obj field)
+           ((struct-member obj mem)
 	    (once-only (obj)
               `(if (typep ,obj 'struct)
 		   (make-pseudo-pointer
-		    (struct-fields ,obj)
-		    (struct-field-index ,obj ,field))
+		    (struct-member-vector ,obj)
+		    (struct-member-index ,obj ,mem))
                    (error "Getting a pointer to a struct member, but this is not a struct: ~S"
                           ,obj))))
            ((pseudo-pointer-dereference obj)
@@ -620,9 +635,9 @@ This functions addes a typedef definition.
   (when-let* ((tag (decl-specs-tag dspecs))
               (sspec (find-struct-spec tag))
               (entry
-	       (loop for slot in (struct-spec-slot-defs sspec)
-                  until (eq (getf slot :name) id)
-                  count slot)))
+	       (loop for mem in (struct-spec-member-defs sspec)
+                  until (eq (getf mem :name) id)
+                  count mem)))
     (return-from lispify-offsetof entry))
   (error "Bad 'offsetof' usage"))
 
@@ -889,7 +904,10 @@ established.
 	     (push `(,name ,init) lexical-binds))))
          ;; 'typedef' vars
          (|typedef|
-          (push name typedef-names)))
+          (push name typedef-names)
+	  (when (eq mode :translation-unit)
+	    (push `(add-typedef ',name ,(find-typedef name))
+		  global-defs))))
      finally
        (return
          (values (nreverse lexical-binds)
@@ -941,8 +959,7 @@ established.
                 collect `(add-struct-spec ',sym ,val) into defs
                 finally (appendf global-defs defs))))
        ;; declarations
-       do
-         (multiple-value-bind 
+       do(multiple-value-bind 
                (lexical-binds-1 dynamic-extent-vars-1
                                 special-vars-1 global-defs-1
                                 typedef-names-1 funcptr-syms-1
@@ -1755,11 +1772,11 @@ established.
    (postfix-exp \. id
 		#'(lambda (exp _op id)
 		    (declare (ignore _op))
-		    `(struct-field ,exp ',id)))
+		    `(struct-member ,exp ',id)))
    (postfix-exp -> id
 		#'(lambda (exp _op id)
 		    (declare (ignore _op))
-		    `(struct-field (pseudo-pointer-dereference ,exp) ',id)))
+		    `(struct-member (pseudo-pointer-dereference ,exp) ',id)))
    (postfix-exp ++
 		#'(lambda (exp _op)
 		    (declare (ignore _op))
@@ -1834,8 +1851,8 @@ tries to parse again.
 		 (with-c-compilation-unit (entry-form)
 		   (parse-with-lexer
 		    (list-lexer (preprocessor body
-					      :allow-upcase-keyword
-					      (eq keyword-case :upcase)))
+					      (if (eq keyword-case :upcase)
+						  :upcase nil)))
 		    *expression-parser*))
 	       (yacc-parse-error (condition)
 		 (if retry-add-{}

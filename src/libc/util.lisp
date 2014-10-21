@@ -17,7 +17,7 @@
 
 (defun define-preprocessor-macro-with-upcase (name val)
   (define-preprocessor-macro name val)
-  (define-preprocessor-macro (string-upcase name) val t))
+  (define-preprocessor-macro (string-upcase name) val :upcase))
 
 (defun define-predefined-typedef-and-aliases (sym type)
   (add-typedef sym type)		; typedefs name -> type

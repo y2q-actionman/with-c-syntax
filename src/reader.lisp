@@ -1,5 +1,17 @@
 (in-package #:with-c-syntax.core)
 
+(define-constant +bracket-pair-alist+
+    '((#\( . #\)) (#\[ . #\])
+      (#\{ . #\}) (#\< . #\>))
+  :test 'equal
+  :documentation
+  "* Value Type
+alist :: <character> -> <character>.
+
+* Description
+This constant holds an alist of bracket pairs.
+")
+
 (define-constant +reader-level-specifier-alist+
     '((0 . 0) (1 . 1) (2 . 2) (3 . 3)
       (:conservative . 0) (:aggressive . 1)

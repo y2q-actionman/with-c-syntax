@@ -4,10 +4,6 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun append-item-to-right (lis i)
     (append lis (list i)))
-
-  (defun concatinate-comma-list (lis op i)
-    (declare (ignore op))
-    (append-item-to-right lis i))
 )
 
 (defun reverse-ash (i c)
@@ -130,8 +126,3 @@
      (multiple-value-bind (fn non-terminating-p)
 	 (get-macro-character char readtable)
        (and fn (not non-terminating-p))))))
-
-(define-constant +bracket-pair-alist+
-    '((#\( . #\)) (#\[ . #\])
-      (#\{ . #\}) (#\< . #\>))
-  :test 'equal)

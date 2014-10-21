@@ -5,9 +5,11 @@
 
 ;;; struct type
 (defclass struct ()
-  ((field-index-table :initarg :field-index-table)
-   (fields :initarg :fields :initform #()
-           :accessor struct-fields))
+  ((member-index-table :initarg :member-index-table
+		       :reader struct-member-index-table)
+   (member-vector :initarg :member-vector
+		  :initform #()
+		  :accessor struct-member-vector))
   (:documentation
   "* Class Precesence List
 standard-object
@@ -38,9 +40,9 @@ If ~spec-obj~ is an instance of struct-spec, it is used directly.
  (For hackers: See ~expand-init-declarator-init~. This style is used
  in ~with-c-syntax~ internally.)
 
-~init-args~ is used for initializing fields of the newly created
+~init-args~ is used for initializing members of the newly created
 instance.  If the number of ~init-args~ is less than the number of
-fields, the rest fields are initialized with the default values
+members, the rest members are initialized with the default values
 specified by the ~spec-obj~.
 "
   (etypecase spec-obj
@@ -49,56 +51,56 @@ specified by the ~spec-obj~.
 		  (or (find-struct-spec spec-obj)
 		      (error "no struct defined: ~S" spec-obj)))))
   (loop with union-p = (eq (struct-spec-struct-type spec-obj) '|union|)
-     with field-index-table = (make-hash-table :test #'eq)
+     with member-index-table = (make-hash-table :test #'eq)
      for idx from 0
      for init-arg = (pop init-args)
-     for slot-def in (struct-spec-slot-defs spec-obj)
-     do (setf (gethash (getf slot-def :name) field-index-table)
+     for member-def in (struct-spec-member-defs spec-obj)
+     do (setf (gethash (getf member-def :name) member-index-table)
 	      (if union-p 0 idx))
-     collect (or init-arg (getf slot-def :initform))
-     into field-inits
+     collect (or init-arg (getf member-def :initform))
+     into member-inits
      finally
        (return
 	 (make-instance 'struct
-			:field-index-table field-index-table
-			:fields (make-array `(,idx)
-					    :initial-contents field-inits)))))
+			:member-index-table member-index-table
+			:member-vector (make-array `(,idx)
+						   :initial-contents member-inits)))))
 
-(defun struct-field-index (struct field-name)
-  (let* ((table (slot-value struct 'field-index-table))
-         (index (gethash field-name table)))
+(defun struct-member-index (struct member-name)
+  (let* ((table (struct-member-index-table struct))
+         (index (gethash member-name table)))
     (unless index
-      (error "field ~S not found" field-name))
+      (error "member ~S not found" member-name))
     index))
 
-(defun struct-field (struct field-name)
+(defun struct-member (struct member-name)
   "* Syntax
-~struct-field~ struct field-name => object
+~struct-member~ struct member-name => object
 
 * Arguments and Values
 - struct :: an instance of struct
-- field-name :: a symbol
+- member-name :: a symbol
 - object :: an object
 
 * Description
-This function returns the value of the field named ~field-name~ in the
-~struct~.
+This function returns the value of the member named ~member-name~ in
+the ~struct~.
 "
-  (let ((idx (struct-field-index struct field-name)))
-    (aref (struct-fields struct) idx)))
+  (let ((idx (struct-member-index struct member-name)))
+    (aref (struct-member-vector struct) idx)))
 
-(defun (setf struct-field) (val struct field-name)
+(defun (setf struct-member) (val struct member-name)
   "* Syntax
-(setf (~struct-field~ struct field-name) new-object)
+(setf (~struct-member~ struct member-name) new-object)
 
 * Arguments and Values
 - struct :: an instance of struct
-- field-name :: a symbol
+- member-name :: a symbol
 - new-object :: an object
 
 * Description
-This setf-function sets the value of the field named ~field-name~ in
+This setf-function sets the value of the member named ~member-name~ in
 the ~struct~.
 "
-  (let ((idx (struct-field-index struct field-name)))
-    (setf (aref (struct-fields struct) idx) val)))
+  (let ((idx (struct-member-index struct member-name)))
+    (setf (aref (struct-member-vector struct) idx) val)))

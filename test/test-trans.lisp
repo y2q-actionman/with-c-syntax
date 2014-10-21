@@ -165,6 +165,23 @@
   t)
 |#
 
+;; TODO: support this..
+#|
+(eval-when (:compile-toplevel)
+  (with-c-syntax ()
+    typedef int int_xxx_t \;))
+
+(defun test-trans-other-unit-typedef ()
+  (assert (with-c-syntax.core::find-typedef 'int_xxx_t)) ; TODO: export this
+  (with-c-syntax ()
+    int_xxx_t hoge \( x \) {
+      int_xxx_t tmp = x \;
+      return tmp \;
+    })
+  (assert (= 2 (hoge 2)))
+  t)
+|#
+
 (defun test-trans ()
   (test-trans-decl-simple)
   (test-trans-fdefinition-simple)
