@@ -147,22 +147,18 @@
   (assert (= 103 (accumulator 2)))
   t)
 
-;; TODO: support this..
-#|
-(with-c-syntax ()
-  enum { SOME_CONSTANT_100 = 100 } \;)
+(eval-when (:compile-toplevel)
+  (with-c-syntax ()
+    enum { SOME_CONSTANT_100 = 100 } \;))
 
-(defun test-trans-other-unit-typedef ()
+(defun test-trans-other-unit-enum ()
   (eval-equal 100 ()
     return SOME_CONSTANT_100 \;)
   t)
-|#
 
-;; TODO: support this..
-#|
 (eval-when (:compile-toplevel)
-(with-c-syntax ()
-  struct xxx-struct { int x \; } \;))
+  (with-c-syntax ()
+    struct xxx-struct { int x \; } \;))
 
 (defun test-trans-other-unit-struct ()
   (assert (make-struct 'xxx-struct))
@@ -172,13 +168,11 @@
       s \. x *= 8 \;
       return s \. x \;
     })
-  ;; (assert (= 16 (hoge 2)))
+  (assert (= 16 (hoge 2)))
   t)
-|#
 
-;; TODO: support this..
-#|
 (eval-when (:compile-toplevel)
+  (remove-typedef 'int_xxx_t)
   (with-c-syntax ()
     typedef int int_xxx_t \;))
 
@@ -191,7 +185,6 @@
     })
   (assert (= 2 (hoge 2)))
   t)
-|#
 
 (defun test-trans ()
   (test-trans-decl-simple)
@@ -199,4 +192,7 @@
   (test-trans-decl-static)
   (test-trans-fdefinition-varargs)
   (test-trans-fdefinition-and-storage-class)
+  (test-trans-other-unit-enum)
+  (test-trans-other-unit-struct)
+  (test-trans-other-unit-typedef)
   t)

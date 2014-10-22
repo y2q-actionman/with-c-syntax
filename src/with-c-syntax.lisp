@@ -266,6 +266,9 @@ returns nil.
 * Affected By
 ~with-c-compilation-unit~.
 "
+  ;; FIXME: remove these bad behavior:
+  ;; - Doesn't remove 'nil' from *typedef-names*.
+  ;; - Even if an entry does not exist, 'pop' inserts nil.
   (pop (gethash name *typedef-names*)))
 
 ;; structure information
@@ -333,6 +336,7 @@ found, returns nil.
 * Affected By
 ~with-c-compilation-unit~.
 "
+  ;; FIXME: fix bad behaviors like remove-typedef. See that.
   (pop (gethash name *struct-specs*)))
 
 ;; processes structure-spec 
@@ -429,23 +433,15 @@ found, returns nil.
 	     (setf (decl-specs-lisp-type dspecs) (second tp))
 	     (return dspecs))
 	    ((find-typedef tp)		; typedef name
-	     (let* ((td-dspecs (find-typedef tp))
-		    (n-entry (rassoc (decl-specs-lisp-type td-dspecs)
-				     +numeric-types-alist+
-				     :test #'equal)))
-	       (if n-entry
-		   ;; numeric. merge its contents.
-		   (appendf numeric-symbols (car n-entry))
-		   ;; non-numeric
-		   (progn
-		     (check-tp-list-length)
-		     (setf (decl-specs-lisp-type dspecs)
-			   (decl-specs-lisp-type td-dspecs)
-			   (decl-specs-tag dspecs)
-			   (decl-specs-tag td-dspecs)
-			   (decl-specs-typedef-init-decl dspecs)
-			   (decl-specs-typedef-init-decl td-dspecs))
-		     (return dspecs)))))
+	     (check-tp-list-length)
+	     (let ((td-dspecs (find-typedef tp)))
+               (setf (decl-specs-lisp-type dspecs)
+                     (decl-specs-lisp-type td-dspecs)
+                     (decl-specs-tag dspecs)
+                     (decl-specs-tag td-dspecs)
+                     (decl-specs-typedef-init-decl dspecs)
+                     (decl-specs-typedef-init-decl td-dspecs))
+               (return dspecs)))
 	    (t				; numeric types
 	     (push tp numeric-symbols))))
      finally
@@ -594,10 +590,11 @@ found, returns nil.
     (when (and init
                (member storage-class '(|extern| |typedef|)))
       (error "This variable (~S) cannot have any initializers" storage-class))
-    ;; expand typedef contents
-    (when-let (td-init-decl (decl-specs-typedef-init-decl dspecs))
-      (appendf abst-decl
-               (cdr (init-declarator-declarator td-init-decl))))
+    ;; If not typedef-ing, expands typedef contents.
+    (unless (eq storage-class '|typedef|)
+      (when-let (td-init-decl (decl-specs-typedef-init-decl dspecs))
+        (appendf abst-decl
+                 (cdr (init-declarator-declarator td-init-decl)))))
     (multiple-value-bind (var-init var-type)
 	(expand-init-declarator-init dspecs abst-decl init)
       (when (and (subtypep var-type 'function)
@@ -1088,9 +1085,13 @@ established.
     (nreversef cleanup-typedef-names)
     (nreversef cleanup-funcptr-syms)
     (nreversef cleanup-struct-specs)
-    (when (and (eq mode :translation-unit)
-	       lexical-binds)
-      (warn "The expansion result uses lexically bound variables. This prevents top-level compilation. Sorry."))
+    (when (eq mode :translation-unit)
+      (when lexical-binds
+        (warn "The expansion result uses lexically bound variables. This prevents top-level compilation. Sorry."))
+      ;; TODO: muffle with macro, or uses style-warning.
+      #+ignore
+      (when local-funcs
+        (warn "The expansion result uses lexically bound functions. This prevents top-level compilation. Sorry.")))
     (prog1
         `(symbol-macrolet (,@global-symmacros)
 	   (declare (special ,@special-vars))
@@ -1099,10 +1100,12 @@ established.
 		     (declare (dynamic-extent ,@dynamic-extent-vars)))
 		  '(progn))
 	      ,@global-defs
-	      (labels (,@local-funcs)
-		,@func-defs
-		(with-dynamic-bound-symbols (,@*dynamic-binding-requested*)
-		  ,@code))))
+              (,@(if local-funcs
+                     `(labels (,@local-funcs))
+                     '(progn))
+                 ,@func-defs
+                 (with-dynamic-bound-symbols (,@*dynamic-binding-requested*)
+                   ,@code))))
       ;; drop expanded definitions
       (loop for sym in cleanup-typedef-names
          do (remove-typedef sym))
