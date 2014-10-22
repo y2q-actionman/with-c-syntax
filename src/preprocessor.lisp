@@ -1,6 +1,7 @@
 (in-package #:with-c-syntax.core)
 
 (defun preprocessor-initial-set ()
+  "This function returns the initial value of *preprocessor-macro*"
   (loop for sym in (append +operators+ +keywords+)
      as name = (symbol-name sym)
      as ucase = (string-upcase name)
@@ -17,7 +18,7 @@ The alist is :: (<symbol or string> case-spec)
                  -> <function, or any literal object>.
  
 * Description
-This variable holds preprocessor macro definitions.
+Holds preprocessor macro definitions.
 
 ~case-spec~ is one of the following:
 nil     :: means this macro definision is all readtable-case.
@@ -25,11 +26,30 @@ nil     :: means this macro definision is all readtable-case.
            readtable-case.
 ")
 
-(defun push-preprocessor-macro (name val case-spec)
-  (push `((,name ,case-spec) . ,val)
-	*preprocessor-macro*))
-
 (defun find-preprocessor-macro (name case-spec)
+  "* Syntax
+~find-preprocessor-macro~ name &optional case-spec => macro-def
+
+* Arguments and Values
+- name      :: a string or symbol.
+- case-spec :: ~:upcase~, or nil.
+- macro-def :: a cons, which have ~name~ as its car, and macro
+               definition as its cdr.
+
+* Description
+Finds and returns a preprocessor macro definition named ~name~.
+
+~case-spec~ specifies for which case the macro is defined.  If
+~:upcase~ is specified, the macro is defined only for the ~:upcase~
+reader. If nil, the macro is defined for all readtable-case.
+
+** Matching rule
+- If ~name~ is a string, the matching functions is 'string='. Packages
+are ignored.
+
+- If ~name~ is a symbol, the matching functions is 'eq'. This is
+package-aware.
+"
   (loop for entry in *preprocessor-macro*
      as (e-name e-case) = (car entry)
      when (and (or (eq e-case nil)
@@ -39,12 +59,61 @@ nil     :: means this macro definision is all readtable-case.
 		   (string= e-name name)))
      return entry))
 
-;; TODO: test
-(defun pop-preprocessor-macro (name case-spec)
+(defun add-preprocessor-macro (name val &optional (case-spec nil))
+  "* Syntax
+~add-preprocessor-macro~ name val &optional upcase-spec => macro-def
+
+* Arguments and Values
+- name      :: a string or symbol.
+- val       :: an object.
+- case-spec :: ~:upcase~, or nil.
+- macro-def :: a cons, which have ~name~ as its car, and macro
+               definition as its cdr.
+
+* Description
+Establishes a new preprocessor macro.  When the preprocessor finds a
+symbol matching ~name~, it is expanded by ~val~.
+
+~case-spec~ specifies for which case the macro is defined.  If
+~:upcase~ is specified, the macro is defined only for the ~:upcase~
+reader. If nil, the macro is defined for all readtable-case.
+
+* See Also
+~find-preprocessor-macro~.
+"
+  (if-let ((entry (find-preprocessor-macro name case-spec)))
+    (progn (setf (cdr entry) val)
+	   entry)
+    (let ((entry `((,name ,case-spec) . ,val)))
+      (push entry *preprocessor-macro*)
+      entry)))
+
+(defun remove-preprocessor-macro (name &optional (case-spec nil))
+  "* Syntax
+~remove-preprocessor-macro~ name &optional upcase-spec => macro-def
+
+* Arguments and Values
+- name      :: a string or symbol.
+- case-spec :: ~:upcase~, or nil.
+- macro-def :: a cons, which have ~name~ as its car, and macro
+               definition as its cdr.
+
+* Description
+Removes a preprocessor macro named ~name~.
+
+~case-spec~ specifies for which case the macro is defined.  If
+~:upcase~ is specified, the macro is defined only for the ~:upcase~
+reader. If nil, the macro is defined for all readtable-case.
+
+* See Also
+~find-preprocessor-macro~.
+"
   (when-let (entry (find-preprocessor-macro name case-spec))
-    (deletef *preprocessor-macro* entry :test #'eq)))
+    (deletef *preprocessor-macro* entry :test #'eq)
+    entry))
 
 (defun preprocessor-call-macro (lis-head fn)
+  "A part of the ~preprocessor~ function."
   (let ((begin (pop lis-head)))
     (unless (string= begin '|(|)
       (error "some symbols (~S) found between preprocessor macro and the first '('"
@@ -75,13 +144,16 @@ nil     :: means this macro definision is all readtable-case.
 - preprocesed-list     :: a list
 
 * Description
-This function works like the C Preprocessor.  At this stage, not all
-of its functionalities are implemented.  Current working is below:
+This function works like the C Preprocessor.
+
+** Working.
+At this stage, all of the functionalities of the standard CPP are not
+implemented. Current working is below:
 
 - Concatenation of string literals.
 
 - Calling preprocessor macro (not recursive)
-  Invoking preprocessor macros, defined by define-preprocessor-macro.
+  Invoking preprocessor macros, defined by add-preprocessor-macro.
 
   This system is used for converting symbols denoting keywords of C
   belongs other packages to our package's one.
@@ -94,6 +166,30 @@ of its functionalities are implemented.  Current working is below:
 ~case-spec~ specifies which macro definitions are used. If ~:upcase~
 is specified, macro definitions for ~:upcase~ reader is used
 additionally.
+
+** Expansion
+- If ~val~ is nil, no expansion is done. The original symbol is left.
+
+ (This feature is for implementing the recursive expansion in the
+ future.  In CPP, a expanded macro is ignored in the next (recursive)
+ expansion.  So, if a macro was expanded, I will push
+ (the-expanded-macro . nil), and call the preprocessor recursively.)
+
+- If ~val~ is a object not a function, it is used as an expansion.
+
+- If ~val~ is a function, the function is called, and the returned
+value is used for expansion. Arguments for the function are datum
+between the following '(' symbol and the next ')' symbols, delimited
+by \, symbol.
+
+Example: If MAC is defined for a macro and its value is a function,
+this sequence
+  MAC \( a \, b b \, c c c \)
+calls the function like:
+  (funcall #'a-func-of-MAC '(a) '(b b) '(c c c))
+
+* See Also
+~find-preprocessor-macro~.
 
 * Notes
 - TODO: recursive expansion
@@ -143,55 +239,3 @@ additionally.
 
      finally
        (return (nreverse ret))))
-
-(defun define-preprocessor-macro (name val &optional (case-spec nil))
-  "* Syntax
-~define-preprocessor-macro~ name val &optional for-upcase => macro-def
-
-* Arguments and Values
-- name       :: a string or symbol.
-- val        :: an object.
-- case-spec  :: ~:upcase~, or nil.
-- macro-def  :: an object (same as ~val~)
-
-* Description
-This function establishes a preprocessor macro.  When the preprocessor
-finds a symbol matching ~name~, it is expanded by ~val~.
-
-If ~case-spec~ is , a macro is defined for upcase symbols.
-
-~case-spec~ specifies for which case the macro is defined.  If
-~:upcase~ is specified, the macro is defined only for the ~:upcase~
-reader. If nil, the macro is defined for all readtable-case.
-
-** Matching rule
-- If ~name~ is a string, the matching functions is 'string='. Packages
-are ignored.
-
-- If ~name~ is a symbol, the matching functions is 'eq'. This is
-package-aware.
-
-** Expansion
-- If ~val~ is nil, no expansion is done. The original symbol is left.
-
- (This feature is for implementing the recursive expansion in the
- future.  In CPP, a expanded macro is ignored in the next (recursive)
- expansion.  So, if a macro was expanded, I will push
- (the-expanded-macro . nil), and call the preprocessor recursively.)
-
-- If ~val~ is a object not a function, it is used as an expansion.
-
-- If ~val~ is a function, the function is called, and the returned
-value is used for expansion. Arguments for the function are datum
-between the following '(' symbol and the next ')' symbols, delimited
-by \, symbol.
-
-Example: If MAC is defined for a macro and its value is a function,
-this sequence
-  MAC \( a \, b b \, c c c \)
-calls the function like:
-  (funcall #'a-func-of-MAC '(a) '(b b) '(c c c))
-"
-  (if-let ((entry (find-preprocessor-macro name case-spec)))
-    (setf (cdr entry) val)
-    (push-preprocessor-macro name val case-spec)))

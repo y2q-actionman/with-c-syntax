@@ -9,7 +9,7 @@
 alist :: <character> -> <character>.
 
 * Description
-This constant holds an alist of bracket pairs.
+Holds an alist of bracket pairs.
 ")
 
 (define-constant +reader-level-specifier-alist+
@@ -22,8 +22,10 @@ This constant holds an alist of bracket pairs.
 alist :: <atom> -> <fixnum>.
 
 * Description
-This constant holds an alist translates 'reader level'.
-See ~use-reader~.
+Holds an alist translates 'reader level'.
+
+* See Also
+~use-reader~.
 ")
 
 (defun translate-reader-level (rlspec)
@@ -35,8 +37,8 @@ See ~use-reader~.
 a list :: consists of plists.
 
 * Description
-This variable holds the current c-syntax reader environments,
-establised by the ~use-reader~.
+Holds the current c-syntax reader environments, establised by the
+~use-reader~.
 
 Its contents is a list of plists. The plists holds below:
 - :level    -> the specified reader level.
@@ -106,7 +108,7 @@ Its contents is a list of plists. The plists holds below:
 	(#\n #\Newline)
 	(#\r #\Return)
 	(#\t #\Tab)
-	(#\v (code-char #x0b))		; vartical tab
+	(#\v (code-char #x0b))		; vertical tab
 	(#\\ #\\)
 	(#\' #\')
 	(#\" #\")
@@ -347,7 +349,7 @@ When ~case~ is nil, the readtable-case of ~*readtable*~ at using
 '#{' is used.
 
 * Side Effects
-Changes *readtable*.
+Changes ~*readtable*~.
 
 * Notes
 There is no support for trigraphs or digraphs.
@@ -373,11 +375,11 @@ There is no support for trigraphs or digraphs.
 - readtable :: a readtable
 
 * Description
-This macro disposes the c reader established by ~use-reader~, and
-restores the previous readtable.
+Disposes the C reader established by ~use-reader~, and restores the
+previous readtable.
 
 * Side Effects
-Changes *readtable*.
+Changes ~*readtable*~.
 
 * See Also
 ~unuse-reader~.

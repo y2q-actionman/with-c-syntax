@@ -149,6 +149,17 @@
 
 ;; TODO: support this..
 #|
+(with-c-syntax ()
+  enum { SOME_CONSTANT_100 = 100 } \;)
+
+(defun test-trans-other-unit-typedef ()
+  (eval-equal 100 ()
+    return SOME_CONSTANT_100 \;)
+  t)
+|#
+
+;; TODO: support this..
+#|
 (eval-when (:compile-toplevel)
 (with-c-syntax ()
   struct xxx-struct { int x \; } \;))
@@ -172,7 +183,7 @@
     typedef int int_xxx_t \;))
 
 (defun test-trans-other-unit-typedef ()
-  (assert (with-c-syntax.core::find-typedef 'int_xxx_t)) ; TODO: export this
+  (assert (find-typedef 'int_xxx_t))
   (with-c-syntax ()
     int_xxx_t hoge \( x \) {
       int_xxx_t tmp = x \;

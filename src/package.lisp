@@ -26,11 +26,18 @@
 		#:yacc-parse-error)
   (:export
    ;; preprocessor.lisp
+   #:find-preprocessor-macro
+   #:add-preprocessor-macro
+   #:remove-preprocessor-macro
    #:preprocessor
-   #:define-preprocessor-macro
    ;; pseudo-pointer.lisp
    #:pseudo-pointer
    #:with-pseudo-pointer-scope
+   #:invalidate-all-pseudo-pointers
+   #:make-pseudo-pointer
+   #:pseudo-pointer-dereference
+   #:pseudo-pointer-invalidate
+   #:pseudo-pointer-pointable-p
    ;; reader.lisp
    #:use-reader
    #:unuse-reader
@@ -39,7 +46,12 @@
    #:make-struct
    #:struct-member
    ;; with-c-syntax.lisp
+   #:find-typedef
    #:add-typedef
+   #:remove-typedef
+   #:find-struct-spec
+   #:add-struct-spec
+   #:remove-struct-spec
    #:get-varargs
    #:with-c-syntax)
   (:documentation

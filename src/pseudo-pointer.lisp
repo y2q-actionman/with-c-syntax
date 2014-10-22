@@ -8,7 +8,7 @@ fixnum
 The base type of internal representation of pointers in with-c-syntax.
 
 * Compound Type Specifier Syntax
-~psendo-pointer~ &optional (pointee-type t)
+~pseudo-pointer~ &optional (pointee-type t)
 
 * Compound Type Specifier Arguments
 - pointee-type :: the type of the object pointer by the pointer.
@@ -27,8 +27,8 @@ At this stage, the ~pointee-type~ is ignored by the type system.
 a fixnum.
 
 * Description:
-This constant holds the bitmask splits the pseudo-pointer bit
-representation to the 'base part' and the 'index part'.
+Holds the bitmask splits the pseudo-pointer bit representation to the
+'base part' and the 'index part'.
 
 The 'base part' is used for a key of ~*pseudo-pointee-table*~.
 The 'index part' is used for a offset of the pointee value.
@@ -39,8 +39,8 @@ The 'index part' is used for a offset of the pointee value.
 a fixnum.
 
 * Description
-This constant holds the 'sign bit' of the 'index part' of the
-pseudo-pointer bit representation.
+Holds the 'sign bit' of the 'index part' of the pseudo-pointer bit
+representation.
 
 For the 'index part', the representation is like here:
 
@@ -48,7 +48,7 @@ For the 'index part', the representation is like here:
 - #b1000001 - #b1111111 :: +1 ~ +63
 - #b0111111 - #b0000000 :: -1 ~ -64
 
-If the 'index part' exceeds this limitation, its result is unpredictable.
+If the 'index part' exceeds this limitation, the result is unpredictable.
 ")
 
 (defvar *pseudo-pointee-table* (make-hash-table :test 'eq)
@@ -56,8 +56,8 @@ If the 'index part' exceeds this limitation, its result is unpredictable.
 a hash-table :: <pseudo-pointer> -> <object>
 
 * Description
-This table relates the 'base part' of a pseudo-pointer to the pointee
-object.
+Holds a table relates the 'base part' of a pseudo-pointer to the
+pointee object.
 ")
 
 (defvar *pseudo-pointer-next* 0
@@ -65,7 +65,7 @@ object.
 a pseudo-pointer.
 
 * Description
-This variable the next allocating pseudo-pointer.
+Holds the next allocating pseudo-pointer.
 ")
 
 (defmacro with-pseudo-pointer-scope (() &body body)
@@ -77,24 +77,57 @@ This variable the next allocating pseudo-pointer.
 - results :: the values returned by the ~forms~
 
 * Description
-This macro establishes a new environment for pseudo-pointers.
+Establishes a new environment for pseudo-pointers.
 
-A pointer allocated inside this macro is invalidated out of this.
+A pointer made inside this macro is invalidated out of this.
 "
   `(let ((*pseudo-pointee-table* (copy-hash-table *pseudo-pointee-table*))
          (*pseudo-pointer-next* *pseudo-pointer-next*))
      ,@body))
 
-(defun alloc-pseudo-pointer (pointee)
-  (incf *pseudo-pointer-next*)
-  (let* ((base (ash *pseudo-pointer-next*
-                    (logcount +pseudo-pointer-mask+)))
-         (p (+ base +pseudo-pointer-safebit+)))
+(defun invalidate-all-pseudo-pointers ()
+  "* Syntax
+~invalidate-all-pseudo-pointers~ <no arguments> => count
+
+* Arguments and Values
+- count :: an integer.
+
+* Description
+Invalidates all pseudo-pointers in the scope it called.
+ This call doesn't effect pointers out of the
+~with-pseudo-pointer-scope~.
+
+Returns the number of invalidates pointers.
+
+* See Also
+~with-pseudo-pointer-scope~.
+"
+  (prog1 (hash-table-count *pseudo-pointee-table*)
+    (clrhash *pseudo-pointee-table*)
+    (setf *pseudo-pointer-next* 0)))
+
+(defun make-pseudo-pointer (pointee &optional (initial-offset 0))
+  "* Syntax
+~make-pseudo-pointer~ pointee &optional initial-offset => pointer
+
+* Arguments and Values
+- pointee        :: an object.
+- initial-offset :: an integer. default is 0.
+- pointer        :: a newly allocated pseudo-pointer.
+
+* Description
+Makes and returns a new pseudo-pointer points ~pointee~.
+
+~initial-offset~ is added to the ~pointer~ at making.
+"
+  (let ((base (ash (incf *pseudo-pointer-next*)
+		   (logcount +pseudo-pointer-mask+))))
     (setf (gethash base *pseudo-pointee-table*)
 	  pointee)
-    p))
+    (+ base +pseudo-pointer-safebit+ initial-offset)))
 
 (defun pseudo-pointer-extract (p &optional (errorp t))
+  "A helper function used by pseudo-pointer-dereference, etc."
   (let* ((base (logandc2 p +pseudo-pointer-mask+))
 	 (idx (- (logand p +pseudo-pointer-mask+)
 		 +pseudo-pointer-safebit+))
@@ -103,10 +136,17 @@ A pointer allocated inside this macro is invalidated out of this.
       (when errorp (error "danglinng pointer ~A" p)))
     (values obj idx base)))
 
-(defun pseudo-pointer-pointee (p)
-  (pseudo-pointer-extract p))
-
 (defun pseudo-pointer-dereference (p)
+  "* Syntax
+~pseudo-pointer-dereference~ pointer => object
+
+* Arguments and Values
+- pointer :: a pseudo-pointer.
+- object  :: an object.
+
+* Description
+Dereferences the ~pointer~ and returns the result.
+"
   (multiple-value-bind (obj idx)
       (pseudo-pointer-extract p)
     (etypecase obj
@@ -121,6 +161,16 @@ A pointer allocated inside this macro is invalidated out of this.
 	(make-reduced-dimension-array obj idx))))))
 
 (defun (setf pseudo-pointer-dereference) (val p)
+  "* Syntax
+ (setf (~pseudo-pointer-dereference~ pointer) new-value)
+
+* Arguments and Values
+- pointer   :: a pseudo-pointer.
+- new-value :: an object.
+
+* Description
+Makes the ~pointer~ to point the ~new-value~ object.
+"
   (multiple-value-bind (obj idx)
       (pseudo-pointer-extract p)
     (etypecase obj
@@ -131,11 +181,38 @@ A pointer allocated inside this macro is invalidated out of this.
       (vector
        (setf (elt obj idx) val)))))
 
-(defun make-pseudo-pointer (pointee &optional (initial-offset 0))
-  (let ((p (alloc-pseudo-pointer pointee)))
-    (+ p initial-offset)))
+(defun pseudo-pointer-invalidate (p)
+  "* Syntax
+~pseudo-pointer-invalidate~ pointer => boolean
+
+* Arguments and Values
+- pointer  : a pseudo-pointer.
+- boolean :: a boolean.
+
+* Description
+Makes the ~pointer~ to point no objects.  After that, calling
+~pseudo-pointer-dereference~ to this pointer will be error.
+"
+  (multiple-value-bind (obj idx base)
+      (pseudo-pointer-extract p nil)
+    (declare (ignore obj idx))
+    (remhash base *pseudo-pointee-table*)))
 
 (defun pseudo-pointer-pointable-p (obj)
+  "* Syntax
+~pseudo-pointer-pointable-p~ object => boolean
+
+* Arguments and Values
+- object  :: an object.
+- boolean :: a boolean.
+
+* Description
+Returns whether the ~object~ can be held by pseudo-pointers.
+
+* Notes
+At this version, this function returns t only if the ~object~ is a
+symbol, vector, or an array.
+"
   (typecase obj
     (symbol t)
     (vector t)

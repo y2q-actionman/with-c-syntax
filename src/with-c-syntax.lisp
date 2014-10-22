@@ -6,7 +6,7 @@
 a hashtable :: a symbol -> list of decl-specs
 
 * Description
-This variable holds definitions of typedefs.
+Holds definitions of typedefs.
 
 * Notes
 At the beginning of ~with-c-syntax~, it binds this variable to the
@@ -17,7 +17,7 @@ into the compilation unit.
 ~with-c-compilation-unit~.
 
 * See Also
-~add-typedef~, ~find-typedef~, ~remove-typedef~.
+~find-typedef~, ~add-typedef~, ~remove-typedef~.
 ")
 
 (defvar *struct-specs* (make-hash-table :test 'eq)
@@ -25,7 +25,7 @@ into the compilation unit.
 a hashtable :: a symbol -> a list of struct-spec.
 
 * Description
-This variable holds definitions of structs or unions.
+Holds definitions of structs or unions.
 
 * Notes
 At the beginning of ~with-c-syntax~, it binds this variable to the
@@ -36,7 +36,7 @@ definitions into the compilation unit.
 ~with-c-compilation-unit~.
 
 * See Also
-~add-struct-spec~, ~find-struct-spec~, ~remove-struct-spec~
+~find-struct-spec~, ~add-struct-spec~, ~remove-struct-spec~
 ")
 
 (defvar *dynamic-binding-requested* nil
@@ -44,7 +44,7 @@ definitions into the compilation unit.
 a list :: consistes of symbols.
 
 * Description
-This variable holds a list of symbols, which are pointed by a pointer.
+Holds a list of symbols, which are pointed by a pointer.
 If a pseudo-pointer is created for a symbol, the symbol is added to
 here (because such a symbol must be handled *carefully*).
 
@@ -60,7 +60,7 @@ At the beginning of ~with-c-syntax~, it binds this variable to nil.
 a list :: consists of symbols.
 
 * Description
-This variable holds a list of symbols, which are declared as a pointer
+Holds a list of symbols, which are declared as a pointer
 to a function.  (Because such a symbol is specially treated by the
 function-calling expression.)
 
@@ -76,7 +76,7 @@ At the beginning of ~with-c-syntax~, it binds this variable to nil.
 a list
 
 * Description
-This variable holds a form inserted as an entry point.
+Holds a form inserted as an entry point.
 
 This is used only when compiling a translation unit. Not used for
 other cases.
@@ -99,7 +99,7 @@ At the beginning of ~with-c-syntax~, it binds this variable to its
 - results     :: the values returned by forms
 
 * Description
-This macro establishes variable bindings for new compilation.
+Establishes variable bindings for a new compilation.
 "
   `(let ((*struct-specs* (copy-hash-table *struct-specs*))
          (*typedef-names* (copy-hash-table *typedef-names*))
@@ -211,31 +211,62 @@ This macro establishes variable bindings for new compilation.
   (make-load-form-saving-slots obj :environment environment))
 
 ;; typedefs
-(defun add-typedef (name object)
+(defun find-typedef (name)
   "* Syntax
-~add-typedef~ name object => some-obj
+~find-typedef~ name => decl-spec
 
 * Arguments and Values
 - name      :: a symbol
-- object    :: a decl-specs instance, or a type specifier.
-- some-obj  :: an internal object of with-c-syntax
+- decl-spec :: a decl-specs instance, or nil.
 
 * Description
-This functions addes a typedef definition.
+Finds and returns a typedef definition. If no typedefs are found,
+returns nil.
 
 * Affected By
-~with-c-compilation-unit~
+~with-c-compilation-unit~.
 "
-  (let ((dspecs
-	 (typecase object
-	   (decl-specs object)
-	   (t (make-decl-specs :lisp-type object)))))
-    (push dspecs (gethash name *typedef-names*))))
-
-(defun find-typedef (name)
   (first (gethash name *typedef-names*)))
 
+(defun add-typedef (name spec)
+  "* Syntax
+~add-typedef~ name spec => decl-spec
+
+* Arguments and Values
+- name      :: a symbol
+- spec      :: a decl-specs instance, or a type specifier.
+- decl-spec :: a decl-specs instance.
+
+* Description
+Establishes a new typedef definition named ~name~.
+
+* Affected By
+~with-c-compilation-unit~.
+"
+  (let ((dspecs
+	 (typecase spec
+	   (decl-specs spec)
+	   (t (make-decl-specs :lisp-type spec)))))
+    (push dspecs (gethash name *typedef-names*))
+    dspecs))
+
 (defun remove-typedef (name)
+  "* Syntax
+~remove-typedef~ name => decl-spec
+
+* Arguments and Values
+- name      :: a symbol
+- decl-spec :: a decl-specs instance, or nil.
+
+* Description
+Removes a typedef definition named ~name~.
+
+Returns the removed typedef definition. If no typedefs are found,
+returns nil.
+
+* Affected By
+~with-c-compilation-unit~.
+"
   (pop (gethash name *typedef-names*)))
 
 ;; structure information
@@ -244,7 +275,7 @@ This functions addes a typedef definition.
   struct-type	     ; 'struct or 'union
   member-defs	     ; (:lisp-type ... :constness ... :decl-specs ...)
   ;; compile-time only
-  (internal-link-symbol nil)) ; internal name between compile-time and runtime.
+  (defined-in-this-unit nil)) ; T only when compiling this
 
 (defmethod make-load-form ((sspec struct-spec) &optional environment)
   (make-load-form-saving-slots
@@ -252,13 +283,57 @@ This functions addes a typedef definition.
    :slot-names '(struct-name struct-type member-defs)
    :environment environment))
 
-(defun add-struct-spec (name sspec)
-  (push sspec (gethash name *struct-specs*)))
-
 (defun find-struct-spec (name)
+  "* Syntax
+~find-struct-spec~ name => struct-spec
+
+* Arguments and Values
+- name      :: a symbol
+- decl-spec :: a struct-spec instance, or nil.
+
+* Description
+Finds and returns a struct-spec. If no struct-specs are found, returns
+nil.
+
+* Affected By
+~with-c-compilation-unit~.
+"
   (first (gethash name *struct-specs*)))
 
+(defun add-struct-spec (name sspec)
+  "* Syntax
+~add-struct-spec~ name sspec => struct-spec
+
+* Arguments and Values
+- name        :: a symbol.
+- sspec       :: a struct-spec instance.
+- struct-spec :: a struct-spec instance.
+
+* Description
+Establishes a new struct-spec definition named ~name~.
+
+* Affected By
+~with-c-compilation-unit~.
+"
+  (push sspec (gethash name *struct-specs*)))
+
 (defun remove-struct-spec (name)
+  "* Syntax
+~remove-struct-spec~ name => struct-spec
+
+* Arguments and Values
+- name        :: a symbol
+- struct-spec :: a struct-specs instance, or nil.
+
+* Description
+Removes a struct-spec definition named ~name~.
+
+Returns the removed struct-spec definition. If no struct-specs are
+found, returns nil.
+
+* Affected By
+~with-c-compilation-unit~.
+"
   (pop (gethash name *struct-specs*)))
 
 ;; processes structure-spec 
@@ -305,8 +380,7 @@ This functions addes a typedef definition.
 	       :struct-name (decl-specs-tag dspecs)
 	       :struct-type (struct-or-union-spec-type sspec)
 	       :member-defs member-defs
-	       :internal-link-symbol
-	       (gensym (format nil "struct ~S " (struct-or-union-spec-id sspec))))))
+	       :defined-in-this-unit t)))
 	 (add-struct-spec (decl-specs-tag dspecs) sspec)
 	 ;; This sspec is treated by this dspecs
 	 (push-right (decl-specs-struct-spec dspecs) sspec)))
@@ -499,9 +573,9 @@ This functions addes a typedef definition.
 			  (error "struct ~S not defined" (decl-specs-tag dspecs))
 			  nil)
                       `(make-struct
-                        ,(if-let ((sym (struct-spec-internal-link-symbol sspec)))
-                                 sym
-                                 `',(struct-spec-struct-name sspec))
+                        ,(if (struct-spec-defined-in-this-unit sspec)
+			     (find-struct-spec (struct-spec-struct-name sspec))
+			     `',(struct-spec-struct-name sspec))
                         ,@(loop for init in initializer
                              for mem in (struct-spec-member-defs sspec)
                              collect (expand-init-declarator-init
@@ -690,7 +764,8 @@ This functions addes a typedef definition.
 
 (defun rewrite-break-statements (sym stat)
   (loop for i in (shiftf (stat-break-statements stat) nil)
-     do (setf (second i) sym)))
+     do (setf (second i) sym)
+     count i))
 
 (defvar *unresolved-continue-tag* (gensym "unresolved-continue-"))
 
@@ -701,17 +776,18 @@ This functions addes a typedef definition.
 
 (defun rewrite-continue-statements (sym stat)
   (loop for i in (shiftf (stat-continue-statements stat) nil)
-     do (setf (second i) sym)))
+     do (setf (second i) sym)
+     count i))
 
 (defun expand-loop (body-stat
 		     &key (init nil) (cond t) (step nil)
 		     (post-test-p nil))
-  (let ((loop-body-tag (gensym "loop-body-"))
-	(loop-step-tag (gensym "loop-step-"))
-	(loop-cond-tag (gensym "loop-cond-"))
-	(loop-end-tag (gensym "loop-end-")))
-    (rewrite-break-statements loop-end-tag body-stat)
-    (rewrite-continue-statements loop-step-tag body-stat)
+  (let* ((loop-body-tag (gensym "loop-body-"))
+	 (loop-step-tag (gensym "loop-step-"))
+	 (loop-cond-tag (gensym "loop-cond-"))
+	 (loop-end-tag (gensym "loop-end-"))
+	 (used-breaks (rewrite-break-statements loop-end-tag body-stat))
+	 (used-continues (rewrite-continue-statements loop-step-tag body-stat)))
     (setf (stat-code body-stat)
 	  `((progn ,init)
 	    ,(if post-test-p
@@ -719,12 +795,16 @@ This functions addes a typedef definition.
 		 `(go ,loop-cond-tag))
 	    ,loop-body-tag
 	    ,@(stat-code body-stat)
-	    ,loop-step-tag
+	    ,@(if (plusp used-continues)
+		  `(,loop-step-tag))
 	    (progn ,step)
-	    ,loop-cond-tag
+	    ,@(if post-test-p
+		  nil
+		  `(,loop-cond-tag))
 	    (when (progn ,cond)
 	      (go ,loop-body-tag))
-	    ,loop-end-tag))
+	    ,@(if (plusp used-breaks)
+		  `(,loop-end-tag))))
     body-stat))
 
 (defun push-case-label (case-label-exp stat)
@@ -734,26 +814,30 @@ This functions addes a typedef definition.
     (push go-tag-sym (stat-code stat))))
 
 (defun expand-switch (exp stat)
-  (let* ((end-tag (gensym "switch-end-"))
+  (let* ((switch-end-tag (gensym "switch-end-"))
+	 (default-supplied nil)
 	 (jump-table			; create jump table with COND
-	  (loop with default-clause = `(t (go ,end-tag))
+	  (loop with default-clause = `(t (go ,switch-end-tag))
 	     for (go-tag-sym . case-label-exp)
 	     in (shiftf (stat-case-label-list stat) nil)
 
 	     if (eq case-label-exp '|default|)
-	     do (setf default-clause `(t (go ,go-tag-sym)))
+	     do (setf default-clause `(t (go ,go-tag-sym))
+		      default-supplied t)
 	     else
 	     collect `(,case-label-exp (go ,go-tag-sym))
 	     into clauses
 	     finally
                (return `(case ,exp
                           ,@clauses
-                          ,default-clause)))))
-    (rewrite-break-statements end-tag stat)
+                          ,default-clause))))
+	 (used-breaks (rewrite-break-statements switch-end-tag stat)))
     (setf (stat-code stat)
 	  `(,jump-table
 	    ,@(stat-code stat)
-	    ,end-tag))
+	    ,@(if (or (plusp used-breaks)
+		      (not default-supplied))
+		  `(,switch-end-tag))))
     stat))
 
 ;;; Translation Unit -- function definitions
@@ -773,9 +857,11 @@ This functions addes a typedef definition.
 - obj   :: a list
 
 * Description
-This macro sets the variadic arguments of the with-c-syntax function
-to the place. If this is called outside of a variadic function, an
-error is signaled.
+Sets the variadic arguments of the with-c-syntax function to the
+~place~.
+
+If this is called outside of a variadic function, an error is
+signaled.
 
 * Notes
 This is not intended for calling directly. The ~va_start~ proprocessor
@@ -829,7 +915,7 @@ established.
        `((declare (ignore ,@omitted))
          ,(if variadic
               `(macrolet ((get-varargs (ap)
-                            "locally establised get-varargs macro."
+                            "locally established get-varargs macro."
                             `(setf ,ap ,',varargs-sym)))
                  ,body)
               body))
@@ -844,6 +930,7 @@ established.
      with dynamic-extent-vars = nil
      with special-vars = nil
      with global-defs = nil
+     with global-symmacros = nil
      with typedef-names = nil
      with funcptr-syms = nil
 
@@ -883,12 +970,10 @@ established.
          (|global|
           (when (eq mode :statement)
             (error "In internal scope, no global vars cannot be defined (~S)." name))
-	  (let ((init-sym (gensym (format nil "global-var-~S-tmp-" name))))
-	    (push `(,init-sym ,init) lexical-binds)
-	    (push name special-vars)
-	    (push `(defparameter ,name ,init-sym
-			   "generated by with-c-syntax, for global")
-                  global-defs)))
+	  (push name special-vars)
+	  (push `(defparameter ,name ,init
+		   "generated by with-c-syntax, for global")
+		global-defs))
          ;; 'static' vars.
          (|static|
 	  (ecase mode
@@ -900,8 +985,13 @@ established.
                                  (setf (symbol-value ',st-sym) ,init)))
                      lexical-binds)))
 	    (:translation-unit
-	     ;; lexically bound
-	     (push `(,name ,init) lexical-binds))))
+	     ;; gensym and symbol-macrolet
+	     (let ((var-sym (gensym (format nil "static-var-~S-" name))))
+	       (push var-sym special-vars)
+	       (push `(defvar ,var-sym ,init
+			"generated by with-c-syntax, for global-static")
+		     global-defs)
+	       (push `(,name ,var-sym) global-symmacros)))))
          ;; 'typedef' vars
          (|typedef|
           (push name typedef-names)
@@ -914,33 +1004,28 @@ established.
                  (nreverse dynamic-extent-vars)
                  (nreverse special-vars)
                  (nreverse global-defs)
+		 (nreverse global-symmacros)
                  (nreverse typedef-names)
                  (nreverse funcptr-syms)
                  dynamic-established-syms))))
-
-
-(defun expand-struct-spec (sspecs)
-  (loop for sspec in sspecs
-     as sname = (struct-spec-struct-name sspec)
-     as iname = (shiftf (struct-spec-internal-link-symbol sspec) nil)
-     when iname
-     collect `(,iname ,sspec) into class-binds
-     and collect `(,sname ,iname) into renames
-     finally (return (values class-binds renames))))
 
 ;; mode is :statement or :translation-unit
 (defun expand-toplevel (mode decls fdefs code)
   (let ((default-storage-class
          (ecase mode
            (:statement '|auto|) (:translation-unit '|global|)))
+	;; used for :statement
         lexical-binds
         dynamic-extent-vars
+	;; used for :translation-unit
         special-vars
         global-defs
-        typedef-names
-        funcptr-syms
-        struct-specs
-        dynamic-established-syms
+        global-symmacros
+	;; used for both
+        cleanup-typedef-names
+        cleanup-funcptr-syms
+        cleanup-struct-specs
+        cleanup-dynamic-established-syms
         func-defs
         local-funcs)
     ;; process decls
@@ -948,31 +1033,42 @@ established.
        as storage-class = (or (decl-specs-storage-class dspecs)
                               default-storage-class)
        ;; enum consts
-       do (appendf lexical-binds (decl-specs-enum-bindings dspecs))
+       do (ecase mode
+	    (:statement
+	     (appendf lexical-binds (decl-specs-enum-bindings dspecs)))
+	    (:translation-unit
+	     (loop for (name val) in (decl-specs-enum-bindings dspecs)
+		collect `(defconstant ,name ,val
+			   "generated by with-c-syntax, for global enum")
+		into const-defs
+		finally (appendf global-defs const-defs))))
        ;; structs
-       do (appendf struct-specs (decl-specs-struct-spec dspecs))
-         (multiple-value-bind (binds renames)
-             (expand-struct-spec (decl-specs-struct-spec dspecs))
-           (appendf lexical-binds binds)
-           (when (eq mode :translation-unit)
-             (loop for (sym val) in renames
-                collect `(add-struct-spec ',sym ,val) into defs
-                finally (appendf global-defs defs))))
+       do (appendf cleanup-struct-specs (decl-specs-struct-spec dspecs))
+	 (loop for sspec in (decl-specs-struct-spec dspecs)
+	    as sname = (struct-spec-struct-name sspec)
+	    as defined-in ;; drops defined-in-this-unit flag here.
+	      = (shiftf (struct-spec-defined-in-this-unit sspec) nil)
+	    if (and defined-in
+		    (eq mode :translation-unit))
+	    collect `(add-struct-spec ',sname ,sspec) into defs
+	    finally (appendf global-defs defs))
        ;; declarations
        do(multiple-value-bind 
                (lexical-binds-1 dynamic-extent-vars-1
                                 special-vars-1 global-defs-1
+				global-symmacros-1
                                 typedef-names-1 funcptr-syms-1
                                 dynamic-established-syms-1)
              (expand-toplevel-init-decls init-decls mode storage-class
-                                         dynamic-established-syms)
+                                         cleanup-dynamic-established-syms)
            (appendf lexical-binds lexical-binds-1)
            (appendf dynamic-extent-vars dynamic-extent-vars-1)
            (appendf special-vars special-vars-1)
            (appendf global-defs global-defs-1)
-           (appendf typedef-names typedef-names-1)
-           (appendf funcptr-syms funcptr-syms-1)
-           (setf dynamic-established-syms dynamic-established-syms-1)))
+           (appendf global-symmacros global-symmacros-1)
+           (appendf cleanup-typedef-names typedef-names-1)
+           (appendf cleanup-funcptr-syms funcptr-syms-1)
+           (setf cleanup-dynamic-established-syms dynamic-established-syms-1)))
     ;; functions
     (loop for fdef in fdefs
        as name = (function-definition-func-name fdef)
@@ -985,25 +1081,31 @@ established.
              (push `(,name ,args ,@body) local-funcs))))
     (nreversef func-defs)
     (nreversef local-funcs)
+    (when (and (eq mode :translation-unit)
+	       lexical-binds)
+      (warn "The expansion result uses lexically bound variables. This prevents top-level compilation. Sorry."))
     (prog1
-        `(let* (,@lexical-binds)
-           (declare (dynamic-extent ,@dynamic-extent-vars)
-		    (special ,@special-vars))
-           ,@global-defs
-           (labels (,@local-funcs)
-             ,@func-defs
-             (with-dynamic-bound-symbols (,@*dynamic-binding-requested*)
-               ,@code)))
+        `(symbol-macrolet (,@global-symmacros)
+	   (declare (special ,@special-vars))
+	   (,@(if lexical-binds
+		  `(let* (,@lexical-binds)
+		     (declare (dynamic-extent ,@dynamic-extent-vars)))
+		  '(progn))
+	      ,@global-defs
+	      (labels (,@local-funcs)
+		,@func-defs
+		(with-dynamic-bound-symbols (,@*dynamic-binding-requested*)
+		  ,@code))))
       ;; drop expanded definitions
-      (loop for c in struct-specs
-         do (remove-struct-spec (struct-spec-struct-name c)))
-      (loop for sym in typedef-names
+      (loop for sym in cleanup-typedef-names
          do (remove-typedef sym))
+      (loop for c in cleanup-struct-specs
+         do (remove-struct-spec (struct-spec-struct-name c)))
       ;; drop symbols specially treated in this unit.
-      (loop for sym in dynamic-established-syms
+      (loop for sym in cleanup-dynamic-established-syms
          do (deletef *dynamic-binding-requested*
                      sym :test #'eq :count 1))
-      (loop for sym in funcptr-syms
+      (loop for sym in cleanup-funcptr-syms
          do (deletef *function-pointer-ids*
                      sym :test #'eq :count 1)))))
 

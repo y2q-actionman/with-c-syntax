@@ -25,7 +25,7 @@
 a list :: consists of symbols.
 
 * Description
-This constant holds a list of symbols denoting C operators.
+Holds a list of symbols denoting C operators.
 ")
 
   (define-constant +keywords+
@@ -42,16 +42,15 @@ This constant holds a list of symbols denoting C operators.
 	|if| |else| |switch|
 	|while| |do| |for|
 	|goto| |continue| |break| |return|
-        |__lisp_type|
-        |__offsetof|)
+        |__lisp_type| |__offsetof|)	; extensions
     :test 'equal
     :documentation
     "* Value Type
 a list :: consists of symbols.
 
 * Description
-This constant holds a list of symbols denoting C keywords and keywords
-of extension of with-c-syntax.
+Holds a list of symbols denoting C keywords, and keywords of extension
+of with-c-syntax.
 ")
   )
 
@@ -98,7 +97,8 @@ of extension of with-c-syntax.
 a list :: consists of alists -- (list-of-symbols . <lisp-type>)
 
 * Description
-This constant holds relationships between notations of C type and
-Common Lisp types.
+Holds relationships between notations of C type and Common Lisp types.
+
+* Notes
 For each entry of alist, the car is sorted alphabetically.
 ")

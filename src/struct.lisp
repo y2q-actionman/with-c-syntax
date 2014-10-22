@@ -15,7 +15,7 @@
 standard-object
 
 * Description
-This class is a representation of C struct or unions.
+A representation of C structs or unions.
 "))
 
 (defun make-struct (spec-obj &rest init-args)
@@ -28,8 +28,7 @@ This class is a representation of C struct or unions.
 - new-struct :: an instance of struct.
 
 * Description
-This function makes a new struct instance based on the specification
-of ~spec-obj~.
+Makes a new struct instance based on the specification of ~spec-obj~.
 
 If ~spec-obj~ is a symbol, it must be a name of a globally defined
 struct or union. To define a struct or an union globally, use
@@ -67,6 +66,8 @@ specified by the ~spec-obj~.
 						   :initial-contents member-inits)))))
 
 (defun struct-member-index (struct member-name)
+  "Returns the index of ~member-name~ in the internal storage of
+~struct~."
   (let* ((table (struct-member-index-table struct))
          (index (gethash member-name table)))
     (unless index
@@ -83,8 +84,7 @@ specified by the ~spec-obj~.
 - object :: an object
 
 * Description
-This function returns the value of the member named ~member-name~ in
-the ~struct~.
+Returns the value of the member named ~member-name~ in the ~struct~.
 "
   (let ((idx (struct-member-index struct member-name)))
     (aref (struct-member-vector struct) idx)))
@@ -99,8 +99,7 @@ the ~struct~.
 - new-object :: an object
 
 * Description
-This setf-function sets the value of the member named ~member-name~ in
-the ~struct~.
+Sets the value of the member named ~member-name~ in the ~struct~.
 "
   (let ((idx (struct-member-index struct member-name)))
     (setf (aref (struct-member-vector struct) idx) val)))
