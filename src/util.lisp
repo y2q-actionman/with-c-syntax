@@ -2,16 +2,28 @@
 
 ;; These are referenced by the parser directly.
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun append-item-to-right (lis i)
+  (defun add-to-tail (lis i)
     (append lis (list i)))
 )
 
 (defun reverse-ash (i c)
   (ash i (- c)))
 
+(defun revappend-to (tail list)
+  (revappend list tail))
+
+(defun nreconc-to (tail list)
+  (nreconc list tail))
+
 ;; modify macros
 (define-modify-macro push-right (i)
-  append-item-to-right)
+  add-to-tail)
+
+(define-modify-macro revappend-to-f (list)
+  revappend-to)
+
+(define-modify-macro nreconc-to-f (list)
+  nreconc-to)
 
 (define-modify-macro mulf (&rest args)
   *)
@@ -81,7 +93,7 @@
         (dim-table (make-hash-table :test 'eq))) ; (depth . max-len)
     (labels ((dim-calc (depth lis)
                (maxf max-depth depth)
-               (maxf (gethash depth dim-table -1) (length lis))
+               (maxf (gethash depth dim-table 0) (length lis))
                (loop for i in lis
                   when (and i (listp i))
                   do (dim-calc (1+ depth) i))))
@@ -90,9 +102,8 @@
        collect (gethash i dim-table))))
     
 (defun make-dimension-list-load-form (lis max-depth)
-  (if (or (null lis)
-          (atom lis)
-          (zerop max-depth))
+  (if (or (atom lis)
+          (<= max-depth 0))
       lis
       `(list
         ,@(loop for i in lis

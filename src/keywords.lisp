@@ -1,10 +1,11 @@
 (in-package #:with-c-syntax.core)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (define-constant +operators+
-      '(|,|
+  (define-constant +operators-and-keywords+
+      '(;; operators
+        \,
 	= *= /= %= += -= <<= >>= &= ^= \|=
-	? |:|
+	? \:
 	\|\|
 	&&
 	\|
@@ -18,18 +19,9 @@
 	\( \)
 	++ -- |sizeof|
 	& * + - ~ !
-	[ ] \. ->)
-    :test 'equal
-    :documentation
-    "* Value Type
-a list :: consists of symbols.
-
-* Description
-Holds a list of symbols denoting C operators.
-")
-
-  (define-constant +keywords+
-      '(\;
+	[ ] \. ->
+        ;; keywords
+        \;
 	|auto| |register| |static| |extern| |typedef|
 	|void| |char| |short| |int| |long|
         |float| |double| |signed| |unsigned|
@@ -49,10 +41,8 @@ Holds a list of symbols denoting C operators.
 a list :: consists of symbols.
 
 * Description
-Holds a list of symbols denoting C keywords, and keywords of extension
-of with-c-syntax.
-")
-  )
+Holds a list of symbols denoting C operators and keywords.
+"))
 
 (define-constant +numeric-types-alist+
     '(;; Extension: uses T if no types are specified

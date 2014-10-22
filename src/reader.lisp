@@ -46,8 +46,8 @@ Its contents is a list of plists. The plists holds below:
 - :previous -> the readtable used when ~use-reader~ called.
 ")
 
-(defun read-in-previous-syntax (stream char &optional n)
-  (declare (ignore char n))
+(defun read-in-previous-syntax (stream char)
+  (declare (ignore char))
   (let ((*readtable*
 	 (getf (first *current-c-reader*) :previous)))
     (read stream t nil t)))
@@ -89,6 +89,23 @@ Its contents is a list of plists. The plists holds below:
 	(error "Too many chars appeared between '' :~C, ~C, ..."
 	       c1 c2))
       c1)))
+
+(defun read-slash-comment (stream char
+                           &optional (next-function #'read-lonely-single-symbol))
+  (let ((next (peek-char nil stream t nil t)))
+    (case next
+      (#\/
+       (read-line stream t nil t)
+       (values))
+      (#\*
+       (read-char stream t nil t)
+       (loop for after-* = (progn (peek-char #\* stream t nil t)
+                                  (read-char stream t nil t)
+                                  (read-char stream t nil t))
+          until (char= after-* #\/))
+       (values))
+      (t
+       (funcall next-function stream char)))))
 
 ;; XXX: This code assumes ASCII is used for char-code..
 (defun read-escaped-char (stream)
@@ -168,20 +185,8 @@ Its contents is a list of plists. The plists holds below:
 	   (read-single-or-equal-symbol stream char)))))
 
 (defun read-slash (stream char)
-  (let ((next (peek-char nil stream t nil t)))
-    (case next
-      (#\/
-       (read-line stream t nil t)
-       (values))
-      (#\*
-       (read-char stream t nil t)
-       (loop for after-* = (progn (peek-char #\* stream t nil t)
-                                  (read-char stream t nil t)
-                                  (read-char stream t nil t))
-          until (char= after-* #\/))
-       (values))
-      (t
-       (read-single-or-equal-symbol stream char)))))
+  (read-slash-comment stream char
+                      #'read-single-or-equal-symbol))
 
 (defun install-c-reader (readtable level)
   (let ((lev (translate-reader-level level)))
@@ -200,13 +205,14 @@ Its contents is a list of plists. The plists holds below:
     (set-macro-character #\[ #'read-single-character-symbol nil readtable)
     (set-macro-character #\] #'read-single-character-symbol nil readtable))
   (when (>= level 2)			; Overkill
-    ;; accessing normal syntax
+    ;; for accessing normal syntax.
     (set-macro-character #\` #'read-in-previous-syntax readtable)
     ;; Disables 'consing dots', with replacement of ()
     (set-macro-character #\. #'read-lonely-single-symbol t readtable)
     ;; removes 'multi-escape'
     (set-syntax-from-char #\| #\& readtable)
     ;; destroys CL syntax COMPLETELY!
+    (set-macro-character #\/ #'read-slash-comment t readtable)
     (set-macro-character #\' #'read-single-quote nil readtable)
     (set-macro-character #\" #'read-double-quote nil readtable)
     (set-macro-character #\; #'read-single-character-symbol nil readtable)
@@ -298,6 +304,10 @@ In this level, these reader macros are installed.
          functionality is lost.
 - '\' :: The '\' becomes a ordinally constituent character. The
          'multiple escaping' functionality is lost.
+- '/' :: '//' means a line comment, '/* ... */' means a block comment.
+         '/' is still non-terminating, and has special meanings only
+         if followed by '/' or '*'. Ex: 'a/b/c' or '/+aaa+/' are still
+         valid symbols.
 - ''' (single-quote) :: The single-quote works as a character literal
                         of C. The 'quote' functionality is lost.
 - '\"' (double-quote) :: The double-quote works as a string literal of
@@ -332,9 +342,8 @@ symbol listed below.
 - '-' :: '-', '--', '-=', or '->'
 - '>' :: '>', '>>', or '>>='
 - '<' :: '<', '<<', or '<<='
-- '/' :: '/', '//', or '/='
-
-And, '//' means a line comment, '/* ... */' means a block comment.
+- '/' :: '/', or '/='. '//' means a line comment, and '/* ... */'
+         means a block comment.
 
 In this level, there is no compatibilities between symbols of Common
 Lisp.  Especially, for denoting a symbol has terminating characters,

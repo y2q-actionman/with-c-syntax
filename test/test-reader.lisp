@@ -55,10 +55,27 @@
     #2{
     return `'(1 . 2);
     }#)
-  #| semicolon |#
+  ;; semicolon
   (eval-equal 3 ()
     #2{{1;2;return 3;}}#)
-  #| single quote |#
+  ;; comments
+  (eval-equal 6 ()
+    #2{
+    return 1 // + 8000
+      + 2 /* + 9999 */
+      + 3;
+      }#)
+  (eval-equal 3 ()
+    #2{
+    int a/b/c = 1 \;
+    int /!abc!/ = 2 \;
+    return a/b/c + /!abc!/ \;
+    }#)
+  (eval-equal 1 ()
+    #2{
+    return 1 //+999999
+    \;}#)
+  ;; single quote
   (eval-equal #\a ()
     #2{
     return 'a'\;
@@ -91,7 +108,7 @@
     #2{
     return "\x99";
     }#)
-  #| parens |#
+  ;; parens
   (eval-equal "a" ()
     #2{
     return string('a');
@@ -105,116 +122,116 @@
 
 (use-reader :level :insane)
 (defun test-reader-insane (&aux (x 2) (y 3))
-  #| comments |#
+  ;; comments
   (eval-equal 6 ()
     #3{
     return 1 // + 8000
       + 2 /* + 9999 */
       + 3;
     }#)
-  #| ? : |#
+  ;; ? :
   (muffle-unused-code-warning
     (eval-equal 2 ()
       #3{
       return 1?x:y;
       }#))
-  #| ~ |#
+  ;; ~
   (eval-equal (lognot 2) ()
     #3{
     return ~x;
     }#)
-  #| = |#
+  ;; =
   (eval-equal 2 ()
     #3{
     int hoge=x; return hoge;
     }#)
-  #| == |#
+  ;; ==
   (eval-equal nil ()
     #3{
     return x==y;
     }#)
-  #| * |#
+  ;; *
   (eval-equal 6 ()
     #3{
     return x*y;
     }#)
-  #| *= |#
+  ;; *=
   (eval-equal 6 ()
     #3{
     int hoge=x; hoge*=y; return hoge;
     }#)
-  #| / |#
+  ;; /
   (eval-equal (/ 2 3) ()
     #3{
     return x/y;
     }#)
-  #| /= |#
+  ;; /=
   (eval-equal (/ 2 3) ()
     #3{
     int hoge=x; hoge/=y; return hoge;
     }#)
-  #| % |#
+  ;; %
   (eval-equal 2 ()
     #3{
     return x%y;
     }#)
-  #| %= |#
+  ;; %=
   (eval-equal 2 ()
     #3{
     int hoge=x; hoge%=y; return hoge;
     }#)
-  #| ^ |#
+  ;; ^
   (eval-equal (logxor 2 3) ()
     #3{
     return x^y;
     }#)
-  #| ^= |#
+  ;; ^=
   (eval-equal (logxor 2 3) ()
     #3{
     int hoge=x; hoge^=y; return hoge;
     }#)
-  #| ! |#
+  ;; !
   (eval-equal nil ()
     #3{
     return !x;
     }#)
-  #| != |#
+  ;; !=
   (eval-equal t ()
     #3{
     return x!=y;
     }#)
-  #| & |#
+  ;; &
   (eval-equal (logand 2 3) ()
     #3{
     return x&y;
     }#)
-  #| &= |#
+  ;; &=
   (eval-equal (logand 2 3) ()
     #3{
     int hoge=x; hoge&=y; return hoge;
     }#)
-  #| && |#
+  ;; &&
   (eval-equal 3 ()
     #3{
     return x&&y;
     }#)
-  #| | |#
+  ;; |
   (eval-equal (logior 2 3) ()
     #3{
     return x|y;
     }#)
-  #| |= |#
+  ;; |=
   (eval-equal (logior 2 3) ()
     #3{
     int hoge=x; hoge|=y; return hoge;
     }#)
-  #| || |#
+  ;; ||
   (muffle-unused-code-warning
     (eval-equal 2 ()
       #3{
       return x||y;
       }#))
-  #| + |#
+  ;; +
   (eval-equal 1 ()
     #3{
     return +1;
@@ -223,12 +240,12 @@
     #3{
     return x+y;
     }#)
-  #| += |#
+  ;; +=
   (eval-equal 5 ()
     #3{
     int hoge=x; hoge+=y; return hoge;
     }#)
-  #| - |#
+  ;; -
   (eval-equal -1 ()
     #3{
     return -1;
@@ -237,59 +254,59 @@
     #3{
     return x-y;
     }#)
-  #| -= |#
+  ;; -=
   (eval-equal -1 ()
     #3{
     int hoge=x; hoge-=y; return hoge;
     }#)
-  #| < |#
+  ;; <
   (eval-equal t ()
     #3{
     return x<y;
     }#)
-  #| <= |#
+  ;; <=
   (eval-equal t ()
     #3{
     return x<=y;
     }#)
-  #| << |#
+  ;; <<
   (eval-equal (ash 2 3) ()
     #3{
     return x<<y;
     }#)
-  #| <<= |#
+  ;; <<=
   (eval-equal (ash 2 3) ()
     #3{
     int hoge=x; hoge<<=y; return hoge;
     }#)
-  #| > |#
+  ;; >
   (eval-equal nil ()
     #3{
     return x>y;
     }#)
-  #| >= |#
+  ;; >=
   (eval-equal nil ()
     #3{
     return x>=y;
     }#)
-  #| >> |#
+  ;; >>
   (eval-equal (ash 2 -3) ()
     #3{
     return x>>y;
     }#)
-  #| >>= |#
+  ;; >>=
   (eval-equal (ash 2 -3) ()
     #3{
     int hoge=x; hoge>>=y; return hoge;
     }#)
 
-  #| . |#
+  ;; .
   (eval-equal 3 ()
     #3{
     struct{int x;}hoge={3};
     return hoge.x;
     }#)
-  #| -> |#
+  ;; ->
   (eval-equal 3 ()
     #3{
     struct{int x;}hoge={3};

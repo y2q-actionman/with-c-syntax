@@ -2,7 +2,7 @@
 
 (defun preprocessor-initial-set ()
   "This function returns the initial value of *preprocessor-macro*"
-  (loop for sym in (append +operators+ +keywords+)
+  (loop for sym in +operators-and-keywords+
      as name = (symbol-name sym)
      as ucase = (string-upcase name)
      as macro = sym
@@ -115,7 +115,7 @@ reader. If nil, the macro is defined for all readtable-case.
 (defun preprocessor-call-macro (lis-head fn)
   "A part of the ~preprocessor~ function."
   (let ((begin (pop lis-head)))
-    (unless (string= begin '|(|)
+    (unless (string= begin '\()
       (error "some symbols (~S) found between preprocessor macro and the first '('"
              begin)))
   (labels ((pop-next-or-error ()
@@ -124,12 +124,12 @@ reader. If nil, the macro is defined for all readtable-case.
              (pop lis-head))
            (get-arg (start)
              (loop for i = start then (pop-next-or-error)
-                until (or (string= i '|,|)
-                          (if (string= i '|)|)
+                until (or (string= i '\,)
+                          (if (string= i '\))
                               (progn (push i lis-head) t)))
                 collect i)))
     (loop for i = (pop-next-or-error)
-       until (string= i '|)|)
+       until (string= i '\))
        collect (get-arg i) into args
        finally
          (return (values (apply fn args) lis-head)))))
@@ -179,7 +179,7 @@ additionally.
 
 - If ~val~ is a function, the function is called, and the returned
 value is used for expansion. Arguments for the function are datum
-between the following '(' symbol and the next ')' symbols, delimited
+between the following \( symbol and the next \) symbol, delimited
 by \, symbol.
 
 Example: If MAC is defined for a macro and its value is a function,
@@ -227,7 +227,7 @@ calls the function like:
      when token
      do (push token ret)
 
-     ;; typedef hack -- addes "void \;" after each typedef.
+     ;; typedef hack -- addes "void ;" after each typedef.
      if (eq (first ret) '|typedef|)
      do (setf typedef-hack t)
      else if (and typedef-hack
