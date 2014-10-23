@@ -6,7 +6,7 @@
                 #:copy-hash-table	; 1. Hash Tables
 		#:alist-hash-table
 		#:define-constant	; 2. Data and Control Flow
-		#:destructuring-ecase
+		#:destructuring-case
 		#:if-let
 		#:when-let
 		#:when-let*
@@ -25,6 +25,9 @@
                 #:parse-with-lexer
 		#:yacc-parse-error)
   (:export
+   ;; condition.lisp
+   #:with-c-syntax-error
+   #:with-c-syntax-warning
    ;; preprocessor.lisp
    #:find-preprocessor-macro
    #:add-preprocessor-macro

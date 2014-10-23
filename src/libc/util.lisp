@@ -23,3 +23,14 @@
   (add-typedef sym type)		; typedefs name -> type
   ;; addes package-free alias
   (add-preprocessor-macro-with-upcase (symbol-name sym) sym))
+
+(define-condition library-macro-error (with-c-syntax-error)
+  ((name :initarg :name
+         :reader library-macro-error-name)
+   (args :initarg :args
+         :reader library-macro-error-args))
+  (:report
+   (lambda (condition stream)
+     (format stream "~A: bad args: ~A"
+             (library-macro-error-name condition)
+             (library-macro-error-args condition)))))

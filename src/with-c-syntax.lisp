@@ -135,7 +135,7 @@ Establishes variable bindings for a new compilation.
           (list
            (values 'lisp-expression value))
           (t
-           (error "Unexpected value ~S" value))))))
+           (error 'lexer-error :token value))))))
 
 ;;; Declarations
 (defstruct decl-specs
@@ -371,7 +371,9 @@ found, returns nil.
 	  if (and bits
 		  (not (subtypep `(signed-byte ,bits) tp))
 		  (not (subtypep `(unsigned-byte ,bits) tp)))
-	  do (error "invalid bitfield: ~A, ~A" tp s-decl) ; limit bits.
+	  do (error 'compile-error
+                    :format-control "Invalid bitfield specified: ~A, ~A."
+                    :format-arguments (list tp s-decl))
 	  collect (list :lisp-type tp :constness constness
 			:name name :initform initform
 			:decl-specs spec-qual
@@ -415,7 +417,9 @@ found, returns nil.
      for tp in tp-list
      do (flet ((check-tp-list-length ()
 		 (unless (length= 1 tp-list)
-		   (error "invalid decl-spec (~A)" tp-list))))
+		   (error 'compile-error
+                          :format-control "Invalid decl-spec: ~A."
+                          :format-arguments (list tp-list)))))
 	  (cond
 	    ((eq tp '|void|)		; void
 	     (check-tp-list-length)
@@ -429,7 +433,7 @@ found, returns nil.
 	     (return (finalize-enum-spec tp dspecs)))
 	    ((listp tp)			; lisp type
 	     (check-tp-list-length)
-	     (assert (eq (first tp) '|__lisp_type|))
+	     (assert (eq (first tp) '|__lisp_type|)) ; by the parser.
 	     (setf (decl-specs-lisp-type dspecs) (second tp))
 	     (return dspecs))
 	    ((find-typedef tp)		; typedef name
@@ -451,7 +455,9 @@ found, returns nil.
                                       +numeric-types-alist+
                                       :test #'equal)))
                (cdr n-entry)
-               (error "invalid numeric type: ~A" numeric-symbols)))
+               (error 'compile-error
+                      :format-control "Invalid numeric type: ~A."
+                      :format-arguments (list numeric-symbols))))
        (return dspecs)))
 
 (defun finalize-decl-specs (dspecs)
@@ -460,8 +466,9 @@ found, returns nil.
 	(remove-duplicates (decl-specs-qualifier dspecs)))
   (setf (decl-specs-storage-class dspecs)
 	(if (> (length (decl-specs-storage-class dspecs)) 1)
-	    (error "too many storage-class specified: ~A"
-		   (decl-specs-storage-class dspecs))
+	    (error 'compile-error
+                   :format-control "Too many storage-class specified: ~A."
+                   :format-arguments (list (decl-specs-storage-class dspecs)))
 	    (first (decl-specs-storage-class dspecs))))
   dspecs)
 
@@ -476,8 +483,9 @@ found, returns nil.
      else if (<= i-elem a-elem)
      collect a-elem
      else
-     do (warn "too much elements in an initializer (~S, ~S)"
-              array-dimension-list init)
+     do (warn 'with-c-syntax-warning
+              :format-control "Too much elements in an initializer: (~S, ~S)."
+              :format-arguments (list array-dimension-list init))
      and collect a-elem))
 
 (defun setup-init-list (dims dspecs abst-declarator init)
@@ -511,11 +519,14 @@ found, returns nil.
                `(pseudo-pointer ,next-type))))
     (:funcall
      (when (eq :aref (car (second abst-declarator)))
-       (error "a function returning an array is not accepted"))
+       (error 'compile-error
+              :format-control "A function returning an array is not accepted."))
      (when (eq :funcall (car (second abst-declarator)))
-       (error "a function returning a function is not accepted"))
+       (error 'compile-error
+              :format-control "A function returning a function is not accepted."))
      (when initializer
-       (error "a function cannot take a initializer"))
+       (error 'compile-error
+              :format-control "A function cannot take an initializer."))
      ;; TODO: includes returning type, and arg type
      (values nil 'function))
     (:aref
@@ -523,14 +534,15 @@ found, returns nil.
             (aref-dim                   ; reads abst-declarator
              (loop for (tp tp-args) in abst-declarator
                 if (eq :funcall tp)
-                do (error "an array of functions is not accepted")
+                do (error 'compile-error
+                          :format-control "An array of functions is not accepted.")
                 else if (eq :aref tp)
                 collect (or tp-args '*)
                 else if (eq :pointer tp)
                 do (setf aref-type `(pseudo-pointer ,aref-type))
                   (loop-finish)
                 else
-                do (assert nil () "Unexpected internal type: ~S" tp)))
+                do (assert nil () "Unexpected internal type: ~S." tp)))
             (merged-dim
              (array-dimension-combine aref-dim initializer))
             (lisp-elem-type
@@ -539,8 +551,9 @@ found, returns nil.
              (if (and error-on-incompleted
                       (or (null aref-dim) (member '* aref-dim))
                       (null initializer))
-                 (error "array's dimension cannot be specified (~S, ~S)"
-                        aref-dim initializer)
+                 (error 'compile-error
+                        :format-control "Array's dimension is not fully specified: (~S, ~S)."
+                        :format-arguments (list aref-dim initializer))
                  `(simple-array ,lisp-elem-type ,merged-dim)))
             (var-init
              `(make-array ',merged-dim
@@ -555,7 +568,8 @@ found, returns nil.
      (let ((var-type (decl-specs-lisp-type dspecs)))
        (cond
          ((null var-type)
-          (error "a void variable cannot be initialized"))
+          (error 'compile-error
+                 :format-control "A void variable cannot be initialized."))
          ((eq var-type 't)
           (values initializer var-type))
          ((subtypep var-type 'number) ; includes enum
@@ -565,7 +579,9 @@ found, returns nil.
 		 (var-init
 		  (if (not sspec)
 		      (if error-on-incompleted
-			  (error "struct ~S not defined" (decl-specs-tag dspecs))
+			  (error 'compile-error
+                                 :format-control "A struct named ~S is not defined."
+                                 :format-arguments (list (decl-specs-tag dspecs)))
 			  nil)
                       `(make-struct
                         ,(if (struct-spec-defined-in-this-unit sspec)
@@ -589,7 +605,9 @@ found, returns nil.
 	 (storage-class (decl-specs-storage-class dspecs)))
     (when (and init
                (member storage-class '(|extern| |typedef|)))
-      (error "This variable (~S) cannot have any initializers" storage-class))
+      (error 'compile-error
+             :format-control "This storage-class (~S) variable cannot have any initializers."
+             :format-arguments (list storage-class)))
     ;; If not typedef-ing, expands typedef contents.
     (unless (eq storage-class '|typedef|)
       (when-let (td-init-decl (decl-specs-typedef-init-decl dspecs))
@@ -599,7 +617,9 @@ found, returns nil.
 	(expand-init-declarator-init dspecs abst-decl init)
       (when (and (subtypep var-type 'function)
                  (not (member storage-class '(nil |extern| |static|))))
-        (error "a function cannot have such storage-class: ~S" storage-class))
+        (error 'compile-error
+               :format-control "A function cannot have this storage-class: ~S."
+               :format-arguments (list storage-class)))
       (setf (init-declarator-lisp-name init-decl) var-name
 	    (init-declarator-lisp-initform init-decl) var-init
 	    (init-declarator-lisp-type init-decl) var-type)
@@ -638,18 +658,25 @@ found, returns nil.
         (init-declarator-lisp-type init-decl))
       (decl-specs-lisp-type qls)))
 
+(defun error-lispify-subscript (obj)
+  (error 'runtime-error
+         :format-control "This object cannot have any subscripts: ~S."
+         :format-arguments (list obj)))
+
 (defun lispify-subscript (obj arg1 &rest args)
-  (etypecase obj
+  (typecase obj
     (pseudo-pointer
      (let ((deref-obj (pseudo-pointer-dereference (+ obj arg1))))
        (if (null args)
            deref-obj
            (apply #'lispify-subscript deref-obj args))))
     (array
-     (apply #'aref obj arg1 args))))
+     (apply #'aref obj arg1 args))
+    (otherwise
+     (error-lispify-subscript obj))))
 
 (defun (setf lispify-subscript) (val obj arg1 &rest args)
-  (etypecase obj
+  (typecase obj
     (pseudo-pointer
      (symbol-macrolet 
          ((deref-obj (pseudo-pointer-dereference (+ obj arg1))))
@@ -657,7 +684,9 @@ found, returns nil.
            (setf deref-obj val)
            (setf (apply #'lispify-subscript deref-obj args) val))))
     (array
-     (setf (apply #'aref obj arg1 args) val))))
+     (setf (apply #'aref obj arg1 args) val))
+    (otherwise
+     (error-lispify-subscript obj))))
 
 (defun lispify-cast (type exp)
   (if (null type)
@@ -665,34 +694,43 @@ found, returns nil.
       `(coerce ,exp ',type)))
 
 (defun lispify-address-of (exp)
-  (cond ((symbolp exp)
-	 (push exp *dynamic-binding-requested*)
-	 (once-only ((val exp))
-	   `(make-pseudo-pointer
-	     (if (pseudo-pointer-pointable-p ,val)
-		 ,val ',exp))))
-        ((listp exp)
-	 (destructuring-ecase exp
-	   ((lispify-subscript obj &rest args)
-	    (once-only (obj)
-              `(if (arrayp ,obj)
-		   (make-pseudo-pointer
-		    (make-reduced-dimension-array ,obj ,@(butlast args))
-		    ,(lastcar args))
-                   (error "Getting a pointer to an array, but this is not an array: ~S"
-                          ,obj))))
-           ((struct-member obj mem)
-	    (once-only (obj)
-              `(if (typep ,obj 'struct)
-		   (make-pseudo-pointer
-		    (struct-member-vector ,obj)
-		    (struct-member-index ,obj ,mem))
-                   (error "Getting a pointer to a struct member, but this is not a struct: ~S"
-                          ,obj))))
-           ((pseudo-pointer-dereference obj)
-            obj)))
-	(t
-	 (error "cannot take a pointer to form ~S" exp))))
+  (flet ((error-bad-form ()
+           (error 'compile-error
+                  :format-control "Cannot take a pointer to form ~S."
+                  :format-arguments (list exp))))
+    (cond ((symbolp exp)
+           (push exp *dynamic-binding-requested*)
+           (once-only ((val exp))
+             `(make-pseudo-pointer
+               (if (pseudo-pointer-pointable-p ,val)
+                   ,val ',exp))))
+          ((listp exp)
+           (destructuring-case exp
+             ((lispify-subscript obj &rest args)
+              (once-only (obj)
+                `(if (arrayp ,obj)
+                     (make-pseudo-pointer
+                      (make-reduced-dimension-array ,obj ,@(butlast args))
+                      ,(lastcar args))
+                     (error 'runtime-error
+                            :format-control "Trying to get a pointer to an array, but this is not an array: ~S."
+                            :format-arguments (list ,obj)))))
+             ((struct-member obj mem)
+              (once-only (obj)
+                `(if (typep ,obj 'struct)
+                     (make-pseudo-pointer
+                      (struct-member-vector ,obj)
+                      (struct-member-index ,obj ,mem))
+                     (error 'runtime-error
+                            :format-control "Trying to get a pointer to a struct member, but this is not a struct: ~S."
+                            :format-arguments (list ,obj)))))
+             ((pseudo-pointer-dereference obj)
+              obj)
+             ((t &rest _)
+              (declare (ignore _))
+              (error-bad-form))))
+          (t
+           (error-bad-form)))))
 
 (defun lispify-funcall (func-exp args)
   (if (and (symbolp func-exp)
@@ -709,7 +747,8 @@ found, returns nil.
                   until (eq (getf mem :name) id)
                   count mem)))
     (return-from lispify-offsetof entry))
-  (error "Bad 'offsetof' usage"))
+  (error 'compile-error
+         :format-control "Bad 'offsetof' usage."))
 
 ;;; Statements
 (defstruct stat
@@ -867,7 +906,8 @@ When defining a variadic function, a macro has same name is locally
 established.
 "
   (declare (ignore dst))
-  (error "trying to get variadic args list out of variadic funcs"))
+  (error 'compile-error
+         :format-control "Trying to get a variadic args list out of a variadic func."))
 
 (defun lispify-function-definition (name body
                                     &key K&R-decls (return (make-decl-specs)))
@@ -890,17 +930,23 @@ established.
 	  (case (decl-specs-storage-class return)
 	    (|static| '|static|)
 	    ((nil) '|global|)
-	    (t (error "Cannot define a function of storage-class: ~S"
-		      (decl-specs-storage-class return))))))
+	    (t (error 'compile-error
+                      :format-control "Cannot define a function of storage-class: ~S."
+                      :format-arguments (list (decl-specs-storage-class return)))))))
     (when K&R-decls
       (let ((K&R-param-ids
              (loop for (dspecs init-decls) in K&R-decls
-                unless (member (decl-specs-storage-class dspecs)
+                as storage-class = (decl-specs-storage-class dspecs)
+                unless (member storage-class
                                '(nil |auto| |register|) :test #'eq)
-                do (error "Invalid storage-class for arguments")
+                do (error 'compile-error
+                          :format-control "Invalid storage-class ~S for function arguments."
+                          :format-arguments (list storage-class))
 		nconc (mapcar #'init-declarator-lisp-name init-decls))))
-        (unless (equal K&R-param-ids param-ids)
-          (error "prototype is not matched with k&r-style params"))))
+        (unless (equal param-ids K&R-param-ids)
+          (error 'compile-error
+                 :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
+                 :format-arguments (list K&R-param-ids param-ids)))))
     (let ((varargs-sym (gensym "varargs-"))
           (body (expand-toplevel-stat body))) 
       (make-function-definition
@@ -936,7 +982,9 @@ established.
      ;; function declarations
      if (subtypep (init-declarator-lisp-type i) 'function)
      do (unless (or (null init) (zerop init))
-          (error "a function cannot have initializer (~S = ~S)" name init))
+          (error 'compile-error
+                 :format-control "A function cannot have initializer (~S = ~S)."
+                 :format-arguments (list name init)))
      else do
      ;; variables
        (when (member name *dynamic-binding-requested*)
@@ -947,24 +995,34 @@ established.
          ;; 'auto' vars
          (|auto|
           (when (eq mode :translation-unit)
-            (error "At top level, 'auto' variables are not accepted (~S)" name))
+            (error 'compile-error
+                   :format-control "At top level, 'auto' variables are not accepted (~S)."
+                   :format-arguments (list name)))
           (push `(,name ,init) lexical-binds))
          ;; 'register' vars
          (|register|
           (when (eq mode :translation-unit)
-            (error "At top level, 'register' variables are not accepted (~S)" name))
+            (error 'compile-error
+                   :format-control "At top level, 'register' variables are not accepted (~S)."
+                   :format-arguments (list name)))
           (push `(,name ,init) lexical-binds)
           (when (member name dynamic-established-syms :test #'eq)
-            (warn "some variables are 'register', but its pointer is taken (~S)." name))
+            (warn 'with-c-syntax-warning
+                  :format-control "Variable ~A is 'register', but its pointer is taken."
+                  :format-arguments (list name)))
           (push name dynamic-extent-vars))
          ;; 'extern' vars.
          (|extern|
           (unless (or (null init) (zerop init))
-            (error "an 'extern' variable cannot have initializer (~S = ~S)" name init)))
+            (error 'compile-error
+                   :format-control  "An 'extern' variable cannot have initializer (~S = ~S)."
+                   :format-arguments (list name init))))
          ;; 'global' vars.
          (|global|
           (when (eq mode :statement)
-            (error "In internal scope, no global vars cannot be defined (~S)." name))
+            (error 'compile-error
+                   :format-control "In internal scope, no global vars cannot be defined (~S)."
+                   :format-arguments (list name)))
 	  ;; Temporary use a lexical value, for initializing correctly
 	  ;; with static vars which are lexical.
 	  (let ((init-sym (gensym (format nil "global-var-~S-tmp-" name))))
@@ -1819,7 +1877,9 @@ established.
 		   (destructuring-bind (a-type &optional e-type array-dim) tp
 		     (declare (ignore a-type e-type))
 		     (when (member-if-not #'numberp array-dim)
-		       (error "The array dimension is incompleted: ~S" tp))
+		       (error 'compile-error
+                              :format-control "This array dimension is incompleted: ~S."
+                              :format-arguments (list tp)))
 		     (apply #'* array-dim))
 		   1))))
 
@@ -1927,7 +1987,8 @@ tries to parse again.
 	       (yacc-parse-error (condition)
 		 (if retry-add-{}
 		     (expand-c-syntax (append '({) body '(})) nil)
-		     (error condition))))))
+		     (error 'with-c-syntax-parse-error
+                            :yacc-error condition))))))
     (cond
       ((null body) nil)
       ((and (length= 1 (the list body)) ; with-c-syntax is nested.

@@ -28,6 +28,20 @@ Holds an alist translates 'reader level'.
 ~use-reader~.
 ")
 
+(defvar *default-reader-level* :overkill
+  "* Value Type
+a symbol or a fixnum.
+
+* Description
+Holds the default reader level used in ~use-reader~.
+
+The value is one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
+~:overkill~, or ~:insane~. The default is ~:overkill~.
+
+* See Also
+~use-reader~.
+")
+
 (defun translate-reader-level (rlspec)
   (cdr (assoc rlspec +reader-level-specifier-alist+
 	      :test #'eq)))
@@ -83,11 +97,13 @@ Its contents is a list of plists. The plists holds below:
 (defun read-single-quote (stream c0)
   (let ((c1 (read-char stream t nil t)))
     (when (char= c1 c0)
-      (error "Empty char constant"))
+      (error 'with-c-syntax-reader-error
+             :format-control "Empty char constant."))
     (let ((c2 (read-char stream t nil t)))
       (unless (char= c2 c0)
-	(error "Too many chars appeared between '' :~C, ~C, ..."
-	       c1 c2))
+	(error 'with-c-syntax-reader-error
+               :format-control "Too many chars appeared between '' :~C, ~C, ..."
+               :format-arguments (list c1 c2)))
       c1)))
 
 (defun read-slash-comment (stream char
@@ -118,7 +134,7 @@ Its contents is a list of plists. The plists holds below:
 		(setf tmp (+ (* tmp radix) weight))
 	      finally (return (code-char tmp)))))
     (let ((c0 (read-char stream t nil t)))
-      (ecase c0
+      (case c0
 	(#\a (code-char #x07))		; alarm
 	(#\b #\Backspace)
 	(#\f #\Page)
@@ -133,7 +149,11 @@ Its contents is a list of plists. The plists holds below:
 	((#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\0)
 	 (numeric-escape 10 (digit-char-p c0)))
 	(#\x
-	 (numeric-escape 16 0))))))
+	 (numeric-escape 16 0))
+        (t
+         (error 'with-c-syntax-reader-error
+                :format-control "Bad escaped char: ~C."
+                :format-arguments (list c0)))))))
 
 (defun read-double-quote (stream c0)
   (loop with str = (make-array '(0) :element-type 'character
@@ -189,10 +209,7 @@ Its contents is a list of plists. The plists holds below:
                       #'read-single-or-equal-symbol))
 
 (defun install-c-reader (readtable level)
-  (let ((lev (translate-reader-level level)))
-    (unless lev
-      (error "Level ~S cannot be accepted" level))
-    (setf level lev))
+  (assert (and (translate-reader-level level) (integerp level)))
   (when (>= level 0)			; Conservative
     ;; Comma is read as a symbol.
     (set-macro-character #\, #'read-single-character-symbol nil readtable)
@@ -238,26 +255,38 @@ Its contents is a list of plists. The plists holds below:
     (set-macro-character #\/ #'read-slash nil readtable))
   readtable)
 
+(defmacro cerror-reader-level (place)
+  (once-only ((place-val place))
+    `(unless (translate-reader-level ,place-val)
+       (cerror "Use the default reader level."
+               'runtime-error
+               :format-control "Reader level ~S cannot be accepted."
+               :format-arguments (list ,place-val))
+       (setf ,place *default-reader-level*))))
+
 (defun read-toplevel-in-c-syntax (stream char n)
   (destructuring-bind (&key level case &allow-other-keys)
       (first *current-c-reader*)
     (let* ((*readtable* (copy-readtable))
-	   (keyword-case (or case (readtable-case *readtable*))))
+	   (keyword-case (or case (readtable-case *readtable*)))
+           (level (or n level)))
       (setf (readtable-case *readtable*) keyword-case)
       (set-dispatch-macro-character #\# #\{ #'read-toplevel-in-c-syntax)
-      (install-c-reader *readtable* (or n level))
+      (cerror-reader-level level)
+      (install-c-reader *readtable* (translate-reader-level level))
       `(with-c-syntax (:keyword-case ,keyword-case)
 	 ,@(read-2chars-delimited-list
 	    (cdr (assoc char +bracket-pair-alist+ :test #'eq))
 	    #\# stream t)))))
 
-(defmacro use-reader (&key (level :overkill) case)
+(defmacro use-reader (&key (level *default-reader-level*) case)
   "* Syntax
 ~use-reader~ &key level case => readtable
 
 * Arguments and Values
 - level :: one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
-           ~:overkill~, or ~:insane~. The default is ~:overkill~.
+           ~:overkill~, or ~:insane~.
+           The default is specified by ~*default-reader-level*~.
 - case :: one of ~:upcase~, ~:downcase~, ~:preserve~, ~:invert~, or
           nil. The default is nil.
 
@@ -357,6 +386,9 @@ wrapping ~with-c-syntax~ form.
 When ~case~ is nil, the readtable-case of ~*readtable*~ at using
 '#{' is used.
 
+* Affected By
+~*default-reader-level*~.
+
 * Side Effects
 Changes ~*readtable*~.
 
@@ -366,9 +398,13 @@ There is no support for trigraphs or digraphs.
 * See Also
 ~with-c-syntax~, ~unuse-reader~.
 "
-  (unless (translate-reader-level level)
-    (error "Level ~S cannot be accepted" level))
-  (assert (member case '(nil :upcase :downcase :preserve :invert)))
+  (cerror-reader-level level)
+  (unless (member case '(nil :upcase :downcase :preserve :invert))
+    (cerror "Use nil."
+            'runtime-error
+             :format-control "Reader case ~S cannot be accepted."
+             :format-arguments (list case))
+    (setf case nil))
   `(eval-when (:compile-toplevel :load-toplevel :execute)
      (push (list :level ,level :case ,case :previous *readtable*)
            *current-c-reader*)

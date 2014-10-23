@@ -1,30 +1,32 @@
 (in-package #:with-c-syntax.stdlib)
 
 (defun va_start (ap last)
-  (declare (ignorable last))
   (declare (type list ap))
   (unless (length= 1 ap)
-    (error "va_start: bad args: (~S, ~S)" ap last))
+    (error 'library-macro-error
+           :name "va_start" :args (list ap last)))
   `(get-varargs ,(first ap)))
 
 (defun va_arg (ap type)
-  (declare (ignorable type))
   (declare (type list ap))
   (unless (length= 1 ap)
-    (error "va_arg: bad args: (~S, ~S)" ap type))
+    (error 'library-macro-error
+           :name "va_arg" :args (list ap type)))
   `(pop ,(first ap)))
 
 (defun va_end (ap)
   (declare (type list ap))
   (unless (length= 1 ap)
-    (error "va_end: bad args: (~S)" ap))
+    (error 'library-macro-error
+           :name "va_end" :args (list ap)))
   `(setf ,(first ap) nil))
 
 (defun va_copy (dest src)
   (declare (type list dest src))
   (unless (and (length= 1 dest)
                (length= 1 src))
-    (error "va_copy: bad args: (~S, ~S)" dest src))
+    (error 'library-macro-error
+           :name "va_copy" :args (list dest src)))
   `(setf ,(first dest) (copy-list ,(first src))))
 
 (eval-when (:load-toplevel :execute)

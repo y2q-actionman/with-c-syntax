@@ -11,8 +11,8 @@
 		  :initform #()
 		  :accessor struct-member-vector))
   (:documentation
-  "* Class Precesence List
-standard-object
+  "* Class Precedence List
+struct, standard-object, ...
 
 * Description
 A representation of C structs or unions.
@@ -44,11 +44,18 @@ instance.  If the number of ~init-args~ is less than the number of
 members, the rest members are initialized with the default values
 specified by the ~spec-obj~.
 "
-  (etypecase spec-obj
+  (typecase spec-obj
     (struct-spec t)
-    (symbol (setf spec-obj
-		  (or (find-struct-spec spec-obj)
-		      (error "no struct defined: ~S" spec-obj)))))
+    (symbol
+     (if-let ((sspec (find-struct-spec spec-obj)))
+       (setf spec-obj sspec)
+       (error 'runtime-error
+              :format-control "No struct defined named ~S."
+              :format-arguments (list spec-obj))))
+    (otherwise
+     (error 'runtime-error
+            :format-control "Not a valid struct-spec object: ~S."
+            :format-arguments (list spec-obj))))
   (loop with union-p = (eq (struct-spec-struct-type spec-obj) '|union|)
      with member-index-table = (make-hash-table :test #'eq)
      for idx from 0
@@ -71,7 +78,9 @@ specified by the ~spec-obj~.
   (let* ((table (struct-member-index-table struct))
          (index (gethash member-name table)))
     (unless index
-      (error "member ~S not found" member-name))
+      (error 'runtime-error
+             :format-control  "The struct member ~S is not found."
+             :format-arguments (list member-name)))
     index))
 
 (defun struct-member (struct member-name)
