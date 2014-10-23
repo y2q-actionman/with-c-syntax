@@ -116,11 +116,13 @@ reader. If nil, the macro is defined for all readtable-case.
   "A part of the ~preprocessor~ function."
   (let ((begin (pop lis-head)))
     (unless (string= begin '\()
-      (error "some symbols (~S) found between preprocessor macro and the first '('"
-             begin)))
+      (error 'preprocess-error
+	     :format-control "A symbol (~S) found between a preprocessor macro and the first '('"
+	     :format-arguments (list begin))))
   (labels ((pop-next-or-error ()
              (unless lis-head
-               (error "reached end of symbols at finding preprocessor macro args"))
+               (error 'preprocess-error
+		      :format-control "Reached end of forms at findint preprocessor macro arguments."))
              (pop lis-head))
            (get-arg (start)
              (loop for i = start then (pop-next-or-error)

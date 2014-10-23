@@ -6,10 +6,11 @@
                 :components
                 ((:file "package")
 		 (:file "util" :depends-on ("package"))
+		 (:file "condition" :depends-on ("package"))
                  (:file "keywords" :depends-on ("package"))
                  (:file "struct" :depends-on ("package"))
-                 (:file "pseudo-pointer" :depends-on ("util"))
-                 (:file "preprocessor" :depends-on ("keywords"))
+                 (:file "pseudo-pointer" :depends-on ("util" "condition"))
+                 (:file "preprocessor" :depends-on ("condition" "keywords"))
                  (:file "with-c-syntax"
 		  :depends-on ("struct" "pseudo-pointer" "preprocessor"))
                  (:file "reader" :depends-on ("with-c-syntax"))))

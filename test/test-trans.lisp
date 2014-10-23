@@ -147,7 +147,7 @@
   (assert (= 103 (accumulator 2)))
   t)
 
-(eval-when (:compile-toplevel)
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (with-c-syntax ()
     enum { SOME_CONSTANT_100 = 100 } \;))
 
@@ -156,7 +156,7 @@
     return SOME_CONSTANT_100 \;)
   t)
 
-(eval-when (:compile-toplevel)
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (with-c-syntax ()
     struct xxx-struct { int x \; } \;))
 
@@ -171,7 +171,7 @@
   (assert (= 16 (hoge 2)))
   t)
 
-(eval-when (:compile-toplevel)
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (remove-typedef 'int_xxx_t)
   (with-c-syntax ()
     typedef int int_xxx_t \;))
