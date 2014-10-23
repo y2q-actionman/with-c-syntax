@@ -10,19 +10,21 @@
   (ash i (- c)))
 
 (defun revappend-to (tail list)
+  "Calls revappend with reversed order args. A helper for ~revappendf~."
   (revappend list tail))
 
 (defun nreconc-to (tail list)
+  "Calls nreconc with reversed order args. A helper for ~nreconcf~."
   (nreconc list tail))
 
 ;; modify macros
 (define-modify-macro push-right (i)
   add-to-tail)
 
-(define-modify-macro revappend-to-f (list)
+(define-modify-macro revappendf (list)
   revappend-to)
 
-(define-modify-macro nreconc-to-f (list)
+(define-modify-macro nreconcf (list)
   nreconc-to)
 
 (define-modify-macro mulf (&rest args)
@@ -50,6 +52,7 @@
   logior)
 
 (defmacro post-incf (form &optional (delta 1) &environment env)
+  "A post increment version of ~incf~."
   (multiple-value-bind (dummies vals newval setter getter)
       (get-setf-expansion form env)
     (with-gensyms (ret delta-tmp)
@@ -60,35 +63,37 @@
 	 (prog1 ,ret
 	   ,setter)))))
 
-;; (name me!)
 (defmacro with-dynamic-bound-symbols ((&rest symbols) &body body)
-  ;; If no symbols, removes PROGV.
-  ;; This makes faster codes.
+  "Inside this, passed symbols are dynamically bound to itself."
+  ;; If no symbols, removes PROGV. This makes faster codes.
   (if (null symbols)
       `(progn ,@body)
       `(progv ',symbols (list ,@symbols)
 	 (locally (declare (special ,@symbols))
 	   ,@body))))
 
-;; treats a nested lists as an multi-dimentional array.
 (defun make-dimension-list (dims &optional default)
+  "Constructs a nested list like ~make-array~."
   (if dims
       (loop repeat (car dims)
          collect (make-dimension-list (cdr dims) default))
       default))
 
 (defun ref-dimension-list (lis dim-1 &rest dims)
+  "Accesses a nested list like ~aref~, as a multi-dimentional array."
   (if (null dims)
       (nth dim-1 lis)
       (apply #'ref-dimension-list (nth dim-1 lis) (car dims) (cdr dims))))
 
 (defun (setf ref-dimension-list) (val lis dim-1 &rest dims)
+  "Accesses a nested list like ~aref~, as a multi-dimentional array."
   (if (null dims)
       (setf (nth dim-1 lis) val)
       (setf (apply #'ref-dimension-list (nth dim-1 lis) (car dims) (cdr dims))
             val)))
   
 (defun dimension-list-max-dimensions (lis)
+  "Calculates max lengthes per depth of a nested list."
   (let ((max-depth 0)
         (dim-table (make-hash-table :test 'eq))) ; (depth . max-len)
     (labels ((dim-calc (depth lis)
@@ -102,6 +107,7 @@
        collect (gethash i dim-table))))
     
 (defun make-dimension-list-load-form (lis max-depth)
+  "Makes a load form of a nested list."
   (if (or (atom lis)
           (<= max-depth 0))
       lis
@@ -109,8 +115,14 @@
         ,@(loop for i in lis
              collect (make-dimension-list-load-form i (1- max-depth))))))
   
-;; array
 (defun make-reduced-dimension-array (array &rest subscripts)
+  "Makes a displaced array which has a reduced dimensions.
+Example:
+(make-reduced-dimension-array (make-array '(2 2 2)) '(1)) returns an
+array.
+Its dimension is '(2 2), and it is a displaced array aliasing from '(1
+0 0) to '(1 2 2) in the original array.
+"
   (let* ((array-dims (array-dimensions array))
 	 (new-array-dimensions
 	  (nthcdr (length subscripts) array-dims))
@@ -125,11 +137,12 @@
 		:displaced-to array
 		:displaced-index-offset new-array-start-rm-index)))
 
-;; used in reader
 (defun make-string-from-chars (&rest chars)
+  "Coerces any number of chars to a string."
   (coerce chars 'string))
 
 (defun terminating-char-p (char &optional (readtable *readtable*))
+  "Returns t if char is terminating."
   (case char
     ((#\tab #\newline #\linefeed #\page #\return #\space)
      t)

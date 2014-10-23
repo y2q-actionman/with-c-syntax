@@ -1,7 +1,7 @@
 (in-package #:with-c-syntax.core)
 
 (defun preprocessor-initial-set ()
-  "This function returns the initial value of *preprocessor-macro*"
+  "Returns the initial value of *preprocessor-macro*"
   (loop for sym in +operators-and-keywords+
      as name = (symbol-name sym)
      as ucase = (string-upcase name)

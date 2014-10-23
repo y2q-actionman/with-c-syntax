@@ -123,7 +123,6 @@ Its contents is a list of plists. The plists holds below:
       (t
        (funcall next-function stream char)))))
 
-;; XXX: This code assumes ASCII is used for char-code..
 (defun read-escaped-char (stream)
   (flet ((numeric-escape (radix init)
 	   (loop with tmp = init
@@ -135,6 +134,7 @@ Its contents is a list of plists. The plists holds below:
 	      finally (return (code-char tmp)))))
     (let ((c0 (read-char stream t nil t)))
       (case c0
+        ;; FIXME: This code assumes ASCII is used for char-code..
 	(#\a (code-char #x07))		; alarm
 	(#\b #\Backspace)
 	(#\f #\Page)
@@ -209,6 +209,7 @@ Its contents is a list of plists. The plists holds below:
                       #'read-single-or-equal-symbol))
 
 (defun install-c-reader (readtable level)
+  "Inserts reader macros for C reader. Called by '#{' reader macro."
   (assert (and (translate-reader-level level) (integerp level)))
   (when (>= level 0)			; Conservative
     ;; Comma is read as a symbol.
@@ -255,7 +256,7 @@ Its contents is a list of plists. The plists holds below:
     (set-macro-character #\/ #'read-slash nil readtable))
   readtable)
 
-(defmacro cerror-reader-level (place)
+(defmacro check-reader-level (place)
   (once-only ((place-val place))
     `(unless (translate-reader-level ,place-val)
        (cerror "Use the default reader level."
@@ -264,15 +265,15 @@ Its contents is a list of plists. The plists holds below:
                :format-arguments (list ,place-val))
        (setf ,place *default-reader-level*))))
 
-(defun read-toplevel-in-c-syntax (stream char n)
+(defun read-in-c-syntax (stream char n)
   (destructuring-bind (&key level case &allow-other-keys)
       (first *current-c-reader*)
     (let* ((*readtable* (copy-readtable))
 	   (keyword-case (or case (readtable-case *readtable*)))
            (level (or n level)))
       (setf (readtable-case *readtable*) keyword-case)
-      (set-dispatch-macro-character #\# #\{ #'read-toplevel-in-c-syntax)
-      (cerror-reader-level level)
+      (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
+      (check-reader-level level)
       (install-c-reader *readtable* (translate-reader-level level))
       `(with-c-syntax (:keyword-case ,keyword-case)
 	 ,@(read-2chars-delimited-list
@@ -398,7 +399,7 @@ There is no support for trigraphs or digraphs.
 * See Also
 ~with-c-syntax~, ~unuse-reader~.
 "
-  (cerror-reader-level level)
+  (check-reader-level level)
   (unless (member case '(nil :upcase :downcase :preserve :invert))
     (cerror "Use nil."
             'runtime-error
@@ -409,7 +410,7 @@ There is no support for trigraphs or digraphs.
      (push (list :level ,level :case ,case :previous *readtable*)
            *current-c-reader*)
      (setf *readtable* (copy-readtable))
-     (set-dispatch-macro-character #\# #\{ #'read-toplevel-in-c-syntax)
+     (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
      *readtable*))
 
 (defmacro unuse-reader ()

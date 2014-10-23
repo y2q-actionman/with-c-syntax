@@ -139,6 +139,7 @@ Establishes variable bindings for a new compilation.
 
 ;;; Declarations
 (defstruct decl-specs
+  "Reprerents 'decl-specs' in C syntax BNF."
   ;; Filled by the parser
   (type-spec nil)
   (storage-class nil)
@@ -152,13 +153,13 @@ Establishes variable bindings for a new compilation.
   (struct-spec nil))	    ; struct/union definition
 
 (defmethod make-load-form ((obj decl-specs) &optional environment)
-  (make-load-form-saving-slots
-   obj
+  (make-load-form-saving-slots obj
    :slot-names '(type-spec storage-class qualifier
    		 lisp-type tag typedef-init-decl)
    :environment environment))
 
 (defstruct init-declarator
+  "Reprerents 'init-declarator' in C syntax BNF."
   ;; Filled by the parser
   declarator
   (initializer nil)
@@ -171,32 +172,34 @@ Establishes variable bindings for a new compilation.
   (make-load-form-saving-slots obj :environment environment))
 
 (defstruct struct-or-union-spec
+  "Reprerents 'struct-or-union-spec' in C syntax BNF."
   type					; symbol. 'struct' or 'union'
   (id nil)
-  ;; alist of (spec-qualifier-list . (struct-declarator ...))
-  (struct-decl-list nil))
+  (struct-decl-list nil)) ; alist of (spec-qualifier-list . (struct-declarator ...))
 
 (defmethod make-load-form ((obj struct-or-union-spec) &optional environment)
   (make-load-form-saving-slots obj :environment environment))
 
 (defstruct (spec-qualifier-list
-             (:include decl-specs)))
+             (:include decl-specs))
+  "Reprerents 'spec-qualifier-list' in C syntax BNF.")
 
 (defmethod make-load-form ((obj spec-qualifier-list) &optional environment)
-  (make-load-form-saving-slots
-   obj
+  (make-load-form-saving-slots obj
    :slot-names '(type-spec storage-class qualifier
    		 lisp-type tag typedef-init-decl)
    :environment environment))
 
 (defstruct (struct-declarator
              (:include init-declarator))
+  "Reprerents 'struct-declarator' in C syntax BNF."
   (bits nil))
 
 (defmethod make-load-form ((obj struct-declarator) &optional environment)
   (make-load-form-saving-slots obj :environment environment))
 
 (defstruct enum-spec
+  "Reprerents 'enum-spec' in C syntax BNF."
   (id nil)				; enum tag
   (enumerator-list nil))                ; list of enumerator
 
@@ -204,12 +207,13 @@ Establishes variable bindings for a new compilation.
   (make-load-form-saving-slots obj :environment environment))
 
 (defstruct (enumerator
-	     (:include init-declarator)))
+	     (:include init-declarator))
+  "Reprerents 'enumerator' in C syntax BNF.")
 
 (defmethod make-load-form ((obj enumerator) &optional environment)
   (make-load-form-saving-slots obj :environment environment))
 
-;; typedefs
+
 (defun find-typedef (name)
   "* Syntax
 ~find-typedef~ name => decl-spec
@@ -271,8 +275,8 @@ returns nil.
   ;; - Even if an entry does not exist, 'pop' inserts nil.
   (pop (gethash name *typedef-names*)))
 
-;; structure information
 (defstruct struct-spec
+  "Represents a struct/union specification."
   struct-name	     ; user supplied struct tag (symbol)
   struct-type	     ; 'struct or 'union
   member-defs	     ; (:lisp-type ... :constness ... :decl-specs ...)
@@ -280,8 +284,7 @@ returns nil.
   (defined-in-this-unit nil)) ; T only when compiling this
 
 (defmethod make-load-form ((sspec struct-spec) &optional environment)
-  (make-load-form-saving-slots
-   sspec
+  (make-load-form-saving-slots sspec
    :slot-names '(struct-name struct-type member-defs)
    :environment environment))
 
@@ -339,18 +342,19 @@ found, returns nil.
   ;; FIXME: fix bad behaviors like remove-typedef. See that.
   (pop (gethash name *struct-specs*)))
 
-;; processes structure-spec 
-(defun finalize-struct-spec (sspec dspecs)
-  (setf (decl-specs-tag dspecs) (or (struct-or-union-spec-id sspec)
+(defun finalize-struct-spec (suspec dspecs)
+  "Fills the decl-specs object referring the passed struct-or-union-spec.
+If required, makes a new struct-spec object."
+  (setf (decl-specs-tag dspecs) (or (struct-or-union-spec-id suspec)
 				    (gensym "unnamed-struct-"))
 	(decl-specs-lisp-type dspecs) 'struct)
   ;; only declaration?
-  (when (null (struct-or-union-spec-struct-decl-list sspec))
-    (assert (struct-or-union-spec-id sspec)) ; this case is rejected by the parser.
+  (when (null (struct-or-union-spec-struct-decl-list suspec))
+    (assert (struct-or-union-spec-id suspec)) ; this case is rejected by the parser.
     (return-from finalize-struct-spec dspecs))
   ;; Now defines a new struct.
   (loop for (spec-qual . struct-decls)
-     in (struct-or-union-spec-struct-decl-list sspec)
+     in (struct-or-union-spec-struct-decl-list suspec)
      do (finalize-decl-specs spec-qual)
      ;; included definitions
      do (appendf (decl-specs-enum-bindings dspecs) 
@@ -383,19 +387,20 @@ found, returns nil.
        (let ((sspec
 	      (make-struct-spec
 	       :struct-name (decl-specs-tag dspecs)
-	       :struct-type (struct-or-union-spec-type sspec)
+	       :struct-type (struct-or-union-spec-type suspec)
 	       :member-defs member-defs
 	       :defined-in-this-unit t)))
 	 (add-struct-spec (decl-specs-tag dspecs) sspec)
-	 ;; This sspec is treated by this dspecs
+	 ;; This struct-spec is treated by this dspecs
 	 (push-right (decl-specs-struct-spec dspecs) sspec)))
     dspecs)
 
-;; processes enum-spec 
 (deftype enum ()
+  "Represents the enum type."
   'fixnum)
 
 (defun finalize-enum-spec (espec dspecs)
+  "Fills the decl-specs object referring the passed enum-spec."
   (setf (decl-specs-lisp-type dspecs) 'enum)
   (setf (decl-specs-tag dspecs)
 	(or (enum-spec-id espec) (gensym "unnamed-enum-")))
@@ -409,6 +414,7 @@ found, returns nil.
   dspecs)
 
 (defun finalize-type-spec (dspecs)
+  "A part of finalize-decl-specs. This processes type-spec."
   (loop with numeric-symbols = nil
      with tp-list of-type list = (decl-specs-type-spec dspecs)
      initially
@@ -461,6 +467,7 @@ found, returns nil.
        (return dspecs)))
 
 (defun finalize-decl-specs (dspecs)
+  "Checks and filles the passed decl-specs."
   (finalize-type-spec dspecs)
   (setf (decl-specs-qualifier dspecs)
 	(remove-duplicates (decl-specs-qualifier dspecs)))
@@ -473,6 +480,7 @@ found, returns nil.
   dspecs)
 
 (defun array-dimension-combine (array-dimension-list init)
+  "Resolves unspecified dimensions with an initializer."
   (loop with init-dims = (dimension-list-max-dimensions init)
      for a-elem in array-dimension-list
      for i-elem = (pop init-dims)
@@ -489,6 +497,7 @@ found, returns nil.
      and collect a-elem))
 
 (defun setup-init-list (dims dspecs abst-declarator init)
+  "Makes a list for ~:initial-contents~ of ~make-array~, from initializer-list."
   (let* ((default (expand-init-declarator-init dspecs
                    (nthcdr (length dims) abst-declarator)
                    nil))
@@ -506,9 +515,10 @@ found, returns nil.
       (var-init-setup dims () abst-declarator init))
     ret))
 
-;; returns (values var-init var-type)
 (defun expand-init-declarator-init (dspecs abst-declarator initializer
                                     &key (error-on-incompleted t))
+  "Finds the specified type and the initialization form.
+Returns (values var-init var-type)."
   (ecase (car (first abst-declarator))
     (:pointer
      (let ((next-type
@@ -598,6 +608,7 @@ found, returns nil.
 	  (values initializer var-type)))))))
 
 (defun finalize-init-declarator (dspecs init-decl)
+  "Filles the passed init-declarator object."
   (let* ((decl (init-declarator-declarator init-decl))
          (init (init-declarator-initializer init-decl))
          (var-name (first decl))
@@ -658,35 +669,35 @@ found, returns nil.
         (init-declarator-lisp-type init-decl))
       (decl-specs-lisp-type qls)))
 
-(defun error-lispify-subscript (obj)
+(defun error-lisp-subscript (obj)
   (error 'runtime-error
          :format-control "This object cannot have any subscripts: ~S."
          :format-arguments (list obj)))
 
-(defun lispify-subscript (obj arg1 &rest args)
+(defun lisp-subscript (obj arg1 &rest args)
   (typecase obj
     (pseudo-pointer
      (let ((deref-obj (pseudo-pointer-dereference (+ obj arg1))))
        (if (null args)
            deref-obj
-           (apply #'lispify-subscript deref-obj args))))
+           (apply #'lisp-subscript deref-obj args))))
     (array
      (apply #'aref obj arg1 args))
     (otherwise
-     (error-lispify-subscript obj))))
+     (error-lisp-subscript obj))))
 
-(defun (setf lispify-subscript) (val obj arg1 &rest args)
+(defun (setf lisp-subscript) (val obj arg1 &rest args)
   (typecase obj
     (pseudo-pointer
      (symbol-macrolet 
          ((deref-obj (pseudo-pointer-dereference (+ obj arg1))))
        (if (null args)
            (setf deref-obj val)
-           (setf (apply #'lispify-subscript deref-obj args) val))))
+           (setf (apply #'lisp-subscript deref-obj args) val))))
     (array
      (setf (apply #'aref obj arg1 args) val))
     (otherwise
-     (error-lispify-subscript obj))))
+     (error-lisp-subscript obj))))
 
 (defun lispify-cast (type exp)
   (if (null type)
@@ -706,7 +717,7 @@ found, returns nil.
                    ,val ',exp))))
           ((listp exp)
            (destructuring-case exp
-             ((lispify-subscript obj &rest args)
+             ((lisp-subscript obj &rest args)
               (once-only (obj)
                 `(if (arrayp ,obj)
                      (make-pseudo-pointer
@@ -752,6 +763,7 @@ found, returns nil.
 
 ;;; Statements
 (defstruct stat
+  "Represents a statement in C syntax BNF."
   (code nil)
   (declarations nil)        ; list of 'init-declarator'
   (break-statements nil)    ; list of (go 'break), should be rewrited
@@ -877,6 +889,7 @@ found, returns nil.
 
 ;;; Translation Unit -- function definitions
 (defstruct function-definition
+  "Represents a function definition."
   func-name
   storage-class
   func-args
@@ -965,9 +978,9 @@ established.
                              ',(decl-specs-lisp-type return))))))
 
 ;;; Toplevel
-(defun expand-toplevel-init-decls (init-decls
-                                   mode storage-class
+(defun expand-toplevel-init-decls (init-decls mode storage-class
                                    dynamic-established-syms)
+  "A part of expand-toplevel."
   (loop with lexical-binds = nil
      with dynamic-extent-vars = nil
      with special-vars = nil
@@ -1060,8 +1073,9 @@ established.
                  (nreverse funcptr-syms)
                  dynamic-established-syms))))
 
-;; mode is :statement or :translation-unit
 (defun expand-toplevel (mode decls fdefs code)
+  "This is a final compilation phase. Makes a toplevel form.
+~mode~ is :statement or :translation-unit"
   (let ((default-storage-class
          (ecase mode
            (:statement '|auto|) (:translation-unit '|global|)))
@@ -1085,14 +1099,14 @@ established.
        ;; enum consts
        do (ecase mode
 	    (:statement
-             (revappend-to-f lexical-binds (decl-specs-enum-bindings dspecs)))
+             (revappendf lexical-binds (decl-specs-enum-bindings dspecs)))
 	    (:translation-unit
 	     (loop for (name val) in (decl-specs-enum-bindings dspecs)
                 do (push `(defconstant ,name ,val
                             "generated by with-c-syntax, for global enum")
                          global-defs))))
        ;; structs
-       do (revappend-to-f cleanup-struct-specs (decl-specs-struct-spec dspecs))
+       do (revappendf cleanup-struct-specs (decl-specs-struct-spec dspecs))
 	 (loop for sspec in (decl-specs-struct-spec dspecs)
 	    as sname = (struct-spec-struct-name sspec)
 	    as defined-in ;; drops defined-in-this-unit flag here.
@@ -1109,12 +1123,12 @@ established.
                                 dynamic-established-syms-1)
              (expand-toplevel-init-decls init-decls mode storage-class
                                          cleanup-dynamic-established-syms)
-           (nreconc-to-f lexical-binds lexical-binds-1)
-           (nreconc-to-f dynamic-extent-vars dynamic-extent-vars-1)
-           (nreconc-to-f special-vars special-vars-1)
-           (nreconc-to-f global-defs global-defs-1)
-           (nreconc-to-f cleanup-typedef-names typedef-names-1)
-           (nreconc-to-f cleanup-funcptr-syms funcptr-syms-1)
+           (nreconcf lexical-binds lexical-binds-1)
+           (nreconcf dynamic-extent-vars dynamic-extent-vars-1)
+           (nreconcf special-vars special-vars-1)
+           (nreconcf global-defs global-defs-1)
+           (nreconcf cleanup-typedef-names typedef-names-1)
+           (nreconcf cleanup-funcptr-syms funcptr-syms-1)
            (setf cleanup-dynamic-established-syms dynamic-established-syms-1)))
     ;; functions
     (loop for fdef in fdefs
@@ -1888,9 +1902,9 @@ established.
    (postfix-exp [ exp ]
 		#'(lambda (exp op1 idx op2)
 		    (declare (ignore op1 op2))
-                    (if (and (listp exp) (eq (first exp) 'lispify-subscript))
+                    (if (and (listp exp) (eq (first exp) 'lisp-subscript))
 			(add-to-tail exp idx)
-                        `(lispify-subscript ,exp ,idx))))
+                        `(lisp-subscript ,exp ,idx))))
    (postfix-exp \( argument-exp-list \)
 		#'(lambda (exp op1 args op2)
 		    (declare (ignore op1 op2))
