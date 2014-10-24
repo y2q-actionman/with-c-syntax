@@ -1,44 +1,6 @@
 (in-package #:with-c-syntax.core)
 
 ;;; Variables
-(defvar *typedef-names* (make-hash-table :test 'eq)
-  "* Value Type
-a hashtable :: a symbol -> list of decl-specs
-
-* Description
-Holds definitions of typedefs.
-
-* Notes
-At the beginning of ~with-c-syntax~, it binds this variable to the
-values they held. This behavior limits the scope of local typedefs
-into the compilation unit.
-
-* Affected By
-~with-c-compilation-unit~.
-
-* See Also
-~find-typedef~, ~add-typedef~, ~remove-typedef~.
-")
-
-(defvar *struct-specs* (make-hash-table :test 'eq)
-  "* Value Type
-a hashtable :: a symbol -> a list of struct-spec.
-
-* Description
-Holds definitions of structs or unions.
-
-* Notes
-At the beginning of ~with-c-syntax~, it binds this variable to the
-values they held. This behavior limits the scope of local struct/union
-definitions into the compilation unit.
-
-* Affected By
-~with-c-compilation-unit~.
-
-* See Also
-~find-struct-spec~, ~add-struct-spec~, ~remove-struct-spec~
-")
-
 (defvar *dynamic-binding-requested* nil
   "* Value Type 
 a list :: consistes of symbols.
@@ -46,7 +8,7 @@ a list :: consistes of symbols.
 * Description
 Holds a list of symbols, which are pointed by a pointer.
 If a pseudo-pointer is created for a symbol, the symbol is added to
-here (because such a symbol must be handled *carefully*).
+here (Because such a symbol must be handled carefully).
 
 * Notes
 At the beginning of ~with-c-syntax~, it binds this variable to nil.
@@ -88,25 +50,6 @@ At the beginning of ~with-c-syntax~, it binds this variable to its
 * Affected By
 ~with-c-compilation-unit~.
 ")
-
-(defmacro with-c-compilation-unit ((entry-form) &body body)
-  "* Syntax
-~with-c-compilation-unit~ (entry-forn) &body form* => result*
-
-* Arguments and Values
-- entry-form  :: a form
-- forms       :: a implicit progn
-- results     :: the values returned by forms
-
-* Description
-Establishes variable bindings for a new compilation.
-"
-  `(let ((*struct-specs* (copy-hash-table *struct-specs*))
-         (*typedef-names* (copy-hash-table *typedef-names*))
-         (*dynamic-binding-requested* nil)
-         (*function-pointer-ids* nil)
-         (*toplevel-entry-form* ,entry-form))
-     ,@body))
 
 ;;; Lexer
 (defun list-lexer (list)
@@ -213,146 +156,12 @@ Establishes variable bindings for a new compilation.
 (defmethod make-load-form ((obj enumerator) &optional environment)
   (make-load-form-saving-slots obj :environment environment))
 
-
-(defun find-typedef (name)
-  "* Syntax
-~find-typedef~ name => decl-spec
-
-* Arguments and Values
-- name      :: a symbol
-- decl-spec :: a decl-specs instance, or nil.
-
-* Description
-Finds and returns a typedef definition. If no typedefs are found,
-returns nil.
-
-* Affected By
-~with-c-compilation-unit~.
-"
-  (first (gethash name *typedef-names*)))
-
-(defun add-typedef (name spec)
-  "* Syntax
-~add-typedef~ name spec => decl-spec
-
-* Arguments and Values
-- name      :: a symbol
-- spec      :: a decl-specs instance, or a type specifier.
-- decl-spec :: a decl-specs instance.
-
-* Description
-Establishes a new typedef definition named ~name~.
-
-* Affected By
-~with-c-compilation-unit~.
-"
-  (let ((dspecs
-	 (typecase spec
-	   (decl-specs spec)
-	   (t (make-decl-specs :lisp-type spec)))))
-    (push dspecs (gethash name *typedef-names*))
-    dspecs))
-
-(defun remove-typedef (name)
-  "* Syntax
-~remove-typedef~ name => decl-spec
-
-* Arguments and Values
-- name      :: a symbol
-- decl-spec :: a decl-specs instance, or nil.
-
-* Description
-Removes a typedef definition named ~name~.
-
-Returns the removed typedef definition. If no typedefs are found,
-returns nil.
-
-* Affected By
-~with-c-compilation-unit~.
-"
-  ;; FIXME: remove these bad behavior:
-  ;; - Doesn't remove 'nil' from *typedef-names*.
-  ;; - Even if an entry does not exist, 'pop' inserts nil.
-  (pop (gethash name *typedef-names*)))
-
-(defstruct struct-spec
-  "Represents a struct/union specification."
-  struct-name	     ; user supplied struct tag (symbol)
-  struct-type	     ; 'struct or 'union
-  member-defs	     ; (:lisp-type ... :constness ... :decl-specs ...)
-  ;; compile-time only
-  (defined-in-this-unit nil)) ; T only when compiling this
-
-(defmethod make-load-form ((sspec struct-spec) &optional environment)
-  (make-load-form-saving-slots sspec
-   :slot-names '(struct-name struct-type member-defs)
-   :environment environment))
-
-(defun find-struct-spec (name)
-  "* Syntax
-~find-struct-spec~ name => struct-spec
-
-* Arguments and Values
-- name      :: a symbol
-- decl-spec :: a struct-spec instance, or nil.
-
-* Description
-Finds and returns a struct-spec. If no struct-specs are found, returns
-nil.
-
-* Affected By
-~with-c-compilation-unit~.
-"
-  (first (gethash name *struct-specs*)))
-
-(defun add-struct-spec (name sspec)
-  "* Syntax
-~add-struct-spec~ name sspec => struct-spec
-
-* Arguments and Values
-- name        :: a symbol.
-- sspec       :: a struct-spec instance.
-- struct-spec :: a struct-spec instance.
-
-* Description
-Establishes a new struct-spec definition named ~name~.
-
-* Affected By
-~with-c-compilation-unit~.
-"
-  (push sspec (gethash name *struct-specs*)))
-
-(defun remove-struct-spec (name)
-  "* Syntax
-~remove-struct-spec~ name => struct-spec
-
-* Arguments and Values
-- name        :: a symbol
-- struct-spec :: a struct-specs instance, or nil.
-
-* Description
-Removes a struct-spec definition named ~name~.
-
-Returns the removed struct-spec definition. If no struct-specs are
-found, returns nil.
-
-* Affected By
-~with-c-compilation-unit~.
-"
-  ;; FIXME: fix bad behaviors like remove-typedef. See that.
-  (pop (gethash name *struct-specs*)))
-
-(defun finalize-struct-spec (suspec dspecs)
+(defun finalize-struct-or-union-spec (suspec dspecs)
   "Fills the decl-specs object referring the passed struct-or-union-spec.
 If required, makes a new struct-spec object."
   (setf (decl-specs-tag dspecs) (or (struct-or-union-spec-id suspec)
 				    (gensym "unnamed-struct-"))
 	(decl-specs-lisp-type dspecs) 'struct)
-  ;; only declaration?
-  (when (null (struct-or-union-spec-struct-decl-list suspec))
-    (assert (struct-or-union-spec-id suspec)) ; this case is rejected by the parser.
-    (return-from finalize-struct-spec dspecs))
-  ;; Now defines a new struct.
   (loop for (spec-qual . struct-decls)
      in (struct-or-union-spec-struct-decl-list suspec)
      do (finalize-decl-specs spec-qual)
@@ -384,16 +193,17 @@ If required, makes a new struct-spec object."
                         :abst-declarator abst-decl))
      into member-defs
      finally
-       (let ((sspec
-	      (make-struct-spec
-	       :struct-name (decl-specs-tag dspecs)
-	       :struct-type (struct-or-union-spec-type suspec)
-	       :member-defs member-defs
-	       :defined-in-this-unit t)))
-	 (add-struct-spec (decl-specs-tag dspecs) sspec)
-	 ;; This struct-spec is treated by this dspecs
-	 (push-right (decl-specs-struct-spec dspecs) sspec)))
-    dspecs)
+       (when member-defs
+	 ;; Now defines a new struct
+	 (let ((sspec (make-struct-spec
+		       :struct-name (decl-specs-tag dspecs)
+		       :struct-type (struct-or-union-spec-type suspec)
+		       :member-defs member-defs
+		       :defined-in-this-unit t)))
+	   (add-struct-spec (decl-specs-tag dspecs) sspec)
+	   ;; This struct-spec is treated by this dspecs
+	   (push-right (decl-specs-struct-spec dspecs) sspec))))
+  dspecs)
 
 (deftype enum ()
   "Represents the enum type."
@@ -433,7 +243,7 @@ If required, makes a new struct-spec object."
 	     (return dspecs))
 	    ((struct-or-union-spec-p tp)	; struct / union
 	     (check-tp-list-length)
-	     (return (finalize-struct-spec tp dspecs)))
+	     (return (finalize-struct-or-union-spec tp dspecs)))
 	    ((enum-spec-p tp)		; enum
 	     (check-tp-list-length)
 	     (return (finalize-enum-spec tp dspecs)))
@@ -763,7 +573,7 @@ Returns (values var-init var-type)."
 
 ;;; Statements
 (defstruct stat
-  "Represents a statement in C syntax BNF."
+  "Represents statements in C syntax BNF."
   (code nil)
   (declarations nil)        ; list of 'init-declarator'
   (break-statements nil)    ; list of (go 'break), should be rewrited
@@ -802,10 +612,8 @@ Returns (values var-init var-type)."
 	    ,end-tag))
     stat))
 
-(defvar *unresolved-break-tag* (make-symbol "unresolved-break"))
-
 (defun make-stat-unresolved-break ()
-  (let ((ret (list 'go *unresolved-break-tag*)))
+  (let ((ret (list 'go (gensym "unresolved-break-"))))
     (make-stat :code (list ret)
 	       :break-statements (list ret))))
 
@@ -814,10 +622,8 @@ Returns (values var-init var-type)."
      do (setf (second i) sym)
      count i))
 
-(defvar *unresolved-continue-tag* (make-symbol "unresolved-continue"))
-
 (defun make-stat-unresolved-continue ()
-  (let ((ret (list 'go *unresolved-continue-tag*)))
+  (let ((ret (list 'go (gensym "unresolved-continue-"))))
     (make-stat :code (list ret)
 	       :continue-statements (list ret))))
 
@@ -855,7 +661,7 @@ Returns (values var-init var-type)."
     body-stat))
 
 (defun push-case-label (case-label-exp stat)
-  (let ((go-tag-sym (gensym (format nil "case-~S-" case-label-exp))))
+  (let ((go-tag-sym (gensym (format nil "case-~A-" case-label-exp))))
     (push (cons go-tag-sym case-label-exp)
           (stat-case-label-list stat))
     (push go-tag-sym (stat-code stat))))
@@ -896,7 +702,7 @@ Returns (values var-init var-type)."
   func-body
   lisp-type)
 
-(defmacro get-varargs (dst)
+(defmacro get-varargs (place)
   "* Syntax
 ~get-varargs~ place => obj
 
@@ -918,7 +724,7 @@ macro uses this.
 When defining a variadic function, a macro has same name is locally
 established.
 "
-  (declare (ignore dst))
+  (declare (ignore place))
   (error 'compile-error
          :format-control "Trying to get a variadic args list out of a variadic func."))
 
@@ -1038,7 +844,7 @@ established.
                    :format-arguments (list name)))
 	  ;; Temporary use a lexical value, for initializing correctly
 	  ;; with static vars which are lexical.
-	  (let ((init-sym (gensym (format nil "global-var-~S-tmp-" name))))
+	  (let ((init-sym (gensym (format nil "global-var-~A-tmp-" name))))
 	    (push `(,init-sym ,init) lexical-binds)
 	    (push name special-vars)
 	    (push `(defparameter ,name ,init-sym
@@ -1049,7 +855,7 @@ established.
 	  (ecase mode
 	    (:statement
 	     ;; initialized only once.
-	     (let ((st-sym (gensym (format nil "static-var-~S-storage-" name))))
+	     (let ((st-sym (gensym (format nil "static-var-~A-storage-" name))))
 	       (push `(,name (if (boundp ',st-sym)
                                  (symbol-value ',st-sym)
                                  (setf (symbol-value ',st-sym) ,init)))
@@ -1075,7 +881,7 @@ established.
 
 (defun expand-toplevel (mode decls fdefs code)
   "This is a final compilation phase. Makes a toplevel form.
-~mode~ is :statement or :translation-unit"
+~mode~ is one of :statement or :translation-unit"
   (let ((default-storage-class
          (ecase mode
            (:statement '|auto|) (:translation-unit '|global|)))
@@ -1959,10 +1765,29 @@ established.
   )
 
 ;;; Macro interface
-(defmacro with-c-syntax ((&key (keyword-case (readtable-case *readtable*)
-					     keyword-case-supplied-p)
-			       (entry-form nil entry-form-supplied-p)
-			       (try-add-{} t try-add-{}-supplied-p))
+(defmacro with-c-compilation-unit ((entry-form) &body body)
+  "* Syntax
+~with-c-compilation-unit~ (entry-forn) &body form* => result*
+
+* Arguments and Values
+- entry-form  :: a form
+- forms       :: a implicit progn
+- results     :: the values returned by forms
+
+* Description
+Establishes variable bindings for a new compilation.
+"
+  `(let ((*struct-specs* (copy-hash-table *struct-specs*))
+         (*typedef-names* (copy-hash-table *typedef-names*))
+         (*dynamic-binding-requested* nil)
+         (*function-pointer-ids* nil)
+         (*toplevel-entry-form* ,entry-form))
+     ,@body))
+
+(defmacro with-c-syntax (&whole whole
+			 (&key (keyword-case (readtable-case *readtable*))
+			       (entry-form nil)
+			       (try-add-{} t))
 			 &body body)
   "* Syntax
 ~with-c-syntax~ (&key keyword-case entry-form try-add-{}) form* => result*
@@ -1983,8 +1808,8 @@ interpreted as C syntax, executed, and return values.
 ~keyword-case~ specifies case sensitibily. Especially, if ~:upcase~ is
 specified, some case-insensitive feature is enabled for convenience.
 
-~entry-form~ is inserted as a entry point when compiling a translation
-unit.
+~entry-form~ is inserted as an entry point when compiling a
+translation unit.
 
 If ~try-add-{}~ is t and an error occured at parsing, with-c-syntax
 adds '{' and '}' into the head and tail of ~form~ respectively, and
@@ -1993,30 +1818,26 @@ tries to parse again.
   (labels ((expand-c-syntax (body retry-add-{})
 	     (handler-case 
 		 (with-c-compilation-unit (entry-form)
-		   (parse-with-lexer
-		    (list-lexer (preprocessor body
-					      (if (eq keyword-case :upcase)
-						  :upcase nil)))
-		    *expression-parser*))
+		   (parse-with-lexer (list-lexer body)
+				     *expression-parser*))
 	       (yacc-parse-error (condition)
 		 (if retry-add-{}
 		     (expand-c-syntax (append '({) body '(})) nil)
 		     (error 'with-c-syntax-parse-error
                             :yacc-error condition))))))
     (cond
-      ((null body) nil)
+      ((null body)
+       nil)
       ((and (length= 1 (the list body)) ; with-c-syntax is nested.
+	    (listp (first body))
 	    (eq (first (first body)) 'with-c-syntax))
-       (destructuring-bind (_ (&rest keyargs) &body body2)
-	   (first body)
-	 (declare (ignore _))
-	 `(with-c-syntax (,@keyargs
-			  ,@(if keyword-case-supplied-p
-				`(:keyword-case ,keyword-case))
-			  ,@(if entry-form-supplied-p
-				`(:entry-form ,entry-form))
-			  ,@(if try-add-{}-supplied-p
-				`(:try-add-{} ,try-add-{})))
-	    ,@body2)))
+       (destructuring-bind (_op keyargs1 &body _body1)
+	   whole
+	 (declare (ignore _op _body1))
+	 (destructuring-bind (_op keyargs2 &body body2)
+	     (first body)
+	   (declare (ignore _op))
+	   `(with-c-syntax (,@keyargs1 ,@keyargs2) ,@body2))))
       (t
-       (expand-c-syntax body try-add-{})))))
+       (expand-c-syntax (preprocessor body keyword-case)
+			try-add-{})))))

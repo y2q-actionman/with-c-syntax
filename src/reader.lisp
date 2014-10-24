@@ -68,7 +68,7 @@ Its contents is a list of plists. The plists holds below:
 
 (defun read-single-character-symbol (stream char)
   (declare (ignore stream))
-  (intern (string char)))
+  (symbolicate char))
 
 (defun read-lonely-single-symbol (stream char)
   (loop with buf = (make-array '(1) :element-type 'character
@@ -80,7 +80,7 @@ Its contents is a list of plists. The plists holds below:
        (vector-push-extend c buf)
      finally
        (if (length= 1 buf)
-	   (return (intern buf))
+	   (return (symbolicate buf))
 	   (let ((*readtable* (copy-readtable)))
 	     (set-syntax-from-char char #\@) ; gets the constituent syntax.
 	     (return (read-from-string buf t nil))))))
@@ -92,7 +92,7 @@ Its contents is a list of plists. The plists holds below:
      when (char= next c2)
      do (read-char stream t nil recursive-p) (loop-finish)
      else
-     collect (intern (string c1))))	; assumes c1 is terminating.
+     collect (symbolicate c1))) ; assumes c1 is a kind of terminating.
 
 (defun read-single-quote (stream c0)
   (let ((c1 (read-char stream t nil t)))
@@ -170,7 +170,7 @@ Its contents is a list of plists. The plists holds below:
     (case next
       (#\=
        (read-char stream t nil t)
-       (intern (make-string-from-chars char next)))
+       (symbolicate char next))
       (t
        (read-single-character-symbol stream char)))))
 
@@ -178,7 +178,7 @@ Its contents is a list of plists. The plists holds below:
   (let ((next (peek-char nil stream t nil t)))
     (cond ((char= next char)
 	   (read-char stream t nil t)
-	   (intern (make-string-from-chars char next)))
+	   (symbolicate char next))
 	  (t
 	   (read-single-or-equal-symbol stream char)))))
 
@@ -186,7 +186,7 @@ Its contents is a list of plists. The plists holds below:
   (let ((next (peek-char nil stream t nil t)))
     (cond ((char= next #\>)
 	   (read-char stream t nil t)
-	   (intern (make-string-from-chars char next)))
+	   (symbolicate char next))
 	  (t
 	   (read-single-or-equal-or-self-symbol stream char)))))
 
@@ -198,9 +198,9 @@ Its contents is a list of plists. The plists holds below:
 	     (case next2
 	       (#\=
 		(read-char stream t nil t)
-		(intern (make-string-from-chars char next next2)))
+		(symbolicate char next next2))
 	       (t
-		(intern (make-string-from-chars char next))))))
+		(symbolicate char next)))))
 	  (t
 	   (read-single-or-equal-symbol stream char)))))
 

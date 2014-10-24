@@ -117,11 +117,12 @@
   
 (defun make-reduced-dimension-array (array &rest subscripts)
   "Makes a displaced array which has a reduced dimensions.
-Example:
-(make-reduced-dimension-array (make-array '(2 2 2)) '(1)) returns an
-array.
-Its dimension is '(2 2), and it is a displaced array aliasing from '(1
-0 0) to '(1 2 2) in the original array.
+
+Example: Consider what is returned by
+  (make-reduced-dimension-array (make-array '(2 2 2)) '(1))
+
+Its dimension is '(2 2), and it is a displaced array aliasing from
+'(1 0 0) to '(1 2 2) in the original array.
 "
   (let* ((array-dims (array-dimensions array))
 	 (new-array-dimensions
@@ -136,10 +137,6 @@ Its dimension is '(2 2), and it is a displaced array aliasing from '(1
 		:element-type (array-element-type array)
 		:displaced-to array
 		:displaced-index-offset new-array-start-rm-index)))
-
-(defun make-string-from-chars (&rest chars)
-  "Coerces any number of chars to a string."
-  (coerce chars 'string))
 
 (defun terminating-char-p (char &optional (readtable *readtable*))
   "Returns t if char is terminating."

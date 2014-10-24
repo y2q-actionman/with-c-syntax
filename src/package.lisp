@@ -4,21 +4,19 @@
   (:use #:cl)
   (:import-from #:alexandria
                 #:copy-hash-table	; 1. Hash Tables
-		#:alist-hash-table
 		#:define-constant	; 2. Data and Control Flow
 		#:destructuring-case
 		#:if-let
 		#:when-let
 		#:when-let*
 		#:appendf		; 3. Conses
-		#:nconcf
 		#:nreversef
 		#:lastcar
-		#:removef		; 4. Sequences
-		#:deletef
+		#:deletef		; 4. Sequences
 		#:length=
 		#:once-only		; 6. Macro Writing
 		#:with-gensyms
+		#:symbolicate		; 7. Symbols
 		#:maxf)			; 10. Numbers
   (:import-from #:yacc
         	#:define-parser
@@ -37,24 +35,26 @@
    #:pseudo-pointer
    #:with-pseudo-pointer-scope
    #:invalidate-all-pseudo-pointers
+   #:pseudo-pointer-pointable-p
    #:make-pseudo-pointer
    #:pseudo-pointer-dereference
    #:pseudo-pointer-invalidate
-   #:pseudo-pointer-pointable-p
    ;; reader.lisp
    #:use-reader
    #:unuse-reader
    ;; struct.lisp
-   #:struct
-   #:make-struct
-   #:struct-member
-   ;; with-c-syntax.lisp
-   #:find-typedef
-   #:add-typedef
-   #:remove-typedef
    #:find-struct-spec
    #:add-struct-spec
    #:remove-struct-spec
+   #:struct
+   #:make-struct
+   #:struct-member
+   ;; typedef.lisp
+   #:find-typedef
+   #:add-typedef
+   #:remove-typedef
+   ;; with-c-syntax.lisp
+   #:enum
    #:get-varargs
    #:with-c-syntax)
   (:documentation

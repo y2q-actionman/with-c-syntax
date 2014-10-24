@@ -1,15 +1,12 @@
 (in-package #:with-c-syntax.test)
 
 (defmacro eval-equal (val (&rest options) &body body)
-  (let ((val-sym (gensym))
-	(ret (gensym)) 
-	(form `(with-c-syntax (,@options) ,@body)))
-    `(let ((,val-sym ,val)
-	   (,ret ,form))
-       (assert (equal ,val-sym ,ret)
+  (let ((form `(with-c-syntax (,@options) ,@body)))
+    (once-only (val (ret form))
+      `(assert (equal ,val ,ret)
 	       ()
-	       "eval-equal error: expected ~S, returned ~S~% form ~S"
-	       ,val-sym ,ret ',form))))
+	       "Expected ~S, but returned ~S~% form ~S."
+	       ,val ,ret ',form))))
 
 (defmacro assert-compile-error ((&rest options) &body body)
   `(assert

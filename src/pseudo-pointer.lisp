@@ -2,7 +2,7 @@
 
 (deftype pseudo-pointer (&optional (pointee-type t))
   "* Supertypes
-fixnum
+pseudo-pointer, fixnum, ...
 
 * Description
 The base type of internal representation of pointers in with-c-syntax.

@@ -1,9 +1,97 @@
+;;;; - struct-spec :: the compile-time respesentation of struct or union.
+;;;; - struct :: the runtime respesentation of struct or union.
+
 (in-package #:with-c-syntax.core)
 
-;; This file contains the runtime respesentation of 'struct' in
-;; with-c-syntax.
+(defstruct struct-spec
+  "Represents a struct/union specification."
+  struct-name	     ; user supplied struct tag (symbol)
+  struct-type	     ; 'struct or 'union
+  member-defs	     ; (:lisp-type ... :constness ... :decl-specs ...)
+  ;; compile-time only
+  (defined-in-this-unit nil)) ; T only when compiling this
 
-;;; struct type
+(defmethod make-load-form ((sspec struct-spec) &optional environment)
+  (make-load-form-saving-slots sspec
+   :slot-names '(struct-name struct-type member-defs)
+   :environment environment))
+
+(defvar *struct-specs* (make-hash-table :test 'eq)
+  "* Value Type
+a hashtable :: a symbol -> a list of struct-spec.
+
+* Description
+Holds definitions of structs or unions.
+
+* Notes
+At the beginning of ~with-c-syntax~, it binds this variable to the
+values they held. This behavior limits the scope of local struct/union
+definitions into the compilation unit.
+
+* Affected By
+~with-c-compilation-unit~.
+
+* See Also
+~find-struct-spec~, ~add-struct-spec~, ~remove-struct-spec~
+")
+
+(defun find-struct-spec (name)
+  "* Syntax
+~find-struct-spec~ name => struct-spec
+
+* Arguments and Values
+- name      :: a symbol
+- decl-spec :: a struct-spec instance, or nil.
+
+* Description
+Finds and returns a struct-spec. If no struct-specs are found, returns
+nil.
+
+* Affected By
+~with-c-compilation-unit~.
+"
+  (first (gethash name *struct-specs*)))
+
+(defun add-struct-spec (name sspec)
+  "* Syntax
+~add-struct-spec~ name sspec => struct-spec
+
+* Arguments and Values
+- name        :: a symbol.
+- sspec       :: a struct-spec instance.
+- struct-spec :: a struct-spec instance.
+
+* Description
+Establishes a new struct-spec definition named ~name~.
+
+* Affected By
+~with-c-compilation-unit~.
+"
+  (push sspec (gethash name *struct-specs*)))
+
+(defun remove-struct-spec (name)
+  "* Syntax
+~remove-struct-spec~ name => struct-spec
+
+* Arguments and Values
+- name        :: a symbol
+- struct-spec :: a struct-specs instance, or nil.
+
+* Description
+Removes a struct-spec definition named ~name~.
+
+Returns the removed struct-spec definition. If no struct-specs are
+found, returns nil.
+
+* Affected By
+~with-c-compilation-unit~.
+"
+  ;; FIXME: remove these bad behavior:
+  ;; - Doesn't remove 'nil' from *typedef-names*.
+  ;; - Even if an entry does not exist, 'pop' inserts nil.
+  (pop (gethash name *struct-specs*)))
+
+
 (defclass struct ()
   ((member-index-table :initarg :member-index-table
 		       :reader struct-member-index-table)
@@ -33,11 +121,8 @@ Makes a new struct instance based on the specification of ~spec-obj~.
 If ~spec-obj~ is a symbol, it must be a name of a globally defined
 struct or union. To define a struct or an union globally, use
 ~with-c-syntax~ and declare it in a toplevel of translation-unit.
- (For hackers: See the usage of ~add-struct-spec~.)
 
 If ~spec-obj~ is an instance of struct-spec, it is used directly.
- (For hackers: See ~expand-init-declarator-init~. This style is used
- in ~with-c-syntax~ internally.)
 
 ~init-args~ is used for initializing members of the newly created
 instance.  If the number of ~init-args~ is less than the number of

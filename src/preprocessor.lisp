@@ -172,11 +172,6 @@ additionally.
 ** Expansion
 - If ~val~ is nil, no expansion is done. The original symbol is left.
 
- (This feature is for implementing the recursive expansion in the
- future.  In CPP, a expanded macro is ignored in the next (recursive)
- expansion.  So, if a macro was expanded, I will push
- (the-expanded-macro . nil), and call the preprocessor recursively.)
-
 - If ~val~ is a object not a function, it is used as an expansion.
 
 - If ~val~ is a function, the function is called, and the returned
@@ -195,6 +190,12 @@ calls the function like:
 
 * Notes
 - TODO: recursive expansion
+
+- The feature 'If ~val~ is nil, no expansion is done.' is for
+  implementing the recursive expansion in the future.  In CPP, an
+  expanded macro is ignored in the next (recursive) expansion.  So, if
+  a macro was expanded, I will push (the-expanded-macro . nil), and
+  call the preprocessor recursively.
 "
   (loop with ret = nil
      with typedef-hack = nil
