@@ -1,9 +1,11 @@
 # -*- mode: org -*-
 
 * 概要
-with-c-syntax は、 Common Lisp に C 言語っぽい記法を持ち込む一発ネタの
-パッケージです。
-全くもって真面目な用途は想定していません。
+with-c-syntax は、 Common Lisp に C 言語の記法を持ち込む一発ネタのパッ
+ケージです。真面目な用途は想定していません。
+
+現在、 C プリプロセッサを除く、 ISO C 90 の freestanding 環境に相当す
+る全ての機能を使用できます。
 
 * Loading
 ** 依存しているライブラリ
@@ -16,55 +18,59 @@ with-c-syntax は、 Common Lisp に C 言語っぽい記法を持ち込む一�
 ** asdf で Load 
 #+BEGIN_SRC lisp
 (load "with-c-syntax.asd")
+
 (asdf:load-system :with-c-syntax)
+
+(asdf:test-system :with-c-syntax) ; test を走らせる場合
 #+END_SRC
 
 * 使用例
-** Hello, World
+** Hello World via REPL
 #+BEGIN_SRC lisp
-CL-USER> (with-c-syntax:with-c-syntax ()
-{
-  format \( t \, "Hello World!" \) \;
-})
+CL-USER> (with-c-syntax ()
+#{
+  format (t, "Hello World!");
+}#)
 Hello World!
 NIL
+CL-USER> 
 #+END_SRC
 
-** 1 から 100 までの和
+** 1 から 100 までの和。
 #+BEGIN_SRC lisp
-CL-USER> (with-c-syntax:with-c-syntax ()
-{
-  int i \, sum = 0 \;
+CL-USER> (with-c-syntax ()
+#{
+  int i, sum = 0;
   
-  for \( i = 0 \; i <= 100 \; ++ i \)
-    sum += i \;
-  return sum \;
-})
+  for (i = 0; i <= 100; ++ i )
+    sum += i;
+  return sum;
+}#)
 5050
 #+END_SRC
 
 ** Duff's Device
 #+BEGIN_SRC lisp
 (defun w-c-s-duff-device (to-seq from-seq cnt)
-  (with-c-syntax:with-c-syntax ()
-    {
-    int * to = & to-seq \;
-    int * from = & from-seq \;
+  (with-c-syntax ()
+    #{
+    int * to = & to-seq;
+    int * from = & from-seq;
 
-    int n = \( cnt + 7 \) / 8 \;
-    n = floor \( n \) \;                ; Lisp's CL:/ produces rational
-    switch \( cnt % 8 \) {
-    case 0 \:	do {	* to ++ = * from ++ \;
-    case 7 \:		* to ++ = * from ++ \;
-    case 6 \:		* to ++ = * from ++ \;
-    case 5 \:		* to ++ = * from ++ \;
-    case 4 \:		* to ++ = * from ++ \;
-    case 3 \:		* to ++ = * from ++ \;
-    case 2 \:		* to ++ = * from ++ \;
-    case 1 \:		* to ++ = * from ++ \;
-      } while \( -- n > 0 \) \;
+    int n = (cnt + 7) / 8;
+    n = floor(n);           /* Lisp's CL:/ produces rational */
+    switch (cnt % 8) {
+    case 0 :	do {	* to ++ = * from ++;
+    case 7 :		* to ++ = * from ++;
+    case 6 :		* to ++ = * from ++;
+    case 5 :		* to ++ = * from ++;
+    case 4 :		* to ++ = * from ++;
+    case 3 :		* to ++ = * from ++;
+    case 2 :		* to ++ = * from ++;
+    case 1 :		* to ++ = * from ++;
+      } while (-- n > 0);
     }
-    })
+    }#)
   to-seq)
 
 (setf arr1 (make-array 20 :initial-element 1))
@@ -76,83 +82,161 @@ arr1 ;; => #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
 
 * API
 ** Macro with-c-syntax
-*** 構文
-#+BEGIN_EXAMPLE
-with-c-syntax () form* => result
+*** Syntax
+~with-c-syntax~ (&key keyword-case entry-form try-add-{}) form* => result*
 
-form -- a form
-result -- the value returned by the forms
-#+END_EXAMPLE
+*** Arguments and Values
+- keyword-case :: one of ~:upcase~, ~:downcase~, ~:preserve~, or
+                  ~:invert~.  The default is the current readtable
+                  case.
+- entry-form :: a form.
+- try-add-{} :: a boolean.
+- forms   :: forms interpreted by this macro.
+- results :: the values returned by the ~forms~
 
-*** 機能
-form で指定された式を、 *C 言語っぽい* syntax で解釈して実行します。
+*** Description
+This macro is a entry point of the with-c-syntax system.  ~forms~ are
+interpreted as C syntax, executed, and return values.
 
-受け付けられる *C 言語っぽい* syntax は、以下の二種類です。
+~keyword-case~ specifies case sensitibily. Especially, if ~:upcase~ is
+specified, some case-insensitive feature is enabled for convenience.
 
-- 複文 (compound statement) 相当のもの
-  
-  式文 (expression statemente) を除く、複文を受けつけます。
+~entry-form~ is inserted as an entry point when compiling a
+translation unit.
 
-  ~return~ で返した値が返ります。
+If ~try-add-{}~ is t and an error occured at parsing, with-c-syntax
+adds '{' and '}' into the head and tail of ~form~ respectively, and
+tries to parse again.
 
-- 翻訳単位 (compilation unit) 相当のもの
+** Function use-reader
+*** Syntax
+~use-reader~ &key level case => readtable
 
-  変数宣言と関数定義を受けつけます。
-  指定された変数や関数を定義します。
+*** Arguments and Values
+- level :: one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
+           ~:overkill~, or ~:insane~.
+           The default is specified by ~*default-reader-level*~.
+- case :: one of ~:upcase~, ~:downcase~, ~:preserve~, ~:invert~, or
+          nil. The default is nil.
 
-  最後に評価した symbol の名前が返ります。
+*** Description
+This macro establishes a C syntax reader.
 
+~use-reader~ introduces a dispatching macro character '#{'.  Inside
+'#{' and '}#', the reader uses completely different syntax, and
+wrapped with ~with-c-syntax~ form.
 
-特殊な解釈をされるシンボルは、以下の通りです。
-#+BEGIN_EXAMPLE
-|,|
-= *= /= %= += -= <<= >>= &= ^= \|=
-? |:|
-\|\|
-&&
-\|
-^
-&
-== !=
-< > <= >=
->> <<
-+ - * / %
-\( \)
-++ -- sizeof
-& * + - ~ !
-[ ] \. ->
+**** Syntax Levels
+For inside '#{' and '}#', four syntaxes are defined. These syntaxes
+are selected by the infix parameter of the '#{' dispatching macro
+character. If it not specified, The default is the ~level~ specified
+at ~use-reader~.
 
-\;
-auto register static extern typedef
-void char short int long float double signed unsigned
-const volatile
-struct union
-enum
-|...|
-case default
-{ }
-if else switch
-while do for
-goto continue break return
-#+END_EXAMPLE
+***** Level 0 (conservative)
+This is used when ~level~ is 0 or ~:conservative~.
 
-*** 注意点
-現在は、専用のリーダなどはありません。 Lisp reader で読みこむことを想定
-しています。その場合は、以下のことに注意してください。
+In this level, these reader macros are installed.
 
-Lisp reader で通常マクロ文字として扱われる文字は、シンボルとして解釈さ
-せるために、適宜エスケープする必要があります。以下の文字が相当します。
-#+BEGIN_EXAMPLE
-, | : ( ) . ;
-#+END_EXAMPLE
+- ',' :: ',' is read as a symbol. (In ANSI CL, a comma is defined as
+         an invalid char outside the backquote syntax.)
+- ':' :: Reads a solely ':' as a symbol. Not a solely one (as a
+         package marker) works as is.
 
-Lisp reader で constituent character とされる文字を続けて書くと、一まと
-まりのシンボルとして解釈されます。適宜、空白を挿入する必要があります。
+***** Level 1 (aggressive)
+This is used when ~level~ is 1 or ~:aggressive~.
 
-例:
-#+BEGIN_EXAMPLE
-{x[5]\;} ;; => シンボル |{X[5];}| と解釈される。
+In this level, these reader macros are installed.
 
-{ x [ 5 ] \; } => 一連のシンボルと数値と解釈される。
-#+END_EXAMPLE
+- '{', '}', '[', ']' :: These become a terminating character,
+                        and read as a symbol.
 
+***** Level 2 (overkill)
+This is used when ~level~ is 2 or ~:overkill~.
+
+In this level, these reader macros are installed.
+
+- '`' :: '`' reads a next s-exp in the previous syntax. This works as
+         an escape from '#{' and '}#' The 'backquote' functionality is
+         lost.
+- '.' :: Reads a solely '.' as a symbol. The 'consing dot'
+         functionality is lost.
+- '\' :: The '\' becomes a ordinally constituent character. The
+         'multiple escaping' functionality is lost.
+- '/' :: '//' means a line comment, '/* ... */' means a block comment.
+         '/' is still non-terminating, and has special meanings only
+         if followed by '/' or '*'. Ex: 'a/b/c' or '/+aaa+/' are still
+         valid symbols.
+- ''' (single-quote) :: The single-quote works as a character literal
+                        of C. The 'quote' functionality is lost.
+- '\"' (double-quote) :: The double-quote works as a string literal of
+                         C. Especially, escaping is treated as C. The
+                         original functionality is lost.
+- ';' :: ';' becomes a terminating character, and read as a symbol.
+         The 'comment' functionality is lost.
+- '(' and ')' :: parenthesis become a terminating character, and read
+                 as a symbol.  The 'reading a list' functionality is
+                 lost.
+
+In this level, '(' and ')' loses its functionalities. For constructing
+a list, the '`' syntax must be used.
+
+***** Level 3 (insane)
+This is used when ~level~ is 3 or ~:insane~.
+
+In this level, these characters become terminating, and read as a
+symbol listed below.
+
+- '?' :: '?'
+- '~' :: '~'
+- ':' :: ':'
+- '.' :: '.'
+- '=' :: '=' or '=='
+- '*' :: '*' or '*='
+- '^' :: '^' or '^='
+- '!' :: '!' or '!='
+- '&' :: '&', '&&', or '&='
+- '|' :: '|', '||', or '|='
+- '+' :: '+', '++', or '+='
+- '-' :: '-', '--', '-=', or '->'
+- '>' :: '>', '>>', or '>>='
+- '<' :: '<', '<<', or '<<='
+- '/' :: '/', or '/='. '//' means a line comment, and '/* ... */'
+         means a block comment.
+
+In this level, there is no compatibilities between symbols of Common
+Lisp.  Especially, for denoting a symbol has terminating characters,
+escapes are required. (ex. most\-positive\-fixnum)
+
+**** Syntax Cases
+When ~case~ is not nil, the specified case is used as the
+readtable-case inside '#{' and '}#', and the case is passed to the
+wrapping ~with-c-syntax~ form.
+
+When ~case~ is nil, the readtable-case of ~*readtable*~ at using
+'#{' is used.
+
+*** Side Effects
+Changes ~*readtable*~.
+
+*** Notes
+There is no support for trigraphs or digraphs.
+
+*** See Also
+~with-c-syntax~, ~unuse-reader~.
+
+** Function unuse-reader
+*** Syntax
+~unuse-reader~ <no arguments> => readtable
+
+*** Arguments and Values
+- readtable :: a readtable
+
+*** Description
+Disposes the C reader established by ~use-reader~, and restores the
+previous readtable.
+
+*** Side Effects
+Changes ~*readtable*~.
+
+*** See Also
+~unuse-reader~.

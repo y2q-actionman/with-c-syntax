@@ -386,9 +386,6 @@ wrapping ~with-c-syntax~ form.
 When ~case~ is nil, the readtable-case of ~*readtable*~ at using
 '#{' is used.
 
-* Affected By
-~*default-reader-level*~.
-
 * Side Effects
 Changes ~*readtable*~.
 
