@@ -58,7 +58,7 @@ Establishes a new typedef definition named ~name~.
   (let ((dspecs
 	 (typecase spec
 	   (decl-specs spec)
-	   (t (make-decl-specs :lisp-type spec)))))
+	   (otherwise (make-decl-specs :lisp-type spec)))))
     (push dspecs (gethash name *typedef-names*))
     dspecs))
 

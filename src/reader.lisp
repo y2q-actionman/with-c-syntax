@@ -28,6 +28,9 @@ Holds an alist translates 'reader level'.
 ~use-reader~.
 ")
 
+(defun translate-reader-level (rlspec)
+  (cdr (assoc rlspec +reader-level-specifier-alist+)))
+
 (defvar *default-reader-level* :overkill
   "* Value Type
 a symbol or a fixnum.
@@ -41,10 +44,6 @@ The value is one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
 * See Also
 ~use-reader~.
 ")
-
-(defun translate-reader-level (rlspec)
-  (cdr (assoc rlspec +reader-level-specifier-alist+
-	      :test #'eq)))
 
 (defvar *current-c-reader* nil
   "* Value Type
@@ -89,10 +88,10 @@ Its contents is a list of plists. The plists holds below:
   (loop for lis = (read-delimited-list c1 stream recursive-p)
      as next = (peek-char nil stream t nil recursive-p)
      nconc lis
-     when (char= next c2)
-     do (read-char stream t nil recursive-p) (loop-finish)
-     else
-     collect (symbolicate c1))) ; assumes c1 is a kind of terminating.
+     until (char= next c2)
+     collect (symbolicate c1) ; assumes c1 is a kind of terminating.
+     finally
+       (read-char stream t nil recursive-p)))
 
 (defun read-single-quote (stream c0)
   (let ((c1 (read-char stream t nil t)))
@@ -120,7 +119,7 @@ Its contents is a list of plists. The plists holds below:
                                   (read-char stream t nil t))
           until (char= after-* #\/))
        (values))
-      (t
+      (otherwise
        (funcall next-function stream char)))))
 
 (defun read-escaped-char (stream)
@@ -150,7 +149,7 @@ Its contents is a list of plists. The plists holds below:
 	 (numeric-escape 10 (digit-char-p c0)))
 	(#\x
 	 (numeric-escape 16 0))
-        (t
+        (otherwise
          (error 'with-c-syntax-reader-error
                 :format-control "Bad escaped char: ~C."
                 :format-arguments (list c0)))))))
@@ -171,7 +170,7 @@ Its contents is a list of plists. The plists holds below:
       (#\=
        (read-char stream t nil t)
        (symbolicate char next))
-      (t
+      (otherwise
        (read-single-character-symbol stream char)))))
 
 (defun read-single-or-equal-or-self-symbol (stream char)  
@@ -199,7 +198,7 @@ Its contents is a list of plists. The plists holds below:
 	       (#\=
 		(read-char stream t nil t)
 		(symbolicate char next next2))
-	       (t
+	       (otherwise
 		(symbolicate char next)))))
 	  (t
 	   (read-single-or-equal-symbol stream char)))))
@@ -271,13 +270,13 @@ Its contents is a list of plists. The plists holds below:
     (let* ((*readtable* (copy-readtable))
 	   (keyword-case (or case (readtable-case *readtable*)))
            (level (or n level)))
+      (check-reader-level level)
       (setf (readtable-case *readtable*) keyword-case)
       (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
-      (check-reader-level level)
       (install-c-reader *readtable* (translate-reader-level level))
       `(with-c-syntax (:keyword-case ,keyword-case)
 	 ,@(read-2chars-delimited-list
-	    (cdr (assoc char +bracket-pair-alist+ :test #'eq))
+	    (cdr (assoc char +bracket-pair-alist+))
 	    #\# stream t)))))
 
 (defmacro use-reader (&key (level *default-reader-level*) case)

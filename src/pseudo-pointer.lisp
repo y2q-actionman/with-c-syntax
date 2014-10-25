@@ -51,7 +51,7 @@ For the 'index part', the representation is like here:
 If the 'index part' exceeds this limitation, the result is unpredictable.
 ")
 
-(defvar *pseudo-pointee-table* (make-hash-table :test 'eq)
+(defvar *pseudo-pointee-table* (make-hash-table)
   "* Value Type
 a hash-table :: <pseudo-pointer> -> <object>
 
@@ -125,7 +125,7 @@ symbol, vector, or an array.
     (symbol t)
     (vector t)
     (array t)
-    (t nil)))
+    (otherwise nil)))
 
 (defun make-pseudo-pointer (pointee &optional (initial-offset 0))
   "* Syntax

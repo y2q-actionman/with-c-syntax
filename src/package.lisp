@@ -14,9 +14,11 @@
 		#:lastcar
 		#:deletef		; 4. Sequences
 		#:length=
+                #:starts-with
 		#:once-only		; 6. Macro Writing
 		#:with-gensyms
 		#:symbolicate		; 7. Symbols
+                #:type=                 ; 9. Types
 		#:maxf)			; 10. Numbers
   (:import-from #:yacc
         	#:define-parser

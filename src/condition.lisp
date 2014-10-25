@@ -85,7 +85,7 @@ system.
   ()
   (:report
    (lambda (condition stream)
-     (format stream "Not a writable pointer ~A."
+     (format stream "The pointed object is not writable: ~A."
 	     (pseudo-pointer-error-pointee condition))))
   (:documentation
    "Used when trying to write into a non-writable pointer."))

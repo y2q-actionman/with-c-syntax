@@ -473,7 +473,16 @@
     { int x \( hoge \, fuga \, piyo \) \; })
   (eval-equal nil ()
     { int x \( \) \; })
-
+  (eval-equal nil ()
+    { int x \( int hoge \, short fuga \, void piyo \) \; })
+  (eval-equal nil ()
+    { int x \( int hoge \, short \, void * \) \; })
+  (assert-compile-error ()
+    (eval-equal nil ()
+      { int x \( hoge \, int \, int piyo \) \; }))
+  (assert-compile-error ()
+    (eval-equal nil ()
+      { int x \( int \, fuga \, int piyo \) \; }))
   t)
 
 (defun test-initializer-simple ()

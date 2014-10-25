@@ -6,14 +6,14 @@
 (defstruct struct-spec
   "Represents a struct/union specification."
   struct-name	     ; user supplied struct tag (symbol)
-  struct-type	     ; 'struct or 'union
+  union-p            ; 'struct or 'union
   member-defs	     ; (:lisp-type ... :constness ... :decl-specs ...)
   ;; compile-time only
   (defined-in-this-unit nil)) ; T only when compiling this
 
 (defmethod make-load-form ((sspec struct-spec) &optional environment)
   (make-load-form-saving-slots sspec
-   :slot-names '(struct-name struct-type member-defs)
+   :slot-names '(struct-name union-p member-defs)
    :environment environment))
 
 (defvar *struct-specs* (make-hash-table :test 'eq)
@@ -141,7 +141,7 @@ specified by the ~spec-obj~.
      (error 'runtime-error
             :format-control "Not a valid struct-spec object: ~S."
             :format-arguments (list spec-obj))))
-  (loop with union-p = (eq (struct-spec-struct-type spec-obj) '|union|)
+  (loop with union-p = (struct-spec-union-p spec-obj)
      with member-index-table = (make-hash-table :test #'eq)
      for idx from 0
      for init-arg = (pop init-args)

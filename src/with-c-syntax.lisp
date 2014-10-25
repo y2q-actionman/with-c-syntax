@@ -77,7 +77,7 @@ At the beginning of ~with-c-syntax~, it binds this variable to its
            (values 'string value))
           (list
            (values 'lisp-expression value))
-          (t
+          (otherwise
            (error 'lexer-error :token value))))))
 
 ;;; Declarations
@@ -197,7 +197,7 @@ If required, makes a new struct-spec object."
 	 ;; Now defines a new struct
 	 (let ((sspec (make-struct-spec
 		       :struct-name (decl-specs-tag dspecs)
-		       :struct-type (struct-or-union-spec-type suspec)
+                       :union-p (eq (struct-or-union-spec-type suspec) '|union|)
 		       :member-defs member-defs
 		       :defined-in-this-unit t)))
 	   (add-struct-spec (decl-specs-tag dspecs) sspec)
@@ -249,7 +249,7 @@ If required, makes a new struct-spec object."
 	     (return (finalize-enum-spec tp dspecs)))
 	    ((listp tp)			; lisp type
 	     (check-tp-list-length)
-	     (assert (eq (first tp) '|__lisp_type|)) ; by the parser.
+	     (assert (starts-with '|__lisp_type| tp))
 	     (setf (decl-specs-lisp-type dspecs) (second tp))
 	     (return dspecs))
 	    ((find-typedef tp)		; typedef name
@@ -318,7 +318,7 @@ If required, makes a new struct-spec object."
                          (expand-init-declarator-init dspecs abst-decls init))
                    (loop for d from 0 below (car rest-dims)
                       for init-i in init
-                      do (assert (eq :aref (first (car abst-decls))))
+                      do (assert (starts-with :aref (car abst-decls)))
                       do (var-init-setup (cdr rest-dims)
                                          (add-to-tail subscripts d)
                                          (cdr abst-decls) init-i)))))
@@ -326,96 +326,99 @@ If required, makes a new struct-spec object."
     ret))
 
 (defun expand-init-declarator-init (dspecs abst-declarator initializer
-                                    &key (error-on-incompleted t))
+                                    &key (allow-incompleted nil))
   "Finds the specified type and the initialization form.
 Returns (values var-init var-type)."
-  (ecase (car (first abst-declarator))
-    (:pointer
-     (let ((next-type
-	    (nth-value 1 (expand-init-declarator-init
-			  dspecs (cdr abst-declarator) nil
-			  :error-on-incompleted nil))))
-       (values (or initializer 0)
-               `(pseudo-pointer ,next-type))))
-    (:funcall
-     (when (eq :aref (car (second abst-declarator)))
-       (error 'compile-error
-              :format-control "A function returning an array is not accepted."))
-     (when (eq :funcall (car (second abst-declarator)))
-       (error 'compile-error
-              :format-control "A function returning a function is not accepted."))
-     (when initializer
-       (error 'compile-error
-              :format-control "A function cannot take an initializer."))
-     ;; TODO: includes returning type, and arg type
-     (values nil 'function))
-    (:aref
-     (let* ((aref-type (decl-specs-lisp-type dspecs))
-            (aref-dim                   ; reads abst-declarator
-             (loop for (tp tp-args) in abst-declarator
-                if (eq :funcall tp)
-                do (error 'compile-error
-                          :format-control "An array of functions is not accepted.")
-                else if (eq :aref tp)
-                collect (or tp-args '*)
-                else if (eq :pointer tp)
-                do (setf aref-type `(pseudo-pointer ,aref-type))
-                  (loop-finish)
-                else
-                do (assert nil () "Unexpected internal type: ~S." tp)))
-            (merged-dim
-             (array-dimension-combine aref-dim initializer))
-            (lisp-elem-type
-             (if (subtypep aref-type 'number) aref-type t)) ; excludes compound types
-            (var-type
-             (if (and error-on-incompleted
-                      (or (null aref-dim) (member '* aref-dim))
-                      (null initializer))
-                 (error 'compile-error
-                        :format-control "Array's dimension is not fully specified: (~S, ~S)."
-                        :format-arguments (list aref-dim initializer))
-                 `(simple-array ,lisp-elem-type ,merged-dim)))
-            (var-init
-             `(make-array ',merged-dim
-                          :element-type ',lisp-elem-type
-                          :initial-contents
-                          ,(make-dimension-list-load-form
-			    (setup-init-list merged-dim dspecs
-					     abst-declarator initializer)
-			    (length merged-dim)))))
-       (values var-init var-type)))
-    ((nil)
-     (let ((var-type (decl-specs-lisp-type dspecs)))
-       (cond
-         ((null var-type)
+  (flet ((error-on-incompleted (datum &rest args)
+           (unless allow-incompleted
+             (apply #'error datum args))))
+    (ecase (car (first abst-declarator))
+      (:pointer
+       (let ((next-type
+              (nth-value 1 (expand-init-declarator-init
+                            dspecs (cdr abst-declarator) nil
+                            :allow-incompleted t))))
+         (values (or initializer 0)
+                 `(pseudo-pointer ,next-type))))
+      (:funcall
+       (case (car (second abst-declarator))
+         (:aref 
           (error 'compile-error
-                 :format-control "A void variable cannot be initialized."))
-         ((eq var-type 't)
-          (values initializer var-type))
-         ((subtypep var-type 'number) ; includes enum
-          (values (or initializer 0) var-type))
-         ((subtypep var-type 'struct)
-          (let* ((sspec (find-struct-spec (decl-specs-tag dspecs)))
-		 (var-init
-		  (if (not sspec)
-		      (if error-on-incompleted
-			  (error 'compile-error
-                                 :format-control "A struct named ~S is not defined."
-                                 :format-arguments (list (decl-specs-tag dspecs)))
-			  nil)
-                      `(make-struct
-                        ,(if (struct-spec-defined-in-this-unit sspec)
-			     (find-struct-spec (struct-spec-struct-name sspec))
-			     `',(struct-spec-struct-name sspec))
-                        ,@(loop for init in initializer
-                             for mem in (struct-spec-member-defs sspec)
-                             collect (expand-init-declarator-init
-                                      (getf mem :decl-specs)
-                                      (getf mem :abst-declarator)
-                                      init))))))
-            (values var-init var-type)))
-         (t             ; unknown type. Maybe user supplied lisp-type.
-	  (values initializer var-type)))))))
+                 :format-control "A function returning an array is not accepted."))
+         (:funcall
+          (error 'compile-error
+                 :format-control "A function returning a function is not accepted.")))
+       (when initializer
+         (error 'compile-error
+                :format-control "A function cannot take an initializer."))
+       ;; TODO: includes returning type, and arg type
+       (values nil 'function))
+      (:aref
+       (let* ((aref-type (decl-specs-lisp-type dspecs))
+              (aref-dim                   ; reads abst-declarator
+               (loop for (tp tp-args) in abst-declarator
+                  if (eq :funcall tp)
+                  do (error 'compile-error
+                            :format-control "An array of functions is not accepted.")
+                  else if (eq :aref tp)
+                  collect (or tp-args '*)
+                  else if (eq :pointer tp)
+                  do (setf aref-type `(pseudo-pointer ,aref-type))
+                    (loop-finish)
+                  else
+                  do (assert nil () "Unexpected internal type: ~S." tp)))
+              (merged-dim
+               (array-dimension-combine aref-dim initializer))
+              (lisp-elem-type
+               (if (subtypep aref-type 'number) aref-type t)) ; excludes compound types
+              (var-type
+               (if (and (or (null aref-dim) (member '* aref-dim))
+                        (null initializer))
+                   (error-on-incompleted
+                    'compile-error
+                    :format-control "Array's dimension is not fully specified: (~S, ~S)."
+                    :format-arguments (list aref-dim initializer))
+                   `(simple-array ,lisp-elem-type ,merged-dim)))
+              (var-init
+               `(make-array ',merged-dim
+                            :element-type ',lisp-elem-type
+                            :initial-contents
+                            ,(make-dimension-list-load-form
+                              (setup-init-list merged-dim dspecs
+                                               abst-declarator initializer)
+                              (length merged-dim)))))
+         (values var-init var-type)))
+      ((nil)
+       (let ((var-type (decl-specs-lisp-type dspecs)))
+         (cond
+           ((type= var-type nil)
+            (error 'compile-error
+                   :format-control "A void variable cannot be initialized."))
+           ((type= var-type 't)
+            (values initializer var-type))
+           ((subtypep var-type 'number) ; includes enum
+            (values (or initializer 0) var-type))
+           ((subtypep var-type 'struct)
+            (let* ((sspec (find-struct-spec (decl-specs-tag dspecs)))
+                   (var-init
+                    (if (not sspec)
+                        (error-on-incompleted
+                         'compile-error
+                         :format-control "A struct named ~S is not defined."
+                         :format-arguments (list (decl-specs-tag dspecs)))
+                        `(make-struct
+                          ,(if (struct-spec-defined-in-this-unit sspec)
+                               (find-struct-spec (struct-spec-struct-name sspec))
+                               `',(struct-spec-struct-name sspec))
+                          ,@(loop for init in initializer
+                               for mem in (struct-spec-member-defs sspec)
+                               collect (expand-init-declarator-init
+                                        (getf mem :decl-specs)
+                                        (getf mem :abst-declarator)
+                                        init))))))
+              (values var-init var-type)))
+           (t             ; unknown type. Maybe user supplied lisp-type.
+            (values initializer var-type))))))))
 
 (defun finalize-init-declarator (dspecs init-decl)
   "Filles the passed init-declarator object."
@@ -444,8 +447,8 @@ Returns (values var-init var-type)."
       (setf (init-declarator-lisp-name init-decl) var-name
 	    (init-declarator-lisp-initform init-decl) var-init
 	    (init-declarator-lisp-type init-decl) var-type)
-      (when (and (listp var-type)
-                 (eq 'pseudo-pointer (first var-type))
+      (when (and (subtypep var-type 'pseudo-pointer)
+                 (starts-with 'pseudo-pointer var-type)
                  (subtypep (second var-type) 'function))
         (push var-name *function-pointer-ids*)))
     (when (eq '|typedef| storage-class)
@@ -471,13 +474,13 @@ Returns (values var-init var-type)."
       `(,op ,exp1 ,exp2)))
 )
 
-(defun lispify-type-name (qls abs)
-  (setf qls (finalize-decl-specs qls))
+(defun lispify-type-name (spec-qual abs)
+  (finalize-decl-specs spec-qual)
   (if abs
       (let ((init-decl (make-init-declarator :declarator abs)))
-	(finalize-init-declarator qls init-decl)
+	(finalize-init-declarator spec-qual init-decl)
         (init-declarator-lisp-type init-decl))
-      (decl-specs-lisp-type qls)))
+      (decl-specs-lisp-type spec-qual)))
 
 (defun error-lisp-subscript (obj)
   (error 'runtime-error
@@ -547,7 +550,7 @@ Returns (values var-init var-type)."
                             :format-arguments (list ,obj)))))
              ((pseudo-pointer-dereference obj)
               obj)
-             ((t &rest _)
+             ((otherwise &rest _)
               (declare (ignore _))
               (error-bad-form))))
           (t
@@ -560,7 +563,7 @@ Returns (values var-init var-type)."
       `(funcall ,func-exp ,@args)))
 
 (defun lispify-offsetof (dspecs id)
-  (setf dspecs (finalize-decl-specs dspecs))
+  (finalize-decl-specs dspecs)
   (when-let* ((tag (decl-specs-tag dspecs))
               (sspec (find-struct-spec tag))
               (entry
@@ -598,21 +601,19 @@ Returns (values var-init var-type)."
   (let* ((stat (if else-stat
 		   (merge-stat then-stat else-stat)
 		   then-stat))
-	 (then-tag (gensym "if-then-"))
-	 (else-tag (gensym "if-else-"))
+	 (else-tag (gensym "if-else-")) ; TODO: remove this if not else-stat?
 	 (end-tag (gensym "if-end-")))
     (setf (stat-code stat)
-	  `((if ,exp (go ,then-tag) (go ,else-tag))
-	    ,then-tag
-	    ,@(stat-code then-stat)
+	  `((unless ,exp (go ,else-tag))
+	    ,@(stat-code then-stat)     ; then
 	    (go ,end-tag)
-	    ,else-tag
+	    ,else-tag                   ; else
 	    ,@(if else-stat (stat-code else-stat) nil)
-	    (go ,end-tag)
-	    ,end-tag))
+	    ,end-tag))                  ; end
     stat))
 
 (defun make-stat-unresolved-break ()
+  ;; Because of rewriting, the list of '(go ...)' must be fresh.
   (let ((ret (list 'go (gensym "unresolved-break-"))))
     (make-stat :code (list ret)
 	       :break-statements (list ret))))
@@ -623,6 +624,7 @@ Returns (values var-init var-type)."
      count i))
 
 (defun make-stat-unresolved-continue ()
+  ;; Because of rewriting, the list of '(go ...)' must be fresh.
   (let ((ret (list 'go (gensym "unresolved-continue-"))))
     (make-stat :code (list ret)
 	       :continue-statements (list ret))))
@@ -670,12 +672,12 @@ Returns (values var-init var-type)."
   (let* ((switch-end-tag (gensym "switch-end-"))
 	 (default-supplied nil)
 	 (jump-table			; create jump table with COND
-	  (loop with default-clause = `(t (go ,switch-end-tag))
+	  (loop with default-clause = `(otherwise (go ,switch-end-tag))
 	     for (go-tag-sym . case-label-exp)
 	     in (shiftf (stat-case-label-list stat) nil)
 
 	     if (eq case-label-exp '|default|)
-	     do (setf default-clause `(t (go ,go-tag-sym))
+	     do (setf default-clause `(otherwise (go ,go-tag-sym))
 		      default-supplied t)
 	     else
 	     collect `(,case-label-exp (go ,go-tag-sym))
@@ -749,23 +751,24 @@ established.
 	  (case (decl-specs-storage-class return)
 	    (|static| '|static|)
 	    ((nil) '|global|)
-	    (t (error 'compile-error
-                      :format-control "Cannot define a function of storage-class: ~S."
-                      :format-arguments (list (decl-specs-storage-class return)))))))
+	    (otherwise
+             (error 'compile-error
+                    :format-control "Cannot define a function of storage-class: ~S."
+                    :format-arguments (list (decl-specs-storage-class return)))))))
     (when K&R-decls
-      (let ((K&R-param-ids
-             (loop for (dspecs init-decls) in K&R-decls
-                as storage-class = (decl-specs-storage-class dspecs)
-                unless (member storage-class
-                               '(nil |auto| |register|) :test #'eq)
-                do (error 'compile-error
-                          :format-control "Invalid storage-class ~S for function arguments."
-                          :format-arguments (list storage-class))
-		nconc (mapcar #'init-declarator-lisp-name init-decls))))
-        (unless (equal param-ids K&R-param-ids)
-          (error 'compile-error
-                 :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
-                 :format-arguments (list K&R-param-ids param-ids)))))
+      (loop for (dspecs init-decls) in K&R-decls
+         as storage-class = (decl-specs-storage-class dspecs)
+         unless (member storage-class
+                        '(nil |auto| |register|) :test #'eq)
+         do (error 'compile-error
+                   :format-control "Invalid storage-class ~S for function arguments."
+                   :format-arguments (list storage-class))
+         nconc (mapcar #'init-declarator-lisp-name init-decls) into K&R-param-ids
+         finally
+           (unless (equal param-ids K&R-param-ids)
+             (error 'compile-error
+                    :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
+                    :format-arguments (list K&R-param-ids param-ids)))))
     (let ((varargs-sym (gensym "varargs-"))
           (body (expand-toplevel-stat body))) 
       (make-function-definition
@@ -1054,17 +1057,17 @@ established.
 
   (decl
    (decl-specs init-declarator-list \;
-               #'(lambda (dcls inits _t)
+               #'(lambda (dspecs inits _t)
                    (declare (ignore _t))
-		   (setf dcls (finalize-decl-specs dcls))
-		   `(,dcls
-		     ,(mapcar #'(lambda (i) (finalize-init-declarator dcls i))
-			      inits))))
+		   (finalize-decl-specs dspecs)
+		   `(,dspecs
+		     ,(mapcar #'(lambda (i) (finalize-init-declarator dspecs i))
+                              inits))))
    (decl-specs \;
-               #'(lambda (dcls _t)
+               #'(lambda (dspecs _t)
                    (declare (ignore _t))
-		   (setf dcls (finalize-decl-specs dcls))
-		   `(,dcls))))
+		   (finalize-decl-specs dspecs)
+		   `(,dspecs nil))))
 
   (decl-list
    (decl
@@ -1075,23 +1078,23 @@ established.
   ;; returns a 'decl-specs' structure
   (decl-specs
    (storage-class-spec decl-specs
-                       #'(lambda (cls dcls)
-                           (push cls (decl-specs-storage-class dcls))
-                           dcls))
+                       #'(lambda (cls dspecs)
+                           (push cls (decl-specs-storage-class dspecs))
+                           dspecs))
    (storage-class-spec
     #'(lambda (cls)
 	(make-decl-specs :storage-class `(,cls))))
    (type-spec decl-specs
-              #'(lambda (tp dcls)
-                  (push tp (decl-specs-type-spec dcls))
-                  dcls))
+              #'(lambda (tp dspecs)
+                  (push tp (decl-specs-type-spec dspecs))
+                  dspecs))
    (type-spec
     #'(lambda (tp)
 	(make-decl-specs :type-spec `(,tp))))
    (type-qualifier decl-specs
-                   #'(lambda (qlr dcls)
-                       (push qlr (decl-specs-qualifier dcls))
-                       dcls))
+                   #'(lambda (qlr dspecs)
+                       (push qlr (decl-specs-qualifier dspecs))
+                       dspecs))
    (type-qualifier
     #'(lambda (qlr)
 	(make-decl-specs :qualifier `(,qlr)))))
@@ -1248,25 +1251,25 @@ established.
    (direct-declarator [ const-exp ]
     #'(lambda (dcl _lp params _rp)
 	(declare (ignore _lp _rp))
-        `(,@dcl (:aref ,params))))
+        (add-to-tail dcl `(:aref ,params))))
    (direct-declarator [		  ]
     #'(lambda (dcl _lp _rp)
 	(declare (ignore _lp _rp))
-        `(,@dcl (:aref nil))))
+        (add-to-tail dcl '(:aref nil))))
    (direct-declarator \( param-type-list \)
     #'(lambda (dcl _lp params _rp)
 	(declare (ignore _lp _rp))
-        `(,@dcl (:funcall ,params))))
+        (add-to-tail dcl `(:funcall ,params))))
    (direct-declarator \( id-list \)
     #'(lambda (dcl _lp params _rp)
 	(declare (ignore _lp _rp))
-        `(,@dcl (:funcall
-                 ;; make as a list of (decl-spec (id))
-                 ,(mapcar #'(lambda (p) `(nil (,p))) params)))))
+        (add-to-tail dcl `(:funcall
+                           ;; make as a list of (decl-spec (id))
+                           ,(mapcar #'(lambda (p) `(nil (,p))) params)))))
    (direct-declarator \(	 \)
     #'(lambda (dcl _lp _rp)
 	(declare (ignore _lp _rp))
-        `(,@dcl (:funcall nil)))))
+        (add-to-tail dcl '(:funcall nil)))))
 
   (pointer
    (* type-qualifier-list
@@ -1276,15 +1279,15 @@ established.
    (*
     #'(lambda (_kwd)
         (declare (ignore _kwd))
-        `((:pointer))))
+        '((:pointer))))
    (* type-qualifier-list pointer
     #'(lambda (_kwd qls ptr)
         (declare (ignore _kwd))
-        `(,@ptr (:pointer ,@qls))))
+        (add-to-tail ptr `(:pointer ,@qls))))
    (*			  pointer
     #'(lambda (_kwd ptr)
         (declare (ignore _kwd))
-        `(,@ptr (:pointer)))))
+        (add-to-tail ptr '(:pointer)))))
 			  
 
   (type-qualifier-list
@@ -1338,11 +1341,11 @@ established.
   ;; see 'decl'
   (type-name
    (spec-qualifier-list abstract-declarator
-			#'(lambda (qls abs)
-			    (lispify-type-name qls abs)))
+			#'(lambda (spec-qual abs)
+			    (lispify-type-name spec-qual abs)))
    (spec-qualifier-list
-    #'(lambda (qls)
-	(lispify-type-name qls nil))))
+    #'(lambda (spec-qual)
+	(lispify-type-name spec-qual nil))))
 
   ;; inserts 'nil' as a name
   (abstract-declarator
@@ -1365,7 +1368,7 @@ established.
    (direct-abstract-declarator [ const-exp ]
     #'(lambda (dcls _lp params _rp)
 	(declare (ignore _lp _rp))
-        `(,@dcls (:aref ,params))))
+        (add-to-tail dcls `(:aref ,params))))
    (			       [ const-exp ]
     #'(lambda (_lp params _rp)
 	(declare (ignore _lp _rp))
@@ -1373,7 +1376,7 @@ established.
    (direct-abstract-declarator [	   ]
     #'(lambda (dcls _lp _rp)
 	(declare (ignore _lp _rp))
-        `(,@dcls (:aref nil))))
+        (add-to-tail dcls `(:aref nil))))
    (			       [	   ]
     #'(lambda (_lp _rp)
 	(declare (ignore _lp _rp))
@@ -1381,7 +1384,7 @@ established.
    (direct-abstract-declarator \( param-type-list \)
     #'(lambda (dcls _lp params _rp)
 	(declare (ignore _lp _rp))
-        `(,@dcls (:funcall ,params))))
+        (add-to-tail dcls `(:funcall ,params))))
    (			       \( param-type-list \)
     #'(lambda (_lp params _rp)
 	(declare (ignore _lp _rp))
@@ -1389,7 +1392,7 @@ established.
    (direct-abstract-declarator \(		  \)
     #'(lambda (dcls _lp _rp)
 	(declare (ignore _lp _rp))
-        `(,@dcls (:funcall nil))))
+        (add-to-tail dcls '(:funcall nil))))
    (			       \(		  \)
     #'(lambda (_lp _rp)
 	(declare (ignore _lp _rp))
@@ -1437,22 +1440,22 @@ established.
 
   (compound-stat
    ({ decl-list stat-list }
-      #'(lambda (_op1 dcls stat _op2)
-          (declare (ignore _op1 _op2))
+      #'(lambda (_lb dcls stat _rb)
+          (declare (ignore _lb _rb))
 	  (setf (stat-declarations stat)
 		(append dcls (stat-declarations stat)))
 	  stat))
    ({ stat-list }
-      #'(lambda (op1 stat op2)
-	  (declare (ignore op1 op2))
+      #'(lambda (_lb stat _rb)
+	  (declare (ignore _lb _rb))
 	  stat))
    ({ decl-list	}
-      #'(lambda (_op1 dcls _op2)
-	  (declare (ignore _op1 _op2))
+      #'(lambda (_lb dcls _rb)
+	  (declare (ignore _lb _rb))
 	  (make-stat :declarations dcls)))
    ({ }
-      #'(lambda (op1 op2)
-	  (declare (ignore op1 op2))
+      #'(lambda (_lb _rb)
+	  (declare (ignore _lb _rb))
 	  (make-stat))))
 
   (stat-list
@@ -1463,12 +1466,12 @@ established.
 
   (selection-stat
    (|if| \( exp \) stat
-       #'(lambda (op lp exp rp stat)
-	   (declare (ignore op lp rp))
+       #'(lambda (_op _lp exp _rp stat)
+	   (declare (ignore _op _lp _rp))
 	   (expand-if-statement exp stat)))
    (|if| \( exp \) stat |else| stat
-       #'(lambda (op lp exp rp stat1 el stat2)
-	   (declare (ignore op lp rp el))
+       #'(lambda (_op _lp exp _rp stat1 _el stat2)
+	   (declare (ignore _op _lp _rp _el))
 	   (expand-if-statement exp stat1 stat2)))
    (|switch| \( exp \) stat
 	   #'(lambda (_k _lp exp _rp stat)
@@ -1552,9 +1555,7 @@ established.
   (assignment-exp
    conditional-exp
    (unary-exp = assignment-exp
-	      #'(lambda (exp1 op exp2)
-		  (declare (ignore op))
-		  `(setf ,exp1 ,exp2)))
+              (lispify-binary 'setf))
    (unary-exp *= assignment-exp
 	      (lispify-binary 'mulf))
    (unary-exp /= assignment-exp
@@ -1579,8 +1580,8 @@ established.
   (conditional-exp
    logical-or-exp
    (logical-or-exp ? exp \: conditional-exp
-		   #'(lambda (cnd op1 then-exp op2 else-exp)
-		       (declare (ignore op1 op2))
+		   #'(lambda (cnd _op1 then-exp _op2 else-exp)
+		       (declare (ignore _op1 _op2))
 		       `(if ,cnd ,then-exp ,else-exp))))
 
   (const-exp
@@ -1655,8 +1656,8 @@ established.
   (cast-exp
    unary-exp
    (\( type-name \) cast-exp
-       #'(lambda (op1 type op2 exp)
-	   (declare (ignore op1 op2))
+       #'(lambda (_lp type _rp exp)
+	   (declare (ignore _lp _rp))
            (lispify-cast type exp))))
 
   ;; 'unary-operator' is included here
@@ -1671,9 +1672,7 @@ established.
           (declare (ignore _op))
 	  (lispify-address-of exp)))
    (* cast-exp
-      #'(lambda (_op exp)
-          (declare (ignore _op))
-          `(pseudo-pointer-dereference ,exp)))
+      (lispify-unary 'pseudo-pointer-dereference))
    (+ cast-exp
       (lispify-unary '+))
    (- cast-exp
@@ -1694,9 +1693,9 @@ established.
 	       (declare (ignore _op _lp _rp))
 	       ;; calculate compile-time
 	       (if (subtypep tp 'array)
-		   (destructuring-bind (a-type &optional e-type array-dim) tp
-		     (declare (ignore a-type e-type))
-		     (when (member-if-not #'numberp array-dim)
+                   (let ((array-dim (and (listp tp) (third tp))))
+		     (when (or (not array-dim)
+                               (member-if-not #'numberp array-dim))
 		       (error 'compile-error
                               :format-control "This array dimension is incompleted: ~S."
                               :format-arguments (list tp)))
@@ -1706,18 +1705,18 @@ established.
   (postfix-exp
    primary-exp
    (postfix-exp [ exp ]
-		#'(lambda (exp op1 idx op2)
-		    (declare (ignore op1 op2))
-                    (if (and (listp exp) (eq (first exp) 'lisp-subscript))
+		#'(lambda (exp _lb idx _rb)
+		    (declare (ignore _lb _rb))
+                    (if (starts-with 'lisp-subscript exp)
 			(add-to-tail exp idx)
                         `(lisp-subscript ,exp ,idx))))
    (postfix-exp \( argument-exp-list \)
-		#'(lambda (exp op1 args op2)
-		    (declare (ignore op1 op2))
+		#'(lambda (exp _lp args _rp)
+		    (declare (ignore _lp _rp))
                     (lispify-funcall exp args)))
    (postfix-exp \( \)
-		#'(lambda (exp op1 op2)
-		    (declare (ignore op1 op2))
+		#'(lambda (exp _lp _rp)
+		    (declare (ignore _lp _rp))
                     (lispify-funcall exp nil)))
    (postfix-exp \. id
 		#'(lambda (exp _op id)
@@ -1746,9 +1745,9 @@ established.
 	   x))
    lisp-expression			; added
    (|__offsetof| \( decl-specs \, id \)   ; added
-                 #'(lambda (_op _lp dcl _cm id _rp)
+                 #'(lambda (_op _lp dspecs _cm id _rp)
                      (declare (ignore _op _lp _cm _rp))
-                     (lispify-offsetof dcl id))))
+                     (lispify-offsetof dspecs id))))
 
 
   (argument-exp-list
@@ -1815,29 +1814,25 @@ If ~try-add-{}~ is t and an error occured at parsing, with-c-syntax
 adds '{' and '}' into the head and tail of ~form~ respectively, and
 tries to parse again.
 "
-  (labels ((expand-c-syntax (body retry-add-{})
+  (labels ((expand-c-syntax (body)
 	     (handler-case 
 		 (with-c-compilation-unit (entry-form)
 		   (parse-with-lexer (list-lexer body)
 				     *expression-parser*))
 	       (yacc-parse-error (condition)
-		 (if retry-add-{}
-		     (expand-c-syntax (append '({) body '(})) nil)
+                 (if (and try-add-{}
+                          (not (starts-with '{ body)))
+		     (expand-c-syntax `({ ,@body }))
 		     (error 'with-c-syntax-parse-error
                             :yacc-error condition))))))
     (cond
       ((null body)
        nil)
       ((and (length= 1 (the list body)) ; with-c-syntax is nested.
-	    (listp (first body))
-	    (eq (first (first body)) 'with-c-syntax))
-       (destructuring-bind (_op keyargs1 &body _body1)
-	   whole
-	 (declare (ignore _op _body1))
-	 (destructuring-bind (_op keyargs2 &body body2)
+            (starts-with 'with-c-syntax (first body)))
+       (let ((keyargs1 (second whole)))
+	 (destructuring-bind (op keyargs2 &body body2)
 	     (first body)
-	   (declare (ignore _op))
-	   `(with-c-syntax (,@keyargs1 ,@keyargs2) ,@body2))))
+	   `(,op (,@keyargs1 ,@keyargs2) ,@body2))))
       (t
-       (expand-c-syntax (preprocessor body keyword-case)
-			try-add-{})))))
+       (expand-c-syntax (preprocessor body keyword-case))))))

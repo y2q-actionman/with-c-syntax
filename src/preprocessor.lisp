@@ -108,6 +108,7 @@ reader. If nil, the macro is defined for all readtable-case.
 * See Also
 ~find-preprocessor-macro~.
 "
+  ;; FIXME: This routine seeks the list twice.
   (when-let (entry (find-preprocessor-macro name case-spec))
     (deletef *preprocessor-macro* entry :test #'eq)
     entry))
@@ -115,23 +116,23 @@ reader. If nil, the macro is defined for all readtable-case.
 (defun preprocessor-call-macro (lis-head fn)
   "A part of the ~preprocessor~ function."
   (let ((begin (pop lis-head)))
-    (unless (string= begin '\()
+    (unless (string= begin "(")
       (error 'preprocess-error
 	     :format-control "A symbol (~S) found between a preprocessor macro and the first '('"
 	     :format-arguments (list begin))))
   (labels ((pop-next-or-error ()
              (unless lis-head
                (error 'preprocess-error
-		      :format-control "Reached end of forms at findint preprocessor macro arguments."))
+		      :format-control "Reached end of forms at finding preprocessor macro arguments."))
              (pop lis-head))
            (get-arg (start)
              (loop for i = start then (pop-next-or-error)
-                until (or (string= i '\,)
-                          (if (string= i '\))
+                until (or (string= i ",")
+                          (if (string= i ")")
                               (progn (push i lis-head) t)))
                 collect i)))
     (loop for i = (pop-next-or-error)
-       until (string= i '\))
+       until (string= i ")")
        collect (get-arg i) into args
        finally
          (return (values (apply fn args) lis-head)))))
@@ -223,7 +224,7 @@ calls the function like:
            while (stringp i)
 	   collect i into strs
            finally
-	     (push i lis)
+	     (push i lis) ; write back the last object (not a string).
              (push (apply #'concatenate 'string token strs) ret)
              (setf token nil))
      ;; otherwise..
