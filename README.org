@@ -20,8 +20,6 @@ freestanding implementation. The lacking part is the C Preprocessor.
 - cl-yacc
 - alexandria
 
-どれも、 Quicklisp からインストール可能です。
-
 ** Load with ASDF
 #+BEGIN_SRC lisp
 (load "with-c-syntax.asd")
