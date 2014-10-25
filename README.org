@@ -1,31 +1,39 @@
 # -*- mode: org -*-
 
 * 概要
-with-c-syntax は、 Common Lisp に C 言語の記法を持ち込む一発ネタのパッ
+*with-c-syntax* は、 Common Lisp に C 言語の記法を持ち込む一発ネタのパッ
 ケージです。真面目な用途は想定していません。
 
 現在、 C プリプロセッサを除く、 ISO C 90 の freestanding 環境に相当す
 る全ての機能を使用できます。
 
+* About
+*with-c-syntax* is a fun package which introduces the C language
+syntax into Common Lisp. Yes, this package is impractical.
+
+At this stage, this package has almost all features of ISO C 90
+freestanding implementation. The lacking part is the C Preprocessor.
+
 * Loading
-** 依存しているライブラリ
+** Libraries depending on
 - asdf
 - cl-yacc
 - alexandria
 
 どれも、 Quicklisp からインストール可能です。
 
-** asdf で Load 
+** Load with ASDF
 #+BEGIN_SRC lisp
 (load "with-c-syntax.asd")
 
 (asdf:load-system :with-c-syntax)
 
-(asdf:test-system :with-c-syntax) ; test を走らせる場合
+;; If runs tests
+(asdf:test-system :with-c-syntax)
 #+END_SRC
 
-* 使用例
-** Hello World via REPL
+* Examples
+** Hello World
 #+BEGIN_SRC lisp
 CL-USER> (with-c-syntax ()
 #{
@@ -36,7 +44,7 @@ NIL
 CL-USER> 
 #+END_SRC
 
-** 1 から 100 までの和。
+** Summing from 1 to 100.
 #+BEGIN_SRC lisp
 CL-USER> (with-c-syntax ()
 #{
@@ -81,7 +89,7 @@ arr1 ;; => #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
 #+END_SRC
 
 * API
-** Macro with-c-syntax
+** Macro ~with-c-syntax~
 *** Syntax
 ~with-c-syntax~ (&key keyword-case entry-form try-add-{}) form* => result*
 
@@ -108,7 +116,7 @@ If ~try-add-{}~ is t and an error occured at parsing, with-c-syntax
 adds '{' and '}' into the head and tail of ~form~ respectively, and
 tries to parse again.
 
-** Function use-reader
+** Function ~use-reader~
 *** Syntax
 ~use-reader~ &key level case => readtable
 
@@ -132,80 +140,8 @@ are selected by the infix parameter of the '#{' dispatching macro
 character. If it not specified, The default is the ~level~ specified
 at ~use-reader~.
 
-***** Level 0 (conservative)
-This is used when ~level~ is 0 or ~:conservative~.
-
-In this level, these reader macros are installed.
-
-- ',' :: ',' is read as a symbol. (In ANSI CL, a comma is defined as
-         an invalid char outside the backquote syntax.)
-- ':' :: Reads a solely ':' as a symbol. Not a solely one (as a
-         package marker) works as is.
-
-***** Level 1 (aggressive)
-This is used when ~level~ is 1 or ~:aggressive~.
-
-In this level, these reader macros are installed.
-
-- '{', '}', '[', ']' :: These become a terminating character,
-                        and read as a symbol.
-
-***** Level 2 (overkill)
-This is used when ~level~ is 2 or ~:overkill~.
-
-In this level, these reader macros are installed.
-
-- '`' :: '`' reads a next s-exp in the previous syntax. This works as
-         an escape from '#{' and '}#' The 'backquote' functionality is
-         lost.
-- '.' :: Reads a solely '.' as a symbol. The 'consing dot'
-         functionality is lost.
-- '\' :: The '\' becomes a ordinally constituent character. The
-         'multiple escaping' functionality is lost.
-- '/' :: '//' means a line comment, '/* ... */' means a block comment.
-         '/' is still non-terminating, and has special meanings only
-         if followed by '/' or '*'. Ex: 'a/b/c' or '/+aaa+/' are still
-         valid symbols.
-- ''' (single-quote) :: The single-quote works as a character literal
-                        of C. The 'quote' functionality is lost.
-- '\"' (double-quote) :: The double-quote works as a string literal of
-                         C. Especially, escaping is treated as C. The
-                         original functionality is lost.
-- ';' :: ';' becomes a terminating character, and read as a symbol.
-         The 'comment' functionality is lost.
-- '(' and ')' :: parenthesis become a terminating character, and read
-                 as a symbol.  The 'reading a list' functionality is
-                 lost.
-
-In this level, '(' and ')' loses its functionalities. For constructing
-a list, the '`' syntax must be used.
-
-***** Level 3 (insane)
-This is used when ~level~ is 3 or ~:insane~.
-
-In this level, these characters become terminating, and read as a
-symbol listed below.
-
-- '?' :: '?'
-- '~' :: '~'
-- ':' :: ':'
-- '.' :: '.'
-- '=' :: '=' or '=='
-- '*' :: '*' or '*='
-- '^' :: '^' or '^='
-- '!' :: '!' or '!='
-- '&' :: '&', '&&', or '&='
-- '|' :: '|', '||', or '|='
-- '+' :: '+', '++', or '+='
-- '-' :: '-', '--', '-=', or '->'
-- '>' :: '>', '>>', or '>>='
-- '<' :: '<', '<<', or '<<='
-- '/' :: '/', or '/='. '//' means a line comment, and '/* ... */'
-         means a block comment.
-
-In this level, there is no compatibilities between symbols of Common
-Lisp.  Especially, for denoting a symbol has terminating characters,
-escapes are required. (ex. most\-positive\-fixnum)
+If you are interested fot what syntaxes are defined, Please see the
+"Futher Information" links at bottom.
 
 **** Syntax Cases
 When ~case~ is not nil, the specified case is used as the
@@ -224,7 +160,7 @@ There is no support for trigraphs or digraphs.
 *** See Also
 ~with-c-syntax~, ~unuse-reader~.
 
-** Function unuse-reader
+** Function ~unuse-reader~
 *** Syntax
 ~unuse-reader~ <no arguments> => readtable
 
@@ -240,3 +176,8 @@ Changes ~*readtable*~.
 
 *** See Also
 ~unuse-reader~.
+
+* Futher Information
+See below:
+https://github.com/y2q-actionman/with-c-syntax/wiki
+
