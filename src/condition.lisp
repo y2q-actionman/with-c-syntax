@@ -39,7 +39,7 @@ system.
      (format stream "with-c-syntax parse error. yacc error is~%~A"
              (with-c-syntax-parse-error-yacc-error condition))))
   (:documentation
-   "Used when an error occured at the parser."))
+   "Used when an error occurred at the parser."))
 
 (define-condition compile-error (with-c-syntax-error)
   ()
@@ -59,7 +59,7 @@ system.
    (offset :initarg :offset
 	   :reader pseudo-pointer-error-offset))
   (:documentation
-   "Used at using psendo-pointers."))
+   "Used at using pseudo-pointers."))
 
 (define-condition pseudo-pointer-type-error (pseudo-pointer-error)
   ()

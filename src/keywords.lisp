@@ -47,7 +47,7 @@ Holds a list of symbols denoting C operators and keywords.
 (define-constant +numeric-types-alist+
     '(;; Extension: uses T if no types are specified
       (()				.	t)
-      ;; Intergers
+      ;; Integers
       ((|int|)                          .	fixnum)
       ((|int| |short|)                  .	(signed-byte 16))
       ((|int| |long|)                   .	(signed-byte 32))
@@ -60,7 +60,7 @@ Holds a list of symbols denoting C operators and keywords.
       ((|int| |short| |unsigned|)       .	(unsigned-byte 16))
       ((|int| |long| |unsigned|)        .	(unsigned-byte 32))
       ((|int| |long| |long| |unsigned|) .	(unsigned-byte 64))
-      ;; Intergers, but 'int' is emitted
+      ;; Integers, but 'int' is emitted
       ((|short|)			.	(signed-byte 16))
       ((|long|)				.	(signed-byte 32))
       ((|long| |long|)			.	(signed-byte 64))

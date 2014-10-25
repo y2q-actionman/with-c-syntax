@@ -21,7 +21,7 @@
 
 (defun add-predefined-typedef-and-aliases (sym type)
   (add-typedef sym type)		; typedefs name -> type
-  ;; addes package-free alias
+  ;; adds package-free alias
   (add-preprocessor-macro-with-upcase (symbol-name sym) sym))
 
 (define-condition library-macro-error (with-c-syntax-error)

@@ -21,8 +21,8 @@ The alist is :: (<symbol or string> case-spec)
 Holds preprocessor macro definitions.
 
 ~case-spec~ is one of the following:
-nil     :: means this macro definision is all readtable-case.
-:upcase :: means this macro definision is only for the :upcase of
+nil     :: means this macro definition is all readtable-case.
+:upcase :: means this macro definition is only for the :upcase of
            readtable-case.
 ")
 
@@ -162,7 +162,7 @@ implemented. Current working is below:
   belongs other packages to our package's one.
   
 - A dirty hack for 'typedef'.
-  Autimatically addes 'void ;' after each typedef declarations.  This
+  Automatically adds 'void ;' after each typedef declarations.  This
   is a workaround for avoiding the problem between 'the lexer hack'
   and the look-aheading of cl-yacc.
 
@@ -231,7 +231,7 @@ calls the function like:
      when token
      do (push token ret)
 
-     ;; typedef hack -- addes "void ;" after each typedef.
+     ;; typedef hack -- adds "void ;" after each typedef.
      if (eq (first ret) '|typedef|)
      do (setf typedef-hack t)
      else if (and typedef-hack

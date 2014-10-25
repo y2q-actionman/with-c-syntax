@@ -1,5 +1,5 @@
-;;;; - struct-spec :: the compile-time respesentation of struct or union.
-;;;; - struct :: the runtime respesentation of struct or union.
+;;;; - struct-spec :: the compile-time representation of struct or union.
+;;;; - struct :: the runtime representation of struct or union.
 
 (in-package #:with-c-syntax.core)
 

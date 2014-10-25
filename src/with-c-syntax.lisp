@@ -3,7 +3,7 @@
 ;;; Variables
 (defvar *dynamic-binding-requested* nil
   "* Value Type 
-a list :: consistes of symbols.
+a list :: consists of symbols.
 
 * Description
 Holds a list of symbols, which are pointed by a pointer.
@@ -82,16 +82,16 @@ At the beginning of ~with-c-syntax~, it binds this variable to its
 
 ;;; Declarations
 (defstruct decl-specs
-  "Reprerents 'decl-specs' in C syntax BNF."
+  "Represents 'decl-specs' in C syntax BNF."
   ;; Filled by the parser
   (type-spec nil)
   (storage-class nil)
   (qualifier nil)
-  ;; Filled by 'finalize-decl-specs', and refered by 'finalize-init-declarator'
+  ;; Filled by 'finalize-decl-specs', and referred by 'finalize-init-declarator'
   (lisp-type t)             ; typename for Common Lisp
   (tag nil)		    ; struct/union/enum tag
   (typedef-init-decl nil)   ; typedef
-  ;; Filled by 'finalize-decl-specs', and refered by 'expand-toplevel'
+  ;; Filled by 'finalize-decl-specs', and referred by 'expand-toplevel'
   (enum-bindings nil)       ; enum definition
   (struct-spec nil))	    ; struct/union definition
 
@@ -102,7 +102,7 @@ At the beginning of ~with-c-syntax~, it binds this variable to its
    :environment environment))
 
 (defstruct init-declarator
-  "Reprerents 'init-declarator' in C syntax BNF."
+  "Represents 'init-declarator' in C syntax BNF."
   ;; Filled by the parser
   declarator
   (initializer nil)
@@ -115,7 +115,7 @@ At the beginning of ~with-c-syntax~, it binds this variable to its
   (make-load-form-saving-slots obj :environment environment))
 
 (defstruct struct-or-union-spec
-  "Reprerents 'struct-or-union-spec' in C syntax BNF."
+  "Represents 'struct-or-union-spec' in C syntax BNF."
   type					; symbol. 'struct' or 'union'
   (id nil)
   (struct-decl-list nil)) ; alist of (spec-qualifier-list . (struct-declarator ...))
@@ -125,7 +125,7 @@ At the beginning of ~with-c-syntax~, it binds this variable to its
 
 (defstruct (spec-qualifier-list
              (:include decl-specs))
-  "Reprerents 'spec-qualifier-list' in C syntax BNF.")
+  "Represents 'spec-qualifier-list' in C syntax BNF.")
 
 (defmethod make-load-form ((obj spec-qualifier-list) &optional environment)
   (make-load-form-saving-slots obj
@@ -135,14 +135,14 @@ At the beginning of ~with-c-syntax~, it binds this variable to its
 
 (defstruct (struct-declarator
              (:include init-declarator))
-  "Reprerents 'struct-declarator' in C syntax BNF."
+  "Represents 'struct-declarator' in C syntax BNF."
   (bits nil))
 
 (defmethod make-load-form ((obj struct-declarator) &optional environment)
   (make-load-form-saving-slots obj :environment environment))
 
 (defstruct enum-spec
-  "Reprerents 'enum-spec' in C syntax BNF."
+  "Represents 'enum-spec' in C syntax BNF."
   (id nil)				; enum tag
   (enumerator-list nil))                ; list of enumerator
 
@@ -151,7 +151,7 @@ At the beginning of ~with-c-syntax~, it binds this variable to its
 
 (defstruct (enumerator
 	     (:include init-declarator))
-  "Reprerents 'enumerator' in C syntax BNF.")
+  "Represents 'enumerator' in C syntax BNF.")
 
 (defmethod make-load-form ((obj enumerator) &optional environment)
   (make-load-form-saving-slots obj :environment environment))
@@ -214,7 +214,7 @@ If required, makes a new struct-spec object."
   (setf (decl-specs-lisp-type dspecs) 'enum)
   (setf (decl-specs-tag dspecs)
 	(or (enum-spec-id espec) (gensym "unnamed-enum-")))
-  ;; addes values into lisp-decls
+  ;; adds values into lisp-decls
   (setf (decl-specs-enum-bindings dspecs)
 	(loop as default-initform = 0 then `(1+ ,e-decl)
 	   for e in (enum-spec-enumerator-list espec)
@@ -277,7 +277,7 @@ If required, makes a new struct-spec object."
        (return dspecs)))
 
 (defun finalize-decl-specs (dspecs)
-  "Checks and filles the passed decl-specs."
+  "Checks and fills the passed decl-specs."
   (finalize-type-spec dspecs)
   (setf (decl-specs-qualifier dspecs)
 	(remove-duplicates (decl-specs-qualifier dspecs)))
@@ -326,18 +326,18 @@ If required, makes a new struct-spec object."
     ret))
 
 (defun expand-init-declarator-init (dspecs abst-declarator initializer
-                                    &key (allow-incompleted nil))
+                                    &key (allow-incomplete nil))
   "Finds the specified type and the initialization form.
 Returns (values var-init var-type)."
-  (flet ((error-on-incompleted (datum &rest args)
-           (unless allow-incompleted
+  (flet ((error-on-incomplete (datum &rest args)
+           (unless allow-incomplete
              (apply #'error datum args))))
     (ecase (car (first abst-declarator))
       (:pointer
        (let ((next-type
               (nth-value 1 (expand-init-declarator-init
                             dspecs (cdr abst-declarator) nil
-                            :allow-incompleted t))))
+                            :allow-incomplete t))))
          (values (or initializer 0)
                  `(pseudo-pointer ,next-type))))
       (:funcall
@@ -374,7 +374,7 @@ Returns (values var-init var-type)."
               (var-type
                (if (and (or (null aref-dim) (member '* aref-dim))
                         (null initializer))
-                   (error-on-incompleted
+                   (error-on-incomplete
                     'compile-error
                     :format-control "Array's dimension is not fully specified: (~S, ~S)."
                     :format-arguments (list aref-dim initializer))
@@ -402,7 +402,7 @@ Returns (values var-init var-type)."
             (let* ((sspec (find-struct-spec (decl-specs-tag dspecs)))
                    (var-init
                     (if (not sspec)
-                        (error-on-incompleted
+                        (error-on-incomplete
                          'compile-error
                          :format-control "A struct named ~S is not defined."
                          :format-arguments (list (decl-specs-tag dspecs)))
@@ -421,7 +421,7 @@ Returns (values var-init var-type)."
             (values initializer var-type))))))))
 
 (defun finalize-init-declarator (dspecs init-decl)
-  "Filles the passed init-declarator object."
+  "Fills the passed init-declarator object."
   (let* ((decl (init-declarator-declarator init-decl))
          (init (init-declarator-initializer init-decl))
          (var-name (first decl))
@@ -459,7 +459,7 @@ Returns (values var-init var-type)."
 ;;; Expressions
 (eval-when (:compile-toplevel :load-toplevel :execute)
   ;; These are directly called by the parser..
-(defun concatinate-comma-list (lis op i)
+(defun concatenate-comma-list (lis op i)
   (declare (ignore op))
   (add-to-tail lis i))
 
@@ -720,7 +720,7 @@ If this is called outside of a variadic function, an error is
 signaled.
 
 * Notes
-This is not intended for calling directly. The ~va_start~ proprocessor
+This is not intended for calling directly. The ~va_start~ preprocessor
 macro uses this.
 
 When defining a variadic function, a macro has same name is locally
@@ -1016,7 +1016,7 @@ established.
     #'(lambda (us) (expand-translation-unit us)))
    (labeled-stat
     #'(lambda (st) (expand-toplevel-stat st)))
-   ;; exp-stat is not included, because it is gramatically ambiguous.
+   ;; exp-stat is not included, because it is grammatically ambiguous.
    (compound-stat
     #'(lambda (st) (expand-toplevel-stat st)))
    (selection-stat
@@ -1144,7 +1144,7 @@ established.
    (init-declarator
     #'list)
    (init-declarator-list \, init-declarator
-                         #'concatinate-comma-list))
+                         #'concatenate-comma-list))
 
   ;; returns an init-declarator structure
   (init-declarator
@@ -1185,7 +1185,7 @@ established.
    (struct-declarator
     #'list)
    (struct-declarator-list \, struct-declarator
-			   #'concatinate-comma-list))
+			   #'concatenate-comma-list))
 
   ;; returns a struct-declarator structure
   (struct-declarator
@@ -1220,7 +1220,7 @@ established.
    (enumerator
     #'list)
    (enumerator-list \, enumerator
-                    #'concatinate-comma-list))
+                    #'concatenate-comma-list))
 
   ;; returns an enumerator structure
   (enumerator
@@ -1299,13 +1299,13 @@ established.
   (param-type-list
    param-list
    (param-list \, |...|
-	       #'concatinate-comma-list))
+	       #'concatenate-comma-list))
 
   (param-list
    (param-decl
     #'list)
    (param-list \, param-decl
-	       #'concatinate-comma-list))
+	       #'concatenate-comma-list))
 
   (param-decl
    (decl-specs declarator
@@ -1319,7 +1319,7 @@ established.
    (id
     #'list)
    (id-list \, id
-    #'concatinate-comma-list))
+    #'concatenate-comma-list))
 
   (initializer
    assignment-exp
@@ -1336,7 +1336,7 @@ established.
    (initializer
     #'list)
    (initializer-list \, initializer
-    #'concatinate-comma-list))
+    #'concatenate-comma-list))
 
   ;; see 'decl'
   (type-name
@@ -1754,7 +1754,7 @@ established.
    (assignment-exp
     #'list)
    (argument-exp-list \, assignment-exp
-                      #'concatinate-comma-list))
+                      #'concatenate-comma-list))
 
   (const
    int-const
@@ -1766,7 +1766,7 @@ established.
 ;;; Macro interface
 (defmacro with-c-compilation-unit ((entry-form) &body body)
   "* Syntax
-~with-c-compilation-unit~ (entry-forn) &body form* => result*
+~with-c-compilation-unit~ (entry-form) &body form* => result*
 
 * Arguments and Values
 - entry-form  :: a form
@@ -1804,13 +1804,13 @@ Establishes variable bindings for a new compilation.
 This macro is a entry point of the with-c-syntax system.  ~forms~ are
 interpreted as C syntax, executed, and return values.
 
-~keyword-case~ specifies case sensitibily. Especially, if ~:upcase~ is
+~keyword-case~ specifies case sensitivity. Especially, if ~:upcase~ is
 specified, some case-insensitive feature is enabled for convenience.
 
 ~entry-form~ is inserted as an entry point when compiling a
 translation unit.
 
-If ~try-add-{}~ is t and an error occured at parsing, with-c-syntax
+If ~try-add-{}~ is t and an error occurred at parsing, with-c-syntax
 adds '{' and '}' into the head and tail of ~form~ respectively, and
 tries to parse again.
 "

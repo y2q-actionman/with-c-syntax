@@ -79,7 +79,7 @@
   (eval-equal 3 ()
     return test-add \( 1 \, 2 \) \;
     )
-  ;; other forn
+  ;; other form
   (eval-equal 3 ()
     return #'test-add \( 1 \, 2 \) \;
     )

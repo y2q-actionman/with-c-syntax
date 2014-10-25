@@ -92,7 +92,7 @@
     #2{
     return "\b\f\n\t\\\'\"\?";
     }#)
-  ;; depends ascii
+  ;; depends ASCII
   (eval-equal (coerce (list (code-char #x07) (code-char #x0d)
 			     (code-char #x0b))
 		      'string)

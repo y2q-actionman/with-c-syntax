@@ -272,7 +272,7 @@
     struct hoge { const x \; } foo = { 100 } \;
     return foo \. x \;
     })
-  ;; TODO: suport const
+  ;; TODO: support const
   #+ignore
   (assert-runtime-error ()
     {
@@ -292,7 +292,7 @@
     struct hoge { const unsigned volatile int x \; } foo = { 300 } \;
     return foo \. x \;
     })
-  ;; TODO: suport const
+  ;; TODO: support const
   #+ignore
   (assert-runtime-error ()
     {
@@ -536,7 +536,7 @@
     int x [ ] [ ] [ ] = { { { 0 \, 1 } \, { 2 \, 3 } } } \;
     return x [ 0 ] [ 1 ] [ 1 ] \;
     })
-  ;; TODO: add multi-dimensionals
+  ;; TODO: add multi-dimensional
   t)
 
 (defun test-array-pointer-decl ()

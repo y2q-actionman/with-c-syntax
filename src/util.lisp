@@ -80,20 +80,20 @@
       default))
 
 (defun ref-dimension-list (lis dim-1 &rest dims)
-  "Accesses a nested list like ~aref~, as a multi-dimentional array."
+  "Accesses a nested list like ~aref~, as a multi-dimensional array."
   (if (null dims)
       (nth dim-1 lis)
       (apply #'ref-dimension-list (nth dim-1 lis) (car dims) (cdr dims))))
 
 (defun (setf ref-dimension-list) (val lis dim-1 &rest dims)
-  "Accesses a nested list like ~aref~, as a multi-dimentional array."
+  "Accesses a nested list like ~aref~, as a multi-dimensional array."
   (if (null dims)
       (setf (nth dim-1 lis) val)
       (setf (apply #'ref-dimension-list (nth dim-1 lis) (car dims) (cdr dims))
             val)))
   
 (defun dimension-list-max-dimensions (lis)
-  "Calculates max lengthes per depth of a nested list."
+  "Calculates max lengths per depth of a nested list."
   (let ((max-depth 0)
         (dim-table (make-hash-table :test 'eq))) ; (depth . max-len)
     (labels ((dim-calc (depth lis)

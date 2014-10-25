@@ -50,7 +50,7 @@ The value is one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
 a list :: consists of plists.
 
 * Description
-Holds the current c-syntax reader environments, establised by the
+Holds the current c-syntax reader environments, established by the
 ~use-reader~.
 
 Its contents is a list of plists. The plists holds below:
@@ -331,7 +331,7 @@ In this level, these reader macros are installed.
          lost.
 - '.' :: Reads a solely '.' as a symbol. The 'consing dot'
          functionality is lost.
-- '\' :: The '\' becomes a ordinally constituent character. The
+- '\' :: The '\' becomes a ordinary constituent character. The
          'multiple escaping' functionality is lost.
 - '/' :: '//' means a line comment, '/* ... */' means a block comment.
          '/' is still non-terminating, and has special meanings only
