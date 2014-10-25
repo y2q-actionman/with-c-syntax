@@ -27,22 +27,26 @@
                  (:file "stddef" :depends-on ("util")))
                 :depends-on ("src"))
 	       (:file "package"
-		:depends-on ("src" "libc"))))
+                :depends-on ("src" "libc")))
+  :in-order-to ((asdf:test-op (asdf:test-op #:with-c-syntax.test))))
 
 (asdf:defsystem #:with-c-syntax.test
   :pathname #.(make-pathname :directory '(:relative "test"))
   :depends-on (#:with-c-syntax)
   :components ((:file "package")
-	       (:file "test-util" :depends-on ("package"))
-               (:file "test-stmt" :depends-on ("test-util"))
-	       (:file "test-decl" :depends-on ("test-util"))
-               (:file "test-pointer" :depends-on ("test-util"))
-	       (:file "test-trans" :depends-on ("test-util"))
-	       (:file "test-wcs" :depends-on ("test-util"))
-	       (:file "test-reader" :depends-on ("test-util"))
-	       (:file "test-preprocessor" :depends-on ("test-util"))
-	       (:file "test-examples" :depends-on ("test-util"))
-	       (:file "test-all"
-		:depends-on ("test-stmt" "test-decl" "test-pointer"
-			     "test-trans" "test-wcs" "test-reader"
-			     "test-preprocessor" "test-examples"))))
+	       (:file "util" :depends-on ("package"))
+               (:file "stmt" :depends-on ("util"))
+	       (:file "decl" :depends-on ("util"))
+               (:file "pointer" :depends-on ("util"))
+	       (:file "trans" :depends-on ("util"))
+	       (:file "wcs" :depends-on ("util"))
+	       (:file "reader" :depends-on ("util"))
+	       (:file "preprocessor" :depends-on ("util"))
+	       (:file "examples" :depends-on ("util"))
+	       (:file "all"
+		:depends-on ("stmt" "decl" "pointer"
+			     "trans" "wcs" "reader"
+			     "preprocessor" "examples")))
+  :perform (asdf:test-op (o s)
+             (uiop:symbol-call '#:with-c-syntax.test
+                               '#:test-all)))
