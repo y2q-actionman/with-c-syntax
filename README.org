@@ -37,57 +37,76 @@ implementation of the C Preprocessor.)
 * Examples
 ** Hello World
 #+BEGIN_SRC lisp
-CL-USER> (with-c-syntax ()
-#{
-  format (t, "Hello World!");
-}#)
-Hello World!
-NIL
-CL-USER> 
+  CL-USER> (with-c-syntax:use-reader)     ; enables #{ }# reader macros.
+  #<readtable @ #x1000122b162>
+  CL-USER> (with-c-syntax:with-c-syntax ()
+  #{
+    format (t, "Hello World!");
+  }#)
+             
+  Hello World!
+  NIL
+  CL-USER> (with-c-syntax:unuse-reader)   ; disables #{ }# reader macros.
+  #<readtable @ #x10000208b02>
+  CL-USER> 
 #+END_SRC
 
 ** Summing from 1 to 100.
+Because of using reader macros, this example may confuse the repl of
+slime.
+I tried this on SBCL's native repl.
+
 #+BEGIN_SRC lisp
-CL-USER> (with-c-syntax ()
-#{
-  int i, sum = 0;
+  ,* (with-c-syntax:use-reader)
   
-  for (i = 0; i <= 100; ++ i )
-    sum += i;
-  return sum;
-}#)
-5050
+  #<READTABLE {1003B9FA63}>
+  ,* (with-c-syntax:with-c-syntax ()
+  #{
+    int i, sum = 0;
+  
+    for (i = 0; i <= 100; ++ i )
+      sum += i;
+    return sum;
+  }#)
+  
+  5050
+  ,* (with-c-syntax:unuse-reader)
+  
+  #<READTABLE {10000009C3}>
+  *  
 #+END_SRC
 
 ** Duff's Device
 #+BEGIN_SRC lisp
-(defun w-c-s-duff-device (to-seq from-seq cnt)
-  (with-c-syntax ()
-    #{
-    int * to = & to-seq;
-    int * from = & from-seq;
-
-    int n = (cnt + 7) / 8;
-    n = floor(n);           /* Lisp's CL:/ produces rational */
-    switch (cnt % 8) {
-    case 0 :	do {	* to ++ = * from ++;
-    case 7 :		* to ++ = * from ++;
-    case 6 :		* to ++ = * from ++;
-    case 5 :		* to ++ = * from ++;
-    case 4 :		* to ++ = * from ++;
-    case 3 :		* to ++ = * from ++;
-    case 2 :		* to ++ = * from ++;
-    case 1 :		* to ++ = * from ++;
-      } while (-- n > 0);
-    }
-    }#)
-  to-seq)
-
-(setf arr1 (make-array 20 :initial-element 1))
-(setf arr2 (make-array 20 :initial-element 2))
-(w-c-s-duff-device arr1 arr2 10)
-
-arr1 ;; => #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
+  (with-c-syntax:use-reader)
+  (defun w-c-s-duff-device (to-seq from-seq cnt)
+    (with-c-syntax:with-c-syntax ()
+      #{
+      int * to = & to-seq;
+      int * from = & from-seq;
+  
+      int n = (cnt + 7) / 8;
+      n = floor(n);           /* Lisp's CL:/ produces rational */
+      switch (cnt % 8) {
+      case 0 :    do {    * to ++ = * from ++;
+      case 7 :            * to ++ = * from ++;
+      case 6 :            * to ++ = * from ++;
+      case 5 :            * to ++ = * from ++;
+      case 4 :            * to ++ = * from ++;
+      case 3 :            * to ++ = * from ++;
+      case 2 :            * to ++ = * from ++;
+      case 1 :            * to ++ = * from ++;
+        } while (-- n > 0);
+      }
+      }#)
+    to-seq)
+  (with-c-syntax:unuse-reader)
+  
+  (setf arr1 (make-array 20 :initial-element 1))
+  (setf arr2 (make-array 20 :initial-element 2))
+  (w-c-s-duff-device arr1 arr2 10)
+  
+  arr1 ;; => #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
 #+END_SRC
 
 * API
