@@ -143,7 +143,7 @@
 ;; of arguments to them does not exceed their precision.' (in 12.1.4.2
 ;; Rule of Float Approximation).
 ;; This means the range and precision in numeric operations are same
-;; as the type of its arguments, so 'FLT_EVAL_METHOD == 1'.
+;; as the type of its arguments, so 'FLT_EVAL_METHOD == 0'.
 ;; 
 ;; But, in "12.1.1.1 Associativity and Commutativity in Numeric
 ;; Operations", 
