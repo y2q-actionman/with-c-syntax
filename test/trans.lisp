@@ -196,3 +196,9 @@
   (test-trans-other-unit-struct)
   (test-trans-other-unit-typedef)
   t)
+
+;; TODO: add tests for toplevel pointer usage:
+;; (with-c-syntax:with-c-syntax ()
+;;   int wcs-duff-device-2 \( int to-seq \, int from-seq \, int cnt \) {
+;;    int * to = & to-seq \;
+;;    })

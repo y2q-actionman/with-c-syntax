@@ -966,7 +966,10 @@ established.
 	   ,@global-defs
 	   (labels (,@local-funcs)
 	     ,@func-defs
-	     (with-dynamic-bound-symbols (,@*dynamic-binding-requested*)
+	     (with-dynamic-bound-symbols
+		 ,(ecase mode
+			 (:statement *dynamic-binding-requested*)
+			 (:translation-unit nil))
 	       ,@code)))
       ;; drop expanded definitions
       (loop for sym in cleanup-typedef-names
