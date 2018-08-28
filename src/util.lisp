@@ -65,10 +65,9 @@
 
 (defmacro with-dynamic-bound-symbols ((&rest symbols) &body body)
   "Inside this, passed symbols are dynamically bound to itself."
-  ;; If no symbols, removes PROGV. This makes faster codes.
   (if (null symbols)
       `(progn ,@body)
-      `(progv ',symbols (list ,@symbols)
+      `(let ,(loop for s in symbols collect `(,s ,s))
 	 (locally (declare (special ,@symbols))
 	   ,@body))))
 
