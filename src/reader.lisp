@@ -45,43 +45,18 @@ The value is one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
 ~use-reader~.
 ")
 
-(defvar *previous-syntax* (copy-readtable nil)
+(defvar *previous-syntax-list* (list (copy-readtable nil))
   "* Value Type
-a readtable.
+a list of readtable.
 
 * Description
 Holds the readtable used by #\` syntax.
 Default is same as the standard readtable.")
 
-(defvar *current-c-reader* nil
-  "* Value Type
-a list :: consists of plists.
-
-* Description
-Holds the current c-syntax reader environments, established by the
-~use-reader~.
-
-Its contents is a list of plists. The plists holds below:
-- :level    -> the specified reader level.
-- :case     -> the specified reader case.
-")
-
-(defun push-c-reader (level case)
-  (push (list :level level :case case)
-	*current-c-reader*))
-
-(defun pop-c-reader ()
-  (pop *current-c-reader*))
-
-(defun find-c-reader ()
-  (or (first *current-c-reader*)
-      (list :level (translate-reader-level *default-reader-level*) ; default value
-	    :case nil)))
-  
 
 (defun read-in-previous-syntax (stream char)
   (declare (ignore char))
-  (let ((*readtable* *previous-syntax*))
+  (let ((*readtable* (first *previous-syntax-list*)))
     (read stream t nil t)))
 
 (defun read-single-character-symbol (stream char)
@@ -274,29 +249,34 @@ Its contents is a list of plists. The plists holds below:
     (set-macro-character #\/ #'read-slash nil readtable))
   readtable)
 
-(defmacro check-reader-level (place)
-  (once-only ((place-val place))
-    `(unless (translate-reader-level ,place-val)
-       (cerror "Use the default reader level."
-               'runtime-error
-               :format-control "Reader level ~S cannot be accepted."
-               :format-arguments (list ,place-val))
-       (setf ,place *default-reader-level*))))
-
-(defun read-in-c-syntax (stream char n)
-  (destructuring-bind (&key level case &allow-other-keys)
-      (find-c-reader)
-    (let* ((*readtable* (copy-readtable))
-	   (keyword-case (or case (readtable-case *readtable*)))
-           (level (or n level)))
-      (check-reader-level level)
-      (setf (readtable-case *readtable*) keyword-case)
-      (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
-      (install-c-reader *readtable* (translate-reader-level level))
-      `(with-c-syntax (:keyword-case ,keyword-case)
-	 ,@(read-2chars-delimited-list
-	    (cdr (assoc char +bracket-pair-alist+))
-	    #\# stream t)))))
+(defun make-#{-reader (default-level default-case)
+  (flet ((read-in-c-syntax (stream char n)
+	   (let* ((*readtable* (copy-readtable))
+		  (keyword-case (or default-case (readtable-case *readtable*)))
+		  (level (if n
+			     (alexandria:clamp n 0 3)
+			     default-level)))
+	     (setf (readtable-case *readtable*) keyword-case)
+	     (install-c-reader *readtable* (translate-reader-level level))
+	     ;; I forgot why this is required.. (2018-11-12)
+	     ;; (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
+	     `(with-c-syntax (:keyword-case ,keyword-case)
+		,@(read-2chars-delimited-list
+		   (cdr (assoc char +bracket-pair-alist+))
+		   #\# stream t)))))
+    (unless (translate-reader-level default-level)
+      (cerror "Use the default reader level."
+	      'runtime-error
+	      :format-control "Reader level ~S cannot be accepted."
+	      :format-arguments (list default-level))
+      (setf default-level *default-reader-level*))
+    (unless (member default-case '(nil :upcase :downcase :preserve :invert))
+      (cerror "Use nil."
+	      'runtime-error
+	      :format-control "Reader case ~S cannot be accepted."
+	      :format-arguments (list default-case))
+      (setf default-case nil))
+    #'read-in-c-syntax))
 
 (defmacro use-reader (&key (level *default-reader-level*) case)
   "* Syntax
@@ -414,17 +394,11 @@ There is no support for trigraphs or digraphs.
 * See Also
 ~with-c-syntax~, ~unuse-reader~.
 "
-  (check-reader-level level)
-  (unless (member case '(nil :upcase :downcase :preserve :invert))
-    (cerror "Use nil."
-            'runtime-error
-             :format-control "Reader case ~S cannot be accepted."
-             :format-arguments (list case))
-    (setf case nil))
   `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (push-c-reader (translate-reader-level ,level) ,case)
+     (push *readtable* *previous-syntax-list*)
      (setf *readtable* (copy-readtable))
-     (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
+     (set-dispatch-macro-character #\# #\{
+				   (make-#{-reader ,level ,case))
      *readtable*))
 
 (defmacro unuse-reader ()
@@ -445,8 +419,7 @@ Changes ~*readtable*~.
 ~unuse-reader~.
 "
   `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (progn (pop-c-reader)
-	    *readtable*)))
+     (pop *previous-syntax-list*)))
 
 ;;; References at implementation
 ;;; - https://gist.github.com/chaitanyagupta/9324402
