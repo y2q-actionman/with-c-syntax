@@ -68,8 +68,8 @@
   (if (null symbols)
       `(progn ,@body)
       `(let ,(loop for s in symbols collect `(,s ,s))
-	 (locally (declare (special ,@symbols))
-	   ,@body))))
+	 (declare (special ,@symbols))
+	 ,@body)))
 
 (defun make-dimension-list (dims &optional default)
   "Constructs a nested list like ~make-array~."

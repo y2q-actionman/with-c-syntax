@@ -23,7 +23,9 @@
      (ignore-errors (with-c-syntax (,@options) ,@body)))))
 
 (defmacro muffle-unused-code-warning (&body body)
+  #+sbcl
   `(locally
-       (declare
-        #+sbcl(sb-ext:muffle-conditions sb-ext:code-deletion-note))
-     ,@body))
+       (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
+     ,@body)
+  #-(or sbcl)			; To be supported..
+  `(progn ,@body))
