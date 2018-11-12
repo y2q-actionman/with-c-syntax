@@ -21,66 +21,111 @@ implementation of the C Preprocessor.)
 - asdf
 - cl-yacc
 - alexandria
+- named-readtables
 
 ** Load with ASDF
 #+BEGIN_SRC lisp
 (load "with-c-syntax.asd")
-
 (asdf:load-system :with-c-syntax)
 #+END_SRC
 
 ** Running tests
 #+BEGIN_SRC lisp
+(load "with-c-syntax-test.asd")
 (asdf:test-system :with-c-syntax)
 #+END_SRC
 
 * Examples
-** Hello World
+** Hello, World
+
 #+BEGIN_SRC lisp
-  CL-USER> (with-c-syntax:use-reader)     ; enables #{ }# reader macros.
-  #<readtable @ #x1000122b162>
-  CL-USER> (with-c-syntax:with-c-syntax ()
-  #{
-    format (t, "Hello World!");
-  }#)
-             
-  Hello World!
-  NIL
-  CL-USER> (with-c-syntax:unuse-reader)   ; disables #{ }# reader macros.
-  #<readtable @ #x10000208b02>
-  CL-USER> 
+CL-USER> (with-c-syntax:with-c-syntax ()
+    format \( t \, "Hello World!" \) \;
+  )
+
+Hello World!
+NIL
+#+END_SRC
+
+For suppressing Lisp's syntax, you need many '\' escapes.
+
+~#{~ and ~}#~ reader macro does these escapes, and wrap its contents
+into ~with-c-syntax~.  You can be used to write simply.
+
+#+BEGIN_SRC lisp
+CL-USER> (named-readtables:in-readtable
+	  with-c-syntax:with-c-syntax-readtable) ; enables #{ }# reader macros.
+...
+
+CL-USER> #{ format (t, "Hello World!"); }#
+
+Hello World!
+NIL
 #+END_SRC
 
 ** Summing from 1 to 100.
-Because of using reader macros, this example may confuse the repl of
-slime.
-I tried this on SBCL's native repl.
 
 #+BEGIN_SRC lisp
-  ,* (with-c-syntax:use-reader)
-  
-  #<READTABLE {1003B9FA63}>
-  ,* (with-c-syntax:with-c-syntax ()
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
   #{
     int i, sum = 0;
   
     for (i = 0; i <= 100; ++ i )
       sum += i;
     return sum;
-  }#)
-  
-  5050
-  ,* (with-c-syntax:unuse-reader)
-  
-  #<READTABLE {10000009C3}>
-  *  
+  }# ; => 5050
+#+END_SRC
+
+** Uses C syntax inside a Lisp function.
+
+#+BEGIN_SRC lisp
+  (defun transpose (arr)
+    (destructuring-bind (i-max j-max) (array-dimensions arr)
+      #{
+        int i,j,temp;
+        for (i = 0; i < i-max; i ++) {
+            for (j = i + 1; j < j-max; j ++) {
+                temp = arr[i][j];
+                arr[i][j] = arr[j][i];
+                arr[j][i] = temp;
+                // pprint (arr) ;
+            }
+        }
+      }#)
+    arr)
+
+  (transpose (make-array '(3 3)
+ 		:initial-contents '((0 1 2) (3 4 5) (6 7 8))))
+  ; => #2A((0 3 6) (1 4 7) (2 5 8))
+#+END_SRC
+
+** Defines a function with C syntax.
+
+#+BEGIN_SRC lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+  #{
+  int sum-of-list (list) {
+    int list-length = length(list);
+    int i, ret = 0;
+
+    for (i = 0; i < list-length; ++ i) {
+       ret += nth(i, list);
+    }
+
+    return ret;
+  }
+  }#
+
+  (sum-of-list '(1 2 3 4 5 6 7 8 9 10)) ; => 55
 #+END_SRC
 
 ** Duff's Device
 #+BEGIN_SRC lisp
-  (with-c-syntax:use-reader)
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
   (defun w-c-s-duff-device (to-seq from-seq cnt)
-    (with-c-syntax:with-c-syntax ()
       #{
       int * to = & to-seq;
       int * from = & from-seq;
@@ -98,9 +143,8 @@ I tried this on SBCL's native repl.
       case 1 :            * to ++ = * from ++;
         } while (-- n > 0);
       }
-      }#)
+      }#
     to-seq)
-  (with-c-syntax:unuse-reader)
   
   (setf arr1 (make-array 20 :initial-element 1))
   (setf arr2 (make-array 20 :initial-element 2))
@@ -110,94 +154,13 @@ I tried this on SBCL's native repl.
 #+END_SRC
 
 * API
-** Macro ~with-c-syntax~
-*** Syntax
-~with-c-syntax~ (&key keyword-case entry-form try-add-{}) form* => result*
+Please see these docstrings or comments:
 
-*** Arguments and Values
-- keyword-case :: one of ~:upcase~, ~:downcase~, ~:preserve~, or
-                  ~:invert~.  The default is the current readtable
-                  case.
-- entry-form :: a form.
-- try-add-{} :: a boolean.
-- forms   :: forms interpreted by this macro.
-- results :: the values returned by the ~forms~
+- Macro ~with-c-syntax~
 
-*** Description
-This macro is a entry point of the with-c-syntax system.  ~forms~ are
-interpreted as C syntax, executed, and return values.
-
-~keyword-case~ specifies case sensitivity. Especially, if ~:upcase~ is
-specified, some case-insensitive feature is enabled for convenience.
-
-~entry-form~ is inserted as an entry point when compiling a
-translation unit.
-
-If ~try-add-{}~ is t and an error occurred at parsing, with-c-syntax
-adds '{' and '}' into the head and tail of ~form~ respectively, and
-tries to parse again.
-
-** Function ~use-reader~
-*** Syntax
-~use-reader~ &key level case => readtable
-
-*** Arguments and Values
-- level :: one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
-           ~:overkill~, or ~:insane~.
-           The default is specified by ~*default-reader-level*~.
-- case :: one of ~:upcase~, ~:downcase~, ~:preserve~, ~:invert~, or
-          nil. The default is nil.
-
-*** Description
-This macro establishes a C syntax reader.
-
-~use-reader~ introduces a dispatching macro character '#{'.  Inside
-'#{' and '}#', the reader uses completely different syntax, and
-wrapped with ~with-c-syntax~ form.
-
-**** Syntax Levels
-For inside '#{' and '}#', four syntaxes are defined. These syntaxes
-are selected by the infix parameter of the '#{' dispatching macro
-character. If it not specified, The default is the ~level~ specified
-at ~use-reader~.
-
-If you interest for what syntaxes are defined, Please see the "Further
-Information" links at bottom.
-
-**** Syntax Cases
-When ~case~ is not nil, the specified case is used as the
-readtable-case inside '#{' and '}#', and the case is passed to the
-wrapping ~with-c-syntax~ form.
-
-When ~case~ is nil, the readtable-case of ~*readtable*~ at using
-'#{' is used.
-
-*** Side Effects
-Changes ~*readtable*~.
-
-*** Notes
-There is no support for trigraphs or digraphs.
-
-*** See Also
-~with-c-syntax~, ~unuse-reader~.
-
-** Function ~unuse-reader~
-*** Syntax
-~unuse-reader~ <no arguments> => readtable
-
-*** Arguments and Values
-- readtable :: a readtable
-
-*** Description
-Disposes the C reader established by ~use-reader~, and restores the
-previous readtable.
-
-*** Side Effects
-Changes ~*readtable*~.
-
-*** See Also
-~unuse-reader~.
-
+- defreadtable of ~with-c-syntax-readtable~
+- Variable ~*with-c-syntax-reader-level*~
+- Variable ~*with-c-syntax-reader-case*~
 
 * License
 

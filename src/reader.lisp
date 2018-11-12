@@ -31,18 +31,37 @@ Holds an alist translates 'reader level'.
 (defun translate-reader-level (rlspec)
   (cdr (assoc rlspec +reader-level-specifier-alist+)))
 
-(defvar *default-reader-level* :overkill
+(defconstant +with-c-syntax-default-reader-level+ :overkill)
+
+(defvar *with-c-syntax-reader-level* nil
   "* Value Type
 a symbol or a fixnum.
 
 * Description
-Holds the default reader level used in ~use-reader~.
+Holds the reader level used by '#{' reader function.
 
 The value is one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
-~:overkill~, or ~:insane~. The default is ~:overkill~.
+~:overkill~, or ~:insane~. The default is nil, recognized as ~:overkill~.
 
-* See Also
-~use-reader~.
+For inside '#{' and '}#', four syntaxes are defined. These syntaxes
+are selected by the infix parameter of the '#{' dispatching macro
+character. If it not specified, its default is this value.
+
+If you interest for what syntaxes are defined, Please see the 'reader.lisp'")
+
+(defvar *with-c-syntax-reader-case* nil
+  "* Value Type
+a symbol or nil
+
+* Description
+Holds the reader case used by '#{' reader function.
+
+When this is not nil, the specified case is used as the
+readtable-case inside '#{' and '}#', and the case is passed to the
+wrapping ~with-c-syntax~ form.
+
+When this is nil, the readtable-case of ~*readtable*~ at using
+'#{' is used.
 ")
 
 (defvar *previous-syntax-list* (list (copy-readtable nil))
@@ -203,7 +222,7 @@ Default is same as the standard readtable.")
 
 (defun install-c-reader (readtable level)
   "Inserts reader macros for C reader. Called by '#{' reader macro."
-  (assert (and (translate-reader-level level) (integerp level)))
+  (check-type level integer)
   (when (>= level 0)			; Conservative
     ;; Comma is read as a symbol.
     (set-macro-character #\, #'read-single-character-symbol nil readtable)
@@ -249,43 +268,46 @@ Default is same as the standard readtable.")
     (set-macro-character #\/ #'read-slash nil readtable))
   readtable)
 
-(defun make-#{-reader (default-level default-case)
-  (flet ((read-in-c-syntax (stream char n)
-	   (let* ((*readtable* (copy-readtable))
-		  (keyword-case (or default-case (readtable-case *readtable*)))
-		  (level (if n
-			     (alexandria:clamp n 0 3)
-			     default-level)))
-	     (setf (readtable-case *readtable*) keyword-case)
-	     (install-c-reader *readtable* (translate-reader-level level))
-	     ;; I forgot why this is required.. (2018-11-12)
-	     ;; (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
-	     `(with-c-syntax (:keyword-case ,keyword-case)
-		,@(read-2chars-delimited-list
-		   (cdr (assoc char +bracket-pair-alist+))
-		   #\# stream t)))))
-    (unless (translate-reader-level default-level)
-      (cerror "Use the default reader level."
-	      'runtime-error
-	      :format-control "Reader level ~S cannot be accepted."
-	      :format-arguments (list default-level))
-      (setf default-level *default-reader-level*))
-    (unless (member default-case '(nil :upcase :downcase :preserve :invert))
-      (cerror "Use nil."
-	      'runtime-error
-	      :format-control "Reader case ~S cannot be accepted."
-	      :format-arguments (list default-case))
-      (setf default-case nil))
-    #'read-in-c-syntax))
+(defun read-in-c-syntax (stream char n)
+  (let* ((*readtable* (copy-readtable))
+	 (level (if n (alexandria:clamp n 0 3)
+		    (or *with-c-syntax-reader-level*
+			+with-c-syntax-default-reader-level+)))
+	 (keyword-case (or *with-c-syntax-reader-case*
+			   (readtable-case *readtable*))))
+    (setf (readtable-case *readtable*) keyword-case)
+    (install-c-reader *readtable* (translate-reader-level level))
+    ;; I forgot why this is required.. (2018-11-12)
+    ;; (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
+    `(with-c-syntax (:keyword-case ,keyword-case)
+       ,@(read-2chars-delimited-list
+	  (cdr (assoc char +bracket-pair-alist+))
+	  #\# stream t))))
 
-(defmacro use-reader (&key (level *default-reader-level*) case)
+
+(defreadtable with-c-syntax-readtable
+  (:merge :standard)
+  (:dispatch-macro-char #\# #\{ #'read-in-c-syntax))
+
+;;; Sadly, `defreadtable' does not have docstring syntax..
+#|
+This readtable supplies '#{' reader macro.
+Inside '#{' and '}#', the reader uses completely different syntax, and
+wrapped with ~with-c-syntax~ form.
+|#
+
+
+;;; Old hand-made syntax changing macro. (TODO: move these docstrings).
+
+#+ (or)
+(defmacro use-reader (&key level case)
   "* Syntax
 ~use-reader~ &key level case => readtable
 
 * Arguments and Values
 - level :: one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
            ~:overkill~, or ~:insane~.
-           The default is specified by ~*default-reader-level*~.
+           The default is specified by ~*with-c-syntax-reader-level*~.
 - case :: one of ~:upcase~, ~:downcase~, ~:preserve~, ~:invert~, or
           nil. The default is nil.
 
@@ -401,6 +423,7 @@ There is no support for trigraphs or digraphs.
 				   (make-#{-reader ,level ,case))
      *readtable*))
 
+#+ (or)
 (defmacro unuse-reader ()
   "* Syntax
 ~unuse-reader~ <no arguments> => readtable

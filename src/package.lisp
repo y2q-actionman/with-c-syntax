@@ -24,6 +24,8 @@
         	#:define-parser
                 #:parse-with-lexer
 		#:yacc-parse-error)
+  (:import-from #:named-readtables
+        	#:defreadtable)
   (:export
    ;; condition.lisp
    #:with-c-syntax-error
@@ -42,8 +44,9 @@
    #:pseudo-pointer-dereference
    #:pseudo-pointer-invalidate
    ;; reader.lisp
-   #:use-reader
-   #:unuse-reader
+   #:with-c-syntax-readtable
+   #:*with-c-syntax-reader-level*
+   #:*with-c-syntax-reader-case*
    ;; struct.lisp
    #:find-struct-spec
    #:add-struct-spec

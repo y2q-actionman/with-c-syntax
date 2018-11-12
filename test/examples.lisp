@@ -141,7 +141,7 @@
   (assert (= 22 (w-c-s-pointer 10)))
   t)
 
-(use-reader)  
+(in-readtable with-c-syntax-readtable)  
 (defun w-c-s-duff-device (to-seq from-seq cnt)
   (with-c-syntax ()
     #{
@@ -163,7 +163,6 @@
     }
     }#)
   to-seq)
-(unuse-reader)
 
 (defun test-duff-device ()
   (let ((arr1 (make-array 20 :initial-element 1))

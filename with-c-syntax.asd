@@ -4,7 +4,7 @@
   :description "with-c-syntax is a fun package which introduces the C language syntax into Common Lisp."
   :license "WTFPL"
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
-  :depends-on (#:alexandria #:yacc)
+  :depends-on (#:alexandria #:yacc #:named-readtables)
   :components ((:module "src"
                 :components
                 ((:file "package")

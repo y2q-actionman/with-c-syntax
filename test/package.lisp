@@ -4,6 +4,7 @@
   (:use #:cl #:with-c-syntax.core)
   (:import-from #:alexandria
 		#:once-only)
+  (:use #:named-readtables)
   (:export #:test-all)
   (:documentation
    "with-c-syntax test package. No symbols are exported."))

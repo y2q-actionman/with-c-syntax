@@ -1,6 +1,8 @@
 (in-package #:with-c-syntax.test)
 
-(use-reader :level :conservative)
+(in-readtable with-c-syntax-readtable)
+
+#.(setf *with-c-syntax-reader-level* :conservative)
 (defun test-reader-conservative ()
   ;; comma
   (eval-equal 2 ()
@@ -19,9 +21,8 @@
     return 1 ? 2 : 3 \;
     }#)
   t)
-(unuse-reader)
 
-(use-reader :level :aggressive)
+#.(setf *with-c-syntax-reader-level* :aggressive)
 (defun test-reader-aggressive ()
   ;; { and }
   (eval-equal 99 ()
@@ -36,9 +37,8 @@
   (eval-equal 99 ()
     #{{return 99 \;}}#)
   t)
-(unuse-reader)
 
-(use-reader :level :overkill)
+#.(setf *with-c-syntax-reader-level* :overkill)
 (defun test-reader-overkill ()
   ;; `
   (eval-equal 7 ()
@@ -118,9 +118,8 @@
     #{{1;2;return 3;}}#
     )
   t)
-(unuse-reader)
 
-(use-reader :level :insane)
+#.(setf *with-c-syntax-reader-level* :insane)
 (defun test-reader-insane (&aux (x 2) (y 3))
   ;; comments
   (eval-equal 6 ()
@@ -321,10 +320,9 @@
       + 3;
     }#)
   t)
-(unuse-reader)
 
 
-(use-reader)
+#.(setf *with-c-syntax-reader-level* nil)
 
 #0{
 int test-reader-toplevel-conservative \( \) {
@@ -352,9 +350,8 @@ int test\-reader\-toplevel\-insane(){
 }
 }#
 
-(unuse-reader)
-
-(use-reader :level :conservative :case :preserve)
+#.(setf *with-c-syntax-reader-level* :conservative)
+#.(setf *with-c-syntax-reader-case* :preserve)
 (defun test-reader-case-sensitive ()
   (eval-equal nil ()
     #{
@@ -364,7 +361,6 @@ int test\-reader\-toplevel\-insane(){
     return x == X \;
     }#)
   t)
-(unuse-reader)
 
 (defun test-reader ()
   (test-reader-conservative)
@@ -379,3 +375,7 @@ int test\-reader\-toplevel\-insane(){
 
   (test-reader-case-sensitive)
   t)
+
+;;; Agh, I need file-local variable..
+#.(setf *with-c-syntax-reader-level* nil)
+#.(setf *with-c-syntax-reader-case* nil)

@@ -4,10 +4,12 @@
   (:use #:cl)
   (:import-from #:with-c-syntax.core
                 #:with-c-syntax
-                #:use-reader
-                #:unuse-reader)
+		#:with-c-syntax-readtable
+		#:*with-c-syntax-reader-level*
+		#:*with-c-syntax-reader-case*)
   (:export #:with-c-syntax
-           #:use-reader
-           #:unuse-reader)
+           #:with-c-syntax-readtable
+	   #:*with-c-syntax-reader-level*
+	   #:*with-c-syntax-reader-case*)
   (:documentation
    "with-c-syntax user package."))
