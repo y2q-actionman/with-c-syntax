@@ -45,6 +45,14 @@ The value is one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
 ~use-reader~.
 ")
 
+(defvar *previous-syntax* (copy-readtable nil)
+  "* Value Type
+a readtable.
+
+* Description
+Holds the readtable used by #\` syntax.
+Default is same as the standard readtable.")
+
 (defvar *current-c-reader* nil
   "* Value Type
 a list :: consists of plists.
@@ -56,13 +64,24 @@ Holds the current c-syntax reader environments, established by the
 Its contents is a list of plists. The plists holds below:
 - :level    -> the specified reader level.
 - :case     -> the specified reader case.
-- :previous -> the readtable used when ~use-reader~ called.
 ")
+
+(defun push-c-reader (level case)
+  (push (list :level level :case case)
+	*current-c-reader*))
+
+(defun pop-c-reader ()
+  (pop *current-c-reader*))
+
+(defun find-c-reader ()
+  (or (first *current-c-reader*)
+      (list :level (translate-reader-level *default-reader-level*) ; default value
+	    :case nil)))
+  
 
 (defun read-in-previous-syntax (stream char)
   (declare (ignore char))
-  (let ((*readtable*
-	 (getf (first *current-c-reader*) :previous)))
+  (let ((*readtable* *previous-syntax*))
     (read stream t nil t)))
 
 (defun read-single-character-symbol (stream char)
@@ -266,7 +285,7 @@ Its contents is a list of plists. The plists holds below:
 
 (defun read-in-c-syntax (stream char n)
   (destructuring-bind (&key level case &allow-other-keys)
-      (first *current-c-reader*)
+      (find-c-reader)
     (let* ((*readtable* (copy-readtable))
 	   (keyword-case (or case (readtable-case *readtable*)))
            (level (or n level)))
@@ -403,8 +422,7 @@ There is no support for trigraphs or digraphs.
              :format-arguments (list case))
     (setf case nil))
   `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (push (list :level ,level :case ,case :previous *readtable*)
-           *current-c-reader*)
+     (push-c-reader (translate-reader-level ,level) ,case)
      (setf *readtable* (copy-readtable))
      (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
      *readtable*))
@@ -427,8 +445,8 @@ Changes ~*readtable*~.
 ~unuse-reader~.
 "
   `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (let ((prev-reader (pop *current-c-reader*)))
-       (setf *readtable* (getf prev-reader :previous)))))
+     (progn (pop-c-reader)
+	    *readtable*)))
 
 ;;; References at implementation
 ;;; - https://gist.github.com/chaitanyagupta/9324402
