@@ -64,18 +64,18 @@ When this is nil, the readtable-case of ~*readtable*~ at using
 '#{' is used.
 ")
 
-(defvar *previous-syntax-list* (list (copy-readtable nil))
+(defvar *previous-syntax* nil
   "* Value Type
-a list of readtable.
+a readtable.
 
 * Description
 Holds the readtable used by #\` syntax.
-Default is same as the standard readtable.")
+Default is nil, which is treated as the standard readtable.")
 
 
 (defun read-in-previous-syntax (stream char)
   (declare (ignore char))
-  (let ((*readtable* (first *previous-syntax-list*)))
+  (let ((*readtable* (or *previous-syntax* (copy-readtable nil))))
     (read stream t nil t)))
 
 (defun read-single-character-symbol (stream char)
@@ -299,7 +299,6 @@ wrapped with ~with-c-syntax~ form.
 
 ;;; Old hand-made syntax changing macro. (TODO: move these docstrings).
 
-#+ (or)
 (defmacro use-reader (&key level case)
   "* Syntax
 ~use-reader~ &key level case => readtable
@@ -417,13 +416,14 @@ There is no support for trigraphs or digraphs.
 ~with-c-syntax~, ~unuse-reader~.
 "
   `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (push *readtable* *previous-syntax-list*)
-     (setf *readtable* (copy-readtable))
-     (set-dispatch-macro-character #\# #\{
-				   (make-#{-reader ,level ,case))
+     ;; (2018-11-13) In old code, I stucked readtables into a list.
+     ;; But I removed this feature because I use named-readtables.
+     (shiftf *previous-syntax* *readtable* (copy-readtable))
+     (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
+     (setf *with-c-syntax-reader-level* (translate-reader-level ,level)
+	   *with-c-syntax-reader-case* ,case)
      *readtable*))
 
-#+ (or)
 (defmacro unuse-reader ()
   "* Syntax
 ~unuse-reader~ <no arguments> => readtable
@@ -442,7 +442,9 @@ Changes ~*readtable*~.
 ~unuse-reader~.
 "
   `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (pop *previous-syntax-list*)))
+     (setf *with-c-syntax-reader-level* nil
+	   *with-c-syntax-reader-case* nil)
+     (shiftf *readtable* *previous-syntax*)))
 
 ;;; References at implementation
 ;;; - https://gist.github.com/chaitanyagupta/9324402
