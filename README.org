@@ -63,6 +63,8 @@ Hello World!
 NIL
 #+END_SRC
 
+This example shows you can call a Lisp function (~cl:format~) with C syntax.
+
 ** Summing from 1 to 100.
 
 #+BEGIN_SRC lisp
