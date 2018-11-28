@@ -53,8 +53,8 @@ For suppressing Lisp's syntax, you need many backshash escapes.
 into ~with-c-syntax~.  You can use it to write simply:
 
 #+BEGIN_SRC lisp
-CL-USER> (named-readtables:in-readtable
-	  with-c-syntax:with-c-syntax-readtable) ; enables #{ }# reader macros.
+;; enables #{ }# reader macros.
+CL-USER> (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
 ...
 
 CL-USER> #{ format (t, "Hello World!"); }#
@@ -76,13 +76,16 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
     for (i = 0; i <= 100; ++ i )
       sum += i;
     return sum;
-  }# ; => 5050
+  }#
+  ;; => 5050
 #+END_SRC
 
 ** Uses C syntax inside a Lisp function.
 
 #+BEGIN_SRC lisp
-  (defun transpose (arr)
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+  (defun array-transpose (arr)
     (destructuring-bind (i-max j-max) (array-dimensions arr)
       #{
         int i,j,temp;
@@ -97,7 +100,7 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
       }#)
     arr)
 
-  (transpose (make-array '(3 3)
+  (array-transpose (make-array '(3 3)
  		:initial-contents '((0 1 2) (3 4 5) (6 7 8))))
   ; => #2A((0 3 6) (1 4 7) (2 5 8))
 #+END_SRC
