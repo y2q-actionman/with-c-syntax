@@ -47,10 +47,10 @@ Hello World!
 NIL
 #+END_SRC
 
-For suppressing Lisp's syntax, you need many '\' escapes.
+For suppressing Lisp's syntax, you need many backshash escapes.
 
-~#{~ and ~}#~ reader macro does these escapes, and wrap its contents
-into ~with-c-syntax~.  You can be used to write simply.
+~#{~ and ~}#~ reader macro escapes them and wrap its contents
+into ~with-c-syntax~.  You can use it to write simply:
 
 #+BEGIN_SRC lisp
 CL-USER> (named-readtables:in-readtable
@@ -62,6 +62,8 @@ CL-USER> #{ format (t, "Hello World!"); }#
 Hello World!
 NIL
 #+END_SRC
+
+This example shows you can call a Lisp function (~cl:format~) with C syntax.
 
 ** Summing from 1 to 100.
 
