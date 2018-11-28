@@ -173,6 +173,48 @@
   t)
 
 
+(defun test-auto-return ()
+  (assert (= 100 (with-c-syntax (:return :auto)
+		   100 \;)))
+  (assert (= 1 (with-c-syntax (:return :auto)
+		 int i = 1 \; i \;)))
+  (assert (= 3 (with-c-syntax (:return :auto)
+		 1 \; 2 \; 3 \;)))
+  
+  ;; can be expanded, but does not works (`return' or other ways required.)
+  (assert (= 4 (with-c-syntax (:return :auto)
+		 if \( 10 \) return 4 \;)))
+  (assert (= 5 (with-c-syntax (:return :auto)
+		 ;; FIXME
+		 ;; `nil' cannot be directly used, we must quote it..
+		 if \( 'nil \) 4 \; else return 5 \;)))
+  (assert (eq (readtable-case *readtable*)
+	      (with-c-syntax (:return :auto)
+		switch \( (readtable-case *readtable*) \) {
+		case :upcase \: return :upcase \;
+		case :downcase \: return :downcase \;
+		case :preserve \: return :preserve \;
+		case :invert \: return :invert \;
+		default \: return "unknown!" \;
+		})))
+  (let ((tmp 0))
+    (with-c-syntax (:return :auto)
+      int i \;
+      for \( i = 0 \; i <= 100 \; ++ i \)
+      tmp += i \;
+      )
+    (assert (= tmp 5050)))
+  (assert (= 5050
+	     (with-c-syntax (:return :auto)
+	       int i = 0 \, j = 0 \;
+	       next_loop \:
+	       if \( i > 100 \) return j \;
+	       j += i \;
+	       ++ i \;
+	       goto next_loop \;)))
+  t)
+
+
 (defun test-examples ()
   (test-hello-world)
   (test-add-const)
@@ -183,4 +225,5 @@
   (test-switch)
   (test-goto)
   (test-pointer)
-  (test-duff-device))
+  (test-duff-device)
+  (test-auto-return))

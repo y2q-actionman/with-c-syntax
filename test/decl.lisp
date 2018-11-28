@@ -12,7 +12,7 @@
     { int a \; \( void \) a \; })
   (eval-equal nil ()
     { int \; })             ; should be warned?
-  (eval-equal nil ()
+  (eval-equal 0 ()	    ; returns b's init value.
     { int \; int a \; int \; int b \; \( void \) a \, b \; })
   t)
 

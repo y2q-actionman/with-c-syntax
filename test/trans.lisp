@@ -77,7 +77,7 @@
   t)
 
 (defun test-trans-decl-static ()
-  (eval-equal 99 (:entry-form xxx)
+  (eval-equal 99 (:return xxx)
     static int xxx = 99 \; )
   (assert (not (boundp 'xxx)))
   (with-c-syntax ()
@@ -122,7 +122,7 @@
   t)
 
 (defun test-trans-fdefinition-and-storage-class ()
-  (eval-equal 3 (:entry-form (s-func 1 2))
+  (eval-equal 3 (:return (s-func 1 2))
     static int s-func \( x \, y \)
       int x \, y \;
     { return x + y \; }

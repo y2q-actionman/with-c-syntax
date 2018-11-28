@@ -25,7 +25,7 @@
   t)
 
 (defun test-wcs-option-combine ()
-  (eval-equal 1 (:entry-form xxx)
+  (eval-equal 1 (:return xxx)
     (with-c-syntax ()
       static int xxx = 1 \;))
   t)

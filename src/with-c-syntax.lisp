@@ -44,8 +44,23 @@ This is used only when compiling a translation unit. Not used for
 other cases.
 
 * Notes
-At the beginning of ~with-c-syntax~, it binds this variable to its
-~entry-form~ argument.
+At the beginning of ~with-c-syntax~, it binds this variable depending
+on its ~return~ argument.
+
+* Affected By
+~with-c-compilation-unit~.
+")
+
+(defvar *return-last-statement* t
+  "* Value Type
+a boolean
+
+* Description
+Specifies which to return the last form's value of compound statements.
+
+* Notes
+At the beginning of ~with-c-syntax~, it binds this variable depending
+on its ~return~ argument.
 
 * Affected By
 ~with-c-compilation-unit~.
@@ -985,10 +1000,24 @@ established.
                      sym :test #'eq :count 1)))))
 
 (defun expand-toplevel-stat (stat)
-  (expand-toplevel :statement
-                   (stat-declarations stat)
-		   nil
-                   `((block nil (tagbody ,@(stat-code stat))))))
+  (let* ((stat-codes (stat-code stat))
+	 (last-form (car (last stat-codes)))
+	 (ex-last-code
+	   (if (and *return-last-statement*
+		    (or (not (symbolp last-form))
+			;; uninterned symbols (gensym) are assumed as C labels.
+			(symbol-package last-form)))
+	       `(return ,last-form)
+	       last-form))
+	 (ex-code
+	   `(block nil
+	      (tagbody
+		 ,@(butlast stat-codes)
+		 ,ex-last-code))))
+    (expand-toplevel :statement
+		     (stat-declarations stat)
+		     nil
+		     `(,ex-code))))
 
 (defun expand-translation-unit (units)
   (loop for u in units
@@ -1016,6 +1045,7 @@ established.
   ;; top level forms in C, or statements
   (wcs-entry-point
    (translation-unit
+    ;; I require `lambda' for avoiding `eval-when' around `expand-translation-unit'
     #'(lambda (us) (expand-translation-unit us)))
    (labeled-stat
     #'(lambda (st) (expand-toplevel-stat st)))
@@ -1767,12 +1797,14 @@ established.
   )
 
 ;;; Macro interface
-(defmacro with-c-compilation-unit ((entry-form) &body body)
+(defmacro with-c-compilation-unit ((entry-form return-last?)
+				   &body body)
   "* Syntax
-~with-c-compilation-unit~ (entry-form) &body form* => result*
+~with-c-compilation-unit~ (entry-form return-last?) &body form* => result*
 
 * Arguments and Values
 - entry-form  :: a form
+- return-last? :: a boolean
 - forms       :: a implicit progn
 - results     :: the values returned by forms
 
@@ -1783,12 +1815,24 @@ Establishes variable bindings for a new compilation.
          (*typedef-names* (copy-hash-table *typedef-names*))
          (*dynamic-binding-requested* nil)
          (*function-pointer-ids* nil)
-         (*toplevel-entry-form* ,entry-form))
+         (*toplevel-entry-form* ,entry-form)
+	 (*return-last-statement* ,return-last?))
      ,@body))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun expand-c-syntax (body try-add-{})
+    (handler-case 
+	(parse-with-lexer (list-lexer body) *expression-parser*)
+      (yacc-parse-error (condition)
+	(if (and try-add-{}
+		 (not (starts-with '{ body)))
+	    (expand-c-syntax `({ ,@body }) nil)
+	    (error 'with-c-syntax-parse-error
+		   :yacc-error condition))))))
 
 (defmacro with-c-syntax (&whole whole
 			 (&key (keyword-case (readtable-case *readtable*))
-			       (entry-form nil)
+			       (return :auto)
 			       (try-add-{} t))
 			 &body body)
   "* Syntax
@@ -1798,9 +1842,9 @@ Establishes variable bindings for a new compilation.
 - keyword-case :: one of ~:upcase~, ~:downcase~, ~:preserve~, or
                   ~:invert~.  The default is the current readtable
                   case.
-- entry-form :: a form.
+- return   :: ~:auto~, or a form
 - try-add-{} :: a boolean.
-- forms   :: forms interpreted by this macro.
+- form   :: form(s) interpreted by this macro.
 - results :: the values returned by the ~forms~
 
 * Description
@@ -1810,24 +1854,15 @@ interpreted as C syntax, executed, and return values.
 ~keyword-case~ specifies case sensitivity. Especially, if ~:upcase~ is
 specified, some case-insensitive feature is enabled for convenience.
 
-~entry-form~ is inserted as an entry point when compiling a
-translation unit.
+If ~return~ is ~:auto~, returns the last form's value if ~body~ is a
+(simple) compound statement, or returns NIL is ~body~ is a compilation unit.
+If it is not, its valus is inserted after the compilation result
+translation units. (This feature is intended to access 'static' variables.)
 
 If ~try-add-{}~ is t and an error occurred at parsing, with-c-syntax
 adds '{' and '}' into the head and tail of ~form~ respectively, and
 tries to parse again.
 "
-  (labels ((expand-c-syntax (body)
-	     (handler-case 
-		 (with-c-compilation-unit (entry-form)
-		   (parse-with-lexer (list-lexer body)
-				     *expression-parser*))
-	       (yacc-parse-error (condition)
-                 (if (and try-add-{}
-                          (not (starts-with '{ body)))
-		     (expand-c-syntax `({ ,@body }))
-		     (error 'with-c-syntax-parse-error
-                            :yacc-error condition))))))
     (cond
       ((null body)
        nil)
@@ -1838,4 +1873,6 @@ tries to parse again.
 	     (first body)
 	   `(,op (,@keyargs1 ,@keyargs2) ,@body2))))
       (t
-       (expand-c-syntax (preprocessor body keyword-case))))))
+       (with-c-compilation-unit ((if (eq return :auto) nil return) 
+				  (eq return :auto))
+	 (expand-c-syntax (preprocessor body keyword-case) try-add-{})))))
