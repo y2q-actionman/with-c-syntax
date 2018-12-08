@@ -1,7 +1,5 @@
 # -*- mode: org; coding: utf-8; -*-
 
-[![Quicklisp](http://quickdocs.org/badge/with-c-syntax.svg)(http://quickdocs.org/with-c-syntax/)]
-
 * 概要
 *with-c-syntax* は、 Common Lisp に C 言語の記法を持ち込む一発ネタのパッ
 ケージです。全くもって真面目な用途は想定していません。
