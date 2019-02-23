@@ -2,6 +2,15 @@
 
 (in-readtable with-c-syntax-readtable)
 
+(defun test-nil-reading ()
+  (let ((*standard-output* (make-broadcast-stream))) ; dispose output.
+    (assert (equal #{ format (t, "Hello World!"); }#
+		   nil)))
+  ;; (2019-2-24) Added for testing NIL reader.
+  (assert (equal #{ format (nil, "Hello World!"); }#
+		 "Hello World!"))
+  t)
+
 #.(setf *with-c-syntax-reader-level* :conservative)
 (defun test-reader-conservative ()
   ;; comma
@@ -352,7 +361,7 @@ int test\-reader\-toplevel\-insane(){
 
 #.(setf *with-c-syntax-reader-level* :conservative)
 #.(setf *with-c-syntax-reader-case* :preserve)
-(defun test-reader-case-sensitive ()
+(defun test-reader-case-sensitivity ()
   (eval-equal nil ()
     #{
     int x \, X \;
@@ -363,6 +372,8 @@ int test\-reader\-toplevel\-insane(){
   t)
 
 (defun test-reader ()
+  (test-nil-reading)
+  
   (test-reader-conservative)
   (test-reader-aggressive)
   (test-reader-overkill)
@@ -373,7 +384,7 @@ int test\-reader\-toplevel\-insane(){
   (test-reader-toplevel-overkill)
   (test-reader-toplevel-insane)
 
-  (test-reader-case-sensitive)
+  (test-reader-case-sensitivity)
   t)
 
 ;;; Agh, I need file-local variable..
