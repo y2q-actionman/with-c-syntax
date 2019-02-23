@@ -72,7 +72,9 @@ on its ~return~ argument.
       (let ((value (pop list)))
         (typecase value
           (null
-           (values nil nil))
+	   (if list
+	       (values 'id nil)
+	       (values nil nil)))
           (symbol
            (cond ((member value +operators-and-keywords+ :test #'eq)
                   ;; They must be belongs this package.

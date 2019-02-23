@@ -17,6 +17,18 @@ freestanding implementation. (The lacking part is the full
 implementation of the C Preprocessor.)
 
 * Loading
+
+** Loading by quicklisp
+
+This library is quicklisp-ready.
+[[http://quickdocs.org/with-c-syntax][http://quickdocs.org/badge/with-c-syntax.svg]]
+
+#+BEGIN_SRC lisp
+(ql:quickload "with-c-syntax")
+#+END_SRC
+
+** or, Loading manually
+
 ** Libraries depending on
 - asdf
 - cl-yacc

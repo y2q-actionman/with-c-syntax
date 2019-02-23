@@ -199,25 +199,25 @@ calls the function like:
   call the preprocessor recursively.
 "
   (loop with ret = nil
-     with typedef-hack = nil
+     with typedef-hack of-type boolean = nil
+     with expanded-marker of-type symbol = (gensym)
      for token = (pop lis)
-     while token
      ;; preprocessor macro
      when (symbolp token)
      do (when-let*
             ((entry (find-preprocessor-macro token case-spec))
              (expansion (cdr entry)))
           (cond ((null expansion)     ; no-op
-                 nil)                   
+                 (progn))                   
                 ((functionp expansion) ; preprocessor funcion
                  (multiple-value-bind (ex-val new-lis)
                      (preprocessor-call-macro lis expansion)
                    (push ex-val ret)
                    (setf lis new-lis)
-                   (setf token nil)))
+                   (setf token expanded-marker)))
                 (t                  ; symbol expansion
                  (push expansion ret)
-                 (setf token nil))))
+                 (setf token expanded-marker))))
      ;; string concatenation
      when (stringp token)
      do (loop for i = (pop lis)
@@ -226,9 +226,9 @@ calls the function like:
            finally
 	     (push i lis) ; write back the last object (not a string).
              (push (apply #'concatenate 'string token strs) ret)
-             (setf token nil))
+             (setf token expanded-marker))
      ;; otherwise..
-     when token
+     unless (eq token expanded-marker)
      do (push token ret)
 
      ;; typedef hack -- adds "void ;" after each typedef.
@@ -241,5 +241,6 @@ calls the function like:
        (push '\; ret)
      end
 
+     while lis ; (2019-2-24) I must check 'lis' here to get all symbols including NIL.
      finally
        (return (nreverse ret))))
