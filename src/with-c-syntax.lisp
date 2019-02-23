@@ -1822,20 +1822,21 @@ Establishes variable bindings for a new compilation.
      ,@body))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun expand-c-syntax (body try-add-{})
-    (handler-case 
-	(parse-with-lexer (list-lexer body) *expression-parser*)
+  (defun expand-c-syntax (body try-add-{} entry-form return-last?)
+    (handler-case
+	(with-c-compilation-unit (entry-form return-last?)
+	  (parse-with-lexer (list-lexer body) *expression-parser*))
       (yacc-parse-error (condition)
 	(if (and try-add-{}
 		 (not (starts-with '{ body)))
-	    (expand-c-syntax `({ ,@body }) nil)
+	    (expand-c-syntax `({ ,@body }) nil entry-form return-last?)	; retry
 	    (error 'with-c-syntax-parse-error
 		   :yacc-error condition))))))
 
 (defmacro with-c-syntax (&whole whole
-			 (&key (keyword-case (readtable-case *readtable*))
-			       (return :auto)
-			       (try-add-{} t))
+			   (&key (keyword-case (readtable-case *readtable*))
+				 (return :auto)
+				 (try-add-{} t))
 			 &body body)
   "* Syntax
 ~with-c-syntax~ (&key keyword-case entry-form try-add-{}) form* => result*
@@ -1857,7 +1858,8 @@ interpreted as C syntax, executed, and return values.
 specified, some case-insensitive feature is enabled for convenience.
 
 If ~return~ is ~:auto~, returns the last form's value if ~body~ is a
-(simple) compound statement, or returns NIL is ~body~ is a compilation unit.
+simple compound statement, or returns NIL is ~body~ is a compilation
+unit.
 If it is not, its valus is inserted after the compilation result
 translation units. (This feature is intended to access 'static' variables.)
 
@@ -1865,16 +1867,17 @@ If ~try-add-{}~ is t and an error occurred at parsing, with-c-syntax
 adds '{' and '}' into the head and tail of ~form~ respectively, and
 tries to parse again.
 "
-    (cond
-      ((null body)
-       nil)
-      ((and (length= 1 (the list body)) ; with-c-syntax is nested.
-            (starts-with 'with-c-syntax (first body)))
-       (let ((keyargs1 (second whole)))
-	 (destructuring-bind (op keyargs2 &body body2)
-	     (first body)
-	   `(,op (,@keyargs1 ,@keyargs2) ,@body2))))
-      (t
-       (with-c-compilation-unit ((if (eq return :auto) nil return) 
-				  (eq return :auto))
-	 (expand-c-syntax (preprocessor body keyword-case) try-add-{})))))
+  (cond
+    ((null body)
+     nil)
+    ((and (length= 1 (the list body))	; with-c-syntax is nested.
+	  (starts-with 'with-c-syntax (first body)))
+     (let ((keyargs1 (second whole)))
+       (destructuring-bind (op keyargs2 &body body2)
+	   (first body)
+	 `(,op (,@keyargs1 ,@keyargs2) ,@body2))))
+    (t
+     (expand-c-syntax (preprocessor body keyword-case)
+		      try-add-{}
+		      (if (eq return :auto) nil return)
+		      (eq return :auto)))))
