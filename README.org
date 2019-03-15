@@ -59,7 +59,7 @@ Hello World!
 NIL
 #+END_SRC
 
-For suppressing Lisp's syntax, you need many backshash escapes.
+For suppressing Lisp's syntax, you need many backslash escapes.
 
 ~#{~ and ~}#~ reader macro escapes them and wrap its contents
 into ~with-c-syntax~.  You can use it to write simply:
@@ -92,7 +92,7 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
   ;; => 5050
 #+END_SRC
 
-** Uses C syntax inside a Lisp function.
+** Using C syntax inside a Lisp function.
 
 #+BEGIN_SRC lisp
   (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
@@ -117,7 +117,7 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
   ; => #2A((0 3 6) (1 4 7) (2 5 8))
 #+END_SRC
 
-** Defines a function with C syntax.
+** Defining a function with C syntax.
 
 #+BEGIN_SRC lisp
   (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
