@@ -3,7 +3,10 @@
   :license "WTFPL"
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
   :depends-on (#:alexandria #:yacc #:named-readtables)
-  :components ((:module "src"
+  :serial t
+  :components ((:file "package")
+	       (:module "src"
+		:serial nil	
                 :components
                 ((:file "package")
 		 (:file "util" :depends-on ("package"))
@@ -18,6 +21,7 @@
                  (:file "reader" :depends-on ("with-c-syntax"))))
                (:module "libc"
 		:pathname #.(make-pathname :directory '(:relative "src" "libc"))
+		:serial nil	
                 :components
                 ((:file "package")
 		 (:file "util" :depends-on ("package"))
@@ -25,8 +29,5 @@
                  (:file "iso646" :depends-on ("util"))
                  (:file "limits" :depends-on ("util"))
                  (:file "stdarg" :depends-on ("util"))
-                 (:file "stddef" :depends-on ("util")))
-                :depends-on ("src"))
-	       (:file "package"
-                :depends-on ("src" "libc")))
+                 (:file "stddef" :depends-on ("util")))))
   :in-order-to ((test-op (test-op #:with-c-syntax-test))))

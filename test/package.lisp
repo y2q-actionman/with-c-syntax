@@ -6,5 +6,4 @@
 		#:once-only)
   (:use #:named-readtables)
   (:export #:test-all)
-  (:documentation
-   "with-c-syntax test package. No symbols are exported."))
+  (:documentation "with-c-syntax test package."))

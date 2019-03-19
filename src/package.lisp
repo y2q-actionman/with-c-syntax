@@ -1,7 +1,7 @@
 (in-package #:cl-user)
 
 (defpackage #:with-c-syntax.core
-  (:use #:cl)
+  (:use #:cl #:with-c-syntax)
   (:import-from #:alexandria
                 #:copy-hash-table	; 1. Hash Tables
 		#:define-constant	; 2. Data and Control Flow
