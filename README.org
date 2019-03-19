@@ -34,6 +34,7 @@ This library is quicklisp-ready.
 - cl-yacc
 - alexandria
 - named-readtables
+- 1am (only by test codes.)
 
 ** Load with ASDF
 #+BEGIN_SRC lisp
@@ -174,22 +175,23 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
 Please see these docstrings or comments:
 
 - Macro ~with-c-syntax~
-
 - defreadtable of ~with-c-syntax-readtable~
 - Variable ~*with-c-syntax-reader-level*~
 - Variable ~*with-c-syntax-reader-case*~
 
+* Further Information
+What this macro does is only expanding a list of symbols to a Lisp form.
+If you want a "C to Common Lisp" compiler, you should see [[https://github.com/vsedach/Vacietis][Vacietis]].
+
+If you are still interested, please see:
+https://github.com/y2q-actionman/with-c-syntax/wiki
+
 * License
 
-Copyright (c) 2014 YOKOTA Yuki <y2q.actionman@gmail.com>
+Copyright (c) 2014,2019 YOKOTA Yuki <y2q.actionman@gmail.com>
 
 This program is free software. It comes without any warranty, to
 the extent permitted by applicable law. You can redistribute it
 and/or modify it under the terms of the Do What The Fuck You Want
 To Public License, Version 2, as published by Sam Hocevar. See
 the COPYING file for more details.
-
-
-* Further Information
-Please see:
-https://github.com/y2q-actionman/with-c-syntax/wiki
