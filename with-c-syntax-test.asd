@@ -1,6 +1,4 @@
-(in-package #:cl-user)
-
-(asdf:defsystem #:with-c-syntax.test
+(defsystem #:with-c-syntax-test
   :description "test for with-c-syntax."
   :license "WTFPL"
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
@@ -20,6 +18,6 @@
 		:depends-on ("stmt" "decl" "pointer"
 			     "trans" "wcs" "reader"
 			     "preprocessor" "examples")))
-  :perform (asdf:test-op (o s)
-             (uiop:symbol-call '#:with-c-syntax.test
-                               '#:test-all)))
+  :perform (test-op (o s)
+             (symbol-call '#:with-c-syntax.test
+                          '#:test-all)))

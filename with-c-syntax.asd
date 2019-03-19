@@ -1,6 +1,4 @@
-(in-package #:cl-user)
-
-(asdf:defsystem #:with-c-syntax
+(defsystem #:with-c-syntax
   :description "with-c-syntax is a fun package which introduces the C language syntax into Common Lisp."
   :license "WTFPL"
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
@@ -31,4 +29,4 @@
                 :depends-on ("src"))
 	       (:file "package"
                 :depends-on ("src" "libc")))
-  :in-order-to ((asdf:test-op (asdf:test-op #:with-c-syntax.test))))
+  :in-order-to ((test-op (test-op #:with-c-syntax-test))))

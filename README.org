@@ -37,13 +37,13 @@ This library is quicklisp-ready.
 
 ** Load with ASDF
 #+BEGIN_SRC lisp
-(load "with-c-syntax.asd")
+(asdf:load-asd "with-c-syntax.asd")
 (asdf:load-system :with-c-syntax)
 #+END_SRC
 
 ** Running tests
 #+BEGIN_SRC lisp
-(load "with-c-syntax-test.asd")
+(asdf:load-asd "with-c-syntax-test.asd")
 (asdf:test-system :with-c-syntax)
 #+END_SRC
 
