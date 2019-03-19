@@ -2,47 +2,43 @@
 
 ;;; expressions
 
-(defun test-const ()
-  (eval-equal 1 ()
+(test test-const
+  (is.equal.wcs 1
     return 1 \;)
-  (eval-equal #\a ()
+  (is.equal.wcs #\a
     return #\a \;)
-  (eval-equal 1.0 ()
-    return 1.0 \;)
-  t)
+  (is.equal.wcs 1.0
+    return 1.0 \;))
 
-(defun test-primary-exp ()
-  (eval-equal 'hoge ()
+(test test-primary-exp
+  (is.equal.wcs 'hoge
     return 'hoge \;)
-  (test-const)
-  (eval-equal "abc" ()
+  (is.equal.wcs "abc"
     return "abc" \;)
-  (eval-equal 111 ()
+  (is.equal.wcs 111
     return \( 111 \) \;)
   ;; lisp expression
-  (eval-equal 3 ()
-    return (+ 1 2) \;)
-  t)
+  (is.equal.wcs 3
+    return (+ 1 2) \;))
 
-(defun test-postfix-exp ()
-  (test-primary-exp)
+(test test-postfix-exp
   ;; aref
   (let ((arr (make-array 5 :initial-contents '(0 1 2 3 4))))
-    (eval-equal 2 ()
+    (is.equal.wcs 2
       return arr [ 2 ] \;))
   ;; funcall
-  (eval-equal '(1 2 3) ()
+  (is.equal.wcs '(1 2 3)
     return list \( 1 \, 2 \, 3 \) \;)
-  (eval-equal '() ()
+  (is.equal.wcs '()
     return list \( \) \;)
   ;; struct ref
-  (eval-equal 99 ()
+  (is.equal.wcs 99
     {
     struct hoge { int x \; } \;
     struct hoge x = { 99 } \;
     return x \. x \;
     })
-  (eval-equal 99 ()
+  (is.equal.wcs 99
     {
     struct hoge { int x \; } \;
     struct hoge x = { 99 } \;
@@ -50,234 +46,199 @@
     })
   ;; post increment/decrement
   (let ((hoge 0))
-    (eval-equal 0 ()
+    (is.equal.wcs 0
       return hoge ++ \;)
-    (assert (= hoge 1))
-    (eval-equal 1 ()
+    (is (= hoge 1))
+    (is.equal.wcs 1
       return hoge -- \;)
-    (assert (= hoge 0)))
-  t)
+    (is (= hoge 0))))
 
-(defun test-unary-exp ()
-  (test-postfix-exp)
+(test test-unary-exp
   ;; pre increment/decrement
   (let ((hoge 0))
-    (eval-equal 1 ()
+    (is.equal.wcs 1
       return ++ hoge \;)
-    (assert (= hoge 1))
-    (eval-equal 0 ()
+    (is (= hoge 1))
+    (is.equal.wcs 0
       return -- hoge \;)
-    (assert (= hoge 0)))
+    (is (= hoge 0)))
   ;; '&' and '*'
   (let ((hoge 99))
-    (eval-equal 99 ()
+    (is.equal.wcs 99
       return * & hoge \;)
-    (eval-equal 99 ()
+    (is.equal.wcs 99
       return * & hoge \;))
   ;; '+' and '-'
-  (eval-equal -1 ()
+  (is.equal.wcs -1
     return + -1 \;)
-  (eval-equal 1 ()
+  (is.equal.wcs 1
       return - -1 \;)
   ;; '!'
   (let ((hoge nil))
-    (eval-equal t ()
+    (is.equal.wcs t
       return ! hoge \;)
-    (eval-equal nil ()
+    (is.equal.wcs nil
       return ! ! hoge \;))
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     return sizeof 2 \;)
-  (eval-equal 1 ()
-    return sizeof \( int \) \;)
-  t)
+  (is.equal.wcs 1
+    return sizeof \( int \) \;))
 
-(defun test-cast-exp ()
-  (test-unary-exp)
+(test test-cast-exp
   (let ((hoge 10))
-    (eval-equal 10 ()
+    (is.equal.wcs 10
       { return \( int \) hoge \; })
-    (eval-equal 10 ()
-      { return \( int \) \( int * \) hoge \; }))
-  t)
+    (is.equal.wcs 10
+      { return \( int \) \( int * \) hoge \; })))
 
-(defun test-mult-exp ()
-  (test-cast-exp)
-  (eval-equal 18 ()
+(test test-mult-exp
+  (is.equal.wcs 18
     return 6 * 3 \;)
-  (eval-equal 2 ()
+  (is.equal.wcs 2
     return 6 / 3 \;)
-  (eval-equal 1 ()
-    return 3 % 2 \;)
-  t)
+  (is.equal.wcs 1
+    return 3 % 2 \;))
 
-(defun test-addictive-exp ()
-  (test-mult-exp)
-  (eval-equal 5 ()
+(test test-addictive-exp
+  (is.equal.wcs 5
     return 3 + 2 \;)
-  (eval-equal 1 ()
-    return 3 - 2 \;)
-  t)
+  (is.equal.wcs 1
+    return 3 - 2 \;))
 
-(defun test-shift-exp ()
-  (test-addictive-exp)
-  (eval-equal 8 ()
+(test test-shift-exp
+  (is.equal.wcs 8
     return 4 << 1 \;)
-  (eval-equal 2 ()
-    return 4 >> 1 \;)
-  t)
+  (is.equal.wcs 2
+    return 4 >> 1 \;))
 
-(defun test-relational-exp ()
-  (test-shift-exp)
-  (eval-equal t ()
+(test test-relational-exp
+  (is.equal.wcs t
     return 1 < 2 \;)
-  (eval-equal nil ()
+  (is.equal.wcs nil
     return 1 > 2 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return 1 <= 2 \;)
-  (eval-equal nil ()
-    return 1 >= 2 \;)
-  t)
+  (is.equal.wcs nil
+    return 1 >= 2 \;))
 
-(defun test-equality-exp ()
-  (test-relational-exp)
-  (eval-equal nil ()
+(test test-equality-exp
+  (is.equal.wcs nil
     return 1 == 2 \;)
-  (eval-equal t ()
-    return 1 != 2 \;)
-  t)
+  (is.equal.wcs t
+    return 1 != 2 \;))
 
-(defun test-and-exp ()
-  (test-equality-exp)
-  (eval-equal #b0001 ()
-    return #b0011 & #b0101 \;)
-  t)
+(test test-and-exp
+  (is.equal.wcs #b0001
+    return #b0011 & #b0101 \;))
 
-(defun test-exclusive-or-exp ()
-  (test-and-exp)
-  (eval-equal #b0110 ()
-    return #b0011 ^ #b0101 \;)
-  t)
+(test test-exclusive-or-exp
+  (is.equal.wcs #b0110
+    return #b0011 ^ #b0101 \;))
 
-(defun test-inclusive-or-exp ()
-  (test-exclusive-or-exp)
-  (eval-equal #b0111 ()
-    return #b0011 \| #b0101 \;)
-  t)
+(test test-inclusive-or-exp
+  (is.equal.wcs #b0111
+    return #b0011 \| #b0101 \;))
 
-(defun test-logical-and-exp ()
-  (test-inclusive-or-exp)
+(test test-logical-and-exp
   (muffle-unused-code-warning
-    (eval-equal nil ()
+    (is.equal.wcs nil
       return (or) && 'b \;))
-  (eval-equal 'b ()
-    return 'a && 'b \;)
-  t)
+  (is.equal.wcs 'b
+    return 'a && 'b \;))
 
-(defun test-logical-or-exp ()
-  (test-logical-and-exp)
+(test test-logical-or-exp
   (muffle-unused-code-warning
-    (eval-equal 'a ()
+    (is.equal.wcs 'a
       return 'a \|\| 'b \;))
-  (eval-equal 'b ()
-    return (or) \|\| 'b \;)
-  t)
+  (is.equal.wcs 'b
+    return (or) \|\| 'b \;))
 
-(defun test-conditional-exp ()
-  (test-logical-or-exp)
+(test test-conditional-exp
   (muffle-unused-code-warning
-    (eval-equal 'then ()
+    (is.equal.wcs 'then
       return (and) ? 'then \: 'else \;)
-    (eval-equal 'else ()
-      return (or) ? 'then \: 'else \;))
-  t)
+    (is.equal.wcs 'else
+      return (or) ? 'then \: 'else \;)))
 
-(defun test-assignment-exp ()
-  (test-conditional-exp)
+(test test-assignment-exp
   (let ((x nil) (y 2))
-    (eval-equal 2 ()
+    (is.equal.wcs 2
       return x = y \;)
-    (assert (= x 2))
-    (eval-equal 4 ()
+    (is (= x 2))
+    (is.equal.wcs 4
       return x *= y \;)
-    (assert (= x 4))
-    (eval-equal 2 ()
+    (is (= x 4))
+    (is.equal.wcs 2
       return x /= y \;)
-    (assert (= x 2))
-    (eval-equal 0 ()
+    (is (= x 2))
+    (is.equal.wcs 0
       return x %= y \;)
-    (assert (= x 0))
-    (eval-equal 2 ()
+    (is (= x 0))
+    (is.equal.wcs 2
       return x += y \;)
-    (assert (= x 2))
-    (eval-equal 0 ()
+    (is (= x 2))
+    (is.equal.wcs 0
       return x -= y \;)
-    (assert (= x 0))
+    (is (= x 0))
 
     (setf x 1)
-    (eval-equal 4 ()
+    (is.equal.wcs 4
       return x <<= y \;)
-    (assert (= x 4))
-    (eval-equal 1 ()
+    (is (= x 4))
+    (is.equal.wcs 1
       return x >>= y \;)
-    (assert (= x 1))
+    (is (= x 1))
 
     (setf x #b0011 y #b0101)
-    (eval-equal #b0001 ()
+    (is.equal.wcs #b0001
       return x &= y \;)
-    (assert (= x #b0001))
+    (is (= x #b0001))
 
     (setf x #b0011 y #b0101)
-    (eval-equal #b0110 ()
+    (is.equal.wcs #b0110
       return x ^= y \;)
-    (assert (= x #b0110))
+    (is (= x #b0110))
 
     (setf x #b0011 y #b0101)
-    (eval-equal #b0111 ()
+    (is.equal.wcs #b0111
       return x \|= y \;)
-    (assert (= x #b0111)))
-  t)
+    (is (= x #b0111))))
 
-(defun test-exp ()
-  (test-assignment-exp)
-  (eval-equal 'z ()
-    return 'x \, 'y \, 'z \;)
-  t)
+(test test-exp
+  (is.equal.wcs 'z
+    return 'x \, 'y \, 'z \;))
 
 
 ;;; statements
 
-(defun test-labeled-stmt ()
-  (eval-equal 'some-stmt ()
+(test test-labeled-stmt
+  (is.equal.wcs 'some-stmt
     a \: return 'some-stmt \;)
-  (eval-equal 'some-stmt ()
+  (is.equal.wcs 'some-stmt
     case 100 \: return 'some-stmt \;)
-  (eval-equal 'some-stmt ()
-    default \: return 'some-stmt \;)
-  t)
+  (is.equal.wcs 'some-stmt
+    default \: return 'some-stmt \;))
 
-(defun test-exp-stmt ()
-  (test-exp)
-  (eval-equal nil ()
-    { \; })
-  t)
+(test test-exp-stmt
+  (is.equal.wcs nil
+    { \; }))
 
-(defun test-compound-stmt ()
+(test test-compound-stmt
   (let ((x 0))
-    (eval-equal 3 ()
+    (is.equal.wcs 3
       { x ++ \; x ++ \; x ++ \; return x \; }))
-  (eval-equal nil ()
-    {  })
-  t)
+  (is.equal.wcs nil
+    {  }))
 
-(defun test-selection-stmt ()
-  (eval-equal 'then ()
+(test test-selection-stmt
+  (is.equal.wcs 'then
     if \( (and) \) return 'then \; )
   (muffle-unused-code-warning
-    (eval-equal 'nil ()
+    (is.equal.wcs 'nil
       if \( (or) \) return 'then \; )
-    (eval-equal 'then ()
+    (is.equal.wcs 'then
       if \( (and) \) return 'then \; else return 'else \;)
-    (eval-equal 'else ()
+    (is.equal.wcs 'else
       if \( (or) \) return 'then \; else return 'else \;))
 
   (flet ((switch-test (x)
@@ -287,44 +248,43 @@
              case 2 \: return 'fuga \;
              default \: return 'piyo \;
 	     })))
-    (assert (eq 'hoge (switch-test 1)))
-    (assert (eq 'fuga (switch-test 2)))
-    (assert (eq 'piyo (switch-test 3))))
-  t)
+    (is (eq 'hoge (switch-test 1)))
+    (is (eq 'fuga (switch-test 2)))
+    (is (eq 'piyo (switch-test 3)))))
 
-(defun test-iteration-stmt ()
+(test test-iteration-stmt
   (let ((x 0))
-    (eval-equal 100 ()
+    (is.equal.wcs 100
       while \( 1 \) {
       ++ x \;
       if \( x >= 100 \) return x \;
       }))
 
   (let ((x 0))
-    (eval-equal 100 ()
+    (is.equal.wcs 100
       {
       while \( x < 100 \)
         ++ x \;
       return x \;
       }))
   (let ((x 1))
-    (eval-equal 2 ()
+    (is.equal.wcs 2
       {
       do {
         ++ x \;
       } while \( x < 0 \) \;
       return x \;
       }))
-  ;; for family
+  ;; 'for' and its variations
   (let ((i nil) (ret 0))
-    (eval-equal 5050 ()
+    (is.equal.wcs 5050
       {
       for \( i = 1 \; i <= 100 \; ++ i \)
         ret += i \;
       return ret \;
       }))
   (let ((i nil) (ret 0))
-    (eval-equal 5050 ()
+    (is.equal.wcs 5050
       {
       for \( i = 1 \; i <= 100 \; \) {
         ret += i \;
@@ -333,7 +293,7 @@
       return ret \;
       }))
   (let ((i nil) (ret 0))
-    (eval-equal 5050 ()
+    (is.equal.wcs 5050
       {
       for \( i = 0 \; \; ++ i \) {
   	if \( ! \( i <= 100 \) \) break \;
@@ -342,7 +302,7 @@
       return ret \;
       }))
   (let ((i nil) (ret 0))
-    (eval-equal 5050 ()
+    (is.equal.wcs 5050
       {
       for \( i = 0 \; \; \) {
   	if \( ! \( i <= 100 \) \) break \;
@@ -353,7 +313,7 @@
       }))
 
   (let ((i nil) (ret 0))
-    (eval-equal 5050 ()
+    (is.equal.wcs 5050
       {
       i = 0 \;
       for \( \; i <= 100 \; ++ i \)
@@ -361,7 +321,7 @@
       return ret \;
       }))
   (let ((i nil) (ret 0))
-    (eval-equal 5050 ()
+    (is.equal.wcs 5050
       {
       i = 0 \;
       for \( \; i <= 100 \; \) {
@@ -371,7 +331,7 @@
       return ret \;
       }))
   (let ((i nil) (ret 0))
-    (eval-equal 5050 ()
+    (is.equal.wcs 5050
       {
       i = 0 \;
       for \( \; \; ++ i \) {
@@ -381,7 +341,7 @@
       return ret \;
       }))
   (let ((i nil) (ret 0))
-    (eval-equal 5050 ()
+    (is.equal.wcs 5050
       {
       i = 0 \;
       for \( \; \; \) {
@@ -390,13 +350,12 @@
   	++ i \;
       }
       return ret \;
-      }))
-  t)
+      })))
 
-(defun test-jump-stmt ()
+(test test-jump-stmt
   ;; (simple) goto
   (muffle-unused-code-warning
-    (eval-equal 'y ()
+    (is.equal.wcs 'y
       {
       goto y \;
       x \: return 'x \;
@@ -405,7 +364,7 @@
   ;; break, continue
   (let ((i nil) (ret 0))
     (muffle-unused-code-warning
-      (eval-equal 5050 ()
+      (is.equal.wcs 5050
         {
         for \( i = 1 \; \; ++ i \) {
   	  if \( ! \( i <= 100 \) \) break \;
@@ -416,17 +375,7 @@
         return ret \;
         })))
   ;; return
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     return 1 \; )
-  (eval-equal nil ()
-    return \;)
-  t)
-
-(defun test-stmt ()
-  (test-labeled-stmt)
-  (test-exp-stmt)
-  (test-compound-stmt)
-  (test-selection-stmt)
-  (test-iteration-stmt)
-  (test-jump-stmt)
-  t)
+  (is.equal.wcs nil
+    return \;))

@@ -2,272 +2,267 @@
 
 ;;; declarations
 
-(defun test-decl-simple ()
-  (eval-equal nil ()
+(test test-decl-simple
+  (is.equal.wcs nil
     int *xxx* \;)
-  (assert (boundp '*xxx*))
-  (eval-equal 1 ()
+  (is (boundp '*xxx*))
+  (is.equal.wcs 1
     { int a \; a = 1 \; return a \; })
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { int a \; \( void \) a \; })
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { int \; })             ; should be warned?
-  (eval-equal 0 ()	    ; returns b's init value.
-    { int \; int a \; int \; int b \; \( void \) a \, b \; })
-  t)
+  (is.equal.wcs 0	    ; returns b's init value.
+    { int \; int a \; int \; int b \; \( void \) a \, b \; }))
 
-(defun test-decl-list ()
-  (eval-equal 1 ()
+(test test-decl-list
+  (is.equal.wcs 1
     { int a = 1 \; return a \; })
-  (eval-equal 2 ()
+  (is.equal.wcs 2
     { int a = 1 \; int b = 2 \; return a \, b \; })
-  (eval-equal 3 ()
-    { int a = 1 \; int b = 2 \; int c = 3 \; return a \, b \, c \; })
-  t)
+  (is.equal.wcs 3
+    { int a = 1 \; int b = 2 \; int c = 3 \; return a \, b \, c \; }))
 
 ;; TODO: add 'global' decl -- into translation-unit tests.
 ;; TODO: add 'static' decl's extent test.
 ;; TODO: add typedef
-(defun test-decl-specs ()
+(test test-decl-specs
   ;; storage-class
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { int x = 1 \; return x \; })
-  (eval-equal 2 ()
+  (is.equal.wcs 2
     { auto int x = 2 \; return x \; })
-  (eval-equal 3 ()
+  (is.equal.wcs 3
     { register int x = 3 \; return x \; })
-  (eval-equal 4 ()
+  (is.equal.wcs 4
     { static int x = 4 \; return x \; })
   (let ((x 5))
-    (eval-equal 5 ()
+    (is.equal.wcs 5
       { extern int x \; return x \; }))
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { extern int x = 999 \; })
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { typedef int \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { typedef int x = 999 \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { auto auto auto int \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { auto register int \; })
 
-  (eval-equal 6 ()
+  (is.equal.wcs 6
     { auto x = 6 \; return x \; })
-  (eval-equal 7 ()
+  (is.equal.wcs 7
     { register x = 7 \; return x \; })
-  (eval-equal 8 ()
+  (is.equal.wcs 8
     { static x = 8 \; return x \; })
   (let ((x 9))
-    (eval-equal 9 ()
+    (is.equal.wcs 9
       { extern x \; return x \; }))
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { extern x = 999 \; })
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { typedef x  \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { typedef x = 999 \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { auto auto \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { auto register \; })
 
-  (eval-equal nil ()
+  (is.equal.wcs nil
     int func \( \) \;)
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     auto int func \( \) \;)
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     register int func \( \) \;)
-  (eval-equal nil ()
+  (is.equal.wcs nil
     static int func \( \) \;)
-  (eval-equal nil ()
+  (is.equal.wcs nil
     extern int func \( \) \;)
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     typedef int func \( \) \;)
 
   ;; type-spec
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { void x \; })
 
-  (eval-equal 10 ()
+  (is.equal.wcs 10
     { int x = 10 \; return x \; })
-  (eval-equal 11 ()
+  (is.equal.wcs 11
     { signed int x = 11 \; return x \; })
-  (eval-equal 11 ()
+  (is.equal.wcs 11
     { unsigned int x = 11 \; return x \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { signed signed x \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { signed unsigned x \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { unsigned unsigned x \; })
-  (eval-equal 12 ()
+  (is.equal.wcs 12
     { short int x = 12 \; return x \; })
-  (eval-equal 13 ()
+  (is.equal.wcs 13
     { short signed int x = 13 \; return x \; })
-  (eval-equal 14 ()
+  (is.equal.wcs 14
     { short unsigned int x = 14 \; return x \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { short short x \; })
-  (eval-equal 15 ()
+  (is.equal.wcs 15
     { long int x = 15 \; return x \; })
-  (eval-equal 16 ()
+  (is.equal.wcs 16
     { signed long int x = 16 \; return x \; })
-  (eval-equal 17 ()
+  (is.equal.wcs 17
     { unsigned long int x = 17 \; return x \; })
-  (eval-equal 18 ()
+  (is.equal.wcs 18
     { long long int x = 18 \; return x \; })
-  (eval-equal 19 ()
+  (is.equal.wcs 19
     { signed long long int x = 19 \; return x \; })
-  (eval-equal 20 ()
+  (is.equal.wcs 20
     { unsigned long long int x = 20 \; return x \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { long long long \; })
 
-  (eval-equal 21 ()
+  (is.equal.wcs 21
     { char x = 21 \; return x \; })
-  (eval-equal 22 ()
+  (is.equal.wcs 22
     { signed char x = 22 \; return x \; })
-  (eval-equal 23 ()
+  (is.equal.wcs 23
     { char unsigned x = 23 \; return x \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { short char \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { long char \; })
 
-  (eval-equal 1f1 ()
+  (is.equal.wcs 1f1
     { float x = 1f1 \; return x \; })
-  (eval-equal 2s2 ()			; This is our extension.
+  (is.equal.wcs 2s2			; This is our extension.
     { short float x = 2s2 \; return x \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { long float \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { signed float \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { unsigned float \; })
 
-  (eval-equal 3d3 ()
+  (is.equal.wcs 3d3
     { double x = 3d3 \; return x \; })
-  (eval-equal 4l4 ()
+  (is.equal.wcs 4l4
     { long double x = 4l4 \; return x \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { short double \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { signed double \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { unsigned double \; })
 
   ;; cv-qualifier
-  (eval-equal 30 ()
+  (is.equal.wcs 30
     { const int x = 30 \; return x \; })
-  (eval-equal 31 ()
+  (is.equal.wcs 31
     { int const x = 31 \; return x \; })
-  (eval-equal 32 ()
+  (is.equal.wcs 32
     { const x = 32 \; return x \; })
   ;; TODO: support this?
-  ;; (assert-compile-error ()
+  ;; (signals.macroexpand.wcs ()
   ;;   { int const x = 0 \; x = 1 \; })
 
-  (eval-equal 33 ()
+  (is.equal.wcs 33
     { volatile int x = 33 \; return x \; })
-  (eval-equal 34 ()
+  (is.equal.wcs 34
     { int volatile x = 34 \; return x \; })
-  (eval-equal 35 ()
+  (is.equal.wcs 35
     { volatile x = 35 \; return x \; })
 
-  (eval-equal 36 ()
+  (is.equal.wcs 36
     { const volatile register signed short int x = 36 \; return x \; })
 
-  (assert-compile-error ()
-    { const auto unsigned int float \; })
-  t)
+  (signals.macroexpand.wcs ()
+    { const auto unsigned int float \; }))
 
-(defun test-struct-or-union-spec ()
-  (assert-compile-error ()
+(test test-struct-or-union-spec
+  (signals.macroexpand.wcs ()
     { struct \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { union \; })
-  (eval-equal 100 ()
+  (is.equal.wcs 100
     {
     struct hoge { int x \; } foo \;
     foo \. x = 100 \;
     return foo \. x \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct hoge { int x \; int y \; } foo \;
     foo \. x = foo \. y = 1 \;
     return foo \. x == foo \. y \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct hoge { int x \; int y \; int z \; } foo \;
     foo \. x = foo \. y = foo \. z = 1 \;
     return foo \. x == foo \. y && foo \. y == foo \. z \;
     })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     {
     struct { int x \; } foo \;
     foo \. x = 1 \;
     return foo \. x \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct { int x \; int y \; } foo \;
     foo \. x = foo \. y = 1 \;
     return foo \. x == foo \. y \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct a \;
     struct a * p \;
     \( void \) p \;
     return t \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     union a \;
     union a * p \;
     \( void \) p \;
     return t \;
     })
-  (eval-equal 100 ()
+  (is.equal.wcs 100
     {
     union hoge { int x \; int y \; } foo \;
     foo \. x = 100 \;
     return foo \. x \;
-    })
-  t)
+    }))
 
-(defun test-init-declarator-list ()
-  (eval-equal t ()
+(test test-init-declarator-list
+  (is.equal.wcs t
     { int a \; \( void \) a \; return t \; })
-  (eval-equal t ()
+  (is.equal.wcs t
     { int a \, b \; \( void \) a \, b \; return t \; })
-  (eval-equal t ()
+  (is.equal.wcs t
     { int a \, b \, c \; \( void \) a \, b \, c \; return t \; })
-  (eval-equal 0 ()
+  (is.equal.wcs 0
     { int a = 0 \; return a \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { int a \, b = 1 \; \( void \) a \; return b \; })
-  (eval-equal t ()
-    { int a \, b = 1 \, c = 2 \; \( void \) a \; return b == 1 && c == 2 \; })
-  t)
+  (is.equal.wcs t
+    { int a \, b = 1 \, c = 2 \; \( void \) a \; return b == 1 && c == 2 \; }))
 
 ;; TODO: add cv-qualifier tests!
-(defun test-spec-qualifier-list ()
-  (eval-equal 100 ()
+(test test-spec-qualifier-list
+  (is.equal.wcs 100
     {
     struct hoge { int x \; } foo = { 100 } \;
     return foo \. x \;
     })
-  (eval-equal 101 ()
+  (is.equal.wcs 101
     {
     struct hoge { unsigned x \; } foo = { 101 } \;
     return foo \. x \;
     })
 
-  (eval-equal 100 ()
+  (is.equal.wcs 100
     {
     struct hoge { const x \; } foo = { 100 } \;
     return foo \. x \;
@@ -280,14 +275,14 @@
     foo \. x = 99 \;
     })
 
-  (eval-equal 200 ()
+  (is.equal.wcs 200
     {
     struct hoge { volatile x \; } foo \;
     foo \. x = 200 \;
     return foo \. x \;
     })
 
-  (eval-equal 300 ()
+  (is.equal.wcs 300
     {
     struct hoge { const unsigned volatile int x \; } foo = { 300 } \;
     return foo \. x \;
@@ -299,346 +294,339 @@
     struct hoge { const unsigned volatile int x \; } foo = { 300 } \;
     foo \. x = 9999 \;
     })
-  t)
+  )
 
-(defun test-struct-declarator ()
-  (eval-equal t ()
+(test test-struct-declarator
+  (is.equal.wcs t
     { struct hoge { int x \; } foo \; \( void \) foo \; return t \; })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct hoge { int x \, y \; } foo \;
     foo \. x = foo \. y = 1 \;
     return foo \. x == foo \. y \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct hoge { int x \, y \, z \; } foo \;
     foo \. x = foo \. y = foo \. z = 1 \;
     return foo \. x == foo \. y && foo \. y == foo \. z \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct hoge { int x \: 3 \; } foo \;
     foo \. x = 1 \;
     return foo \. x == 1 \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct hoge { int x \, y \: 3 \; } foo \;
     foo \. x = foo \. y = 1 \;
     return foo \. x == foo \. y \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct hoge { int x \: 1 \, y \: 5 \, z \: 8 \; } foo \;
     foo \. x = foo \. y = foo \. z = 1 \;
     return foo \. x == foo \. y && foo \. y == foo \. z \;
     })
-  (assert-compile-error ()
-    { struct hoge { int x \: 99 \; } \; })
-  t)
+  (signals.macroexpand.wcs ()
+    { struct hoge { int x \: 99 \; } \; }))
 
-(defun test-enum-spec ()
-  (eval-equal 100 ()
+(test test-enum-spec
+  (is.equal.wcs 100
     {
     enum hoge \;
     enum hoge foo = 100 \;
     return foo \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     enum hoge { x \, y = 4 \, z } \;
     return x == 0 && y == 4 && z == 5 \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     enum { x = 0 \, y \, z = 3 } \;
     return x == 0 && y == 1 && z == 3 \;
-    })
-  t)
+    }))
 
 
-(defun test-param-type-list ()
+(test test-param-type-list
   ;; NOTE: These 'sizeof' test only checks these notations can be parsed or not..
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int \( int \) \) \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int \( unsigned int \) \) \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int \( int * \) \) \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int \( int * * \) \) \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int \( const unsigned int * hoge \) \) \; })
-  (eval-equal 1 ()
-    { return sizeof \( int \( const struct hogehoge * * \) \) \; })
-  t)
+  (is.equal.wcs 1
+    { return sizeof \( int \( const struct hogehoge * * \) \) \; }))
 
-(defun test-type-name ()
+(test test-type-name
   ;; uses cast
-  (eval-equal 5 ()
+  (is.equal.wcs 5
     { unsigned x = 5 \; return \( int \) x \; })
-  (eval-equal 8 ()
+  (is.equal.wcs 8
     { int x = 8 \; return \( unsigned int \) x \; })
 
   ;; NOTE: These 'sizeof' test only checks these notations can be parsed or not..
 
   ;; abstract-declarator -- pointer
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int * \) \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int const * \) \; }) 	; not included in pointer..
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int * const \) \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int * * \) \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int * const * const * \) \; })
 
   ;; abstract-declarator -- direct-abstract-declarator
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int \( * \) \) \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int \( * \( int \) \) \) \; })
 
-  (eval-equal 2 ()
+  (is.equal.wcs 2
     { return sizeof \( int [ 1 ] [ 2 ] \) \; })
-  (eval-equal 6 ()
+  (is.equal.wcs 6
     { return sizeof \( int [ 1 ] [ 2 ] [ 3 ] \) \; })
-  (eval-equal 5 ()
+  (is.equal.wcs 5
     { return sizeof \( int [ 5 ] \) \; })
 
-  (assert-compile-error ()		; empty dims
+  (signals.macroexpand.wcs ()		; empty dims
     { return sizeof \( int [ ] \) \; })
-  (assert-compile-error ()		; empty dims
+  (signals.macroexpand.wcs ()		; empty dims
     { return sizeof \( int [ ] [ ] [ ] \) \; })
 
-  (assert-compile-error ()		; array of funcs
+  (signals.macroexpand.wcs ()		; array of funcs
     { return sizeof \( int [ ] \( int \) \) \; })
 
   ;; 'sizeof' to function. (It is a weird extension..)
-  (eval-equal 1 ()			; using param-type-list
+  (is.equal.wcs 1			; using param-type-list
     { return sizeof \( int \( int \) \) \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int \( int \, |...| \) \) \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int \( int \, int \) \) \; })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int \( int \, int \, const int \) \) \; })
 
-  (assert-compile-error ()		; array of funcs
+  (signals.macroexpand.wcs ()		; array of funcs
     { return sizeof \( int [ ] \( \) \) \; })
-  (assert-compile-error ()		; func returns a func
+  (signals.macroexpand.wcs ()		; func returns a func
     { return sizeof \( int \( \) \( \) \) \; })
-  (eval-equal 1 ()			; K&R-style func
+  (is.equal.wcs 1			; K&R-style func
     { return sizeof \( int \( \) \) \; })
 
   ;; abstract-declarator
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     { return sizeof \( int * \( * \) \) \; })
-  (eval-equal 1 ()
-    { return sizeof \( int * \( * \( int \) \) \) \; })
-  t)
+  (is.equal.wcs 1
+    { return sizeof \( int * \( * \( int \) \) \) \; }))
 
 
-(defun test-declarator ()
+(test test-declarator ()
   ;; uses init-declarator
 
   ;; NOTE: These tests only checks these notations can be parsed or not..
 
-  (eval-equal 0 ()
+  (is.equal.wcs 0
     { int x = 0 \; return x \; })
-  (eval-equal 0 ()
+  (is.equal.wcs 0
     { int * x = 0 \; return x \; })
-  (eval-equal 0 ()
+  (is.equal.wcs 0
     { int * * x = 0 \; return x \; })
 
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { int func \( x \) \; })
-  (eval-equal 0 ()
+  (is.equal.wcs 0
     { int x [ 5 ] \; return x [ 0 ] \; })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     { int x [ ] \; })
 
   ;; function declaration is treated as 'extern', so vanished..
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { int x \( int \) \; })
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { int x \( int \, float \) \; })
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { int x \( hoge \) \; })
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { int x \( hoge \, fuga \) \; })
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { int x \( hoge \, fuga \, piyo \) \; })
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { int x \( \) \; })
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { int x \( int hoge \, short fuga \, void piyo \) \; })
-  (eval-equal nil ()
+  (is.equal.wcs nil
     { int x \( int hoge \, short \, void * \) \; })
-  (assert-compile-error ()
-    (eval-equal nil ()
+  (signals.macroexpand.wcs ()
+    (is.equal.wcs nil
       { int x \( hoge \, int \, int piyo \) \; }))
-  (assert-compile-error ()
-    (eval-equal nil ()
-      { int x \( int \, fuga \, int piyo \) \; }))
-  t)
+  (signals.macroexpand.wcs ()
+    (is.equal.wcs nil
+      { int x \( int \, fuga \, int piyo \) \; })))
 
-(defun test-initializer-simple ()
+(test test-initializer-simple
   ;; uses init-declarator
-  (eval-equal 0 ()
+  (is.equal.wcs 0
     { int x = 0 \; return x \; })
-  (eval-equal 100 ()
+  (is.equal.wcs 100
     {
     int x = 50 \;
     int y = x \;
     int z = y + x \;
     return z \;
     })
-  ;; (assert-compile-error ()
+  ;; (signals.macroexpand.wcs ()
   ;;   { int x = { 0 \, 1 } \; })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int x [ 2 ] = { 0 \, 1 } \;
     return x [ 0 ] == 0 && x [ 1 ] == 1 \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int x [ 3 ] = { 0 \, 1 \, 2 } \;
     return x [ 0 ] == 0 && x [ 1 ] == 1 && x [ 2 ] == 2 \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int x [ 2 ] = { 0 \, 1 \, } \;
     return x [ 0 ] == 0 && x [ 1 ] == 1 \;
     })
 
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     {
     int x [ ] = { 0 \, 1 } \;
     return x [ 1 ] \;
     })
-  ;; (assert-compile-error ()
+  ;; (signals.macroexpand.wcs ()
   ;;   { int x [ ] [ ] = { 0 \, 1 } \; })
-  (eval-equal 3 ()
+  (is.equal.wcs 3
     {
     int x [ ] [ ] = { { 0 \, 1 } \, { 2 \, 3 } } \;
     return x [ 1 ] [ 1 ] \;
     })
-  (eval-equal 3 ()
+  (is.equal.wcs 3
     {
     int x [ 3 ] [ 3 ] = { { 0 \, 1 } \, { 2 \, 3 } } \;
     return x [ 1 ] [ 1 ] \;
     })
-  (eval-equal 3 ()
+  (is.equal.wcs 3
     {
     int x [ ] [ ] [ ] = { { { 0 \, 1 } \, { 2 \, 3 } } } \;
     return x [ 0 ] [ 1 ] [ 1 ] \;
     })
   ;; TODO: add multi-dimensional
-  t)
+  )
 
-(defun test-array-pointer-decl ()
+(test test-array-pointer-decl
   ;; NOTE: These tests only checks these notations can be parsed or not..
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int * array_of_pointer [ 5 ] \;
     return (arrayp array_of_pointer) \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int \( * pointer_to_array \) [ 5 ] \;
     return (typep pointer_to_array 'pseudo-pointer) \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int * \( array_of_pointer [ 5 ] \) \;
     return (arrayp array_of_pointer) \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int \( * array_of_func_ptr [ 5 ] \) \( int \, int \) \;
     return (arrayp array_of_func_ptr) \;
     })
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     static int * array_of_func [ 5 ] \( int \, int \) \; )
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     static int * func_returns_array \( int \, int \) [ 5 ] \; )
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     static int * func_returns_func \( int x \, int y \) \( int z \) \;)
-  (eval-equal nil ()
+  (is.equal.wcs nil
     static int * func_returns_pointer \( int \, int \) \; )
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int * \( * funcptr \) \( int \, int \) \;
     return (typep funcptr 'pseudo-pointer) \;
     })
   ;; http://unixwiz.net/techtips/reading-cdecl.html
   ;; (test '(char * \( * \( * * foo [ ] [ 8 ] \) \( \) \) [ ] \;))
-  t)
+  )
 
 
-(defun test-initializer-struct ()
-  (eval-equal t ()
+(test test-initializer-struct
+  (is.equal.wcs t
     {
     struct hoge { int x \, y \; } foo = { 1 \, 2 } \;
     return foo \. x == 1 && foo \. y == 2 \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct hoge { int x \, y \, z \; } foo = { 1 \, 2 \, 3 } \;
     return foo \. x == 1 && foo \. y == 2 && foo \. z == 3 \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct { int x \, y \, z \; } foo =  { 1 \, 2 \, 3 } \;
     return foo \. x == 1 && foo \. y == 2 && foo \. z == 3 \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct hoge { int x \, y \; } foo = { 1 \, 2 } \;
     struct fuga { int x \, y \; } bar = { 1 \, 2 } \;
     return foo \. x == bar \. x && foo \. y == bar \. y \;
     })
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     {
     struct hoge { int x \, y \; }  \;
     struct fuga { struct hoge h \; } \;
     struct fuga h = { { 1 } } \;
     return h \. h \. x \;
     })
-  (eval-equal 0 ()
+  (is.equal.wcs 0
     {
     struct hoge { int x \, y \; } \;
     struct hoge arr [ 5 ] \;
     return arr [ 4 ] \. x \;
     })
-  (eval-equal 2 ()
+  (is.equal.wcs 2
     {
     struct hoge { int x \, y \; } \;
     struct hoge arr [ 5 ] = { { 1 } \, { 2 } } \;
     return arr [ 1 ] \. x \;
     })
 
-  (eval-equal 2 ()
+  (is.equal.wcs 2
     {
     struct hoge { int x [ 5 ] \; } \;
     struct hoge xx = { { 0 \, 1 \, 2 \, 3 \, 4 } } \;
     return xx \. x [ 2 ] \;
-    })
-  t)
+    }))
 
-(defun test-typedefs ()
-  (eval-equal 1 ()
+(test test-typedefs
+  (is.equal.wcs 1
     {
     typedef int int_t \;
     void \;                             ; typedef guard
     int_t x = 1 \;
     return x \;
     })
-
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     {
     struct hoge { int x \, y \; } \;
     typedef struct hoge hoge_t \;
@@ -646,8 +634,7 @@
     hoge_t x = { 0 \, 1 } \;
     return x \. y \;
     })
-
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     {
     struct hoge { int x \, y \; } \;
     typedef struct hoge * hoge_p \;
@@ -658,7 +645,7 @@
     })
 
   #+ignore
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     {
     typedef int int_t \;
     void \;                             ; typedef guard
@@ -668,36 +655,17 @@
   t)
 ;; removal of 'typedef guard' is tested at test-preprocessor
 
-(defun test-lisptype-decls ()
-  (eval-equal '(1 2 3) ()
+(test test-lisptype-decls
+  (is.equal.wcs '(1 2 3)
     {
     __lisp_type list x = (list 1 2 3) \;
     return x \;
     })
-  (eval-equal #(1 2 3) ()
+  (is.equalp.wcs #(1 2 3)
     {
     __lisp_type (simple-array t (3)) x
-      = (make-array '(3) :initial-contents '(1 2 3)) \;
+    = (make-array '(3) :initial-contents '(1 2 3)) \;
     return x \;
-    })
-  t)
+    }))
 
 ;; TODO: add initializer tests
-
-(defun test-decl ()
-  (test-decl-simple)
-  (test-decl-list)
-  (test-decl-specs)
-  (test-struct-or-union-spec)
-  (test-init-declarator-list)
-  (test-spec-qualifier-list)
-  (test-struct-declarator)
-  (test-enum-spec)
-  (test-param-type-list)
-  (test-type-name)
-  (test-declarator)
-  (test-initializer-simple)
-  (test-array-pointer-decl)
-  (test-initializer-struct)
-  (test-typedefs)
-  t)

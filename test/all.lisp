@@ -1,8 +1,7 @@
 (in-package #:with-c-syntax.test)
 
 (defun test-all ()
-  (test-stmt)
-  (test-decl)
+  (1am:run)
   (test-pointer-all)
   (test-trans)
   (test-wcs)
