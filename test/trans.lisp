@@ -141,7 +141,9 @@
   (is (fboundp 'accumulator))
   (is (= 100 (accumulator 0)))
   (is (= 101 (accumulator 1)))
-  (is (= 103 (accumulator 2))))
+  (is (= 103 (accumulator 2)))
+  (is (= 0 (accumulator -1)))
+  (is (= 100 (accumulator 100))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (with-c-syntax ()

@@ -5,12 +5,10 @@
     format \( t \, "Hello, World!" \) \;
     ))
 
-(test test-hello-world ()
-  (let ((tmpstr (make-array 0 :element-type 'base-char
-			    :fill-pointer 0 :adjustable t)))
-    (with-output-to-string (*standard-output* tmpstr)
-      (w-c-s-hello-world))
-    (is (string= "Hello, World!" tmpstr))))
+(test test-hello-world
+  (is (string= "Hello, World!"
+	       (with-output-to-string (*standard-output*)
+		 (w-c-s-hello-world)))))
 
 (defun w-c-s-add-const ()
   (with-c-syntax ()
@@ -201,4 +199,62 @@
 	   ++ i \;
 	   goto next_loop \;))))
 
-;;; TODO: add new examples!
+;;; from 2018-12 new README.
+
+(test test-sum-1-100
+  (is (= 5050
+	 ;; I need this curious newlines, for avoiding syntax confusion of slime.
+	 #{
+	 int i, sum = 0;
+
+	 for (i = 0;
+		i <= 100;
+		++ i )
+		sum += i;
+	 return sum;
+	 }#
+	 )))
+
+(defun array-transpose (arr)
+  (destructuring-bind (i-max j-max) (array-dimensions arr)
+    #{
+      int i,j,temp;
+      for (i = 0;
+	     i < i-max;
+	     i ++) {
+             for (j = i + 1;
+		    j < j-max;
+		    j ++) {
+              temp = arr[i][j];
+              arr[i][j] = arr[j][i];
+              arr[j][i] = temp;
+              // pprint (arr) ;
+          }
+      }
+    }#)
+  arr)
+
+(test test-array-transpose
+  (is (equalp (array-transpose
+	       (make-array '(3 3)
+ 			   :initial-contents '((0 1 2) (3 4 5) (6 7 8))))
+	      #2A((0 3 6) (1 4 7) (2 5 8)))))
+
+#{
+int sum-of-list (list) {
+  int list-length = length(list);
+  int i, ret = 0;
+
+  for (i = 0;
+	 i < list-length;
+	 ++ i) {
+     ret += nth(i, list);
+  }
+
+  return ret;
+}
+}#
+
+(test test-sum-of-list
+  (is (eql 55
+	   (sum-of-list '(1 2 3 4 5 6 7 8 9 10)))))
