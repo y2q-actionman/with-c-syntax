@@ -1010,7 +1010,7 @@ established.
 
 (defun expand-toplevel-stat (stat)
   (let* ((stat-codes (stat-code stat))
-	 (last-form (car (last stat-codes)))
+	 (last-form (lastcar stat-codes))
 	 (ex-last-code
 	   (if (and *return-last-statement*
 		    (or (not (symbolp last-form))
