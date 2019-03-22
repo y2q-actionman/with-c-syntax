@@ -14,10 +14,7 @@
 	       (:file "reader" :depends-on ("util"))
 	       (:file "preprocessor" :depends-on ("util"))
 	       (:file "examples" :depends-on ("util"))
-	       (:file "all"
-		:depends-on ("pointer"
-			     "trans" "wcs" "reader"
-			     "preprocessor" "examples")))
+	       (:file "all"))
   :perform (prepare-op :before (o c)
              (set (find-symbol* :*tests* :1am) '()))
   :perform (test-op (o s)

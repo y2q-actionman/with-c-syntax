@@ -2,10 +2,4 @@
 
 (defun test-all ()
   (1am:run)
-  (test-pointer-all)
-  (test-trans)
-  (test-wcs)
-  (test-reader)
-  (test-preprocessor)
-  (test-examples)
   t)

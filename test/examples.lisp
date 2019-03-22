@@ -5,32 +5,28 @@
     format \( t \, "Hello, World!" \) \;
     ))
 
-(defun test-hello-world ()
+(test test-hello-world ()
   (let ((tmpstr (make-array 0 :element-type 'base-char
 			    :fill-pointer 0 :adjustable t)))
-    (with-output-to-string (tmps tmpstr)
-      (let ((*standard-output* tmps))
-	(w-c-s-hello-world)))
-    (assert (string= "Hello, World!" tmpstr)))
-  t)
+    (with-output-to-string (*standard-output* tmpstr)
+      (w-c-s-hello-world))
+    (is (string= "Hello, World!" tmpstr))))
 
 (defun w-c-s-add-const ()
   (with-c-syntax ()
     return 1 + 2 \;
     ))
 
-(defun test-add-const ()
-  (assert (= 3 (w-c-s-add-const)))
-  t)
+(test test-add-const
+  (is (= 3 (w-c-s-add-const))))
 
 (defun w-c-s-add-args (x y)
   (with-c-syntax ()
     return x + y \;
     ))
 
-(defun test-add-args ()
-  (assert (= 3 (w-c-s-add-args 1 2)))
-  t)
+(test test-add-args
+  (is (= 3 (w-c-s-add-args 1 2))))
 
 (defun w-c-s-while-loop (&aux (x 0))
   (with-c-syntax ()
@@ -39,9 +35,8 @@
     return x \;
     ))
 
-(defun test-while-loop ()
-  (assert (= 100 (w-c-s-while-loop)))
-  t)
+(test test-while-loop
+  (is (= 100 (w-c-s-while-loop))))
   
 (defun w-c-s-for-loop ()
   (let ((i 0) (sum 0))
@@ -51,9 +46,8 @@
       )
     sum))
 
-(defun test-for-loop ()
-  (assert (= 5050 (w-c-s-for-loop)))
-  t)
+(test test-for-loop
+  (is (= 5050 (w-c-s-for-loop))))
 
 (defun w-c-s-loop-continue-break (&aux (i 0) (sum 0))
   (with-c-syntax ()
@@ -67,9 +61,8 @@
     return sum \;
    ))
 
-(defun test-loop-continue-break ()
-  (assert (= 600 (w-c-s-loop-continue-break)))
-  t)
+(test test-loop-continue-break
+  (is (= 600 (w-c-s-loop-continue-break))))
 
 (defun w-c-s-switch (x &aux (ret nil))
   (with-c-syntax ()
@@ -91,13 +84,12 @@
     })
   (nreverse ret))
 
-(defun test-switch ()
-  (assert (equal '(case1) (w-c-s-switch 1)))
-  (assert (equal '(case2 case3) (w-c-s-switch 2)))
-  (assert (equal '(case3) (w-c-s-switch 3)))
-  (assert (equal '(case4) (w-c-s-switch 4)))
-  (assert (equal '(default) (w-c-s-switch 5)))
-  t)
+(test test-switch
+  (is (equal '(case1) (w-c-s-switch 1)))
+  (is (equal '(case2 case3) (w-c-s-switch 2)))
+  (is (equal '(case3) (w-c-s-switch 3)))
+  (is (equal '(case4) (w-c-s-switch 4)))
+  (is (equal '(default) (w-c-s-switch 5))))
 
 (defun w-c-s-goto (&aux (ret nil))
   (with-c-syntax ()
@@ -123,9 +115,8 @@
       goto c \;
     ))
 
-(defun test-goto ()
-  (assert (equal '(d a b e c) (w-c-s-goto)))
-  t)
+(test test-goto
+  (is (equal '(d a b e c) (w-c-s-goto))))
 
 (defun w-c-s-pointer (xxx &aux z)
   (with-c-syntax ()
@@ -135,11 +126,10 @@
     return xxx \;
     ))
 
-(defun test-pointer ()
-  (assert (= 2 (w-c-s-pointer 0)))
-  (assert (= 4 (w-c-s-pointer 1)))
-  (assert (= 22 (w-c-s-pointer 10)))
-  t)
+(test test-pointer
+  (is (= 2 (w-c-s-pointer 0)))
+  (is (= 4 (w-c-s-pointer 1)))
+  (is (= 22 (w-c-s-pointer 10))))
 
 (in-readtable with-c-syntax-readtable)  
 (defun w-c-s-duff-device (to-seq from-seq cnt)
@@ -164,66 +154,51 @@
     }#)
   to-seq)
 
-(defun test-duff-device ()
+(test test-duff-device ()
   (let ((arr1 (make-array 20 :initial-element 1))
 	(arr2 (make-array 20 :initial-element 2)))
     (w-c-s-duff-device arr1 arr2 10)
-    (assert (equalp #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
-		    arr1)))
-  t)
+    (is (equalp #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
+		arr1))))
 
-
-(defun test-auto-return ()
-  (assert (= 100 (with-c-syntax (:return :auto)
-		   100 \;)))
-  (assert (= 1 (with-c-syntax (:return :auto)
-		 int i = 1 \; i \;)))
-  (assert (= 3 (with-c-syntax (:return :auto)
-		 1 \; 2 \; 3 \;)))
+(test test-auto-return
+  (is (= 100 (with-c-syntax (:return :auto)
+	       100 \;)))
+  (is (= 1 (with-c-syntax (:return :auto)
+	     int i = 1 \; i \;)))
+  (is (= 3 (with-c-syntax (:return :auto)
+	     1 \; 2 \; 3 \;)))
   
   ;; can be expanded, but does not works (`return' or other ways required.)
-  (assert (= 4 (with-c-syntax (:return :auto)
-		 if \( 10 \) return 4 \;)))
-  (assert (= 5 (with-c-syntax (:return :auto)
-		 ;; FIXME
-		 ;; `nil' cannot be directly used, we must quote it..
-		 if \( 'nil \) 4 \; else return 5 \;)))
-  (assert (eq (readtable-case *readtable*)
-	      (with-c-syntax (:return :auto)
-		switch \( (readtable-case *readtable*) \) {
-		case :upcase \: return :upcase \;
-		case :downcase \: return :downcase \;
-		case :preserve \: return :preserve \;
-		case :invert \: return :invert \;
-		default \: return "unknown!" \;
-		})))
+  (is (= 4 (with-c-syntax (:return :auto)
+	     if \( 10 \) return 4 \;)))
+  (is (= 5 (with-c-syntax (:return :auto)
+	     ;; FIXME
+	     ;; `nil' cannot be directly used, we must quote it..
+	     if \( 'nil \) 4 \; else return 5 \;)))
+  (is (eq (readtable-case *readtable*)
+	  (with-c-syntax (:return :auto)
+	    switch \( (readtable-case *readtable*) \) {
+	    case :upcase \: return :upcase \;
+	    case :downcase \: return :downcase \;
+	    case :preserve \: return :preserve \;
+	    case :invert \: return :invert \;
+	    default \: return "unknown!" \;
+	    })))
   (let ((tmp 0))
     (with-c-syntax (:return :auto)
       int i \;
       for \( i = 0 \; i <= 100 \; ++ i \)
       tmp += i \;
       )
-    (assert (= tmp 5050)))
-  (assert (= 5050
-	     (with-c-syntax (:return :auto)
-	       int i = 0 \, j = 0 \;
-	       next_loop \:
-	       if \( i > 100 \) return j \;
-	       j += i \;
-	       ++ i \;
-	       goto next_loop \;)))
-  t)
+    (is (= tmp 5050)))
+  (is (= 5050
+	 (with-c-syntax (:return :auto)
+	   int i = 0 \, j = 0 \;
+	   next_loop \:
+	   if \( i > 100 \) return j \;
+	   j += i \;
+	   ++ i \;
+	   goto next_loop \;))))
 
-
-(defun test-examples ()
-  (test-hello-world)
-  (test-add-const)
-  (test-add-args)
-  (test-while-loop)
-  (test-for-loop)
-  (test-loop-continue-break)
-  (test-switch)
-  (test-goto)
-  (test-pointer)
-  (test-duff-device)
-  (test-auto-return))
+;;; TODO: add new examples!

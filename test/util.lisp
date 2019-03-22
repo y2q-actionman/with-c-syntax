@@ -21,6 +21,7 @@
 
 (define-is.*.wcs is.equal.wcs)
 (define-is.*.wcs is.equalp.wcs)
+;;; TODO: is.equal.wcs.return
 
 (defmacro assert-compile-error ((&rest options) &body body) ; obsoleted
   `(assert

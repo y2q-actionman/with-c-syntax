@@ -2,60 +2,59 @@
 
 ;;; translation-unit
 
-(defun test-trans-decl-simple ()
-  (eval-equal nil ()
+(test test-trans-decl-simple
+  (is.equal.wcs nil
     int *a* \; )
-  (assert (boundp '*a*))
-  (eval-equal nil ()
+  (is (boundp '*a*))
+  (is.equal.wcs nil
     int *a* \; int *b* \; )
-  (assert (boundp '*a*))
-  (assert (boundp '*b*))
-  t)
+  (is (boundp '*a*))
+  (is (boundp '*b*)))
 
-(defun test-trans-fdefinition-simple ()
+(test test-trans-fdefinition-simple
   (with-c-syntax ()
     int hoge1 \( x \, y \)
       int x \, y \;
     { return x + y \; })
-  (assert (fboundp 'hoge1))
-  (assert (= 3 (hoge1 1 2)))
+  (is (fboundp 'hoge1))
+  (is (= 3 (hoge1 1 2)))
 
   (with-c-syntax ()
     hoge2 \( x \, y \)
       int x \, y \;
     { return x + y \; })
-  (assert (fboundp 'hoge2))
-  (assert (= 3 (hoge2 1 2)))
+  (is (fboundp 'hoge2))
+  (is (= 3 (hoge2 1 2)))
 
   (with-c-syntax ()
     int hoge3 \( \)
     { return 3 \; })
-  (assert (fboundp 'hoge3))
-  (assert (= 3 (hoge3)))
+  (is (fboundp 'hoge3))
+  (is (= 3 (hoge3)))
 
   (with-c-syntax ()
     int hoge4 \( x \)
     { return x + 4 \; })
-  (assert (fboundp 'hoge4))
-  (assert (= 9 (hoge4 5)))
+  (is (fboundp 'hoge4))
+  (is (= 9 (hoge4 5)))
 
   (with-c-syntax ()
     hoge5 \( \)
     { return 5 \; })
-  (assert (fboundp 'hoge5))
-  (assert (= 5 (hoge5)))
+  (is (fboundp 'hoge5))
+  (is (= 5 (hoge5)))
 
   (with-c-syntax ()
     hoge6 \( x \)
     { return x + 6 \; })
-  (assert (fboundp 'hoge6))
-  (assert (= 12 (hoge6 6)))
+  (is (fboundp 'hoge6))
+  (is (= 12 (hoge6 6)))
 
   (with-c-syntax ()
     hoge7 \( int x \, float y \)
     { return x + y \; })
-  (assert (fboundp 'hoge7))
-  (assert (<= 5 (hoge7 5 0.4) 6))
+  (is (fboundp 'hoge7))
+  (is (<= 5 (hoge7 5 0.4) 6))
 
   (with-c-syntax ()
     struct test { int x \; } \;
@@ -64,22 +63,24 @@
       s \. x *= 8 \;
       return s \. x \;
     })
-  (assert (make-struct 'test))
-  (assert (fboundp 'hoge8))
-  (assert (= 16 (hoge8 2)))
+  (is (make-struct 'test))
+  (is (fboundp 'hoge8))
+  (is (= 16 (hoge8 2)))
 
   (with-c-syntax ()
     int hoge9 \( int \)
     { return 9 \; })
-  (assert (fboundp 'hoge9))
-  (assert (= 9 (hoge9 'a)))
+  (is (fboundp 'hoge9))
+  (is (= 9 (hoge9 'a)))
 
   t)
 
-(defun test-trans-decl-static ()
-  (eval-equal 99 (:return xxx)
-    static int xxx = 99 \; )
-  (assert (not (boundp 'xxx)))
+(test test-trans-decl-static
+  (is (equal
+       99
+       (with-c-syntax (:return xxx)
+	 static int xxx = 99 \; )))
+  (is (not (boundp 'xxx)))
   (with-c-syntax ()
     static int xxx = 0 \;
     int reset-a \( \) {
@@ -89,17 +90,16 @@
     int inc-a \( \) {
        return ++ xxx \;
     })
-  (assert (not (boundp 'xxx)))
-  (assert (fboundp 'reset-a))
-  (assert (fboundp 'inc-a))
-  (assert (= 1 (inc-a)))
-  (assert (= 2 (inc-a)))
-  (assert (= 3 (inc-a)))
-  (assert (= 4 (inc-a)))
-  (assert (= 0 (reset-a)))
-  t)
+  (is (not (boundp 'xxx)))
+  (is (fboundp 'reset-a))
+  (is (fboundp 'inc-a))
+  (is (= 1 (inc-a)))
+  (is (= 2 (inc-a)))
+  (is (= 3 (inc-a)))
+  (is (= 4 (inc-a)))
+  (is (= 0 (reset-a))))
 
-(defun test-trans-fdefinition-varargs ()
+(test test-trans-fdefinition-varargs
   (with-c-syntax ()
     int sumn \( int cnt \, |...| \) {
        int i \, ret = 0 \;
@@ -115,22 +115,22 @@
 
        return ret \;
     })
-  (assert (fboundp 'sumn))
-  (assert (= 0 (sumn 0)))
-  (assert (= 3 (sumn 3 1 1 1)))
-  (assert (= 10 (sumn 4 1 2 3 4)))
-  t)
+  (is (fboundp 'sumn))
+  (is (= 0 (sumn 0)))
+  (is (= 3 (sumn 3 1 1 1)))
+  (is (= 10 (sumn 4 1 2 3 4))))
 
-(defun test-trans-fdefinition-and-storage-class ()
-  (eval-equal 3 (:return (s-func 1 2))
-    static int s-func \( x \, y \)
-      int x \, y \;
-    { return x + y \; }
-   )
-  (assert (not (fboundp 's-func)))
-  t)
+(test test-trans-fdefinition-and-storage-class
+  (is (equal
+       3
+       (with-c-syntax (:return (s-func 1 2))
+	 static int s-func \( x \, y \)
+	 int x \, y \;
+	 { return x + y \; })))
+  (is (not (fboundp 's-func))))
 
-(defun test-trans-func-local-static ()
+#+ignore				; FIXME:
+(test test-trans-func-local-static
   (with-c-syntax ()
     int accumulator \( n \) {
        static acc = 100 \;
@@ -141,61 +141,46 @@
           return acc += n \;
        }
     })
-  (assert (fboundp 'accumulator))
-  (assert (= 100 (accumulator 0)))
-  (assert (= 101 (accumulator 1)))
-  (assert (= 103 (accumulator 2)))
-  t)
+  (is (fboundp 'accumulator))
+  (is (= 100 (accumulator 0)))
+  (is (= 101 (accumulator 1)))
+  (is (= 103 (accumulator 2))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (with-c-syntax ()
     enum { SOME_CONSTANT_100 = 100 } \;))
 
-(defun test-trans-other-unit-enum ()
-  (eval-equal 100 ()
-    return SOME_CONSTANT_100 \;)
-  t)
+(test test-trans-other-unit-enum
+  (is.equal.wcs 100
+    return SOME_CONSTANT_100 \;))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (with-c-syntax ()
     struct xxx-struct { int x \; } \;))
 
-(defun test-trans-other-unit-struct ()
-  (assert (make-struct 'xxx-struct))
+(test test-trans-other-unit-struct
+  (is (make-struct 'xxx-struct))
   (with-c-syntax ()
     hoge \( x \) {
       struct xxx-struct s = { x } \;
       s \. x *= 8 \;
       return s \. x \;
     })
-  (assert (= 16 (hoge 2)))
-  t)
+  (is (= 16 (hoge 2))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (remove-typedef 'int_xxx_t)
   (with-c-syntax ()
     typedef int int_xxx_t \;))
 
-(defun test-trans-other-unit-typedef ()
-  (assert (find-typedef 'int_xxx_t))
+(test test-trans-other-unit-typedef
+  (is (find-typedef 'int_xxx_t))
   (with-c-syntax ()
     int_xxx_t hoge \( x \) {
       int_xxx_t tmp = x \;
       return tmp \;
     })
-  (assert (= 2 (hoge 2)))
-  t)
-
-(defun test-trans ()
-  (test-trans-decl-simple)
-  (test-trans-fdefinition-simple)
-  (test-trans-decl-static)
-  (test-trans-fdefinition-varargs)
-  (test-trans-fdefinition-and-storage-class)
-  (test-trans-other-unit-enum)
-  (test-trans-other-unit-struct)
-  (test-trans-other-unit-typedef)
-  t)
+  (is (= 2 (hoge 2))))
 
 ;; TODO: add tests for toplevel pointer usage:
 ;; (with-c-syntax:with-c-syntax ()

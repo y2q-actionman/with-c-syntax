@@ -1,197 +1,194 @@
 (in-package #:with-c-syntax.test)
 
-(defun test-stdlib-float ()
+(test test-stdlib-float
   ;; well-known value
-  (eval-equal single-float-epsilon ()
+  (is.equal.wcs single-float-epsilon
     return FLT_EPSILON \;)
-  (eval-equal least-positive-normalized-single-float ()
+  (is.equal.wcs least-positive-normalized-single-float
     return FLT_MIN \;)
-  (eval-equal most-positive-single-float ()
+  (is.equal.wcs most-positive-single-float
     return FLT_MAX \;)
 
-  (eval-equal double-float-epsilon ()
+  (is.equal.wcs double-float-epsilon
     return DBL_EPSILON \;)
-  (eval-equal least-positive-normalized-double-float ()
+  (is.equal.wcs least-positive-normalized-double-float
     return DBL_MIN \;)
-  (eval-equal most-positive-double-float ()
+  (is.equal.wcs most-positive-double-float
     return DBL_MAX \;)
 
-  (eval-equal long-float-epsilon ()
+  (is.equal.wcs long-float-epsilon
     return LDBL_EPSILON \;)
-  (eval-equal least-positive-normalized-long-float ()
+  (is.equal.wcs least-positive-normalized-long-float
     return LDBL_MIN \;)
-  (eval-equal most-positive-long-float ()
+  (is.equal.wcs most-positive-long-float
     return LDBL_MAX \;)
 
-  (eval-equal short-float-epsilon ()
+  (is.equal.wcs short-float-epsilon
     return SFLT_EPSILON \;)
-  (eval-equal least-positive-normalized-short-float ()
+  (is.equal.wcs least-positive-normalized-short-float
     return SFLT_MIN \;)
-  (eval-equal most-positive-short-float ()
+  (is.equal.wcs most-positive-short-float
     return SFLT_MAX \;)
 
   ;; C required limits.
-  (eval-equal t ()
+  (is.equal.wcs t
     return FLT_RADIX >= 2 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return DBL_RADIX >= 2 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return LDBL_RADIX >= 2 \;)
 
-  (eval-equal t ()
+  (is.equal.wcs t
     return FLT_DIG >= 6 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return DBL_DIG >= 10 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return LDBL_DIG >= 10 \;)
 
-  (eval-equal t ()
+  (is.equal.wcs t
     return FLT_MIN_10_EXP <= -37 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return DBL_MIN_10_EXP <= -37 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return LDBL_MIN_10_EXP <= -37 \;)
 
-  (eval-equal t ()
+  (is.equal.wcs t
     return FLT_MAX_10_EXP >= 37 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return DBL_MAX_10_EXP >= 37 \;)
-  (eval-equal t ()
-    return LDBL_MAX_10_EXP >= 37 \;)
-  t)
+  (is.equal.wcs t
+    return LDBL_MAX_10_EXP >= 37 \;))
 
-(defun test-stdlib-iso646 ()
-  (eval-equal t ()
+(test test-stdlib-iso646
+  (is.equal.wcs t
     {
     int i = 7 \, j = 3 \;
     return \( i && j \) == \( i |and| j \) \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int i = 7 \, j = 7 \;
     i &= 3 \;
     j |and_eq| 3 \;
     return i == j \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int i = 7 \, j = 3 \;
     return \( i & j \) == \( i |bitand| j \) \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int i = 7 \, j = 3 \;
     return \( i \| j \) == \( i |bitor| j \) \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int i = 7 \;
     return ~ i == |compl| i \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int i = 7 \;
     return eq \( ! i \, |not| i \) \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int i = 7 \, j = 3 \;
     return eq \( i != j \, i |not_eq| j \) \;
     })
   (muffle-unused-code-warning
-    (eval-equal t ()
+    (is.equal.wcs t
       {
       int i = 7 \, j = 3 \;
       return \( i \|\| j \) == \( i |or| j \) \;
       }))
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int i = 7 \, j = 7 \;
     i \|= 3 \;
     j |or_eq| 3 \;
     return i == j \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int i = 7 \, j = 3 \;
     return \( i ^ j \) == \( i |xor| j \) \;
     })
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     int i = 7 \, j = 7 \;
     i ^= 3 \;
     j |xor_eq| 3 \;
     return i == j \;
-    })
-  t)
+    }))
 
-(defun test-stdlib-limits ()
-  (eval-equal t ()
+(test test-stdlib-limits
+  (is.equal.wcs t
     return CHAR_BIT >= 8 \;)
   (muffle-unused-code-warning
-    (eval-equal t ()
+    (is.equal.wcs t
       return CHAR_MAX == SCHAR_MAX \|\| CHAR_MAX == UCHAR_MAX \;)
-    (eval-equal t ()
+    (is.equal.wcs t
       return CHAR_MIN == SCHAR_MIN \|\| CHAR_MIN == 0 \;))
-  (eval-equal t ()
+  (is.equal.wcs t
     return INT_MAX >= 32767 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return INT_MIN <= -32767 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return SHRT_MAX >= 32767 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return SHRT_MIN <= -32767 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return LONG_MAX >= 2147483647 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return LONG_MIN <= -2147483647 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return LLONG_MAX >= 9223372036854775807 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return LLONG_MIN <= -9223372036854775807 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return SCHAR_MAX >= 127 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return SCHAR_MIN <= -127 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return UCHAR_MAX >= 255 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return UINT_MAX >= 65535 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return USHRT_MAX >= 65535 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return ULONG_MAX >= 4294967295 \;)
-  (eval-equal t ()
+  (is.equal.wcs t
     return ULLONG_MAX >= 18446744073709551615 \;)
-  (eval-equal t ()
-    return MB_LEN_MAX >= 1 \;)
-  t)
+  (is.equal.wcs t
+    return MB_LEN_MAX >= 1 \;))
 
-(defun test-stdlib-stddef ()
-  (eval-equal 0 ()
+(test test-stdlib-stddef
+  (is.equal.wcs 0
     return NULL \;)
-  (eval-equal 1 ()
+  (is.equal.wcs 1
     {
     ptrdiff_t x = 1 \;
     return x \;
     })
-  (eval-equal 2 ()
+  (is.equal.wcs 2
     {
     size_t x = 2 \;
     return x \;
     })
-  (eval-equal 3 ()
+  (is.equal.wcs 3
     {
     wchar_t x = 3 \;
     return x \;
     })
 
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     return offsetof \( int \, i \) \;)
-  (assert-compile-error ()
+  (signals.macroexpand.wcs ()
     return offsetof \( struct s \, i \) \;)
     
-  (eval-equal t ()
+  (is.equal.wcs t
     {
     struct s {
         int i \;
@@ -207,28 +204,16 @@
      && offsetof \( struct s \, c \) >= offsetof \( struct s \, i \)
      && offsetof \( struct s \, d \) >= offsetof \( struct s \, c \)
      && offsetof \( struct s \, a \) >= offsetof \( struct s \, d \) \;
-    })
-  t)
+    }))
 
-(defun test-strcat ()
-  (eval-equal "abc" ()
-    return "a" "b" "c" \; )
-  t)
+(test test-strcat
+  (is.equal.wcs "abc"
+    return "a" "b" "c" \; ))
 
-(defun test-typedef-hack ()
-  (eval-equal 1 ()
+(test test-typedef-hack ()
+  (is.equal.wcs 1
     {
     typedef int int_t \;
     int_t x = 1 \;
     return x \;
-    })
-  t)
-
-(defun test-preprocessor ()
-  (test-stdlib-float)
-  (test-stdlib-iso646)
-  (test-stdlib-limits)
-  (test-stdlib-stddef)
-  (test-strcat)
-  (test-typedef-hack)
-  t)
+    }))

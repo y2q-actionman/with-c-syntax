@@ -1,38 +1,36 @@
 (in-package #:with-c-syntax.test)
 
-(defun test-redundant-wcs ()
-  (eval-equal nil ()
-    )
-  (eval-equal 1 ()
-    (with-c-syntax ()
-      (with-c-syntax ()
-	return 1 \; )))
-  (eval-equal 1 ()
-    (with-c-syntax ()
-      (with-c-syntax ()
-	(with-c-syntax ()
-	  return 1 \; ))))
-  t)
+(test test-redundant-wcs
+  (is (equal
+       nil
+       (with-c-syntax ())))
+  (is (equal
+       1
+       (with-c-syntax ()
+	 (with-c-syntax ()
+	   return 1 \; ))))
+  (is (equal
+       1
+       (with-c-syntax ()
+	 (with-c-syntax ()
+	   (with-c-syntax ()
+	     return 1 \; ))))))
 
-(defun test-auto-add-{} ()
-  (eval-equal 10 ()
+(test test-auto-add-{}
+  (is.equal.wcs 10
     int x = 10 \;
     return x \;)
-  (assert-compile-error (:try-add-{} nil)
-    (eval-equal 10 ()
-      int x = 10 \;
-      return x \;))
-  t)
+  (signals with-c-syntax-error
+    (macroexpand
+     '(with-c-syntax (:try-add-{} nil)
+       int x = 10 \;
+       return x \;))))
 
-(defun test-wcs-option-combine ()
-  (eval-equal 1 (:return xxx)
-    (with-c-syntax ()
-      static int xxx = 1 \;))
-  t)
-      
-
-(defun test-wcs ()
-  (test-redundant-wcs)
-  (test-auto-add-{})
-  ;; TODO: add keyword arg combination test
-  t)
+(test test-wcs-option-combine
+  (is (equal
+       1
+       (with-c-syntax (:return xxx)
+	 (with-c-syntax ()
+	   static int xxx = 1 \;))))
+  ;; TODO: add keyword arg combination test more!
+  )
