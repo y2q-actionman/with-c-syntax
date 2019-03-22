@@ -269,7 +269,7 @@
     })
   ;; TODO: support const
   #+ignore
-  (assert-runtime-error ()
+  (signals.wcs ()
     {
     struct hoge { const x \; } foo \;
     foo \. x = 99 \;
@@ -289,7 +289,7 @@
     })
   ;; TODO: support const
   #+ignore
-  (assert-runtime-error ()
+  (signals.wcs ()
     {
     struct hoge { const unsigned volatile int x \; } foo = { 300 } \;
     foo \. x = 9999 \;

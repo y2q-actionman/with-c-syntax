@@ -4,7 +4,4 @@
   (:use #:cl #:with-c-syntax.core
 	#:named-readtables
 	#:1am)
-  (:import-from #:alexandria
-		#:once-only)
-  (:export #:test-all)
   (:documentation "with-c-syntax test package."))

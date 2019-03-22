@@ -1,45 +1,34 @@
 (in-package #:with-c-syntax.test)
 
-(defmacro eval-equal (val (&rest options) &body body) ; obsoleted
-  (let ((form `(with-c-syntax (,@options) ,@body)))
-    (once-only (val (ret form))
-      `(assert (equal ,val ,ret)
-	       ()
-	       "Expected ~S, but returned ~S~% form ~S."
-	       ,val ,ret ',form))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun pick-eql-name (symbol)
+    (let* ((op-name (symbol-name symbol))
+	   (eq-op-begin (1+ (position #\. op-name)))
+	   (eq-op-end (position #\. op-name :start eq-op-begin)))
+      (or (find-symbol (subseq op-name eq-op-begin eq-op-end))
+	  (error "operator ~A does not contain expected equality function" symbol)))))
 
 (defmacro define-is.*.wcs (operator)
-  (let* ((op-name (symbol-name operator))
-	 (eq-op-name (subseq op-name
-			     (1+ (position #\. op-name))
-			     (position #\. op-name :from-end t)))
-	 (eq-op (find-symbol eq-op-name)))
-    (assert eq-op () "operator ~A does not contain expected equality function" operator)
-    `(defmacro ,operator (val &body body)
-       `(is (,',eq-op ,val
-		(with-c-syntax () ,@body))))))
-
+  (let ((eql-op (pick-eql-name operator))
+	(use-option (search "OPTION" (symbol-name operator))))
+    `(defmacro ,operator (,@ (if use-option '(option) nil)
+			  val &body body)
+       `(is (,',eql-op
+		,val
+		(with-c-syntax (,@,(if use-option 'option nil))
+		  ,@body))))))
+			  
 (define-is.*.wcs is.equal.wcs)
 (define-is.*.wcs is.equalp.wcs)
-;;; TODO: is.equal.wcs.return
-
-(defmacro assert-compile-error ((&rest options) &body body) ; obsoleted
-  `(assert
-    (nth-value
-     1
-     (ignore-errors
-       (macroexpand
-        '(with-c-syntax (,@options) ,@body))))))
+(define-is.*.wcs is.equal.wcs.option)
 
 (defmacro signals.macroexpand.wcs ((&optional (condition 'with-c-syntax-error)) &body body)
   `(signals ,condition
      (macroexpand '(with-c-syntax () ,@Body))))
 
-(defmacro assert-runtime-error ((&rest options) &body body)
-  `(assert
-    (nth-value
-     1 
-     (ignore-errors (with-c-syntax (,@options) ,@body)))))
+(defmacro signals.wcs ((&optional (condition 'with-c-syntax-error)) &body body)
+  `(signals ,condition
+     (with-c-syntax () ,@Body)))
 
 (defmacro muffle-unused-code-warning (&body body)
   #+sbcl

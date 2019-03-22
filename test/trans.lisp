@@ -76,10 +76,9 @@
   t)
 
 (test test-trans-decl-static
-  (is (equal
-       99
-       (with-c-syntax (:return xxx)
-	 static int xxx = 99 \; )))
+  (is.equal.wcs.option (:return xxx)
+      99
+    static int xxx = 99 \; )
   (is (not (boundp 'xxx)))
   (with-c-syntax ()
     static int xxx = 0 \;
@@ -121,12 +120,11 @@
   (is (= 10 (sumn 4 1 2 3 4))))
 
 (test test-trans-fdefinition-and-storage-class
-  (is (equal
-       3
-       (with-c-syntax (:return (s-func 1 2))
-	 static int s-func \( x \, y \)
-	 int x \, y \;
-	 { return x + y \; })))
+  (is.equal.wcs.option (:return (s-func 1 2))
+      3
+    static int s-func \( x \, y \)
+    int x \, y \;
+    { return x + y \; })
   (is (not (fboundp 's-func))))
 
 #+ignore				; FIXME:

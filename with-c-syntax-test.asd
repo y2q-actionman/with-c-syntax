@@ -13,10 +13,8 @@
 	       (:file "wcs" :depends-on ("util"))
 	       (:file "reader" :depends-on ("util"))
 	       (:file "preprocessor" :depends-on ("util"))
-	       (:file "examples" :depends-on ("util"))
-	       (:file "all"))
+	       (:file "examples" :depends-on ("util")))
   :perform (prepare-op :before (o c)
-             (set (find-symbol* :*tests* :1am) '()))
+             (set (find-symbol* '#:*tests* '#:1am) '()))
   :perform (test-op (o s)
-             (symbol-call '#:with-c-syntax.test
-                          '#:test-all)))
+             (symbol-call '#:1am '#:run)))
