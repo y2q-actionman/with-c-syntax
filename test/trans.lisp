@@ -127,7 +127,6 @@
     { return x + y \; })
   (is (not (fboundp 's-func))))
 
-#+ignore				; FIXME:
 (test test-trans-func-local-static
   (with-c-syntax ()
     int accumulator \( n \) {
