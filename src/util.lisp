@@ -63,13 +63,22 @@
 	 (prog1 ,ret
 	   ,setter)))))
 
+(defmacro replace-operator-if-no-bindings (to form)
+  "This macro sees FORM as a `LET'-like binding syntax.
+If BINDINGS is empty, this macro replaces the operator of FORM to TO and removed bindings, and returns it.
+If not, returns FORM itself.
+This macro is intended to make expansion of `with-c-syntax' to be a top-level form."
+  (destructuring-bind (wrapper bindings . body-inside) form
+    (declare (ignore wrapper))
+    (if bindings
+	form
+	`(,to ,@body-inside))))
+
 (defmacro with-dynamic-bound-symbols ((&rest symbols) &body body)
   "Inside this, passed symbols are dynamically bound to itself."
-  (if (null symbols)
-      `(progn ,@body)
-      `(let ,(loop for s in symbols collect `(,s ,s))
-	 (declare (special ,@symbols))
-	 ,@body)))
+  `(let ,(loop for s in symbols collect `(,s ,s))
+     (declare (special ,@symbols))
+     ,@body))
 
 (defun make-dimension-list (dims &optional default)
   "Constructs a nested list like ~make-array~."

@@ -983,18 +983,21 @@ established.
     (nreversef cleanup-funcptr-syms)
     (nreversef cleanup-struct-specs)
     (prog1
-        `(let* (,@lexical-binds)
-	   (declare (dynamic-extent ,@dynamic-extent-vars)
-		    (special ,@special-vars))
-	   ,@global-defs
-	   (labels (,@local-funcs)
-	     ,@func-defs
-	     (with-dynamic-bound-symbols
-		 ,(ecase mode
-		    (:statement *dynamic-binding-requested*)
-		    (:translation-unit nil))
-	       (symbol-macrolet (,@sym-macro-defs)
-		 ,@code))))
+        `(replace-operator-if-no-bindings locally
+	   (let* (,@lexical-binds)
+	     (declare (dynamic-extent ,@dynamic-extent-vars)
+		      (special ,@special-vars))
+	     ,@global-defs
+	     (replace-operator-if-no-bindings progn
+	       (labels (,@local-funcs)
+		 ,@func-defs
+		 (replace-operator-if-no-bindings progn
+		   (with-dynamic-bound-symbols
+		       ,(ecase mode
+			  (:statement *dynamic-binding-requested*)
+			  (:translation-unit nil))
+		     (symbol-macrolet (,@sym-macro-defs)
+		       ,@code)))))))
       ;; drop expanded definitions
       (loop for sym in cleanup-typedef-names
          do (remove-typedef sym))
