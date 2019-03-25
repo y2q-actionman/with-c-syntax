@@ -203,7 +203,7 @@
 
 (test test-sum-1-100
   (is (= 5050
-	 ;; I need this curious newlines, for avoiding syntax confusion of slime.
+	 ;; This curious indent avoids syntactic confusion of my editor.
 	 #{
 	 int i, sum = 0;
 

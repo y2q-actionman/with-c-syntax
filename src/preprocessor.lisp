@@ -207,9 +207,7 @@ calls the function like:
      do (when-let*
             ((entry (find-preprocessor-macro token case-spec))
              (expansion (cdr entry)))
-          (cond ((null expansion)     ; no-op
-                 (progn))                   
-                ((functionp expansion) ; preprocessor funcion
+          (cond ((functionp expansion) ; preprocessor funcion
                  (multiple-value-bind (ex-val new-lis)
                      (preprocessor-call-macro lis expansion)
                    (push ex-val ret)
