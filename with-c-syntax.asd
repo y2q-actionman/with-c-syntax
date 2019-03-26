@@ -8,7 +8,8 @@
 	       (:module "src"
 		:serial nil	
                 :components
-                ((:file "package")
+                ((:file "syntax-package")
+		 (:file "package" :depends-on ("syntax-package"))
 		 (:file "util" :depends-on ("package"))
 		 (:file "condition" :depends-on ("package"))
                  (:file "keywords" :depends-on ("package"))

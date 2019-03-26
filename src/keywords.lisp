@@ -2,39 +2,9 @@
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (define-constant +operators-and-keywords+
-      '(;; operators
-        \,
-	= *= /= %= += -= <<= >>= &= ^= \|=
-	? \:
-	\|\|
-	&&
-	\|
-	^
-	&
-	== !=
-	< > <= >=
-	>> <<
-	+ -
-	* / %
-	\( \)
-	++ -- |sizeof|
-	& * + - ~ !
-	[ ] \. ->
-        ;; keywords
-        \;
-	|auto| |register| |static| |extern| |typedef|
-	|void| |char| |short| |int| |long|
-        |float| |double| |signed| |unsigned|
-	|const| |volatile|
-	|struct| |union|
-	|enum|
-	|...|
-	|case| |default|
-	{ }
-	|if| |else| |switch|
-	|while| |do| |for|
-	|goto| |continue| |break| |return|
-        |__lisp_type| |__offsetof|)	; extensions
+      (loop with syntax-package = (find-package '#:with-c-syntax.syntax)
+	 for i being the external-symbol of syntax-package
+	 collect i)
     :test 'equal
     :documentation
     "* Value Type
