@@ -20,7 +20,6 @@
 		  :depends-on ("struct" "typedef" "pseudo-pointer" "preprocessor"))
                  (:file "reader" :depends-on ("with-c-syntax"))))
                (:module "libc"
-		:pathname #.(make-pathname :directory '(:relative "src" "libc"))
 		:serial nil	
                 :components
                 ((:file "package")
