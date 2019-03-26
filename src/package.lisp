@@ -60,7 +60,7 @@
    #:remove-typedef
    ;; with-c-syntax.lisp
    #:enum
-   #:get-varargs
+   #:get-variadic-arguments
    #:with-c-syntax)
   (:documentation
    "with-c-syntax core package."))

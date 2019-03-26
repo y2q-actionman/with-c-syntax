@@ -724,17 +724,15 @@ Returns (values var-init var-type)."
   func-body
   lisp-type)
 
-(defmacro get-varargs (place)
+(defmacro get-variadic-arguments ()
   "* Syntax
-~get-varargs~ place => obj
+~get-variadic-arguments~ => list
 
 * Arguments and Values
-- place :: a place
-- obj   :: a list
+- list   :: a list
 
 * Description
-Sets the variadic arguments of the with-c-syntax function to the
-~place~.
+It returns the variadic arguments of the with-c-syntax function.
 
 If this is called outside of a variadic function, an error is
 signaled.
@@ -743,12 +741,11 @@ signaled.
 This is not intended for calling directly. The ~va_start~ preprocessor
 macro uses this.
 
-When defining a variadic function, a macro has same name is locally
+When defining a variadic function, a local function has same name is
 established.
 "
-  (declare (ignore place))
-  (error 'compile-error
-         :format-control "Trying to get a variadic args list out of a variadic func."))
+  '(error 'runtime-error
+	 :format-control "Trying to get a variadic args list out of a variadic func."))
 
 (defun lispify-function-definition (name body
                                     &key K&R-decls (return (make-decl-specs)))
@@ -798,9 +795,9 @@ established.
        :func-body
        `((declare (ignore ,@omitted))
          ,(if variadic
-              `(macrolet ((get-varargs (ap)
-                            "locally established get-varargs macro."
-                            `(setf ,ap ,',varargs-sym)))
+              `(macrolet ((get-variadic-arguments ()
+                            "locally established `get-variadic-arguments' macro."
+			    ',varargs-sym))
                  ,body)
               body))
        :lisp-type `(function ',(mapcar (constantly t) param-ids)

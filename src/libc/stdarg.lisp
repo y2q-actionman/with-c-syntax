@@ -5,7 +5,7 @@
   (unless (length= 1 ap)
     (error 'library-macro-error
            :name "va_start" :args (list ap last)))
-  `(get-varargs ,(first ap)))
+  `(setf ,(first ap) (get-variadic-arguments)))
 
 (defun va_arg (ap type)
   (declare (type list ap))

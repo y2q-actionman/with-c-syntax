@@ -108,6 +108,9 @@
       })))
 
 (test test-trans-fdefinition-varargs
+  (signals.wcs ()
+    va_list ap \;
+    va_start \( ap \, cnt \) \;)
   (with-c-syntax ()
     int sumn \( int cnt \, |...| \) {
        int i \, ret = 0 \;
