@@ -98,6 +98,15 @@
   (is (= 4 (inc-a)))
   (is (= 0 (reset-a))))
 
+(test test-stmt-static
+  ;; This is `:statement' expansion, so `*xxx*' expanded into toplevel form.
+  (is.equal.wcs 0
+    (with-c-syntax ()
+      {
+      static int xxx = 0 \;
+      return xxx \;
+      })))
+
 (test test-trans-fdefinition-varargs
   (with-c-syntax ()
     int sumn \( int cnt \, |...| \) {
