@@ -101,13 +101,10 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
   (defun array-transpose (arr)
     (destructuring-bind (i-max j-max) (array-dimensions arr)
       #{
-        int i,j,temp;
+        int i,j;
         for (i = 0; i < i-max; i ++) {
             for (j = i + 1; j < j-max; j ++) {
-                temp = arr[i][j];
-                arr[i][j] = arr[j][i];
-                arr[j][i] = temp;
-                // pprint (arr) ;
+	        rotatef(arr[i][j], arr[j][i]);
             }
         }
       }#)
