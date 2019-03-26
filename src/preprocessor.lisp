@@ -1,17 +1,7 @@
 (in-package #:with-c-syntax.core)
 
-(defun preprocessor-initial-set ()
-  "Returns the initial value of *preprocessor-macro*"
-  (loop for sym in +operators-and-keywords+
-     as name = (symbol-name sym)
-     as ucase = (string-upcase name)
-     as macro = sym
-     collect `((,name nil) . ,macro)
-     when (string/= name ucase)
-     collect `((,ucase :upcase) . ,macro)))
-
 (defparameter *preprocessor-macro*
-  (preprocessor-initial-set)
+  nil
   "* Value Type
 a vector of alist.
 The alist is :: (<symbol or string> case-spec)
@@ -202,9 +192,18 @@ calls the function like:
      with typedef-hack of-type boolean = nil
      with expanded-marker of-type symbol = (gensym)
      for token = (pop lis)
-     ;; preprocessor macro
      when (symbolp token)
-     do (when-let*
+     do	;; package translation, and case conversion.
+       (when-let* ((kwd-sym (find-symbol (symbol-name token)
+       					  (find-package '#:with-c-syntax.syntax))))
+       	  (push kwd-sym ret)
+       	  (setf token expanded-marker))
+       (when-let ((ucase-sym (find-symbol (symbol-name token)
+       					  (find-package '#:with-c-syntax.syntax-upcase))))
+       	 (push (symbol-value ucase-sym) ret)
+       	 (setf token expanded-marker))
+     ;; preprocessor macro
+       (when-let*
             ((entry (find-preprocessor-macro token case-spec))
              (expansion (cdr entry)))
           (cond ((functionp expansion) ; preprocessor funcion
