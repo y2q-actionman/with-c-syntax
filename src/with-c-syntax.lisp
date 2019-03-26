@@ -954,7 +954,7 @@ established.
 	    if (and defined-in
 		    (eq mode :translation-unit))
             do (push `(add-struct-spec ',sname ,sspec)
-                     global-defs))
+                     toplevel-defs))
        ;; declarations
        do(multiple-value-bind 
                (lexical-binds-1 dynamic-extent-vars-1
