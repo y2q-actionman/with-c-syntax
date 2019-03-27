@@ -1,21 +1,5 @@
 (in-package #:with-c-syntax.core)
 
-(defparameter *terminal-symbol-table* nil)
-(defparameter *upcased-terminal-symbol-table* nil)
-
-(defun init-terminal-symbol-table ()
-  (setf *terminal-symbol-table* (make-hash-table :test #'equal)
-	*upcased-terminal-symbol-table* (make-hash-table :test #'equal))
-  (loop for sym in +operators-and-keywords+
-     as name = (symbol-name sym)
-     as ucase = (string-upcase name)
-     do (setf (gethash name *terminal-symbol-table*) sym)
-     when (string/= name ucase)
-     do (setf (gethash ucase *upcased-terminal-symbol-table*) sym)))
-
-(eval-when (:load-toplevel :execute)
-  (init-terminal-symbol-table))
-
 (defun preprocessor-initial-set ()
   "Returns the initial value of *preprocessor-macro*"
   nil)
@@ -159,9 +143,12 @@ reader. If nil, the macro is defined for all readtable-case.
 * Description
 This function works like the C Preprocessor.
 
-** Working.
+** Works.
 At this stage, all of the functionalities of the standard CPP are not
 implemented. Current working is below:
+
+- Interning a symbol into this package when it has a same name as C
+  keywords or operators.
 
 - Concatenation of string literals.
 
@@ -212,27 +199,24 @@ calls the function like:
      with typedef-hack of-type boolean = nil
      with expanded-marker of-type symbol = (gensym)
      for token = (pop lis)
-     ;; preprocessor macro
      when (symbolp token)
-     do (when-let* ((term-sym (gethash (symbol-name token) *terminal-symbol-table* )))
-	  (push term-sym ret)
-	  (setf token expanded-marker))
-       (when (eq case-spec :upcase)
-	 (when-let* ((term-sym (gethash (symbol-name token) *upcased-terminal-symbol-table*)))
-	   (push term-sym ret)
-	   (setf token expanded-marker)))
+     do ;; interning C keywords.
+       (when-let ((c-op (intern-c-terminal (symbol-name token) case-spec)))
+	 (push c-op ret)
+	 (setf token expanded-marker))
+     ;; preprocessor macro
        (when-let*
            ((entry (find-preprocessor-macro token case-spec))
             (expansion (cdr entry)))
-          (cond ((functionp expansion) ; preprocessor funcion
-                 (multiple-value-bind (ex-val new-lis)
-                     (preprocessor-call-macro lis expansion)
-                   (push ex-val ret)
-                   (setf lis new-lis)
-                   (setf token expanded-marker)))
-                (t                  ; symbol expansion
-                 (push expansion ret)
-                 (setf token expanded-marker))))
+         (cond ((functionp expansion)	; preprocessor funcion
+                (multiple-value-bind (ex-val new-lis)
+                    (preprocessor-call-macro lis expansion)
+                  (push ex-val ret)
+                  (setf lis new-lis)
+                  (setf token expanded-marker)))
+               (t			; symbol expansion
+                (push expansion ret)
+                (setf token expanded-marker))))
      ;; string concatenation
      when (stringp token)
      do (loop for i = (pop lis)
