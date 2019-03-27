@@ -1,14 +1,24 @@
 (in-package #:with-c-syntax.core)
 
-(defun preprocessor-initial-set ()
-  "Returns the initial value of *preprocessor-macro*"
+(defparameter *terminal-symbol-table* nil)
+(defparameter *upcased-terminal-symbol-table* nil)
+
+(defun init-terminal-symbol-table ()
+  (setf *terminal-symbol-table* (make-hash-table :test #'equal)
+	*upcased-terminal-symbol-table* (make-hash-table :test #'equal))
   (loop for sym in +operators-and-keywords+
      as name = (symbol-name sym)
      as ucase = (string-upcase name)
-     as macro = sym
-     collect `((,name nil) . ,macro)
+     do (setf (gethash name *terminal-symbol-table*) sym)
      when (string/= name ucase)
-     collect `((,ucase :upcase) . ,macro)))
+     do (setf (gethash ucase *upcased-terminal-symbol-table*) sym)))
+
+(eval-when (:load-toplevel :execute)
+  (init-terminal-symbol-table))
+
+(defun preprocessor-initial-set ()
+  "Returns the initial value of *preprocessor-macro*"
+  nil)
 
 (defparameter *preprocessor-macro*
   (preprocessor-initial-set)
@@ -204,9 +214,16 @@ calls the function like:
      for token = (pop lis)
      ;; preprocessor macro
      when (symbolp token)
-     do (when-let*
-            ((entry (find-preprocessor-macro token case-spec))
-             (expansion (cdr entry)))
+     do (when-let* ((term-sym (gethash (symbol-name token) *terminal-symbol-table* )))
+	  (push term-sym ret)
+	  (setf token expanded-marker))
+       (when (eq case-spec :upcase)
+	 (when-let* ((term-sym (gethash (symbol-name token) *upcased-terminal-symbol-table*)))
+	   (push term-sym ret)
+	   (setf token expanded-marker)))
+       (when-let*
+           ((entry (find-preprocessor-macro token case-spec))
+            (expansion (cdr entry)))
           (cond ((functionp expansion) ; preprocessor funcion
                  (multiple-value-bind (ex-val new-lis)
                      (preprocessor-call-macro lis expansion)
