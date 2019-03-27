@@ -1,11 +1,7 @@
 (in-package #:with-c-syntax.core)
 
-(defun preprocessor-initial-set ()
-  "Returns the initial value of *preprocessor-macro*"
-  nil)
-
 (defparameter *preprocessor-macro*
-  (preprocessor-initial-set)
+  nil
   "* Value Type
 a vector of alist.
 The alist is :: (<symbol or string> case-spec)
