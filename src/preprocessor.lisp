@@ -198,9 +198,8 @@ calls the function like:
        					  (find-package '#:with-c-syntax.syntax))))
        	  (push kwd-sym ret)
        	  (setf token expanded-marker))
-       (when-let ((ucase-sym (find-symbol (symbol-name token)
-       					  (find-package '#:with-c-syntax.syntax-upcase))))
-       	 (push (symbol-value ucase-sym) ret)
+       (when-let ((ucase-sym (gethash (symbol-name token) *upcased-syntactic-word-table*)))
+       	 (push ucase-sym ret)
        	 (setf token expanded-marker))
      ;; preprocessor macro
        (when-let*
