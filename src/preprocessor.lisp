@@ -194,8 +194,8 @@ calls the function like:
      for token = (pop lis)
      when (symbolp token)
      do	;; package translation, and case conversion.
-       (when-let* ((kwd-sym (find-symbol (symbol-name token)
-       					  (find-package '#:with-c-syntax.syntax))))
+       (when-let ((kwd-sym (find-symbol (symbol-name token)
+       					(find-package '#:with-c-syntax.syntax))))
        	  (push kwd-sym ret)
        	  (setf token expanded-marker))
        (when-let ((ucase-sym (gethash (symbol-name token) *upcased-syntactic-word-table*)))
