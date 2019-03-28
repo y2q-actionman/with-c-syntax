@@ -1,6 +1,6 @@
 (in-package #:with-c-syntax.test)
 
-(test test-stdlib-float
+(test test-libc-float
   ;; well-known value
   (is.equal.wcs single-float-epsilon
     return FLT_EPSILON \;)
@@ -59,7 +59,7 @@
   (is.equal.wcs t
     return LDBL_MAX_10_EXP >= 37 \;))
 
-(test test-stdlib-iso646
+(test test-libc-iso646
   (is.equal.wcs t
     {
     int i = 7 \, j = 3 \;
@@ -123,7 +123,7 @@
     return i == j \;
     }))
 
-(test test-stdlib-limits
+(test test-libc-limits
   (is.equal.wcs t
     return CHAR_BIT >= 8 \;)
   (muffle-unused-code-warning
@@ -164,7 +164,7 @@
   (is.equal.wcs t
     return MB_LEN_MAX >= 1 \;))
 
-(test test-stdlib-stddef
+(test test-libc-stddef
   (is.equal.wcs 0
     return NULL \;)
   (is.equal.wcs 1

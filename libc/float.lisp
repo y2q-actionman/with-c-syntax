@@ -1,4 +1,4 @@
-(in-package #:with-c-syntax.stdlib)
+(in-package #:with-c-syntax.libc)
 
 ;; single-float
 (defconstant FLT_RADIX

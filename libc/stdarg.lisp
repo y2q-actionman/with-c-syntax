@@ -1,4 +1,4 @@
-(in-package #:with-c-syntax.stdlib)
+(in-package #:with-c-syntax.libc)
 
 (defun va_start (ap last)
   (declare (type list ap))
