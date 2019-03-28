@@ -104,7 +104,7 @@ reader. If nil, the macro is defined for all readtable-case.
     entry))
 
 (defun preprocessor-call-macro (lis-head fn)
-  "A part of the ~preprocessor~ function."
+  "A part of the `preprocessor' function."
   (let ((begin (pop lis-head)))
     (unless (string= begin "(")
       (error 'preprocess-error
@@ -191,51 +191,49 @@ calls the function like:
   a macro was expanded, I will push (the-expanded-macro . nil), and
   call the preprocessor recursively.
 "
-  (loop with ret = nil
-     with typedef-hack of-type boolean = nil
-     with expanded-marker of-type symbol = (gensym)
-     for token = (pop lis)
-     when (symbolp token)
-     do ;; interning C keywords.
-       (when-let ((c-op (intern-c-terminal (symbol-name token) case-spec)))
-	 (push c-op ret)
-	 (setf token expanded-marker))
-     ;; preprocessor macro
-       (when-let*
-           ((entry (find-preprocessor-macro token case-spec))
-            (expansion (cdr entry)))
-         (cond ((functionp expansion)	; preprocessor funcion
-                (multiple-value-bind (ex-val new-lis)
-                    (preprocessor-call-macro lis expansion)
-                  (push ex-val ret)
-                  (setf lis new-lis)
-                  (setf token expanded-marker)))
-               (t			; symbol expansion
-                (push expansion ret)
-                (setf token expanded-marker))))
-     ;; string concatenation
-     when (stringp token)
-     do (loop for i = (pop lis)
-           while (stringp i)
-	   collect i into strs
-           finally
-	     (push i lis) ; write back the last object (not a string).
-             (push (apply #'concatenate 'string token strs) ret)
-             (setf token expanded-marker))
-     ;; otherwise..
-     unless (eq token expanded-marker)
-     do (push token ret)
+  (do (ret
+       typedef-hack
+       (token (pop lis) (pop lis)))
+      ((and (null lis) ; (2019-2-24) I must check 'lis' here to get all symbols including NIL.
+	    (null token))
+       (nreverse ret))
+    (declare (type list ret)
+	     (type boolean typedef-hack))
+    (when (symbolp token)
+      ;; interning C keywords.
+      (when-let ((c-op (intern-c-terminal (symbol-name token) case-spec)))
+	(push c-op ret)
+	(go processed!))
+      ;; preprocessor macro
+      (when-let*
+	  ((entry (find-preprocessor-macro token case-spec))
+	   (expansion (cdr entry)))
+	(cond ((functionp expansion)	; preprocessor funcion
+               (multiple-value-bind (ex-val new-lis)
+		   (preprocessor-call-macro lis expansion)
+		 (push ex-val ret)
+		 (setf lis new-lis)
+		 (go processed!)))
+	      (t			; symbol expansion
+               (push expansion ret)
+	       (go processed!)))))
+    ;; string concatenation
+    (when (stringp token)
+      (loop for next = (first lis)
+	 while (stringp next)
+	 collect (pop lis) into strs
+	 finally
+	   (push (apply #'concatenate 'string token strs) ret)
+	   (go processed!)))
+    ;; otherwise..
+    (push token ret)
 
-     ;; typedef hack -- adds "void ;" after each typedef.
-     if (eq (first ret) '|typedef|)
-     do (setf typedef-hack t)
-     else if (and typedef-hack
-                  (eq (first ret) '\;))
-     do (setf typedef-hack nil)
-       (push '|void| ret)
-       (push '\; ret)
-     end
+   processed!
 
-     while lis ; (2019-2-24) I must check 'lis' here to get all symbols including NIL.
-     finally
-       (return (nreverse ret))))
+    ;; typedef hack -- adds "void ;" after each typedef.
+    (cond ((eq (first ret) '|typedef|)
+	   (setf typedef-hack t))
+	  ((and typedef-hack
+		(eq (first ret) '\;))
+	   (setf typedef-hack nil)
+	   (revappendf ret '(|void| \;))))))
