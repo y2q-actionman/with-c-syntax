@@ -198,3 +198,22 @@
 ;;   int wcs-duff-device-2 \( int to-seq \, int from-seq \, int cnt \) {
 ;;    int * to = & to-seq \;
 ;;    })
+
+;; TODO: add more 'const' tests.
+#+ ()
+(test test-stmt-const
+  (is.equal.wcs 0
+    (with-c-syntax (:return xxx)
+      const int xxx = 0 \;))
+  (is.equal.wcs 1
+    (with-c-syntax ()
+      {
+      static const int xxx = 1 \;
+      return xxx \;
+      }))
+  (is.equal.wcs 3
+    (with-c-syntax ()
+      {
+      static const int xxx = 2 \;
+      return ++ xxx \;
+      })))
