@@ -804,13 +804,14 @@ established.
                              ',(decl-specs-lisp-type return))))))
 
 ;;; Toplevel
-(defun expand-toplevel-init-decls (init-decls mode storage-class-in-decl-specs
+(defun expand-toplevel-init-decls (mode dspecs init-decls
                                    dynamic-established-syms)
   "A part of `expand-toplevel'."
-  (loop with storage-class = (or storage-class-in-decl-specs
+  (loop with storage-class = (or (decl-specs-storage-class dspecs)
 				 (ecase mode
 				   (:statement '|auto|)
 				   (:translation-unit '|global|)))
+     with qualifiers = (decl-specs-qualifier dspecs)
      with lexical-binds = nil
      with dynamic-extent-vars = nil
      with special-vars = nil
@@ -819,6 +820,11 @@ established.
      with funcptr-syms = nil
      with sym-macro-defs = nil
      with toplevel-defs = nil
+
+     initially
+       (when (member '|volatile| qualifiers)
+	 (warn 'with-c-syntax-style-warning
+	       :message "'volatile' qualifier is currently ignored"))
 
      for i in init-decls
      as name = (init-declarator-lisp-name i)
@@ -959,8 +965,7 @@ established.
                                 typedef-names-1 funcptr-syms-1
                                 dynamic-established-syms-1
 				toplevel-defs-1)
-             (expand-toplevel-init-decls init-decls mode
-					 (decl-specs-storage-class dspecs)
+             (expand-toplevel-init-decls mode dspecs init-decls
                                          cleanup-dynamic-established-syms)
 	   (assert (subsetp dynamic-extent-vars-1 lexical-binds-1
 			    :test (lambda (dv lv)

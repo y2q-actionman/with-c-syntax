@@ -100,3 +100,12 @@ with-c-syntax-warning, simple-warning, ...
 The type ~with-c-syntax-warning~ consists of all warnings in the
 with-c-syntax system.
 "))
+
+(define-condition with-c-syntax-style-warning (style-warning)
+  ((message :initarg :message :reader with-c-syntax-style-warning-message))
+  (:report
+   (lambda (condition stream)
+     (format stream "with-c-syntax-style-warning: ~A"
+	     (with-c-syntax-style-warning-message condition))))
+  (:documentation
+   "Signalled when `with-c-syntax' saw a kind of `style-warning'."))
