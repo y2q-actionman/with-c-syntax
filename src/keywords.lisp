@@ -14,18 +14,6 @@ a list :: consists of symbols.
 Holds a list of symbols denoting C operators and keywords.
 "))
 
-(defun make-upcased-syntactic-word-table ()
-  (loop with tab = (make-hash-table :test 'equal)
-     for sym in +operators-and-keywords+
-     as name = (symbol-name sym)
-     as upcase = (string-upcase name)
-     when (string/= name upcase)
-     do (setf (gethash upcase tab) sym)
-     finally (return tab)))
-
-(defparameter *upcased-syntactic-word-table*
-  (make-upcased-syntactic-word-table))
-
 (define-constant +numeric-types-alist+
     '(;; Extension: uses T if no types are specified
       (()				.	t)
