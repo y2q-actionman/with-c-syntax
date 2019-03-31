@@ -2,8 +2,7 @@
 
 (defpackage #:with-c-syntax.libc
   (:use #:cl #:with-c-syntax.core)
-  (:import-from #:alexandria
-                #:length=)
+  (:shadow #:null)
   (:export
    ;; float
    #:FLT_RADIX
@@ -50,7 +49,17 @@
    #:DECIMAL_DIG
    #:FLT_EVAL_METHOD
    ;; iso646
-   ;; - (nothing)
+   #:|and|
+   #:|and_eq|
+   #:|bitand|
+   #:|bitor|
+   #:|compl|
+   #:|not|
+   #:|not_eq|
+   #:|or|
+   #:|or_eq|
+   #:|xor|
+   #:|xor_eq|
    ;; limits
    #:CHAR_BIT
    #:CHAR_MAX
@@ -72,9 +81,16 @@
    #:ULLONG_MAX
    #:MB_LEN_MAX
    ;; stdarg
-   ;; - (nothing)
+   #:|va_list|
+   #:|va_start|
+   #:|va_arg|
+   #:|va_end|
+   #:|va_copy|
    ;; stddef
-   ;; - (nothing)
-   )
+   #:NULL
+   #:|ptrdiff_t|
+   #:|size_t|
+   #:|wchar_t|
+   #:|offsetof|)
   (:documentation
    "with-c-syntax libc package."))

@@ -44,21 +44,6 @@ a list :: consists of symbols.
 Holds a list of symbols denoting C operators and keywords.
 "))
 
-(let ((terminal-symbol-table (make-hash-table :test #'equal))
-      (upcased-terminal-symbol-table (make-hash-table :test #'equal)))
-  (loop for sym in +operators-and-keywords+
-     as name = (symbol-name sym)
-     as ucase = (string-upcase name)
-     do (setf (gethash name terminal-symbol-table) sym)
-     when (string/= name ucase)
-     do (setf (gethash ucase upcased-terminal-symbol-table) sym))
-  (defun intern-c-terminal (name case-spec)
-    "Finds a symbol in `+operators-and-keywords+' having a same name
-as NAME based on CASE-SPEC. If not found, returns `nil'."
-    (or (gethash name terminal-symbol-table)
-	(if (eq case-spec :upcase)
-	    (gethash name upcased-terminal-symbol-table)))))
-
 (define-constant +numeric-types-alist+
     '(;; Extension: uses T if no types are specified
       (()				.	t)

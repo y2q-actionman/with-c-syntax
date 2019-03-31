@@ -109,3 +109,16 @@ with-c-syntax system.
 	     (with-c-syntax-style-warning-message condition))))
   (:documentation
    "Signalled when `with-c-syntax' saw a kind of `style-warning'."))
+
+;;; currently unused. I used this when the preprocessor found an error.
+#+ ()
+(define-condition library-macro-error (with-c-syntax-error)
+  ((name :initarg :name
+         :reader library-macro-error-name)
+   (args :initarg :args
+         :reader library-macro-error-args))
+  (:report
+   (lambda (condition stream)
+     (format stream "~A: bad args: ~A"
+             (library-macro-error-name condition)
+             (library-macro-error-args condition)))))
