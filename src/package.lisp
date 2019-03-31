@@ -1,5 +1,44 @@
 (in-package #:cl-user)
 
+(defpackage #:with-c-syntax.syntax
+  (:export
+   ;; operators
+   #:\,
+   #:= #:*= #:/= #:%= #:+= #:-= #:<<= #:>>= #:&= #:^= #:\|=
+   #:? #:\:
+   #:\|\|
+   #:&&
+   #:\|
+   #:^
+   #:&
+   #:== #:!=
+   #:< #:> #:<= #:>=
+   #:>> #:<<
+   #:+ #:-
+   #:* #:/ #:%
+   #:\( #:\)
+   #:++ #:-- #:|sizeof|
+   #:& #:* #:+ #:- #:~ #:!
+   #:[ #:] #:\. #:->
+   ;; keywords
+   #:\;
+   #:|auto| #:|register| #:|static| #:|extern| #:|typedef|
+   #:|void| #:|char| #:|short| #:|int| #:|long|
+   #:|float| #:|double| #:|signed| #:|unsigned|
+   #:|const| #:|volatile|
+   #:|struct| #:|union|
+   #:|enum|
+   #:|...|
+   #:|case| #:|default|
+   #:{ #:}
+   #:|if| #:|else| #:|switch|
+   #:|while| #:|do| #:|for|
+   #:|goto| #:|continue| #:|break| #:|return|
+   ;; extensions
+   #:|__lisp_type| #:|__offsetof|)
+  (:documentation
+   "Holds symbols denoting C operators and keywords. "))
+
 (defpackage #:with-c-syntax.core
   (:use #:cl #:with-c-syntax #:with-c-syntax.syntax)
   (:shadowing-import-from
@@ -69,3 +108,10 @@
    #:with-c-syntax)
   (:documentation
    "with-c-syntax core package."))
+
+(in-package #:with-c-syntax.core)
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun find-syntax-package ()
+    "Returns the `WITH-C-SYNTAX.SYNTAX' package."
+    (find-package '#:with-c-syntax.syntax)))

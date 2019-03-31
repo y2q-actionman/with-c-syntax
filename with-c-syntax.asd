@@ -8,15 +8,13 @@
 	       (:module "src"
 		:serial nil	
                 :components
-                ((:file "syntax-package")
-		 (:file "package" :depends-on ("syntax-package"))
+                ((:file "package")
 		 (:file "util" :depends-on ("package"))
 		 (:file "condition" :depends-on ("package"))
-                 (:file "keywords" :depends-on ("package"))
                  (:file "struct" :depends-on ("package"))
                  (:file "typedef" :depends-on ("package"))
                  (:file "pseudo-pointer" :depends-on ("util" "condition"))
-                 (:file "preprocessor" :depends-on ("condition" "keywords"))
+                 (:file "preprocessor" :depends-on ("condition"))
                  (:file "with-c-syntax"
 		  :depends-on ("struct" "typedef" "pseudo-pointer" "preprocessor"))
                  (:file "reader" :depends-on ("with-c-syntax"))))
