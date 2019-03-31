@@ -100,3 +100,25 @@ with-c-syntax-warning, simple-warning, ...
 The type ~with-c-syntax-warning~ consists of all warnings in the
 with-c-syntax system.
 "))
+
+(define-condition with-c-syntax-style-warning (style-warning)
+  ((message :initarg :message :reader with-c-syntax-style-warning-message))
+  (:report
+   (lambda (condition stream)
+     (format stream "with-c-syntax-style-warning: ~A"
+	     (with-c-syntax-style-warning-message condition))))
+  (:documentation
+   "Signalled when `with-c-syntax' saw a kind of `style-warning'."))
+
+;;; currently unused. I used this when the preprocessor found an error.
+#+ ()
+(define-condition library-macro-error (with-c-syntax-error)
+  ((name :initarg :name
+         :reader library-macro-error-name)
+   (args :initarg :args
+         :reader library-macro-error-args))
+  (:report
+   (lambda (condition stream)
+     (format stream "~A: bad args: ~A"
+             (library-macro-error-name condition)
+             (library-macro-error-args condition)))))

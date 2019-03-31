@@ -1,110 +1,83 @@
 (in-package #:with-c-syntax.core)
 
-(defparameter *preprocessor-macro*
-  nil
-  "* Value Type
-a vector of alist.
-The alist is :: (<symbol or string> case-spec)
-                 -> <function, or any literal object>.
- 
-* Description
-Holds preprocessor macro definitions.
+(let ((terminal-symbol-table (make-hash-table :test #'equal))
+      (upcased-terminal-symbol-table (make-hash-table :test #'equal)))
+  (loop for sym in +operators-and-keywords+
+     as name = (symbol-name sym)
+     as ucase = (string-upcase name)
+     do (setf (gethash name terminal-symbol-table) sym)
+     when (string/= name ucase)
+     do (setf (gethash ucase upcased-terminal-symbol-table) sym))
+  (defun intern-c-terminal (name case-spec)
+    "Finds a symbol in `+operators-and-keywords+' having a same name
+as NAME based on CASE-SPEC. If not found, returns `nil'."
+    (or (gethash name terminal-symbol-table)
+	(if (eq case-spec :upcase)
+	    (gethash name upcased-terminal-symbol-table)))))
 
-~case-spec~ is one of the following:
-nil     :: means this macro definition is all readtable-case.
-:upcase :: means this macro definition is only for the :upcase of
-           readtable-case.
-")
+(defun intern-libc-symbol (name case-spec)
+  "Finds a symbol in `with-c-syntax.libc' package having a same name
+as NAME based on CASE-SPEC. If not found, returns `nil'."
+  (let ((libc-package (find-package '#:with-c-syntax.libc)))
+    (multiple-value-bind (sym sym-type) (find-symbol name libc-package)
+      (when (and sym (eq sym-type :external))
+	(return-from intern-libc-symbol sym)))
+    (when (eq case-spec :upcase)
+      (multiple-value-bind (sym sym-type)
+	  (find-symbol (string-downcase name) libc-package)
+	(when (and sym (eq sym-type :external))
+	  (return-from intern-libc-symbol sym)))))
+  nil)
 
-(defun find-preprocessor-macro (name case-spec)
-  "* Syntax
-~find-preprocessor-macro~ name &optional case-spec => macro-def
 
-* Arguments and Values
-- name      :: a string or symbol.
-- case-spec :: ~:upcase~, or nil.
-- macro-def :: a cons, which have ~name~ as its car, and macro
-               definition as its cdr.
+(defconstant +preprocessor-macro+
+  '+preprocessor-macro+
+  "A symbol used as an indicator of `symbol-plist' holding the preprocessor function.
+See `add-preprocessor-macro'.")
 
-* Description
-Finds and returns a preprocessor macro definition named ~name~.
+(defun find-preprocessor-macro (symbol)
+  "Finds and returns a preprocessor macro definition named SYMBOL,
+added by `add-preprocessor-macro'."
+  (get symbol +preprocessor-macro+))
 
-~case-spec~ specifies for which case the macro is defined.  If
-~:upcase~ is specified, the macro is defined only for the ~:upcase~
-reader. If nil, the macro is defined for all readtable-case.
+(defun add-preprocessor-macro (symbol value)
+  "Establishes a new preprocessor macro to SYMBOL, which is corresponded to VALUE.
 
-** Matching rule
-- If ~name~ is a string, the matching functions is 'string='. Packages
-are ignored.
+Preprocessor macros are held in `symbol-plist' of SYMBOL, and
+indicated by `+preprocessor-macro+'."
+  (setf (get symbol +preprocessor-macro+) value))
 
-- If ~name~ is a symbol, the matching functions is 'eq'. This is
-package-aware.
-"
-  (loop for entry in *preprocessor-macro*
-     as (e-name e-case) = (car entry)
-     when (and (or (eq e-case nil)
-		   (eq e-case case-spec))
-	       (if (and (symbolp e-name) (symbolp name))
-		   (eq e-name name)
-		   (string= e-name name)))
-     return entry))
+(defun remove-preprocessor-macro (symbol)
+  "Removes a preprocessor macro named SYMBOL."
+  (remprop symbol +preprocessor-macro+))
 
-(defun add-preprocessor-macro (name val &optional (case-spec nil))
-  "* Syntax
-~add-preprocessor-macro~ name val &optional upcase-spec => macro-def
+(defmacro define-preprocessor-symbol (name value &environment env)
+  "Defines a new preprocessor symbol macro, named by NAME and its value is VALUE."
+  (if (constantp value env)
+      `(progn (defconstant ,name ,value)
+	      (add-preprocessor-macro ',name ,value))
+      (let ((eval (gensym)))
+	`(eval-when (:compile-toplevel :load-toplevel :execute)
+	   (let ((,eval ,value))
+	     (defconstant ,name ,eval)
+	     (eval-when (:load-toplevel :execute)
+	       (add-preprocessor-macro ',name ,eval)))))))
 
-* Arguments and Values
-- name      :: a string or symbol.
-- val       :: an object.
-- case-spec :: ~:upcase~, or nil.
-- macro-def :: a cons, which have ~name~ as its car, and macro
-               definition as its cdr.
-
-* Description
-Establishes a new preprocessor macro.  When the preprocessor finds a
-symbol matching ~name~, it is expanded by ~val~.
-
-~case-spec~ specifies for which case the macro is defined.  If
-~:upcase~ is specified, the macro is defined only for the ~:upcase~
-reader. If nil, the macro is defined for all readtable-case.
-
-* See Also
-~find-preprocessor-macro~.
-"
-  (if-let ((entry (find-preprocessor-macro name case-spec)))
-    (progn (setf (cdr entry) val)
-	   entry)
-    (let ((entry `((,name ,case-spec) . ,val)))
-      (push entry *preprocessor-macro*)
-      entry)))
-
-(defun remove-preprocessor-macro (name &optional (case-spec nil))
-  "* Syntax
-~remove-preprocessor-macro~ name &optional upcase-spec => macro-def
-
-* Arguments and Values
-- name      :: a string or symbol.
-- case-spec :: ~:upcase~, or nil.
-- macro-def :: a cons, which have ~name~ as its car, and macro
-               definition as its cdr.
-
-* Description
-Removes a preprocessor macro named ~name~.
-
-~case-spec~ specifies for which case the macro is defined.  If
-~:upcase~ is specified, the macro is defined only for the ~:upcase~
-reader. If nil, the macro is defined for all readtable-case.
-
-* See Also
-~find-preprocessor-macro~.
-"
-  ;; FIXME: This routine seeks the list twice.
-  (when-let (entry (find-preprocessor-macro name case-spec))
-    (deletef *preprocessor-macro* entry :test #'eq)
-    entry))
+(defmacro define-preprocessor-function (name lambda-list &body body)
+  "Defined a new preprocessor function, named by NAME."
+  (let* ((pp-macro-function-namestring (format nil "~A-PREPROCESSOR-MACRO" name))
+	 (pp-macro-function-name (intern pp-macro-function-namestring
+					 (symbol-package name)))
+	 (values-sym (gensym "values")))
+    `(progn
+       (defun ,pp-macro-function-name (&rest ,values-sym)
+	 ;; TODO: catch `destructuring-bind' error.
+	 (destructuring-bind ,lambda-list ,values-sym
+	   ,@body))
+       (add-preprocessor-macro ',name #',pp-macro-function-name))))
 
 (defun preprocessor-call-macro (lis-head fn)
-  "A part of the ~preprocessor~ function."
+  "A part of the `preprocessor' function."
   (let ((begin (pop lis-head)))
     (unless (string= begin "(")
       (error 'preprocess-error
@@ -139,9 +112,12 @@ reader. If nil, the macro is defined for all readtable-case.
 * Description
 This function works like the C Preprocessor.
 
-** Working.
+** Works.
 At this stage, all of the functionalities of the standard CPP are not
 implemented. Current working is below:
+
+- Interning a symbol into this package when it has a same name as C
+  keywords or operators, or libc symbols.
 
 - Concatenation of string literals.
 
@@ -156,9 +132,10 @@ implemented. Current working is below:
   is a workaround for avoiding the problem between 'the lexer hack'
   and the look-aheading of cl-yacc.
 
-~case-spec~ specifies which macro definitions are used. If ~:upcase~
-is specified, macro definitions for ~:upcase~ reader is used
-additionally.
+~case-spec~ specifies how to intern C keywords or libc symbols.  If
+~:upcase~ is specified, it tries to intern them in case-insensitive
+way.
+
 
 ** Expansion
 - If ~val~ is nil, no expansion is done. The original symbol is left.
@@ -188,55 +165,50 @@ calls the function like:
   a macro was expanded, I will push (the-expanded-macro . nil), and
   call the preprocessor recursively.
 "
-  (loop with ret = nil
-     with typedef-hack of-type boolean = nil
-     with expanded-marker of-type symbol = (gensym)
-     for token = (pop lis)
-     when (symbolp token)
-     do	;; package translation, and case conversion.
-       (when-let ((kwd-sym (find-symbol (symbol-name token)
-       					(find-package '#:with-c-syntax.syntax))))
-       	  (push kwd-sym ret)
-       	  (setf token expanded-marker))
-       (when-let ((ucase-sym (gethash (symbol-name token) *upcased-syntactic-word-table*)))
-       	 (push ucase-sym ret)
-       	 (setf token expanded-marker))
-     ;; preprocessor macro
-       (when-let*
-            ((entry (find-preprocessor-macro token case-spec))
-             (expansion (cdr entry)))
-          (cond ((functionp expansion) ; preprocessor funcion
-                 (multiple-value-bind (ex-val new-lis)
-                     (preprocessor-call-macro lis expansion)
-                   (push ex-val ret)
-                   (setf lis new-lis)
-                   (setf token expanded-marker)))
-                (t                  ; symbol expansion
-                 (push expansion ret)
-                 (setf token expanded-marker))))
-     ;; string concatenation
-     when (stringp token)
-     do (loop for i = (pop lis)
-           while (stringp i)
-	   collect i into strs
-           finally
-	     (push i lis) ; write back the last object (not a string).
-             (push (apply #'concatenate 'string token strs) ret)
-             (setf token expanded-marker))
-     ;; otherwise..
-     unless (eq token expanded-marker)
-     do (push token ret)
+  (do (ret
+       typedef-hack
+       (token (pop lis) (pop lis)))
+      ((and (null lis) ; (2019-2-24) I must check 'lis' here to get all symbols including NIL.
+	    (null token))
+       (nreverse ret))
+    (declare (type list ret)
+	     (type boolean typedef-hack))
+    (when (symbolp token)
+      ;; interning C keywords.
+      (when-let ((c-op (intern-c-terminal (symbol-name token) case-spec)))
+	(push c-op ret)
+	(go processed!))		; I assume all no proprocessor macros defined.
+      ;; interning libc keywords.
+      (when-let ((lib-op (intern-libc-symbol (symbol-name token) case-spec)))
+	(setf token lib-op))
+      ;; preprocessor macro
+      (when-let ((expansion (find-preprocessor-macro token)))
+	(cond ((functionp expansion)	; preprocessor funcion
+               (multiple-value-bind (ex-val new-lis)
+		   (preprocessor-call-macro lis expansion)
+		 (push ex-val ret)
+		 (setf lis new-lis)
+		 (go processed!)))
+	      (t			; symbol expansion
+               (push expansion ret)
+	       (go processed!)))))
+    ;; string concatenation
+    (when (stringp token)
+      (loop for next = (first lis)
+	 while (stringp next)
+	 collect (pop lis) into strs
+	 finally
+	   (push (apply #'concatenate 'string token strs) ret)
+	   (go processed!)))
+    ;; otherwise..
+    (push token ret)
 
-     ;; typedef hack -- adds "void ;" after each typedef.
-     if (eq (first ret) '|typedef|)
-     do (setf typedef-hack t)
-     else if (and typedef-hack
-                  (eq (first ret) '\;))
-     do (setf typedef-hack nil)
-       (push '|void| ret)
-       (push '\; ret)
-     end
+   processed!
 
-     while lis ; (2019-2-24) I must check 'lis' here to get all symbols including NIL.
-     finally
-       (return (nreverse ret))))
+    ;; typedef hack -- adds "void ;" after each typedef.
+    (cond ((eq (first ret) '|typedef|)
+	   (setf typedef-hack t))
+	  ((and typedef-hack
+		(eq (first ret) '\;))
+	   (setf typedef-hack nil)
+	   (revappendf ret '(|void| \;))))))
