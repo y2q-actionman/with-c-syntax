@@ -79,7 +79,7 @@ on its ~return~ argument.
 	       (values 'id nil)
 	       (values nil nil)))
           (symbol
-           (cond ((find-symbol (string value) syntax-package)
+           (cond ((eql (symbol-package value) syntax-package)
                   ;; They must be belongs this package.
                   ;; (done by the preprocessor)
                   (values value value))
@@ -1220,7 +1220,7 @@ established.
    (declarator
     #'(lambda (d)
 	(make-init-declarator :declarator d)))
-   (declarator = initializer
+   (declarator with-c-syntax.syntax:= initializer
                #'(lambda (d _op i)
                    (declare (ignore _op))
 		   (make-init-declarator :declarator d
@@ -1296,7 +1296,7 @@ established.
    (id
     #'(lambda (id)
 	(make-enumerator :declarator id)))
-   (id = const-exp
+   (id with-c-syntax.syntax:= const-exp
        #'(lambda (id _op exp)
            (declare (ignore _op))
 	   (make-enumerator :declarator id :initializer exp))))
@@ -1341,19 +1341,19 @@ established.
         (add-to-tail dcl '(:funcall nil)))))
 
   (pointer
-   (* type-qualifier-list
+   (with-c-syntax.syntax:* type-qualifier-list
     #'(lambda (_kwd qls)
         (declare (ignore _kwd))
         `((:pointer ,@qls))))
-   (*
+   (with-c-syntax.syntax:*
     #'(lambda (_kwd)
         (declare (ignore _kwd))
         '((:pointer))))
-   (* type-qualifier-list pointer
+   (with-c-syntax.syntax:* type-qualifier-list pointer
     #'(lambda (_kwd qls ptr)
         (declare (ignore _kwd))
         (add-to-tail ptr `(:pointer ,@qls))))
-   (*			  pointer
+   (with-c-syntax.syntax:*			pointer
     #'(lambda (_kwd ptr)
         (declare (ignore _kwd))
         (add-to-tail ptr '(:pointer)))))
@@ -1623,11 +1623,11 @@ established.
   ;; 'assignment-operator' is included here
   (assignment-exp
    conditional-exp
-   (unary-exp = assignment-exp
+   (unary-exp with-c-syntax.syntax:= assignment-exp
               (lispify-binary 'setf))
    (unary-exp *= assignment-exp
 	      (lispify-binary 'mulf))
-   (unary-exp /= assignment-exp
+   (unary-exp with-c-syntax.syntax:/= assignment-exp
 	      (lispify-binary 'divf))
    (unary-exp %= assignment-exp
 	      (lispify-binary 'modf))
@@ -1690,13 +1690,13 @@ established.
 
   (relational-exp
    shift-expression
-   (relational-exp < shift-expression
+   (relational-exp with-c-syntax.syntax:< shift-expression
 		   (lispify-binary '<))
-   (relational-exp > shift-expression
+   (relational-exp with-c-syntax.syntax:> shift-expression
 		   (lispify-binary '>))
-   (relational-exp <= shift-expression
+   (relational-exp with-c-syntax.syntax:<= shift-expression
 		   (lispify-binary '<=))
-   (relational-exp >= shift-expression
+   (relational-exp with-c-syntax.syntax:>= shift-expression
 		   (lispify-binary '>=)))
 
   (shift-expression
@@ -1708,16 +1708,16 @@ established.
 
   (additive-exp
    mult-exp
-   (additive-exp + mult-exp
+   (additive-exp with-c-syntax.syntax:+ mult-exp
 		 (lispify-binary '+))
-   (additive-exp - mult-exp
+   (additive-exp with-c-syntax.syntax:- mult-exp
 		 (lispify-binary '-)))
 
   (mult-exp
    cast-exp
-   (mult-exp * cast-exp
+   (mult-exp with-c-syntax.syntax:* cast-exp
 	     (lispify-binary '*))
-   (mult-exp / cast-exp
+   (mult-exp with-c-syntax.syntax:/ cast-exp
 	     (lispify-binary '/))
    (mult-exp % cast-exp
 	     (lispify-binary 'mod)))
@@ -1732,7 +1732,7 @@ established.
   ;; 'unary-operator' is included here
   (unary-exp
    postfix-exp
-   (++ unary-exp
+   (with-c-syntax.syntax:++ unary-exp
        (lispify-unary 'incf))
    (-- unary-exp
        (lispify-unary 'decf))
@@ -1740,11 +1740,11 @@ established.
       #'(lambda (_op exp)
           (declare (ignore _op))
 	  (lispify-address-of exp)))
-   (* cast-exp
+   (with-c-syntax.syntax:* cast-exp
       (lispify-unary 'pseudo-pointer-dereference))
-   (+ cast-exp
+   (with-c-syntax.syntax:+ cast-exp
       (lispify-unary '+))
-   (- cast-exp
+   (with-c-syntax.syntax:- cast-exp
       (lispify-unary '-))
    (! cast-exp
       (lispify-unary 'not))
@@ -1795,7 +1795,7 @@ established.
 		#'(lambda (exp _op id)
 		    (declare (ignore _op))
 		    `(struct-member (pseudo-pointer-dereference ,exp) ',id)))
-   (postfix-exp ++
+   (postfix-exp with-c-syntax.syntax:++
 		#'(lambda (exp _op)
 		    (declare (ignore _op))
 		    `(post-incf ,exp 1)))

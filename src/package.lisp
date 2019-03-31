@@ -2,6 +2,9 @@
 
 (defpackage #:with-c-syntax.core
   (:use #:cl #:with-c-syntax #:with-c-syntax.syntax)
+  (:shadowing-import-from
+   #:cl			      ; These CL symbols has same name with C.
+   #:= #:/=  #:< #:> #:<= #:>=  #:+ #:- #:* #:/  #:++)
   (:import-from #:alexandria
                 #:copy-hash-table	; 1. Hash Tables
 		#:define-constant	; 2. Data and Control Flow

@@ -1,11 +1,6 @@
 (in-package :cl-user)
 
 (defpackage #:with-c-syntax.syntax
-  (:import-from #:cl
-		#:= #:/=
-		#:< #:> #:<= #:>=
-		#:+ #:- #:* #:/
-		#:++)
   (:export
    ;; operators
    #:\,
