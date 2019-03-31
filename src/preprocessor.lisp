@@ -75,29 +75,40 @@ indicated by `+preprocessor-macro+'."
 	   ,@body))
        (add-preprocessor-macro ',name #',pp-macro-function-name))))
 
-(defun preprocessor-call-macro (lis-head fn)
+(defun preprocessor-equal-p (token name)
+  (and (symbolp token)
+       (string= token name)))
+
+(defun collect-preprocessor-macro-arguments (lis-head)
   "A part of the `preprocessor' function."
   (let ((begin (pop lis-head)))
-    (unless (string= begin "(")
+    (unless (preprocessor-equal-p begin "(")
       (error 'preprocess-error
 	     :format-control "A symbol (~S) found between a preprocessor macro and the first '('"
 	     :format-arguments (list begin))))
-  (labels ((pop-next-or-error ()
-             (unless lis-head
-               (error 'preprocess-error
-		      :format-control "Reached end of forms at finding preprocessor macro arguments."))
-             (pop lis-head))
-           (get-arg (start)
-             (loop for i = start then (pop-next-or-error)
-                until (or (string= i ",")
-                          (if (string= i ")")
-                              (progn (push i lis-head) t)))
-                collect i)))
-    (loop for i = (pop-next-or-error)
-       until (string= i ")")
-       collect (get-arg i) into args
+  (labels
+      ((pop-or-error ()
+         (unless lis-head
+           (error 'preprocess-error
+		  :format-control "Reached end of forms at finding preprocessor macro arguments."))
+         (pop lis-head))
+       (collect-one-arg (start)
+         (loop with nest-level of-type fixnum = 0
+	    for j = start then (pop-or-error)
+	    do (cond ((preprocessor-equal-p j "(")
+		      (incf nest-level))
+		     ((preprocessor-equal-p j ",")
+		      (loop-finish))
+		     ((preprocessor-equal-p j ")")
+		      (when (minusp (decf nest-level))
+			(push j lis-head)
+			(loop-finish))))
+            collect j)))
+    (loop for i = (pop-or-error)
+       until (preprocessor-equal-p i ")")
+       collect (collect-one-arg i) into macro-args
        finally
-         (return (values (apply fn args) lis-head)))))
+         (return (values macro-args lis-head)))))
 
 (defun preprocessor (lis &optional (case-spec nil))
   "* Syntax
@@ -181,15 +192,15 @@ calls the function like:
       (when-let ((lib-op (intern-libc-symbol (symbol-name token) case-spec)))
 	(setf token lib-op))
       ;; preprocessor macro
-      (when-let ((expansion (find-preprocessor-macro token)))
-	(cond ((functionp expansion)	; preprocessor funcion
-               (multiple-value-bind (ex-val new-lis)
-		   (preprocessor-call-macro lis expansion)
-		 (push ex-val ret)
+      (when-let ((pp-macro (find-preprocessor-macro token)))
+	(cond ((functionp pp-macro)	; preprocessor funcion
+	       (multiple-value-bind (macro-arg new-lis)
+		   (collect-preprocessor-macro-arguments lis)
+		 (push (apply pp-macro macro-arg) ret)
 		 (setf lis new-lis)
 		 (go processed!)))
 	      (t			; symbol expansion
-               (push expansion ret)
+               (push pp-macro ret)
 	       (go processed!)))))
     ;; string concatenation
     (when (stringp token)
