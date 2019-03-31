@@ -70,7 +70,7 @@ on its ~return~ argument.
   "`with-c-syntax' bind this to `&environment' argument.")
 
 ;;; Lexer
-(defun list-lexer (list)
+(defun list-lexer (list &aux (syntax-package (find-syntax-package)))
   #'(lambda ()
       (let ((value (pop list)))
         (typecase value
@@ -79,7 +79,7 @@ on its ~return~ argument.
 	       (values 'id nil)
 	       (values nil nil)))
           (symbol
-           (cond ((member value +operators-and-keywords+ :test #'eq)
+           (cond ((find-symbol (string value) syntax-package)
                   ;; They must be belongs this package.
                   ;; (done by the preprocessor)
                   (values value value))
@@ -1070,7 +1070,8 @@ established.
   (:muffle-conflicts t)         ; for 'dangling else'.
   ;; http://www.cs.man.ac.uk/~pjj/bnf/c_syntax.bnf
   (:terminals
-   #.(append +operators-and-keywords+
+   #.(append (loop for i being the external-symbol of (find-syntax-package)
+		  collect i)
 	     '(id typedef-id
 	       int-const char-const float-const
 	       string lisp-expression)))
