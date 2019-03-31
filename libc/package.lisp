@@ -94,3 +94,6 @@
    #:|offsetof|)
   (:documentation
    "with-c-syntax libc package."))
+
+;;; At this point, the libc package was fixed. I build its cache here.
+(with-c-syntax.core:build-libc-symbol-cache (find-package '#:with-c-syntax.libc))

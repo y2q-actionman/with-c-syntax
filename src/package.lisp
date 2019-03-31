@@ -56,6 +56,7 @@
    #:with-c-syntax-error
    #:with-c-syntax-warning
    ;; preprocessor.lisp
+   #:build-libc-symbol-cache
    #:find-preprocessor-macro
    #:add-preprocessor-macro
    #:remove-preprocessor-macro

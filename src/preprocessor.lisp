@@ -1,13 +1,19 @@
 (in-package #:with-c-syntax.core)
 
-(let ((terminal-symbol-table (make-hash-table :test #'equal))
-      (upcased-terminal-symbol-table (make-hash-table :test #'equal)))
-  (loop for sym being the external-symbol of (find-syntax-package)
+(defun build-interning-cache (package)
+  "Build hash-tables used by `intern-c-terminal' and `intern-libc-symbol'."
+  (loop with normal-tab = (make-hash-table :test #'equal)
+     with upcased-tab = (make-hash-table :test #'equal)
+     for sym being the external-symbol of package
      as name = (symbol-name sym)
      as ucase = (string-upcase name)
-     do (setf (gethash name terminal-symbol-table) sym)
+     do (setf (gethash name normal-tab) sym)
      when (string/= name ucase)
-     do (setf (gethash ucase upcased-terminal-symbol-table) sym))
+     do (setf (gethash ucase upcased-tab) sym)
+     finally (return (values normal-tab upcased-tab))))
+
+(multiple-value-bind (terminal-symbol-table upcased-terminal-symbol-table)
+    (build-interning-cache (find-syntax-package))
   (defun intern-c-terminal (name case-spec)
     "Finds a symbol in `with-c-syntax.syntax' package having a same
 name as NAME based on CASE-SPEC. If not found, returns `nil'."
@@ -15,19 +21,19 @@ name as NAME based on CASE-SPEC. If not found, returns `nil'."
 	(if (eq case-spec :upcase)
 	    (gethash name upcased-terminal-symbol-table)))))
 
-(defun intern-libc-symbol (name case-spec)
-  "Finds a symbol in `with-c-syntax.libc' package having a same name
-as NAME based on CASE-SPEC. If not found, returns `nil'."
-  (let ((libc-package (find-package '#:with-c-syntax.libc)))
-    (multiple-value-bind (sym sym-type) (find-symbol name libc-package)
-      (when (and sym (eq sym-type :external))
-	(return-from intern-libc-symbol sym)))
-    (when (eq case-spec :upcase)
-      (multiple-value-bind (sym sym-type)
-	  (find-symbol (string-downcase name) libc-package)
-	(when (and sym (eq sym-type :external))
-	  (return-from intern-libc-symbol sym)))))
-  nil)
+(let (libc-symbol-table upcased-libc-symbol-table)
+  (defun build-libc-symbol-cache (&optional (package (find-package '#:with-c-syntax.libc)))
+    "Build a cache used by `intern-libc-symbol'"
+    (setf (values libc-symbol-table upcased-libc-symbol-table)
+	  (build-interning-cache package)))
+  (defun intern-libc-symbol (name case-spec)
+    "Finds a symbol in the libc package having a same name as NAME
+based on CASE-SPEC. If not found, returns `nil'."
+    (unless (and libc-symbol-table upcased-libc-symbol-table)
+      (build-libc-symbol-cache))
+    (or (gethash name libc-symbol-table)
+	(if (eq case-spec :upcase)
+	    (gethash name upcased-libc-symbol-table)))))
 
 
 (defconstant +preprocessor-macro+
