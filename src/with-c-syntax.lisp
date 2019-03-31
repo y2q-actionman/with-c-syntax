@@ -387,7 +387,7 @@ For each entry of alist, the car is sorted alphabetically.
                          (expand-init-declarator-init dspecs abst-decls init))
                    (loop for d from 0 below (car rest-dims)
                       for init-i in init
-                      do (assert (starts-with :aref (car abst-decls)))
+                      initially (assert (starts-with :aref (car abst-decls)))
                       do (var-init-setup (cdr rest-dims)
                                          (add-to-tail subscripts d)
                                          (cdr abst-decls) init-i)))))
@@ -652,10 +652,10 @@ Returns (values var-init var-type)."
   (continue-statements nil) ; list of (go 'continue), should be rewrited
   (case-label-list nil))    ; alist of (<gensym> . :exp <case-exp>)
 
-(defun merge-stat (s1 s2 &key (merge-code nil))
-  (make-stat :code (if merge-code (append (stat-code s1)
-					  (stat-code s2))
-		       nil)
+(defun merge-stat (s1 s2 &key (empty-code nil))
+  (make-stat :code (if empty-code nil
+		       (append (stat-code s1)
+			       (stat-code s2)))
 	     :declarations (append (stat-declarations s1)
 				   (stat-declarations s2))
 	     :break-statements (append (stat-break-statements s1)
@@ -668,7 +668,7 @@ Returns (values var-init var-type)."
 (defun expand-if-statement (exp then-stat
 			     &optional (else-stat nil))
   (let* ((stat (if else-stat
-		   (merge-stat then-stat else-stat)
+		   (merge-stat then-stat else-stat :empty-code t)
 		   then-stat))
 	 (else-tag (gensym "if-else-")) ; TODO: remove this if not else-stat?
 	 (end-tag (gensym "if-end-")))
@@ -688,9 +688,9 @@ Returns (values var-init var-type)."
 	       :break-statements (list ret))))
 
 (defun rewrite-break-statements (sym stat)
-  (loop for i in (shiftf (stat-break-statements stat) nil)
-     do (setf (second i) sym)
-     count i))
+  (let ((ret (shiftf (stat-break-statements stat) nil)))
+    (dolist (i ret ret)
+      (setf (second i) sym))))
 
 (defun make-stat-unresolved-continue ()
   ;; Because of rewriting, the list of '(go ...)' must be fresh.
@@ -699,9 +699,9 @@ Returns (values var-init var-type)."
 	       :continue-statements (list ret))))
 
 (defun rewrite-continue-statements (sym stat)
-  (loop for i in (shiftf (stat-continue-statements stat) nil)
-     do (setf (second i) sym)
-     count i))
+  (let ((ret (shiftf (stat-continue-statements stat) nil)))
+    (dolist (i ret ret)
+      (setf (second i) sym))))
 
 (defun expand-loop (body-stat
 		     &key (init nil) (cond t) (step nil)
@@ -719,7 +719,7 @@ Returns (values var-init var-type)."
 		 `(go ,loop-cond-tag))
 	    ,loop-body-tag
 	    ,@(stat-code body-stat)
-	    ,@(if (plusp used-continues)
+	    ,@(if used-continues
 		  `(,loop-step-tag))
 	    (progn ,step)
 	    ,@(if post-test-p
@@ -727,7 +727,7 @@ Returns (values var-init var-type)."
 		  `(,loop-cond-tag))
 	    (when (progn ,cond)
 	      (go ,loop-body-tag))
-	    ,@(if (plusp used-breaks)
+	    ,@(if used-breaks
 		  `(,loop-end-tag))))
     body-stat))
 
@@ -759,7 +759,7 @@ Returns (values var-init var-type)."
     (setf (stat-code stat)
 	  `(,jump-table
 	    ,@(stat-code stat)
-	    ,@(if (or (plusp used-breaks)
+	    ,@(if (or used-breaks
 		      (not default-supplied))
 		  `(,switch-end-tag))))
     stat))
@@ -849,7 +849,7 @@ established.
 			    ',varargs-sym))
                  ,body)
               body))
-       :lisp-type `(function ',(mapcar (constantly t) param-ids)
+       :lisp-type `(function ',(mapcar (constantly t) param-ids) ; TODO: use arg types.
                              ',(decl-specs-lisp-type return))))))
 
 ;;; Toplevel
@@ -1087,12 +1087,17 @@ established.
   (let* ((stat-codes (stat-code stat))
 	 (last-form (lastcar stat-codes))
 	 (ex-last-code
-	   (if (and *return-last-statement*
-		    (or (not (symbolp last-form))
-			;; uninterned symbols (gensym) are assumed as C labels.
-			(symbol-package last-form)))
-	       `(return ,last-form)
-	       last-form))
+	  (if (and *return-last-statement*
+		   (typecase last-form
+		     (symbol
+		      ;; uninterned symbols (gensym) are assumed as C labels.
+		      (symbol-package last-form))
+		     (list
+		      ;; Don't wrap form if `return' already exists.
+		      (not (eq (first last-form) 'return)))
+		     (otherwise t)))
+	      `(return ,last-form)
+	      last-form))
 	 (ex-code
 	   `(block nil
 	      (tagbody
@@ -1580,7 +1585,7 @@ established.
    stat
    (stat-list stat
     #'(lambda (st1 st2)
-	(merge-stat st1 st2 :merge-code t))))
+	(merge-stat st1 st2))))
 
   (selection-stat
    (|if| \( exp \) stat
@@ -1916,10 +1921,11 @@ Establishes variable bindings for a new compilation.
 	    (error 'with-c-syntax-parse-error
 		   :yacc-error condition))))))
 
-(defmacro with-c-syntax (&whole whole &environment *wcs-expanding-environment*
-			   (&key (keyword-case (readtable-case *readtable*))
+(defmacro with-c-syntax ((&rest options
+			  &key (keyword-case (readtable-case *readtable*))
 				 (return :auto)
 				 (try-add-{} t))
+			 &environment *wcs-expanding-environment*
 			 &body body)
   "* Syntax
 ~with-c-syntax~ (&key keyword-case entry-form try-add-{}) form* => result*
@@ -1955,10 +1961,10 @@ tries to parse again.
      nil)
     ((and (length= 1 (the list body))	; with-c-syntax is nested.
 	  (starts-with 'with-c-syntax (first body)))
-     (let ((keyargs1 (second whole)))
-       (destructuring-bind (op keyargs2 &body body2)
-	   (first body)
-	 `(,op (,@keyargs1 ,@keyargs2) ,@body2))))
+     (destructuring-bind (op_ options2 &body body2)
+	 (first body)
+       (declare (ignore op_))
+       `(with-c-syntax (,@options ,@options2) ,@body2)))
     (t
      (expand-c-syntax (preprocessor body keyword-case)
 		      try-add-{}

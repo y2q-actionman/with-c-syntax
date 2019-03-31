@@ -44,24 +44,7 @@
   (:shadowing-import-from
    #:cl			      ; These CL symbols has same name with C.
    #:= #:/=  #:< #:> #:<= #:>=  #:+ #:- #:* #:/  #:++)
-  (:import-from #:alexandria
-                #:copy-hash-table	; 1. Hash Tables
-		#:define-constant	; 2. Data and Control Flow
-		#:destructuring-case
-		#:if-let
-		#:when-let
-		#:when-let*
-		#:appendf		; 3. Conses
-		#:nreversef
-		#:lastcar
-		#:deletef		; 4. Sequences
-		#:length=
-                #:starts-with
-		#:once-only		; 6. Macro Writing
-		#:with-gensyms
-		#:symbolicate		; 7. Symbols
-                #:type=                 ; 9. Types
-		#:maxf)			; 10. Numbers
+  (:use #:alexandria)
   (:import-from #:yacc
         	#:define-parser
                 #:parse-with-lexer

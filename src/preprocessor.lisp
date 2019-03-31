@@ -65,10 +65,9 @@ indicated by `+preprocessor-macro+'."
 
 (defmacro define-preprocessor-function (name lambda-list &body body)
   "Defined a new preprocessor function, named by NAME."
-  (let* ((pp-macro-function-namestring (format nil "~A-PREPROCESSOR-MACRO" name))
-	 (pp-macro-function-name (intern pp-macro-function-namestring
-					 (symbol-package name)))
-	 (values-sym (gensym "values")))
+  (let ((pp-macro-function-name
+	 (format-symbol (symbol-package name) "~A-PREPROCESSOR-MACRO" name))
+	(values-sym (gensym "values")))
     `(progn
        (defun ,pp-macro-function-name (&rest ,values-sym)
 	 ;; TODO: catch `destructuring-bind' error.
