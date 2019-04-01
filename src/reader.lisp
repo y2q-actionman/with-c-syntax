@@ -105,18 +105,6 @@ Default is nil, which is treated as the standard readtable.")
      finally
        (assert (char= c2 (read-char stream t nil recursive-p))))) ; eat the peeked char.
 
-(defun read-single-quote (stream c0)
-  (let ((c1 (read-char stream t nil t)))
-    (when (char= c1 c0)
-      (error 'with-c-syntax-reader-error
-             :format-control "Empty char constant."))
-    (let ((c2 (read-char stream t nil t)))
-      (unless (char= c2 c0)
-	(error 'with-c-syntax-reader-error
-               :format-control "Too many chars appeared between '' :~C, ~C, ..."
-               :format-arguments (list c1 c2)))
-      c1)))
-
 (defun read-slash-comment (stream char
                            &optional (next-function #'read-lonely-single-symbol))
   (case (peek-char nil stream t nil t)
@@ -145,13 +133,13 @@ Default is nil, which is treated as the standard readtable.")
     (let ((c0 (read-char stream t nil t)))
       (case c0
         ;; FIXME: This code assumes ASCII is used for char-code..
-	(#\a (code-char #x07))		; alarm
+	(#\a #.(code-char #x07))	; alarm
 	(#\b #\Backspace)
 	(#\f #\Page)
 	(#\n #\Newline)
 	(#\r #\Return)
 	(#\t #\Tab)
-	(#\v (code-char #x0b))		; vertical tab
+	(#\v #.(code-char #x0b))	; vertical tab
 	(#\\ #\\)
 	(#\' #\')
 	(#\" #\")
@@ -164,6 +152,20 @@ Default is nil, which is treated as the standard readtable.")
          (error 'with-c-syntax-reader-error
                 :format-control "Bad escaped char: ~C."
                 :format-arguments (list c0)))))))
+
+(defun read-single-quote (stream c0)
+  (let ((c1 (read-char stream t nil t)))
+    (cond ((char= c1 c0)
+	   (error 'with-c-syntax-reader-error
+		  :format-control "Empty char constant."))
+	  ((char= c1 #\\)
+	   (setf c1 (read-escaped-char stream))))
+    (let ((c2 (read-char stream t nil t)))
+      (unless (char= c2 c0)
+	(error 'with-c-syntax-reader-error
+               :format-control "Too many chars appeared between '' :~C, ~C, ..."
+               :format-arguments (list c1 c2))))
+    c1))
 
 (defun read-double-quote (stream c0)
   (loop with str = (make-array '(0) :element-type 'character
