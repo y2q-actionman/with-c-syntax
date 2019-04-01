@@ -179,6 +179,8 @@
 (test test-libc-stddef
   (is.equal.wcs 0
     return NULL \;)
+  (is.equal.wcs nil
+    return NULL \( NULL \) \;)		; Combination of `cl:null' and C's NULL.
   (is.equal.wcs 1
     {
     ptrdiff_t x = 1 \;

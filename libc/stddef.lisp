@@ -1,6 +1,16 @@
 (in-package #:with-c-syntax.libc)
 
-(define-preprocessor-constant NULL 0)
+;;; I do not define NULL as a preprocessor macro. If do so, I
+;;; destroy `CL:NULL' usage. I use `defconstant' and `defun' instead.
+
+(defconstant NULL 0
+  "Holding 0 for acting NULL of C language.")
+
+(defun NULL (object)
+  "An alias for `CL:NULL'.
+This is for using 'NULL' as C constant and Lisp function both."
+  (cl:null object))
+
 (add-typedef '|ptrdiff_t| 'fixnum)
 (add-typedef '|size_t| 'fixnum)
 (add-typedef '|wchar_t| 'fixnum)
