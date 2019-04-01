@@ -57,7 +57,7 @@ indicated by `+preprocessor-macro+'."
   "Removes a preprocessor macro named SYMBOL."
   (remprop symbol +preprocessor-macro+))
 
-(defmacro define-preprocessor-symbol (name value &environment env)
+(defmacro define-preprocessor-constant (name value &environment env)
   "Defines a new preprocessor symbol macro, named by NAME and its value is VALUE."
   (if (constantp value env)
       `(progn (defconstant ,name ,value)

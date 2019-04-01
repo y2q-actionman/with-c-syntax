@@ -60,7 +60,7 @@
    #:find-preprocessor-macro
    #:add-preprocessor-macro
    #:remove-preprocessor-macro
-   #:define-preprocessor-symbol
+   #:define-preprocessor-constant
    #:define-preprocessor-function
    #:preprocessor
    ;; pseudo-pointer.lisp
