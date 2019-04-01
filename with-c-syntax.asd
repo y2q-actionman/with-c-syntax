@@ -23,6 +23,7 @@
                 :components
                 ((:file "package")
 		 (:file "util" :depends-on ("package"))
+                 (:file "ctype" :depends-on ("util"))
                  (:file "float" :depends-on ("util"))
                  (:file "iso646" :depends-on ("util"))
                  (:file "limits" :depends-on ("util"))
