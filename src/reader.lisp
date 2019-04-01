@@ -99,12 +99,11 @@ Default is nil, which is treated as the standard readtable.")
 
 (defun read-2chars-delimited-list (c1 c2 &optional stream recursive-p)
   (loop for lis = (read-delimited-list c1 stream recursive-p)
-     as next = (peek-char nil stream t nil recursive-p)
      nconc lis
-     until (char= next c2)
-     collect (symbolicate c1) ; assumes c1 is a kind of terminating.
+     until (char= c2 (peek-char nil stream t nil recursive-p))
+     collect (symbolicate c1)	; assumes c1 is a kind of terminating.
      finally
-       (read-char stream t nil recursive-p)))
+       (assert (char= c2 (read-char stream t nil recursive-p))))) ; eat the peeked char.
 
 (defun read-single-quote (stream c0)
   (let ((c1 (read-char stream t nil t)))
@@ -120,20 +119,19 @@ Default is nil, which is treated as the standard readtable.")
 
 (defun read-slash-comment (stream char
                            &optional (next-function #'read-lonely-single-symbol))
-  (let ((next (peek-char nil stream t nil t)))
-    (case next
-      (#\/
-       (read-line stream t nil t)
-       (values))
-      (#\*
-       (read-char stream t nil t)
-       (loop for after-* = (progn (peek-char #\* stream t nil t)
-                                  (read-char stream t nil t)
-                                  (read-char stream t nil t))
-          until (char= after-* #\/))
-       (values))
-      (otherwise
-       (funcall next-function stream char)))))
+  (case (peek-char nil stream t nil t)
+    (#\/
+     (read-line stream t nil t)
+     (values))
+    (#\*
+     (read-char stream t nil t)
+     (loop (peek-char #\* stream t nil t) ; skips until '*' char.
+	(read-char stream t nil t)	  ; and eats the '*'
+	(when (char= #\/ (read-char stream t nil t)) ; checks whether the next is '/' ?
+	  (return)))
+     (values))
+    (otherwise
+     (funcall next-function stream char))))
 
 (defun read-escaped-char (stream)
   (flet ((numeric-escape (radix init)
