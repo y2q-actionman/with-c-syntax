@@ -1,6 +1,7 @@
 (in-package #:cl-user)
 
 (defpackage #:with-c-syntax.syntax
+  (:use) ; Saying I use no packages explicitly. (If omitted, it is implementation-dependent.)
   (:export
    ;; operators
    #:\,
@@ -37,7 +38,7 @@
    ;; extensions
    #:|__lisp_type| #:|__offsetof|)
   (:documentation
-   "Holds symbols denoting C operators and keywords. "))
+   "Holds symbols denoting C operators and keywords."))
 
 (defpackage #:with-c-syntax.core
   (:use #:cl #:with-c-syntax #:with-c-syntax.syntax)

@@ -1,6 +1,7 @@
 (in-package #:cl-user)
 
 (defpackage #:with-c-syntax
+  (:use)
   (:export #:with-c-syntax
            #:with-c-syntax-readtable
 	   #:*with-c-syntax-reader-level*
