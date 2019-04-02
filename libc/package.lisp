@@ -42,7 +42,9 @@
    ;; stddef
    #:NULL
    #:|ptrdiff_t| #:|size_t| #:|wchar_t|
-   #:|offsetof|)
+   #:|offsetof|
+   ;; string
+   #:|strcpy| #:|strncpy|)
   (:documentation
    "with-c-syntax libc package."))
 

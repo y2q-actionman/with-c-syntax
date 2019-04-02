@@ -28,5 +28,6 @@
                  (:file "iso646" :depends-on ("util"))
                  (:file "limits" :depends-on ("util"))
                  (:file "stdarg" :depends-on ("util"))
-                 (:file "stddef" :depends-on ("util")))))
+                 (:file "stddef" :depends-on ("util"))
+		 (:file "string" :depends-on ("util")))))
   :in-order-to ((test-op (test-op #:with-c-syntax-test))))
