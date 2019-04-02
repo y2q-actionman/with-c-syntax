@@ -26,7 +26,7 @@
 (test test-string-strncpy
   #{
   char * src = "abcde";
-  char * dst; // FIXME: support void*.
+  void * dst; // TODO: add more 'void*' tests.
 
   dst = strncpy (make-string (5), src, 5);
   is (string= (dst, src));

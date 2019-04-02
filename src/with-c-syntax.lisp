@@ -403,12 +403,15 @@ Returns (values var-init var-type)."
              (apply #'error datum args))))
     (ecase (car (first abst-declarator))
       (:pointer
-       (let ((next-type
-              (nth-value 1 (expand-init-declarator-init
-                            dspecs (cdr abst-declarator) nil
-                            :allow-incomplete t))))
-         (values (or initializer 0)
-                 `(pseudo-pointer ,next-type))))
+       (if (and (null (cdr abst-declarator)) ; 'void*' check
+		(equal (decl-specs-type-spec dspecs) '(|void|)))
+	   (values initializer t)
+	   (let ((next-type
+		  (nth-value 1 (expand-init-declarator-init
+				dspecs (cdr abst-declarator) nil
+				:allow-incomplete t))))
+             (values (or initializer 0)
+                     `(pseudo-pointer ,next-type)))))
       (:funcall
        (case (car (second abst-declarator))
          (:aref 
