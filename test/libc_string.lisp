@@ -73,7 +73,6 @@
   is (string= (dst, expected));
   }#)
 
-
 (test test-string-strncat
   #{
   void * dst;
@@ -91,4 +90,42 @@
   dst = strncat (dst, src, 7);
   is (string= (dst, "XYZabcabcde"));
 
+  }#)
+
+(test test-string-strlen
+  #{
+  is (strlen ("") == 0);
+  is (strlen ("a") == 1);
+  is (strlen ("0123456789") == 10);
+  }#)
+
+(test test-string-strcmp
+  #{
+  is (zerop (strcmp ("ABC", "ABC")));
+  is (minusp (strcmp ("ABC", "ABD")));
+  is (minusp (strcmp ("ABC", "B")));
+  is (plusp (strcmp ("ABC", "AAAA")));
+
+  is (zerop (strcmp ("abc", "abc")));
+  is (plusp (strcmp ("abc", "ZZZ")));
+  is (minusp (strcmp ("abc", "abcd")));
+  }#)
+
+(test test-string-strncmp
+  #{
+  is (zerop (strncmp ("ABC", "ABD", 2)));
+  is (minusp (strncmp ("ABC", "ABD", 3)));
+  is (minusp (strncmp ("ABC", "ABD", 4)));
+  
+  is (zerop (strncmp ("ABC", "B", 0)));
+  is (minusp (strncmp ("ABC", "B", 1)));
+  is (minusp (strncmp ("ABC", "B", 2)));
+
+  is (zerop (strncmp ("ABC", "AAAA", 1)));
+  is (plusp (strncmp ("ABC", "AAAA", 2)));
+  is (plusp (strncmp ("ABC", "AAAA", 3)));
+
+  is (zerop (strncmp ("abc", "abcd", 3)));
+  is (minusp (strncmp ("abc", "abcd", 4)));
+  is (minusp (strncmp ("abc", "abcd", 5)));
   }#)
