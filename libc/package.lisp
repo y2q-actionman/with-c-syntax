@@ -44,7 +44,7 @@
    #:|ptrdiff_t| #:|size_t| #:|wchar_t|
    #:|offsetof|
    ;; string
-   #:|strcpy| #:|strncpy|)
+   #:|strcpy| #:|strncpy| #:|strcat| #:|strncat|)
   (:documentation
    "with-c-syntax libc package."))
 

@@ -6,9 +6,9 @@
 
 (test test-string-strcpy
   #{
-  // char * register src = "src"; // FIXME
+  // ; char * register src = "src"; // FIXME
   char * src = "abcde";
-  // register char dst [ 10 ] = "abcde"; // FIXME
+  // ; register char dst [ 10 ] = "abcde"; // FIXME
   register dst-same = `(make-string 5);
   register dst-shorter = `(make-string 3);
   register dst-longer = `(make-string 10);
@@ -44,4 +44,51 @@
   dst = strncpy (make-string (7), src, 7);
   is (string= (dst, src, :end1, 5, :end2, 5));
   is (char= (code-char (0), dst [5], dst [6]));
+  }#)
+
+(test test-string-strcat
+  #{
+  void * dst;
+  char * src = "abcde";
+  char * prefix = "XYZ";
+  char * expected = concatenate (quote (string), prefix, src);
+
+  // ; normal concatenatation.
+  dst = copy-seq (prefix) ;
+  dst = strcat (dst, src);
+  is (string= (dst, expected));
+
+  // ; dst has fill-pointer and enough storage.
+  dst = make-array(10, :element-type, quote (character),
+		       :fill-pointer, 3);
+  replace (dst, prefix);
+  dst = strcat (dst, src);
+  is (string= (dst, expected));
+
+  // ; dst has fill-pointer but storage is short.
+  dst = make-array(4, :element-type, quote (character),
+		      :fill-pointer, 3);
+  replace (dst, prefix);
+  dst = strcat (dst, src);
+  is (string= (dst, expected));
+  }#)
+
+
+(test test-string-strncat
+  #{
+  void * dst;
+  char * src = "abcde";
+  char * prefix = "XYZ";
+
+  // ; normal concatenatation.
+  dst = copy-seq (prefix) ;
+  dst = strncat (dst, src, 0);
+  is (string= (dst, "XYZ"));
+
+  dst = strncat (dst, src, 3);
+  is (string= (dst, "XYZabc"));
+
+  dst = strncat (dst, src, 7);
+  is (string= (dst, "XYZabcabcde"));
+
   }#)
