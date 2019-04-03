@@ -45,7 +45,8 @@
    #:|offsetof|
    ;; string
    #:|strcpy| #:|strncpy| #:|strcat| #:|strncat|
-   #:|strlen| #:|strcmp| #:|strncmp|)
+   #:|strlen| #:|strcmp| #:|strncmp| #:|strchr| #:|strrchr|
+   #:|strspn| #:|strcspn| #:|strpbrk| #:|strstr|)
   (:documentation
    "with-c-syntax libc package."))
 
