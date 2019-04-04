@@ -1,7 +1,7 @@
 (in-package #:cl-user)
 
 (defpackage #:with-c-syntax.libc
-  (:use #:cl #:with-c-syntax.core)
+  (:use #:cl #:with-c-syntax.core #:alexandria)
   (:shadow #:null)
   (:export
    ;; ctype

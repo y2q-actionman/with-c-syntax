@@ -110,6 +110,14 @@ This function is used for emulating C string truncation with NUL char."
 	       str))
 ;;; TODO: add test
 
+(defun make-trimed-string-with-displaced-array
+    (string trim-length &optional (string-length (length string)))
+  (assert (null (array-displacement string)))
+  (make-array (- string-length trim-length)
+	      :element-type 'character
+	      :displaced-to string
+	      :displaced-index-offset trim-length))
+
 (defun |strpbrk| (str accept)
   "Emulates 'strpbrk' of the C language."
   (let ((str-length (length str))
@@ -119,15 +127,14 @@ This function is used for emulating C string truncation with NUL char."
 	  ((zerop break-index)
 	   (values str break-index))
 	  (t
-	   (values (make-array (- str-length break-index)
-			       :element-type 'character
-			       :displaced-to str
-			       :displaced-index-offset break-index)
+	   (values (make-trimed-string-with-displaced-array
+		    str break-index str-length)
 		   break-index)))))
 ;;; TODO: Should I return pseudo-pointer?
 ;;; TODO: add test
 
 (defun |strstr| (haystack needle)
   "Emulates 'strstr' of the C language."
-  (search needle haystack))
-;;; TODO: add test
+  (if-let (i (search needle haystack))
+    (make-trimed-string-with-displaced-array haystack i)
+    nil))

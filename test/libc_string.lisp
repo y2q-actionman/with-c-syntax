@@ -129,3 +129,15 @@
   is (minusp (strncmp ("abc", "abcd", 4)));
   is (minusp (strncmp ("abc", "abcd", 5)));
   }#)
+
+
+(test test-string-strstr
+  #{
+  // ; from BSD man page
+  const char * largestring = "Foo Bar Baz";
+  const char * smallstring = "Bar";
+  char * ptr;
+
+  ptr = strstr (largestring, smallstring);
+  is (string= (ptr, "Bar Baz"));
+  }#)
