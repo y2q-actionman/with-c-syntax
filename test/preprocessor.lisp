@@ -177,9 +177,9 @@
     return MB_LEN_MAX >= 1 \;))
 
 (test test-libc-stddef
-  (is.equal.wcs 0
-    return NULL \;)
   (is.equal.wcs nil
+    return NULL \;)
+  (is.equal.wcs t
     return NULL \( NULL \) \;)		; Combination of `cl:null' and C's NULL.
   (is.equal.wcs 1
     {

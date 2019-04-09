@@ -9,6 +9,33 @@
     return * q \;
     }))
 
+(test test-null-pointer-dereference
+  (signals.wcs (with-c-syntax.core::pseudo-pointer-null-dereference-error)
+    {
+    int * p = NULL \;
+    return * p \;
+    })
+  (is.equal.wcs "NULL-is-FALSE"
+    {
+    ;; FIXME: current impl ignores init value..
+    ;; int * p = nil\;
+    int * p \;
+    p = nil \;
+    if \( p \)
+    return "NULL-is-TRUE" \;
+    else
+    return "NULL-is-FALSE" \;
+    })
+  (signals.wcs (with-c-syntax.core::pseudo-pointer-dangling-error)
+    {
+    int x = 1 \;
+    int * p = & x \;
+    int * q = & * p \;
+    with-c-syntax.core:pseudo-pointer-invalidate \( q \) \;
+    return * q \;
+    })
+  )
+
 (test test-pointer-to-struct
   ;; pointer to a struct
   (is.equal.wcs t
