@@ -70,6 +70,17 @@ system.
   (:documentation
    "Used when trying to make a pointer to a un-pointable object."))
 
+(define-condition pseudo-pointer-null-dereference-error (pseudo-pointer-error)
+  ((pointer :initform nil)
+   (pointee :initform nil)
+   (offset :initform 0))
+  (:report
+   (lambda (condition stream)
+     (declare (ignore condition))
+     (format stream "Dereferenced a null pointer.")))
+  (:documentation
+   "Used when trying to dereference a null pointer."))
+
 (define-condition pseudo-pointer-dangling-error (pseudo-pointer-error)
   ()
   (:report

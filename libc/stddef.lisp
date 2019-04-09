@@ -3,8 +3,8 @@
 ;;; I do not define NULL as a preprocessor macro. If do so, I
 ;;; destroy `CL:NULL' usage. I use `defconstant' and `defun' instead.
 
-(defconstant NULL 0
-  "Holding 0 for acting NULL of C language.")
+(defconstant NULL nil
+  "Holding `CL:NIL' for acting NULL of C language.")
 
 (defun NULL (object)
   "An alias for `CL:NULL'.
