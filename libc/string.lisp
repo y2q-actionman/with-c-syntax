@@ -86,16 +86,33 @@ This function is used for emulating C string truncation with NUL char."
   (strcmp* str1 (min count (length str1))
 	   str2 (min count (length str2))))
 
+(defun make-trimed-string (string trim-position)
+  "Trims the head TRIM-POSITION chars of STRING, using `displaced-array'.
+If TRIM-POSITION is nil, returns NIL instead. (I think this behavior
+works better with the `position' functions family.)
+
+This function is used for emulating C string truncation with pointer movements."
+  ;; (assert (null (array-displacement string)))
+  (cond ((null trim-position)
+	 (values nil trim-position))
+	((zerop trim-position)
+	 (values string trim-position))
+	(t
+	 (make-array (- (length string) trim-position)
+		     :element-type 'character
+		     :displaced-to string
+		     :displaced-index-offset trim-position))))
+
 (defun |strchr| (str ch)
   "Emulates 'strchr' of the C language."
-  ;; FIXME: This code may return `nil', but current definition of NULL is 0.
-  ;; Shound I use nil as a null pointer, and pseudo-pointer accept it?
-  (position ch str))
+  (make-trimed-string str
+		      (position ch str)))
 ;;; TODO: add test
 
 (defun |strrchr| (str ch)
   "Emulates 'strrchr' of the C language."
-  (position ch str :from-end t))
+  (make-trimed-string str
+		      (position ch str :from-end t)))
 ;;; TODO: add test
 
 (defun |strspn| (str accept)
@@ -110,27 +127,9 @@ This function is used for emulating C string truncation with NUL char."
 	       str))
 ;;; TODO: add test
 
-(defun make-trimed-string-with-displaced-array
-    (string trim-length &optional (string-length (length string)))
-  (assert (null (array-displacement string)))
-  (make-array (- string-length trim-length)
-	      :element-type 'character
-	      :displaced-to string
-	      :displaced-index-offset trim-length))
-
 (defun |strpbrk| (str accept)
   "Emulates 'strpbrk' of the C language."
-  (let ((str-length (length str))
-	(break-index (|strspn| str accept)))
-    (cond ((null break-index)
-	   (values nil break-index))
-	  ((zerop break-index)
-	   (values str break-index))
-	  (t
-	   (values (make-trimed-string-with-displaced-array
-		    str break-index str-length)
-		   break-index)))))
-;;; TODO: Should I return pseudo-pointer?
+  (make-trimed-string str (|strspn| str accept)))
 ;;; TODO: add test
 
 (defun |strstr| (haystack needle)
