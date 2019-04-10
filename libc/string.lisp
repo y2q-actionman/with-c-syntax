@@ -107,7 +107,6 @@ This function is used for emulating C string truncation with pointer movements."
   "Emulates 'strchr' of the C language."
   (make-trimed-string str
 		      (position ch str)))
-;;; TODO: add test
 
 (defun |strrchr| (str ch)
   "Emulates 'strrchr' of the C language."

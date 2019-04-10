@@ -130,10 +130,41 @@
   is (minusp (strncmp ("abc", "abcd", 5)));
   }#)
 
+(test test-string-strchr
+  ;; from cppreference;  https://en.cppreference.com/w/c/string/byte/strchr
+  #{
+  const char * str = "Try not. Do, or do not. There is no try.";
+  char target = 'T';
+  void * result = str;
+  int output_count = 0;
+  void * output;
+
+  while((result = strchr(result, target)) != NULL) {
+  // ; FIXME: If I use internal declaration (like 'void * output = ...'),
+  // ; it is initialized only once!
+    output = with-output-to-string (`(*standard-output*), //; To preserve parens, I used Lisp escape
+				     format(t, "Found '~C' starting at '~A'", target, result));
+
+    switch (output_count) {
+    case 0 :
+      is (string= (output,
+		   "Found 'T' starting at 'Try not. Do, or do not. There is no try.'"));
+      break;
+    case 1 :
+      is (string= (output,
+		   "Found 'T' starting at 'There is no try.'"));
+      break;
+    }
+
+    ++ output_count;
+    result = subseq (result, 1); // Proceed it. (in original code, incremented 'result' pointer).
+  }
+  }#)
+
 
 (test test-string-strstr
+  ;; from BSD man page
   #{
-  // ; from BSD man page
   const char * largestring = "Foo Bar Baz";
   const char * smallstring = "Bar";
   char * ptr;
