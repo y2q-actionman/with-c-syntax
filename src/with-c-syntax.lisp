@@ -1741,9 +1741,9 @@ established.
   (equality-exp
    relational-exp
    (equality-exp == relational-exp
-		 (lispify-binary '=))
+		 (lispify-binary 'eql))
    (equality-exp != relational-exp
-		 (lispify-binary '/=)))
+		 (lispify-binary 'not-eql)))
 
   (relational-exp
    shift-expression
