@@ -135,5 +135,5 @@ This function is used for emulating C string truncation with pointer movements."
 (defun |strstr| (haystack needle)
   "Emulates 'strstr' of the C language."
   (if-let (i (search needle haystack))
-    (make-trimed-string-with-displaced-array haystack i)
+    (make-trimed-string haystack i)
     nil))
