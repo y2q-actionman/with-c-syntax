@@ -260,3 +260,61 @@ int sum-of-list (list) {
 (test test-sum-of-list
   (is (eql 55
 	   (sum-of-list '(1 2 3 4 5 6 7 8 9 10)))))
+
+
+;; http://www.99-bottles-of-beer.net/language-c-844.html
+#{
+void 99-bottles-of-beer (filename) {
+  void * output-path = merge-pathnames (filename, user-homedir-pathname());
+  `(with-open-file (*standard-output* output-path :direction :output
+				      :if-exists :supersede :if-does-not-exist :create)
+     #{
+     int b;
+     for (b = 99;
+	    b >= 0;
+	    b -- ) {
+	    switch (b) {
+            case 0 :
+              write-line("No more bottles of beer on the wall, no more bottles of beer.");
+              write-line("Go to the store and buy some more, 99 bottles of beer on the wall.");
+              break;
+            case 1 :
+              write-line("1 bottle of beer on the wall, 1 bottle of beer.");
+              write-line("Take one down and pass it around, no more bottles of beer on the wall.");
+              break;
+            default :
+              format(t, "~D bottles of beer on the wall, ~D bottles of beer.~%", b, b);      
+              format(t, "Take one down and pass it around, ~D ~A of beer on the wall.~%"
+                        , b - 1
+                          , ((b - 1) > 1)? "bottles" : "bottle");
+              break;
+            }
+	    }
+      }#);
+  return;
+  }
+}#
+
+(defparameter *test-file-name*
+  (make-pathname :name "bottles_of_beer" :type "txt"))
+
+(test test-lisp-c-lisp-c
+  (let ((output-path (merge-pathnames *test-file-name*
+				      (user-homedir-pathname))))
+    (unwind-protect
+	 (progn
+	   (when (probe-file output-path)
+	     (delete-file output-path))
+	   (99-bottles-of-beer *test-file-name*)
+	   (is (probe-file output-path))
+	   (with-open-file (s output-path)
+	     ;; 99 bottles of beer -> 200 Lines
+	     (= 200 (loop for l = (read-line s nil nil)
+		       while l count l))
+	     ;; In Mac OS X, 11786 bytes. It is 'LF', not CR LF.
+	     (let ((mac-os-x-99b-file-size 11786))
+	       (is (<= mac-os-x-99b-file-size
+		       (file-length s)
+		       (+ mac-os-x-99b-file-size 200))))))
+      (when (probe-file output-path)
+	(delete-file output-path)))))
