@@ -64,18 +64,18 @@ When this is nil, the readtable-case of ~*readtable*~ at using
 '#{' is used.
 ")
 
-(defvar *previous-syntax* nil
+(defvar *previous-syntax* (copy-readtable)
   "* Value Type
 a readtable.
 
 * Description
 Holds the readtable used by #\` syntax.
-Default is nil, which is treated as the standard readtable.")
+Default is the copy of `*readtable*' at load-time of this source.")
 
 
 (defun read-in-previous-syntax (stream char)
   (declare (ignore char))
-  (let ((*readtable* (or *previous-syntax* (copy-readtable nil))))
+  (let ((*readtable* *previous-syntax*))
     (read stream t nil t)))
 
 (defun read-single-character-symbol (stream char)
@@ -269,7 +269,8 @@ Default is nil, which is treated as the standard readtable.")
   readtable)
 
 (defun read-in-c-syntax (stream char n)
-  (let* ((*readtable* (copy-readtable))
+  (let* ((*previous-syntax* *readtable*)
+	 (*readtable* (copy-readtable))
 	 (level (if n (alexandria:clamp n 0 3)
 		    (or *with-c-syntax-reader-level*
 			+with-c-syntax-default-reader-level+)))
@@ -416,7 +417,8 @@ There is no support for trigraphs or digraphs.
 ~with-c-syntax~, ~unuse-reader~.
 "
   `(eval-when (:compile-toplevel :load-toplevel :execute)
-     ;; (2018-11-13) In old code, I stucked readtables into a list.
+     ;; (2018-11-13) In old code, I stucked readtables into
+     ;; `*previous-syntax*' as a list.
      ;; But I removed this feature because I use named-readtables.
      (shiftf *previous-syntax* *readtable* (copy-readtable))
      (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
@@ -444,7 +446,7 @@ Changes ~*readtable*~.
   `(eval-when (:compile-toplevel :load-toplevel :execute)
      (setf *with-c-syntax-reader-level* nil
 	   *with-c-syntax-reader-case* nil)
-     (shiftf *readtable* *previous-syntax*)))
+     (setf *readtable* (copy-readtable *previous-syntax*))))
 
 ;;; References at implementation
 ;;; - https://gist.github.com/chaitanyagupta/9324402

@@ -2,6 +2,10 @@
 
 (in-readtable with-c-syntax-readtable)
 
+;;; These reader variables should be evaluated in read-time.
+#.(setf *with-c-syntax-reader-level* nil)
+#.(setf *with-c-syntax-reader-case* nil)
+
 (test test-nil-reading
   (let ((*standard-output* (make-broadcast-stream))) ; dispose output.
     (is (equal #{ format (t, "Hello World!"); }#
@@ -9,6 +13,19 @@
   ;; (2019-2-24) Added for testing NIL reader.
   (is (equal #{ format (nil, "Hello World!"); }#
 	     "Hello World!")))
+
+(test test-nested-use
+  (is (= (let ((x 0))
+	   #{
+	   int y = x + 1;
+	   return `(let ((z (1+ y)))
+    		     #{
+    		     int ret = z + 10;
+    		     return ret;
+    		     }#);
+	   }#)
+	 12)))
+
 
 #.(setf *with-c-syntax-reader-level* :conservative)
 (test test-reader-conservative
