@@ -14,6 +14,7 @@
 	       (:file "reader" :depends-on ("util"))
 	       (:file "preprocessor" :depends-on ("util"))
 	       (:file "examples" :depends-on ("util"))
+	       (:file "libc_assert" :depends-on ("util"))
 	       (:file "libc_ctype" :depends-on ("util"))
 	       (:file "libc_string" :depends-on ("util")))
   :perform (prepare-op :before (o c)

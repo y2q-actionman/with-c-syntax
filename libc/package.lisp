@@ -4,6 +4,8 @@
   (:use #:cl #:with-c-syntax.core)
   (:shadow #:null)
   (:export
+   ;; assert
+   #:|assert| #:NDEBUG
    ;; ctype
    #:|isalnum| #:|isalpha| #:|islower| #:|isupper|
    #:|isdigit| #:|isxdigit| #:|iscntrl| #:|isgraph|
