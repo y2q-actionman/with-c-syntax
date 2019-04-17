@@ -3,7 +3,7 @@
   :license "WTFPL"
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
   :pathname #.(make-pathname :directory '(:relative "test"))
-  :depends-on (#:with-c-syntax #:1am)
+  :depends-on (#:with-c-syntax #:1am #:trivial-cltl2)
   :components ((:file "package")
 	       (:file "util" :depends-on ("package"))
                (:file "stmt" :depends-on ("util"))

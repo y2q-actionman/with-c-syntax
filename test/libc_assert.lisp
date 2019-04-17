@@ -29,19 +29,20 @@
   is (progn (assert ("true"), t));
   }#
 
-  ;; binding to NIL -- still signals error.
-  #+allegro				; fixme
-  (excl:compiler-let ((with-c-syntax.libc:NDEBUG NIL))
-    #{
-    signals (error, assert (nil));
-    is (progn (assert ("true"), t));
-    }#)
+  #+with-c-syntax-test-use-compiler-let
+  (progn
+    ;; binding to NIL -- still signals error.
+    (trivial-cltl2:compiler-let ((with-c-syntax.libc:NDEBUG NIL))
+      #{
+      signals (error, assert (nil));
+      is (progn (assert ("true"), t));
+      }#)
 
-  ;; binding to T -- no error.
-  #+allegro				; fixme
-  (excl:compiler-let ((with-c-syntax.libc:NDEBUG t))
-    #{
-    is (progn (assert (nil), t));
-    is (progn (assert ("true"), t));
-    }#)
-  )
+    ;; binding to T -- no error.
+    (trivial-cltl2:compiler-let ((with-c-syntax.libc:NDEBUG t))
+      #{
+      is (progn (assert (nil), t));
+      is (progn (assert ("true"), t));
+      }#))
+  #-with-c-syntax-test-use-compiler-let
+  (warn "Your Lisp does not have 'compiler-let' facility. Skip tests.."))

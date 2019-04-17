@@ -1,6 +1,10 @@
 (in-package #:with-c-syntax.test)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (when (fboundp 'trivial-cltl2:compiler-let)
+    (pushnew :with-c-syntax-test-use-compiler-let *features*)))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (defun pick-eql-name (symbol)
     (let* ((op-name (symbol-name symbol))
 	   (eq-op-begin (1+ (position #\. op-name)))

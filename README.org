@@ -35,6 +35,7 @@ This library is quicklisp-ready.
 - alexandria
 - named-readtables
 - 1am (only by test codes.)
+- trivial-cltl2 (only by test codes.)
 
 ** Load with ASDF
 #+BEGIN_SRC lisp
