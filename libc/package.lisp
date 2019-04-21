@@ -46,7 +46,7 @@
    ;; string
    #:|strcpy| #:|strncpy| #:|strcat| #:|strncat|
    #:|strlen| #:|strcmp| #:|strncmp| #:|strchr| #:|strrchr|
-   #:|strspn| #:|strcspn| #:|strpbrk| #:|strstr|)
+   #:|strspn| #:|strcspn| #:|strpbrk| #:|strstr| #:|strtok|)
   (:documentation
    "with-c-syntax libc package."))
 

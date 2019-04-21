@@ -85,25 +85,31 @@ This function is used for emulating C string truncation with NUL char."
   (strcmp* str1 (min count (length str1))
 	   str2 (min count (length str2))))
 
-(defun make-trimed-string (string trim-position)
+(defun make-trimed-string (string trim-position &optional (end (length string) end-supplied-p))
   "Trims the head TRIM-POSITION chars of STRING, using `displaced-array'.
+If END supplied, its tail is also trimed (using `displaced-array', too).
 
 This function is used for emulating C string truncation with pointer movements."
   (check-type trim-position fixnum)
-  (if (zerop trim-position)
+  (if (and (zerop trim-position)
+	   (not end-supplied-p))
       string
-      (let ((new-length (- (length string) trim-position)))
+      (let ((new-length (- end trim-position)))
 	(multiple-value-bind (displaced-to displaced-offset)
 	    (array-displacement string)
 	  (if displaced-to
-	      (adjust-array string new-length
-			    :element-type 'character
-			    :displaced-to displaced-to
-			    :displaced-index-offset (+ displaced-offset trim-position))
+	      (make-array new-length
+			  :element-type 'character
+			  :displaced-to displaced-to
+			  :displaced-index-offset (+ displaced-offset trim-position))
 	      (make-array new-length
 			  :element-type 'character
 			  :displaced-to string
 			  :displaced-index-offset trim-position))))))
+
+(define-modify-macro make-trimed-stringf (trim-position)
+  make-trimed-string
+  "Modify macro of `make-trimed-string'")
 
 (defun strchr* (str ch from-end)
   "Used by `|strchr|' and  `|strrchr|'"
@@ -147,7 +153,7 @@ This function is used for emulating C string truncation with pointer movements."
 (defun |strpbrk| (str accept)
   "Emulates 'strpbrk' of the C language."
   (let ((pos (|strcspn| str accept)))
-    (if (= pos (length str))
+    (if (length= pos str)
 	nil
 	(make-trimed-string str pos))))
 
@@ -156,3 +162,24 @@ This function is used for emulating C string truncation with pointer movements."
   (if-let (i (search needle haystack))
     (make-trimed-string haystack i)
     nil))
+
+
+(defvar *strtok-target* ""
+  "Used by |strtok|")
+
+(defun |strtok| (str delim)
+  "Emulates 'strtok' of the C language."
+  (when str
+    (setf *strtok-target* str))
+  ;; find token-start
+  (let ((token-start (|strspn| *strtok-target* delim)))
+    (when (length= token-start *strtok-target*)
+      (setf *strtok-target* "")
+      (return-from |strtok| nil))
+    (make-trimed-stringf *strtok-target* token-start))
+  ;; find token-end
+  (let ((token-end (|strcspn| *strtok-target* delim)))
+    (prog1 (make-trimed-string *strtok-target* 0 token-end)
+      (if (length= token-end *strtok-target*)
+	  (setf *strtok-target* "")
+	  (make-trimed-stringf *strtok-target* token-end)))))

@@ -259,3 +259,39 @@
   ptr = strstr (largestring, smallstring);
   is (string= (ptr, "Bar Baz"));
   }#)
+
+(test test-string-strtok
+  #{
+    is (strtok ("", ",!?") == NULL);
+    is (strtok ("!!!", ",!?") == NULL);
+  }#
+
+  #{
+  is (string= (strtok ("aaa;;bbb,", ";,"), "aaa"));
+  is (string= (strtok (NULL, ";,"), "bbb"));
+  is (eql (strtok (NULL, ";,"), NULL));
+  is (eql (strtok (NULL, ";,"), NULL));
+  }#
+
+  #{
+  is (string= (strtok ("aaa;;bbb,", ""), "aaa;;bbb,"));
+  is (eql (strtok (NULL, ""), NULL));
+  }#
+
+  ;; https://en.cppreference.com/w/c/string/byte/strtok
+  (let ((input "A bird came down the walk")
+	token-list)
+    #{
+      void * token = strtok(input, " ");
+      while(token) {
+        push (token, token-list);
+        token = strtok(NULL, " ");
+      }
+      token-list = nreverse (token-list);
+    }#
+    ;; My 'strtok' implementation does not destroy the original string.
+    ;; (this behavior is required??)
+    (is (tree-equal token-list
+		    '("A" "bird" "came" "down" "the" "walk")
+		    :test #'string=)))
+  t)
