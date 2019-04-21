@@ -3,14 +3,8 @@
 ;;; My hand-crafted codes assume 'C' locale.
 
 ;;; TODO
-;;; - memchr
-;;; - memcmp
-;;; - memcpy
-;;; - memmove
-;;; - memset
 ;;; - strcoll
 ;;; - strerror
-;;; - strtok
 ;;; - strxfrm
 
 (defun resize-string (string size)
@@ -85,37 +79,38 @@ This function is used for emulating C string truncation with NUL char."
   (strcmp* str1 (min count (length str1))
 	   str2 (min count (length str2))))
 
-(defun make-trimed-string (string trim-position &optional (end (length string) end-supplied-p))
-  "Trims the head TRIM-POSITION chars of STRING, using `displaced-array'.
+(defun make-trimed-vector (vector trim-position &optional (end (length vector) end-supplied-p))
+  "Trims the head TRIM-POSITION elements of VECTOR, using `displaced-array'.
 If END supplied, its tail is also trimed (using `displaced-array', too).
 
 This function is used for emulating C string truncation with pointer movements."
   (check-type trim-position fixnum)
   (if (and (zerop trim-position)
 	   (not end-supplied-p))
-      string
-      (let ((new-length (- end trim-position)))
+      vector
+      (let ((new-length (- end trim-position))
+	    (element-type (array-element-type vector)))
 	(multiple-value-bind (displaced-to displaced-offset)
-	    (array-displacement string)
+	    (array-displacement vector)
 	  (if displaced-to
 	      (make-array new-length
-			  :element-type 'character
+			  :element-type element-type
 			  :displaced-to displaced-to
 			  :displaced-index-offset (+ displaced-offset trim-position))
 	      (make-array new-length
-			  :element-type 'character
-			  :displaced-to string
+			  :element-type element-type
+			  :displaced-to vector
 			  :displaced-index-offset trim-position))))))
 
-(define-modify-macro make-trimed-stringf (trim-position)
-  make-trimed-string
-  "Modify macro of `make-trimed-string'")
+(define-modify-macro make-trimed-vectorf (trim-position)
+  make-trimed-vector
+  "Modify macro of `make-trimed-vector'")
 
 (defun strchr* (str ch from-end)
   "Used by `|strchr|' and  `|strrchr|'"
   (let ((pos (position ch str :from-end from-end)))
     (cond (pos
-	   (make-trimed-string str pos))
+	   (make-trimed-vector str pos))
 	  ((eql ch (code-char 0))
 	   "")	; C string has NUL in its end.
 	  (t nil))))
@@ -155,12 +150,12 @@ This function is used for emulating C string truncation with pointer movements."
   (let ((pos (|strcspn| str accept)))
     (if (length= pos str)
 	nil
-	(make-trimed-string str pos))))
+	(make-trimed-vector str pos))))
 
 (defun |strstr| (haystack needle)
   "Emulates 'strstr' of the C language."
   (if-let (i (search needle haystack))
-    (make-trimed-string haystack i)
+    (make-trimed-vector haystack i)
     nil))
 
 
@@ -176,10 +171,54 @@ This function is used for emulating C string truncation with pointer movements."
     (when (length= token-start *strtok-target*)
       (setf *strtok-target* "")
       (return-from |strtok| nil))
-    (make-trimed-stringf *strtok-target* token-start))
+    (make-trimed-vectorf *strtok-target* token-start))
   ;; find token-end
   (let ((token-end (|strcspn| *strtok-target* delim)))
-    (prog1 (make-trimed-string *strtok-target* 0 token-end)
+    (prog1 (make-trimed-vector *strtok-target* 0 token-end)
       (if (length= token-end *strtok-target*)
 	  (setf *strtok-target* "")
-	  (make-trimed-stringf *strtok-target* token-end)))))
+	  (make-trimed-vectorf *strtok-target* token-end)))))
+
+
+;;; mem- family functions
+
+(defun |memchr| (ptr ch count)
+  "Emulates 'memchr' of the C language."
+  (if-let (pos (position ch ptr :end (min count (length ptr))))
+    (make-trimed-vector ptr pos)
+    nil))
+
+(defun |memcmp| (lhs rhs count &key (test #'eql) (predicate #'<) )
+  "Emulates 'memcmp' of the C language."
+  (let* ((lhs-len (length lhs))
+	 (rhs-len (length rhs))
+	 (mismatch (mismatch lhs rhs :test test
+			     :end1 (min count lhs-len) :end2 (min count rhs-len))))
+    (cond
+      ((null mismatch) 0)
+      ((< lhs-len mismatch) +1)
+      ((< rhs-len mismatch) -1)
+      ((funcall predicate (aref lhs mismatch) (aref rhs mismatch)) -1)
+      (t +1))))
+
+(defun |memset| (dest ch count)
+  "Emulates 'memset' of the C language."
+  (fill dest ch :end (min count (length dest))))
+
+(defun |memcpy| (dest src count)
+  "Emulates 'memcpy' of the C language."
+  (replace dest src :end1 (min count (length dest))
+	   :end2 (min count (length src))))
+
+(defun |memmove| (dest src count)
+  "Emulates 'memmove' of the C language."
+  ;; `replace' does not fulfill 'memmove' requirements.
+  ;; So, I copy the contents of SRC first.
+  ;; 
+  ;; This is quote from http://www.lispworks.com/documentation/HyperSpec/Body/f_replac.htm
+  ;; > However, if sequence-1 and sequence-2 are not the same, but the
+  ;; > region being modified overlaps the region being copied from
+  ;; > (perhaps because of shared list structure or displaced arrays),
+  ;; > then after the replace operation the subsequence of sequence-1
+  ;; > being modified will have unpredictable contents.
+  (|memcpy| dest (copy-seq src) count))
