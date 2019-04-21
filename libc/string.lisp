@@ -37,7 +37,6 @@ This function is used for emulating C string truncation with NUL char."
 
 (defun |strcpy| (dst src)
   "Emulates 'strcpy' of the C language."
-  ;; To emulate C's string truncation with NUL char, I use `adjust-array'.
   (resize-stringf dst (length src))
   (replace dst src))
 
@@ -88,48 +87,69 @@ This function is used for emulating C string truncation with NUL char."
 
 (defun make-trimed-string (string trim-position)
   "Trims the head TRIM-POSITION chars of STRING, using `displaced-array'.
-If TRIM-POSITION is nil, returns NIL instead. (I think this behavior
-works better with the `position' functions family.)
 
 This function is used for emulating C string truncation with pointer movements."
-  ;; (assert (null (array-displacement string)))
-  (cond ((null trim-position)
-	 (values nil trim-position))
-	((zerop trim-position)
-	 (values string trim-position))
-	(t
-	 (make-array (- (length string) trim-position)
-		     :element-type 'character
-		     :displaced-to string
-		     :displaced-index-offset trim-position))))
+  (check-type trim-position fixnum)
+  (if (zerop trim-position)
+      string
+      (let ((new-length (- (length string) trim-position)))
+	(multiple-value-bind (displaced-to displaced-offset)
+	    (array-displacement string)
+	  (if displaced-to
+	      (adjust-array string new-length
+			    :element-type 'character
+			    :displaced-to displaced-to
+			    :displaced-index-offset (+ displaced-offset trim-position))
+	      (make-array new-length
+			  :element-type 'character
+			  :displaced-to string
+			  :displaced-index-offset trim-position))))))
+
+(defun strchr* (str ch from-end)
+  "Used by `|strchr|' and  `|strrchr|'"
+  (let ((pos (position ch str :from-end from-end)))
+    (cond (pos
+	   (make-trimed-string str pos))
+	  ((eql ch (code-char 0))
+	   "")	; C string has NUL in its end.
+	  (t nil))))
 
 (defun |strchr| (str ch)
   "Emulates 'strchr' of the C language."
-  (make-trimed-string str
-		      (position ch str)))
+  (strchr* str ch nil))
 
 (defun |strrchr| (str ch)
   "Emulates 'strrchr' of the C language."
-  (make-trimed-string str
-		      (position ch str :from-end t)))
-;;; TODO: add test
+  (strchr* str ch t))
+
+(defun strspn* (str char-set accept-p)
+  "Used by '|strspn|' and '|strcspn|'"
+  ;; I've used `position-if-not' for 'strspn' like:
+  ;;   (position-if-not (lambda (c) (find c accept)) str)
+  ;; However, this code returns nil when no acceptable characters in
+  ;; 'str' AND all characters in 'str' is acceptable.
+  ;; So, I decided to write by myself.
+  (loop with ret = 0
+     for c across str
+     as found = (find c char-set)
+     while (if accept-p found (not found))
+     do (incf ret)
+     finally (return ret)))
 
 (defun |strspn| (str accept)
   "Emulates 'strspn' of the C language."
-  (position-if-not (lambda (c) (find c accept))
-		   str))
-;;; TODO: add test
+  (strspn* str accept t))
 
 (defun |strcspn| (str reject)
   "Emulates 'strcspn' of the C language."
-  (position-if (lambda (c) (find c reject))
-	       str))
-;;; TODO: add test
+  (strspn* str reject nil))
 
 (defun |strpbrk| (str accept)
   "Emulates 'strpbrk' of the C language."
-  (make-trimed-string str (|strspn| str accept)))
-;;; TODO: add test
+  (let ((pos (|strcspn| str accept)))
+    (if (= pos (length str))
+	nil
+	(make-trimed-string str pos))))
 
 (defun |strstr| (haystack needle)
   "Emulates 'strstr' of the C language."

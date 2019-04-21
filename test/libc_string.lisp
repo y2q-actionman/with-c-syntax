@@ -159,6 +159,93 @@
     ++ output_count;
     result = subseq (result, 1); // Proceed it. (in original code, incremented 'result' pointer).
   }
+  }#
+
+  #{
+  is (! strchr ("hoge", #\x));
+  is (! strchr ("", #\x));
+  is (equal ( strchr ("foobar", #\nul), ""));
+  }#)
+
+(test test-string-strrchr
+  ;; https://en.cppreference.com/w/c/string/byte/strrchr
+  #{
+    char * szSomeFileName = "foo/bar/foobar.txt"; // TODO: use 'szDomeFileName[]' style.
+    char * pLastSlash = strrchr(szSomeFileName, '/');
+    // ; I use `subseq' instead of pointer calculation.
+    char * pszBaseName = pLastSlash ? subseq (pLastSlash, 1) : szSomeFileName;
+    is (string= (format(nil, "Base Name: ~A", pszBaseName), // ; TODO: use `printf'.
+		       "Base Name: foobar.txt"));
+    }#
+
+  #{
+  is (! strrchr ("hoge", #\x));
+  is (! strrchr ("", #\x));
+  is (equal ( strrchr ("foobar", #\nul), ""));
+  }#)
+
+(test test-string-strspn
+  ;; see https://en.cppreference.com/w/c/string/byte/strspn
+  #{
+    char * low_alpha = "qwertyuiopasdfghjklzxcvbnm";
+
+    is (strspn( "abcde312$#@", low_alpha) == 5);
+    
+    is (strspn( "!?", low_alpha) == 0);
+    is (strspn( "", low_alpha) == 0);
+    is (strspn( "a", low_alpha) == 1);
+    is (strspn( "abc", low_alpha) == 3);
+  }#)
+
+(test test-string-strcspn
+  ;; see https://en.cppreference.com/w/c/string/byte/strcspn
+  #{
+    const char * string = "abcde312$#@";
+    const char * invalid = "*$#";
+ 
+    is (strcspn( string, invalid) == 8);
+    
+    is (strcspn( "!?", invalid) == 2);
+    is (strcspn( "", invalid) == 0);
+    is (strcspn( "$$$", invalid) == 0);
+    is (strcspn( "abcdef", invalid) == 6);
+  }#)
+
+(test test-string-strpbrk
+  ;; see https://en.cppreference.com/w/c/string/byte/strpbrk
+  #{
+    const char * str = "hello world, friend of mine!";
+    const char * sep = " ,!";
+ 
+    unsigned int cnt = 0;
+    do {
+       str = strpbrk(str, sep);
+       if(str)
+       str = subseq (str, strspn(str, sep)); // I use `subseq' instead of pointer arithmetics.
+       
+       switch (cnt) {
+       case 0 : is (string= (str, "world, friend of mine!")); break;
+       case 1 : is (string= (str, "friend of mine!")); break;
+       case 2 : is (string= (str, "of mine!")); break;
+       case 3 : is (string= (str, "mine!")); break;
+       case 4 : is (string= (str, "")); break;
+       default : is (progn ("cnt must be < 5", nil));
+       }
+
+       ++ cnt;
+     } while(str && ! alexandria:length= (str, 0));
+
+     is (cnt == 5);
+  }#
+
+  #{
+    const char * sep = "*$#";
+ 
+    is (string= (strpbrk( "a#", sep), "#"));
+    is (string= (strpbrk( "#a", sep), "#a"));
+    is (string= (strpbrk( "", sep), nil));
+    is (string= (strpbrk( "$$$", sep), "$$$"));
+    is (string= (strpbrk( "abc", sep), nil));
   }#)
 
 
