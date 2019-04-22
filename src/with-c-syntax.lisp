@@ -776,28 +776,16 @@ Returns (values var-init var-type)."
   func-body
   lisp-type)
 
-(defmacro get-variadic-arguments ()
-  "* Syntax
-~get-variadic-arguments~ => list
+(defmacro get-variadic-arguments (&optional last-argument-name)
+  "It returns the variadic arguments of a function defined by
+with-c-syntax.  If this is called outside of a variadic function, an
+error is signaled.  When defining a variadic function, a local macro
+has same name is established.
 
-* Arguments and Values
-- list   :: a list
-
-* Description
-It returns the variadic arguments of the with-c-syntax function.
-
-If this is called outside of a variadic function, an error is
-signaled.
-
-* Notes
-This is not intended for calling directly. The ~va_start~ preprocessor
-macro uses this.
-
-When defining a variadic function, a local function has same name is
-established.
-"
+This is not intended for calling directly. The `va_start' macro uses this."
+  (declare (ignore last-argument-name))
   '(error 'runtime-error
-	 :format-control "Trying to get a variadic args list out of a variadic func."))
+    :format-control "Trying to get a variadic args list out of a variadic func."))
 
 (defun lispify-function-definition (name body
                                     &key K&R-decls (return (make-decl-specs)))
@@ -847,8 +835,12 @@ established.
        :func-body
        `((declare (ignore ,@omitted))
          ,(if variadic
-              `(macrolet ((get-variadic-arguments ()
+              `(macrolet ((get-variadic-arguments (&optional (last-argument-name nil l-supplied-p))
                             "locally established `get-variadic-arguments' macro."
+			    (when l-supplied-p
+			      (unless (eql last-argument-name ',(lastcar param-ids))
+				(warn "~A's last argument before '...' is ~A, but ~A was passed."
+				      ',func-name ',(lastcar param-ids) last-argument-name)))
 			    ',varargs-sym))
                  ,body)
               body))
