@@ -95,10 +95,8 @@ on its ~return~ argument.
            (values 'float-const value))
           (string
            (values 'string value))
-          (list
-           (values 'lisp-expression value))
           (otherwise
-           (error 'lexer-error :token value))))))
+           (values 'lisp-expression value))))))
 
 ;;; Declarations
 (defstruct decl-specs

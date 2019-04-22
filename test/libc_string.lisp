@@ -298,16 +298,16 @@
 
 (test test-string-memchr
   #{
-  void * v = `(vector 0 1 2 3 4);
+  void * v = `#(0 1 2 3 4);
   void * expected;
 
-  expected = `(vector 0 1 2 3 4);
+  expected = `#(0 1 2 3 4);
   is (equalp (memchr (v, 0, 5), expected));
   is (equalp (memchr (v, 0, 1), expected));
   is (equalp (memchr (v, 0, 15), expected));
   is (equalp (memchr (v, 0, 0), nil));
 
-  expected = `(vector 2 3 4);
+  expected = `#(2 3 4);
   is (equalp (memchr (v, 2, 5), expected));
   is (equalp (memchr (v, 2, 1), nil));
   is (equalp (memchr (v, 2, 15), expected));
@@ -321,16 +321,16 @@
 
 (test test-string-memcmp
   #{
-  is (memcmp (`(vector), `(vector), 1) == 0);
-  is (memcmp (`(vector 1), `(vector 1), 1) == 0);
-  is (memcmp (`(vector 1), `(vector 1), 0) == 0);
+  is (memcmp (`#(), `#(), 1) == 0);
+  is (memcmp (`#(1), `#(1), 1) == 0);
+  is (memcmp (`#(1), `#(1), 0) == 0);
 
-  is (memcmp (`(vector 0 0), `(vector 0 1), 2) < 0);
-  is (memcmp (`(vector 0 0), `(vector 1 0), 2) < 0);
-  is (memcmp (`(vector 1 0), `(vector 0 1), 2) > 0);
-  is (memcmp (`(vector 1 0), `(vector 1 1), 2) < 0);
-  is (memcmp (`(vector 1 0 1), `(vector 1 1), 2) < 0);
-  is (memcmp (`(vector 1 0 1), `(vector 1 1 1), 2) < 0);
+  is (memcmp (`#(0 0), `#(0 1), 2) < 0);
+  is (memcmp (`#(0 0), `#(1 0), 2) < 0);
+  is (memcmp (`#(1 0), `#(0 1), 2) > 0);
+  is (memcmp (`#(1 0), `#(1 1), 2) < 0);
+  is (memcmp (`#(1 0 1), `#(1 1), 2) < 0);
+  is (memcmp (`#(1 0 1), `#(1 1 1), 2) < 0);
 
   is (memcmp ("abc", "abd", 3, :predicate, #'char<) < 0);
   is (memcmp ("abd", "abc", 3, :predicate, #'char<) > 0);
@@ -339,35 +339,35 @@
 
 (test test-string-memset
   #{
-  void * v = `(vector 0 1 2 3 4);
+  void * v = `#(0 1 2 3 4);
 
-  is (equalp (memset (v, 0, 2), `(vector 0 0 2 3 4)));
-  is (equalp (v, `(vector 0 0 2 3 4)));
+  is (equalp (memset (v, 0, 2), `#(0 0 2 3 4)));
+  is (equalp (v, `#(0 0 2 3 4)));
 
-  is (equalp (memset (v, #x10, 5), `(vector #x10 #x10 #x10 #x10 #x10)));
-  is (equalp (v, `(vector #x10 #x10 #x10 #x10 #x10)));
+  is (equalp (memset (v, #x10, 5), `#(#x10 #x10 #x10 #x10 #x10)));
+  is (equalp (v, `#(#x10 #x10 #x10 #x10 #x10)));
   }#)
 
 (test test-string-memcpy
   #{
-  void * v = `(vector 0 1 2 3 4);
-  void * w = `(vector 99 98 97);
+  void * v = `#(0 1 2 3 4);
+  void * w = `#(99 98 97);
 
-  is (equalp (memcpy (v, w, 2), `(vector 99 98 2 3 4)));
-  is (equalp (v, `(vector 99 98 2 3 4)));
+  is (equalp (memcpy (v, w, 2), `#(99 98 2 3 4)));
+  is (equalp (v, `#(99 98 2 3 4)));
 
-  is (equalp (memcpy (v, w, 3), `(vector 99 98 97 3 4)));
-  is (equalp (v, `(vector 99 98 97 3 4)));
+  is (equalp (memcpy (v, w, 3), `#(99 98 97 3 4)));
+  is (equalp (v, `#(99 98 97 3 4)));
   }#)
 
 (test test-string-memmove
   #{
-  void * v = `(vector 0 1 2 3 4);
-  void * w = `(vector 99 98 97);
+  void * v = `#(0 1 2 3 4);
+  void * w = `#(99 98 97);
 
-  is (equalp (memmove (v, w, 2), `(vector 99 98 2 3 4)));
-  is (equalp (v, `(vector 99 98 2 3 4)));
+  is (equalp (memmove (v, w, 2), `#(99 98 2 3 4)));
+  is (equalp (v, `#(99 98 2 3 4)));
 
-  is (equalp (memmove (v, w, 3), `(vector 99 98 97 3 4)));
-  is (equalp (v, `(vector 99 98 97 3 4)));
+  is (equalp (memmove (v, w, 3), `#(99 98 97 3 4)));
+  is (equalp (v, `#(99 98 97 3 4)));
   }#)
