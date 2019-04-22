@@ -6,8 +6,7 @@
 
 (test test-string-strcpy
   #{
-  // ; char * register src = "src"; // FIXME
-  char * src = "abcde";
+  register char * src = "src";
   // ; register char dst [ 10 ] = "abcde"; // FIXME
   register dst-same = `(make-string 5);
   register dst-shorter = `(make-string 3);

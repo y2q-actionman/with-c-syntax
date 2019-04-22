@@ -376,7 +376,7 @@ For each entry of alist, the car is sorted alphabetically.
      and collect a-elem))
 
 (defun setup-init-list (dims dspecs abst-declarator init)
-  "Makes a list for ~:initial-contents~ of ~make-array~, from initializer-list."
+  "Makes a list for `:initial-contents' of `make-array', from initializer-list."
   (let* ((default (expand-init-declarator-init dspecs
                    (nthcdr (length dims) abst-declarator)
                    nil))
@@ -410,7 +410,7 @@ Returns (values var-init var-type)."
 		  (nth-value 1 (expand-init-declarator-init
 				dspecs (cdr abst-declarator) nil
 				:allow-incomplete t))))
-             (values (or initializer 0)
+             (values (or initializer nil)
                      `(pseudo-pointer ,next-type)))))
       (:funcall
        (case (car (second abst-declarator))
@@ -429,16 +429,17 @@ Returns (values var-init var-type)."
        (let* ((aref-type (decl-specs-lisp-type dspecs))
               (aref-dim                   ; reads abst-declarator
                (loop for (tp tp-args) in abst-declarator
-                  if (eq :funcall tp)
-                  do (error 'compile-error
-                            :format-control "An array of functions is not accepted.")
-                  else if (eq :aref tp)
-                  collect (or tp-args '*)
-                  else if (eq :pointer tp)
-                  do (setf aref-type `(pseudo-pointer ,aref-type))
-                    (loop-finish)
-                  else
-                  do (assert nil () "Unexpected internal type: ~S." tp)))
+		  collect
+		    (case tp
+		      (:funcall
+		       (error 'compile-error
+                              :format-control "An array of functions is not accepted."))
+		      (:aref (or tp-args '*))
+		      (:pointer
+		       (setf aref-type `(pseudo-pointer ,aref-type))
+		       (loop-finish))
+		      (otherwise
+		       (assert nil () "Unexpected internal type: ~S." tp)))))
               (merged-dim
                (array-dimension-combine aref-dim initializer))
               (lisp-elem-type

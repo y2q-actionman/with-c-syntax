@@ -84,34 +84,34 @@ This macro is intended to make expansion of `with-c-syntax' to be a top-level fo
      ,@body))
 
 (defun make-dimension-list (dims &optional default)
-  "Constructs a nested list like ~make-array~."
+  "Constructs a nested list like `make-array'."
   (if dims
       (loop repeat (car dims)
          collect (make-dimension-list (cdr dims) default))
       default))
 
 (defun ref-dimension-list (lis dim-1 &rest dims)
-  "Accesses a nested list like ~aref~, as a multi-dimensional array."
+  "Accesses a nested list like `aref', as a multi-dimensional array."
   (if (null dims)
       (nth dim-1 lis)
       (apply #'ref-dimension-list (nth dim-1 lis) (car dims) (cdr dims))))
 
 (defun (setf ref-dimension-list) (val lis dim-1 &rest dims)
-  "Accesses a nested list like ~aref~, as a multi-dimensional array."
+  "Accesses a nested list like `aref', as a multi-dimensional array."
   (if (null dims)
       (setf (nth dim-1 lis) val)
       (setf (apply #'ref-dimension-list (nth dim-1 lis) (car dims) (cdr dims))
             val)))
   
 (defun dimension-list-max-dimensions (lis)
-  "Calculates max lengths per depth of a nested list."
+  "Calculates max lengths per depth of a nested list, like `array-dimensions'"
   (let ((max-depth 0)
         (dim-table (make-hash-table :test 'eq))) ; (depth . max-len)
     (labels ((dim-calc (depth lis)
                (maxf max-depth depth)
                (maxf (gethash depth dim-table 0) (length lis))
                (loop for i in lis
-                  when (and i (listp i))
+                  when (consp i)
                   do (dim-calc (1+ depth) i))))
       (dim-calc 0 lis))
     (loop for i from 0 to max-depth
