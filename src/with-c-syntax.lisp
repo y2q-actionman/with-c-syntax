@@ -272,7 +272,7 @@ If required, makes a new struct-spec object."
       ((|long| |unsigned|)		.	(unsigned-byte 32))
       ((|long| |long| |unsigned|)	.	(unsigned-byte 64))
       ;; Char
-      ((|char|)                         .	(signed-byte 8))
+      ((|char|)                         .	character)
       ((|char| |signed|)                .	(signed-byte 8))
       ((|char| |unsigned|)              .	(unsigned-byte 8))
       ;; Float
@@ -360,7 +360,9 @@ For each entry of alist, the car is sorted alphabetically.
 
 (defun array-dimension-combine (array-dimension-list init)
   "Resolves unspecified dimensions with an initializer."
-  (loop with init-dims = (dimension-list-max-dimensions init)
+  (loop with init-dims = (etypecase init
+			   (list (dimension-list-max-dimensions init))
+			   (array (array-dimensions init))) 
      for a-elem in array-dimension-list
      for i-elem = (pop init-dims)
      if (null i-elem)
@@ -385,10 +387,10 @@ For each entry of alist, the car is sorted alphabetically.
                (if (null rest-dims)
                    (setf (apply #'ref-dimension-list ret subscripts)
                          (expand-init-declarator-init dspecs abst-decls init))
-                   (loop for d from 0 below (car rest-dims)
-                      for init-i in init
+		   (loop for d from 0 below (car rest-dims)
+		      for init-i in init
                       initially (assert (starts-with :aref (car abst-decls)))
-                      do (var-init-setup (cdr rest-dims)
+		      do (var-init-setup (cdr rest-dims)
                                          (add-to-tail subscripts d)
                                          (cdr abst-decls) init-i)))))
       (var-init-setup dims () abst-declarator init))
@@ -443,7 +445,9 @@ Returns (values var-init var-type)."
               (merged-dim
                (array-dimension-combine aref-dim initializer))
               (lisp-elem-type
-               (if (subtypep aref-type 'number) aref-type t)) ; excludes compound types
+               (cond ((subtypep aref-type 'number) aref-type)
+		     ((subtypep aref-type 'character) aref-type)
+		     (t t))); excludes compound types 
               (var-type
                (if (and (or (null aref-dim) (member '* aref-dim))
                         (null initializer))
@@ -453,13 +457,18 @@ Returns (values var-init var-type)."
                     :format-arguments (list aref-dim initializer))
                    `(simple-array ,lisp-elem-type ,merged-dim)))
               (var-init
-               `(make-array ',merged-dim
-                            :element-type ',lisp-elem-type
-                            :initial-contents
-                            ,(make-dimension-list-load-form
-                              (setup-init-list merged-dim dspecs
-                                               abst-declarator initializer)
-                              (length merged-dim)))))
+	       (if (and (arrayp initializer)
+			(equal (array-dimensions initializer) merged-dim))
+		   ;; This path is for 'char foo[] = "bar..";' syntax.
+		   ;; FIXME: To support an array of string, change `setup-init-list' function.
+		   initializer 
+		   `(make-array ',merged-dim
+				:element-type ',lisp-elem-type
+				:initial-contents
+				,(make-dimension-list-load-form
+				  (setup-init-list merged-dim dspecs
+						   abst-declarator initializer)
+				  (length merged-dim))))))
          (values var-init var-type)))
       ((nil)
        (let ((var-type (decl-specs-lisp-type dspecs)))

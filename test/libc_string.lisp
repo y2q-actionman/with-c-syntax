@@ -169,7 +169,7 @@
 (test test-string-strrchr
   ;; https://en.cppreference.com/w/c/string/byte/strrchr
   #{
-    char * szSomeFileName = "foo/bar/foobar.txt"; // TODO: use 'szDomeFileName[]' style.
+    char szSomeFileName [] = "foo/bar/foobar.txt"; // TODO: use 'szDomeFileName[]' style.
     char * pLastSlash = strrchr(szSomeFileName, '/');
     // ; I use `subseq' instead of pointer calculation.
     char * pszBaseName = pLastSlash ? subseq (pLastSlash, 1) : szSomeFileName;
@@ -186,7 +186,7 @@
 (test test-string-strspn
   ;; see https://en.cppreference.com/w/c/string/byte/strspn
   #{
-    char * low_alpha = "qwertyuiopasdfghjklzxcvbnm";
+    register const char low_alpha[] = "qwertyuiopasdfghjklzxcvbnm";
 
     is (strspn( "abcde312$#@", low_alpha) == 5);
     
