@@ -116,39 +116,68 @@ indicated by `+preprocessor-macro+'."
        finally
          (return (values macro-args lis-head)))))
 
-(defun preprocessor-try-split (symbol)
-  "This function tries to find known C operators in SYMBOL, and split them.
-Currently, this is experimental -- Only try to '++' and '--' operators."
-  (let ((name (symbol-name symbol)))
-    (flet ((intern-in-its-package (string)
-	     (intern string (symbol-package symbol))))
-      (cond ((starts-with-subseq "++" name)
-	     ;; TODO: use starts-with-subseq's second value.
-	     (values (list 'with-c-syntax.syntax:++
-			   (intern-in-its-package (subseq name 2)))
-		     t))
-	    ((starts-with-subseq "--" name)
-	     (values (list 'with-c-syntax.syntax:--
-			   (intern-in-its-package (subseq name 2)))
-		     t))
-	    ((ends-with-subseq "++" name)
-	     (values (list (intern-in-its-package (subseq name 0 (- (length name) 2)))
-			   'with-c-syntax.syntax:++)
-		     t))
-	    ((ends-with-subseq "--" name)
-	     (values (list (intern-in-its-package (subseq name 0 (- (length name) 2)))
-			   'with-c-syntax.syntax:--)
-		     t))
-	    ((starts-with #\* name)
-	     (values (list 'with-c-syntax.syntax:*
-			   (intern-in-its-package (subseq name 1)))
-		     t))
-	    ((starts-with #\& name)
-	     (values (list 'with-c-syntax.syntax:&
-			   (intern-in-its-package (subseq name 1)))
-		     t))
-	    (t
-	     (values symbol nil))))))
+(defmacro mv-cond-let ((&rest vars) &body clauses)
+  "This is like the famous 'COND-LET', but takes multiple values."
+  (let ((clause1 (first clauses)))
+    (cond
+      ((null clauses) nil)
+      ((length= clause1 1)
+       `(multiple-value-bind (,@vars) ,(first clause1)
+	  (declare (ignorable ,@(rest vars)))
+	  (if ,(first vars)
+	      (values ,@vars)
+	      (mv-cond-let (,@vars) ,@(rest clauses)))))
+      ((eql (first clause1) t)
+       `(progn ,@(rest clause1)))
+      (t
+       `(multiple-value-bind (,@vars) ,(first clause1)
+	  (declare (ignorable ,@(rest vars)))
+	  (if ,(first vars)
+	      (progn ,@(rest clause1))
+	      (mv-cond-let (,@vars) ,@(rest clauses))))))))
+
+(defun intern-to-its-package (name symbol)
+  "`intern' NAME into the package of SYMBOL."
+  (intern name (symbol-package symbol)))
+
+(defun find-operator-on-prefix (operator symbol)
+  "This function tries to find OPERATOR in front of SYMBOL.
+If found, it returns T and list of of splited symbols.  If not found,
+it returns NIL."
+  (multiple-value-bind (found suffix)
+      (starts-with-subseq (symbol-name operator) (symbol-name symbol)
+			  :return-suffix t)
+    (if found
+	(values t
+		(list operator
+		      (intern-to-its-package suffix symbol))))))
+
+(defun find-operator-on-suffix (operator symbol)
+  "This function tries to find OPERATOR in back of SYMBOL.
+If found, it returns T and list of of splited symbols.  If not found,
+it returns NIL."
+  (let ((sym-name (symbol-name symbol))
+	(op-name (symbol-name operator)))
+    (if (ends-with-subseq op-name sym-name)
+	(values t
+		(list (intern-to-its-package
+		       (subseq sym-name 0 (- (length sym-name) (length op-name)))
+		       symbol)
+		      operator)))))
+
+(defun preprocessor-try-split (symbol)	; TODO: consider this name
+  "This function tries to find some C operators in SYMBOL.
+If found, it returns T and list of splited symbols. If not found, it
+returns NIL."
+  (mv-cond-let (found trimed)
+    ((find-operator-on-prefix 'with-c-syntax.syntax:++ symbol))
+    ((find-operator-on-prefix 'with-c-syntax.syntax:-- symbol))
+    ((find-operator-on-suffix 'with-c-syntax.syntax:++ symbol))
+    ((find-operator-on-suffix 'with-c-syntax.syntax:-- symbol))
+    ((find-operator-on-prefix 'with-c-syntax.syntax:* symbol))
+    ((find-operator-on-prefix 'with-c-syntax.syntax:& symbol))
+    (t
+     (values nil symbol))))
 
 (defun preprocessor (lis &optional (case-spec nil))
   "* Syntax
@@ -243,7 +272,7 @@ calls the function like:
                (push pp-macro ret)
 	       (go processed!))))
       (unless (boundp token)
-	(multiple-value-bind (results splited-p) (preprocessor-try-split token)
+	(multiple-value-bind (splited-p results) (preprocessor-try-split token)
 	  (when splited-p
 	    (setf lis (nconc results lis))
 	    (go continue)))))
