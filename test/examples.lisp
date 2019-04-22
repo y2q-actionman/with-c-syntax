@@ -209,7 +209,7 @@
 
 	 for (i = 0;
 		i <= 100;
-		++ i )
+		++i )
 		sum += i;
 	 return sum;
 	 }#
@@ -221,10 +221,10 @@
       int i,j;
       for (i = 0;
 	     i < i-max;
-	     i ++) {
+	     i++) {
              for (j = i + 1;
 		    j < j-max;
-		    j ++) {
+		    j++) {
 	      rotatef(arr[i][j], arr[j][i]);
               // Thanks of CL, I can use `rotatef' for swapping.
 	      // I've wrote this code here:
@@ -249,7 +249,7 @@ int sum-of-list (list) {
 
   for (i = 0;
 	 i < list-length;
-	 ++ i) {
+	 ++i) {
      ret += nth(i, list);
   }
 
