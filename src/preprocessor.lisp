@@ -116,6 +116,40 @@ indicated by `+preprocessor-macro+'."
        finally
          (return (values macro-args lis-head)))))
 
+(defun preprocessor-try-split (symbol)
+  "This function tries to find known C operators in SYMBOL, and split them.
+Currently, this is experimental -- Only try to '++' and '--' operators."
+  (let ((name (symbol-name symbol)))
+    (flet ((intern-in-its-package (string)
+	     (intern string (symbol-package symbol))))
+      (cond ((starts-with-subseq "++" name)
+	     ;; TODO: use starts-with-subseq's second value.
+	     (values (list 'with-c-syntax.syntax:++
+			   (intern-in-its-package (subseq name 2)))
+		     t))
+	    ((starts-with-subseq "--" name)
+	     (values (list 'with-c-syntax.syntax:--
+			   (intern-in-its-package (subseq name 2)))
+		     t))
+	    ((ends-with-subseq "++" name)
+	     (values (list (intern-in-its-package (subseq name 0 (- (length name) 2)))
+			   'with-c-syntax.syntax:++)
+		     t))
+	    ((ends-with-subseq "--" name)
+	     (values (list (intern-in-its-package (subseq name 0 (- (length name) 2)))
+			   'with-c-syntax.syntax:--)
+		     t))
+	    ((starts-with #\* name)
+	     (values (list 'with-c-syntax.syntax:*
+			   (intern-in-its-package (subseq name 1)))
+		     t))
+	    ((starts-with #\& name)
+	     (values (list 'with-c-syntax.syntax:&
+			   (intern-in-its-package (subseq name 1)))
+		     t))
+	    (t
+	     (values symbol nil))))))
+
 (defun preprocessor (lis &optional (case-spec nil))
   "* Syntax
 ~preprocessor~ list-of-tokens &key allow-upcase-keyword => preprocesed-list
@@ -207,7 +241,12 @@ calls the function like:
 		 (go processed!)))
 	      (t			; symbol expansion
                (push pp-macro ret)
-	       (go processed!)))))
+	       (go processed!))))
+      (unless (boundp token)
+	(multiple-value-bind (results splited-p) (preprocessor-try-split token)
+	  (when splited-p
+	    (setf lis (nconc results lis))
+	    (go continue)))))
     ;; string concatenation
     (when (stringp token)
       (loop for next = (first lis)
@@ -227,4 +266,5 @@ calls the function like:
 	  ((and typedef-hack
 		(eq (first ret) '\;))
 	   (setf typedef-hack nil)
-	   (revappendf ret '(|void| \;))))))
+	   (revappendf ret '(|void| \;))))
+   continue))

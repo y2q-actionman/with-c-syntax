@@ -133,21 +133,21 @@
 (defun w-c-s-duff-device (to-seq from-seq cnt)
   (with-c-syntax ()
     #{
-    int * to = & to-seq;
-    int * from = & from-seq;
+    int *to = &to-seq;
+    int *from = &from-seq;
 
     int n = (cnt + 7) / 8;
     n = floor(n);           #| Lisp's CL:/ produces rational |#
     switch (cnt % 8) {
-    case 0 :	do {	* to ++ = * from ++;
-    case 7 :		* to ++ = * from ++;
-    case 6 :		* to ++ = * from ++;
-    case 5 :		* to ++ = * from ++;
-    case 4 :		* to ++ = * from ++;
-    case 3 :		* to ++ = * from ++;
-    case 2 :		* to ++ = * from ++;
-    case 1 :		* to ++ = * from ++;
-      } while (-- n > 0);
+    case 0 :	do {	*to++ = *from++;
+    case 7 :		*to++ = *from++;
+    case 6 :		*to++ = *from++;
+    case 5 :		*to++ = *from++;
+    case 4 :		*to++ = *from++;
+    case 3 :		*to++ = *from++;
+    case 2 :		*to++ = *from++;
+    case 1 :		*to++ = *from++;
+      } while (--n > 0);
     }
     }#)
   to-seq)
