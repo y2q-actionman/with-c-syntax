@@ -3,7 +3,7 @@
 (defvar NDEBUG)
 
 ;; I think there is no way to specify any docstrings when `defvar'
-;; left the varible unbound.
+;; left the varible unbound. (But see `defvar-unbound' in serapeum.)
 (setf (documentation 'NDEBUG 'variable)
       "This variable is seen by |assert|. Please refer |assert|'s docstring.")
 

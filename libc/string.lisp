@@ -215,7 +215,7 @@ This function is used for emulating C string truncation with pointer movements."
   ;; `replace' does not fulfill 'memmove' requirements.
   ;; So, I copy the contents of SRC first.
   ;; 
-  ;; This is quote from http://www.lispworks.com/documentation/HyperSpec/Body/f_replac.htm
+  ;; It is quoted from http://www.lispworks.com/documentation/HyperSpec/Body/f_replac.htm
   ;; > However, if sequence-1 and sequence-2 are not the same, but the
   ;; > region being modified overlaps the region being copied from
   ;; > (perhaps because of shared list structure or displaced arrays),
