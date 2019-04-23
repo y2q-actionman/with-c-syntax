@@ -2,7 +2,9 @@
   :description "with-c-syntax is a fun package which introduces the C language syntax into Common Lisp."
   :license "WTFPL"
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
-  :depends-on (#:alexandria #:yacc #:named-readtables)
+  :depends-on (#:alexandria #:yacc #:named-readtables
+                            ;; for libc implementation
+                            #:osicat)
   :serial t
   :components ((:file "package")
 	       (:module "src"
@@ -25,6 +27,7 @@
 		 (:file "util" :depends-on ("package"))
                  (:file "assert" :depends-on ("util"))
                  (:file "ctype" :depends-on ("util"))
+                 (:file "errno" :depends-on ("util"))
                  (:file "float" :depends-on ("util"))
                  (:file "iso646" :depends-on ("util"))
                  (:file "limits" :depends-on ("util"))

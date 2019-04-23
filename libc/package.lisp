@@ -3,6 +3,8 @@
 (defpackage #:with-c-syntax.libc
   (:use #:cl #:with-c-syntax.core #:alexandria)
   (:shadow #:null)
+  (:import-from #:osicat-posix
+                #:EDOM #:EILSEQ #:ERANGE)
   (:export
    ;; assert
    #:|assert| #:NDEBUG
@@ -11,6 +13,8 @@
    #:|isdigit| #:|isxdigit| #:|iscntrl| #:|isgraph|
    #:|isspace| #:|isblank| #:|isprint| #:|ispunct|
    #:|tolower| #:|toupper|
+   ;; errno
+   #:|errno| #:EDOM #:EILSEQ #:ERANGE
    ;; float
    #:FLT_RADIX #:FLT_MANT_DIG #:FLT_EPSILON #:FLT_DIG
    #:FLT_MIN_EXP #:FLT_MIN #:FLT_MIN_10_EXP
@@ -55,3 +59,6 @@
 
 ;;; At this point, the libc package was fixed. I build its cache here.
 (with-c-syntax.core:build-libc-symbol-cache (find-package '#:with-c-syntax.libc))
+
+;;; TODO: split 'libc' package from 'implementation' package.
+;;; (I want to `:use' osicat!)
