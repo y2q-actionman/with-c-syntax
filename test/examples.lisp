@@ -133,21 +133,21 @@
 (defun w-c-s-duff-device (to-seq from-seq cnt)
   (with-c-syntax ()
     #{
-    int * to = & to-seq;
-    int * from = & from-seq;
+    int *to = &to-seq;
+    int *from = &from-seq;
 
     int n = (cnt + 7) / 8;
     n = floor(n);           #| Lisp's CL:/ produces rational |#
     switch (cnt % 8) {
-    case 0 :	do {	* to ++ = * from ++;
-    case 7 :		* to ++ = * from ++;
-    case 6 :		* to ++ = * from ++;
-    case 5 :		* to ++ = * from ++;
-    case 4 :		* to ++ = * from ++;
-    case 3 :		* to ++ = * from ++;
-    case 2 :		* to ++ = * from ++;
-    case 1 :		* to ++ = * from ++;
-      } while (-- n > 0);
+    case 0 :	do {	*to++ = *from++;
+    case 7 :		*to++ = *from++;
+    case 6 :		*to++ = *from++;
+    case 5 :		*to++ = *from++;
+    case 4 :		*to++ = *from++;
+    case 3 :		*to++ = *from++;
+    case 2 :		*to++ = *from++;
+    case 1 :		*to++ = *from++;
+      } while (--n > 0);
     }
     }#)
   to-seq)
@@ -209,7 +209,7 @@
 
 	 for (i = 0;
 		i <= 100;
-		++ i )
+		++i )
 		sum += i;
 	 return sum;
 	 }#
@@ -221,10 +221,10 @@
       int i,j;
       for (i = 0;
 	     i < i-max;
-	     i ++) {
+	     i++) {
              for (j = i + 1;
 		    j < j-max;
-		    j ++) {
+		    j++) {
 	      rotatef(arr[i][j], arr[j][i]);
               // Thanks of CL, I can use `rotatef' for swapping.
 	      // I've wrote this code here:
@@ -249,7 +249,7 @@ int sum-of-list (list) {
 
   for (i = 0;
 	 i < list-length;
-	 ++ i) {
+	 ++i) {
      ret += nth(i, list);
   }
 
