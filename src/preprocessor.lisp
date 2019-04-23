@@ -160,22 +160,61 @@ it returns NIL."
 	(op-name (symbol-name operator)))
     (if (ends-with-subseq op-name sym-name)
 	(values t
-		(list (intern-to-its-package
+                (list (intern-to-its-package
 		       (subseq sym-name 0 (- (length sym-name) (length op-name)))
 		       symbol)
 		      operator)))))
+
+(defun earmuff-length (string earmuff-char)
+  (let* ((len (length string))
+         (prefix-len
+          (if (char/= (char string 0) earmuff-char)
+              0                       ; not found
+              (or (position earmuff-char string :test #'char/=)
+                  len))) ; STRING is fully filled with the EARMUFF-CHAR.
+         (suffix-len
+          (if (char/= (char string (1- len)) earmuff-char)
+              0				; not found
+              (if-let (suffix-pos--1 (position earmuff-char string :test #'char/= :from-end t))
+		(- len (1+ suffix-pos--1))
+                len))))   ; STRING is fully filled with the EARMUFF-CHAR.
+    (values prefix-len suffix-len)))
 
 (defun preprocessor-try-split (symbol)	; TODO: consider this name
   "This function tries to find some C operators in SYMBOL.
 If found, it returns T and list of splited symbols. If not found, it
 returns NIL."
+  ;; I think operators their precedence is equal or more than '~'
+  ;; are candidates, in my personal C style.
   (mv-cond-let (found trimed)
-    ((find-operator-on-prefix 'with-c-syntax.syntax:++ symbol))
-    ((find-operator-on-prefix 'with-c-syntax.syntax:-- symbol))
+    ;; Operator precedence 1.
+    ;; TODO: add '.' and '->' operator.
     ((find-operator-on-suffix 'with-c-syntax.syntax:++ symbol))
     ((find-operator-on-suffix 'with-c-syntax.syntax:-- symbol))
-    ((find-operator-on-prefix 'with-c-syntax.syntax:* symbol))
+    ;; Operator precedence 2.
+    ((find-operator-on-prefix 'with-c-syntax.syntax:++ symbol))
+    ((find-operator-on-prefix 'with-c-syntax.syntax:-- symbol))
+    ((find-operator-on-prefix 'with-c-syntax.syntax:|sizeof| symbol))
+    ;; I think these are rarely used for Lisp symbols.
+    ((find-operator-on-prefix 'with-c-syntax.syntax:- symbol))
+    ((find-operator-on-prefix 'with-c-syntax.syntax:! symbol))
+    ((find-operator-on-prefix 'with-c-syntax.syntax:~ symbol))
     ((find-operator-on-prefix 'with-c-syntax.syntax:& symbol))
+    ;; These are used as *earmuffs*. I handle them specially.
+    ((find-operator-on-prefix 'with-c-syntax.syntax:* symbol)
+     (multiple-value-bind (prefix-len suffix-len)
+         (earmuff-length (symbol-name symbol) #\*)
+       ;; TODO: What to do when (> prefix-len 1) ?
+       (if (> prefix-len suffix-len)
+           (values t trimed)
+           (values nil symbol))))
+    ((find-operator-on-prefix 'with-c-syntax.syntax:+ symbol)
+     (multiple-value-bind (prefix-len suffix-len)
+         (earmuff-length (symbol-name symbol) #\+)
+       ;; TODO: (see above)
+       (if (> prefix-len suffix-len)
+           (values t trimed)
+           (values nil symbol))))
     (t
      (values nil symbol))))
 
