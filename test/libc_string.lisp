@@ -129,3 +129,246 @@
   is (minusp (strncmp ("abc", "abcd", 4)));
   is (minusp (strncmp ("abc", "abcd", 5)));
   }#)
+
+(test test-string-strchr
+  ;; from cppreference;  https://en.cppreference.com/w/c/string/byte/strchr
+  #{
+  const char * str = "Try not. Do, or do not. There is no try.";
+  char target = 'T';
+  void * result = str;
+  int output_count = 0;
+  void * output;
+
+  while((result = strchr(result, target)) != NULL) {
+  // ; FIXME: If I use internal declaration (like 'void * output = ...'),
+  // ; it is initialized only once!
+    output = with-output-to-string (`(*standard-output*), //; To preserve parens, I used Lisp escape
+				     format(t, "Found '~C' starting at '~A'", target, result));
+
+    switch (output_count) {
+    case 0 :
+      is (string= (output,
+		   "Found 'T' starting at 'Try not. Do, or do not. There is no try.'"));
+      break;
+    case 1 :
+      is (string= (output,
+		   "Found 'T' starting at 'There is no try.'"));
+      break;
+    }
+
+    ++ output_count;
+    result = subseq (result, 1); // Proceed it. (in original code, incremented 'result' pointer).
+  }
+  }#
+
+  #{
+  is (! strchr ("hoge", #\x));
+  is (! strchr ("", #\x));
+  is (equal ( strchr ("foobar", #\nul), ""));
+  }#)
+
+(test test-string-strrchr
+  ;; https://en.cppreference.com/w/c/string/byte/strrchr
+  #{
+    char * szSomeFileName = "foo/bar/foobar.txt"; // TODO: use 'szDomeFileName[]' style.
+    char * pLastSlash = strrchr(szSomeFileName, '/');
+    // ; I use `subseq' instead of pointer calculation.
+    char * pszBaseName = pLastSlash ? subseq (pLastSlash, 1) : szSomeFileName;
+    is (string= (format(nil, "Base Name: ~A", pszBaseName), // ; TODO: use `printf'.
+		       "Base Name: foobar.txt"));
+    }#
+
+  #{
+  is (! strrchr ("hoge", #\x));
+  is (! strrchr ("", #\x));
+  is (equal ( strrchr ("foobar", #\nul), ""));
+  }#)
+
+(test test-string-strspn
+  ;; see https://en.cppreference.com/w/c/string/byte/strspn
+  #{
+    char * low_alpha = "qwertyuiopasdfghjklzxcvbnm";
+
+    is (strspn( "abcde312$#@", low_alpha) == 5);
+    
+    is (strspn( "!?", low_alpha) == 0);
+    is (strspn( "", low_alpha) == 0);
+    is (strspn( "a", low_alpha) == 1);
+    is (strspn( "abc", low_alpha) == 3);
+  }#)
+
+(test test-string-strcspn
+  ;; see https://en.cppreference.com/w/c/string/byte/strcspn
+  #{
+    const char * string = "abcde312$#@";
+    const char * invalid = "*$#";
+ 
+    is (strcspn( string, invalid) == 8);
+    
+    is (strcspn( "!?", invalid) == 2);
+    is (strcspn( "", invalid) == 0);
+    is (strcspn( "$$$", invalid) == 0);
+    is (strcspn( "abcdef", invalid) == 6);
+  }#)
+
+(test test-string-strpbrk
+  ;; see https://en.cppreference.com/w/c/string/byte/strpbrk
+  #{
+    const char * str = "hello world, friend of mine!";
+    const char * sep = " ,!";
+ 
+    unsigned int cnt = 0;
+    do {
+       str = strpbrk(str, sep);
+       if(str)
+       str = subseq (str, strspn(str, sep)); // I use `subseq' instead of pointer arithmetics.
+       
+       switch (cnt) {
+       case 0 : is (string= (str, "world, friend of mine!")); break;
+       case 1 : is (string= (str, "friend of mine!")); break;
+       case 2 : is (string= (str, "of mine!")); break;
+       case 3 : is (string= (str, "mine!")); break;
+       case 4 : is (string= (str, "")); break;
+       default : is (progn ("cnt must be < 5", nil));
+       }
+
+       ++ cnt;
+     } while(str && ! alexandria:length= (str, 0));
+
+     is (cnt == 5);
+  }#
+
+  #{
+    const char * sep = "*$#";
+ 
+    is (string= (strpbrk( "a#", sep), "#"));
+    is (string= (strpbrk( "#a", sep), "#a"));
+    is (string= (strpbrk( "", sep), nil));
+    is (string= (strpbrk( "$$$", sep), "$$$"));
+    is (string= (strpbrk( "abc", sep), nil));
+  }#)
+
+
+(test test-string-strstr
+  ;; from BSD man page
+  #{
+  const char * largestring = "Foo Bar Baz";
+  const char * smallstring = "Bar";
+  char * ptr;
+
+  ptr = strstr (largestring, smallstring);
+  is (string= (ptr, "Bar Baz"));
+  }#)					; TODO: increase tests!
+
+(test test-string-strtok
+  #{
+    is (strtok ("", ",!?") == NULL);
+    is (strtok ("!!!", ",!?") == NULL);
+  }#
+
+  #{
+  is (string= (strtok ("aaa;;bbb,", ";,"), "aaa"));
+  is (string= (strtok (NULL, ";,"), "bbb"));
+  is (eql (strtok (NULL, ";,"), NULL));
+  is (eql (strtok (NULL, ";,"), NULL));
+  }#
+
+  #{
+  is (string= (strtok ("aaa;;bbb,", ""), "aaa;;bbb,"));
+  is (eql (strtok (NULL, ""), NULL));
+  }#
+
+  ;; https://en.cppreference.com/w/c/string/byte/strtok
+  (let ((input "A bird came down the walk")
+	token-list)
+    #{
+      void * token = strtok(input, " ");
+      while(token) {
+        push (token, token-list);
+        token = strtok(NULL, " ");
+      }
+      token-list = nreverse (token-list);
+    }#
+    ;; My 'strtok' implementation does not destroy the original string.
+    ;; (this behavior is required??)
+    (is (tree-equal token-list
+		    '("A" "bird" "came" "down" "the" "walk")
+		    :test #'string=)))
+  t)
+
+
+(test test-string-memchr
+  #{
+  void * v = `(vector 0 1 2 3 4);
+  void * expected;
+
+  expected = `(vector 0 1 2 3 4);
+  is (equalp (memchr (v, 0, 5), expected));
+  is (equalp (memchr (v, 0, 1), expected));
+  is (equalp (memchr (v, 0, 15), expected));
+  is (equalp (memchr (v, 0, 0), nil));
+
+  expected = `(vector 2 3 4);
+  is (equalp (memchr (v, 2, 5), expected));
+  is (equalp (memchr (v, 2, 1), nil));
+  is (equalp (memchr (v, 2, 15), expected));
+  is (equalp (memchr (v, 2, 0), nil));
+
+  is (equalp (memchr (v, 5, 5), nil));
+  is (equalp (memchr (v, 5, 1), nil));
+  is (equalp (memchr (v, 5, 15), nil));
+  is (equalp (memchr (v, 5, 0), nil));
+  }#)
+
+(test test-string-memcmp
+  #{
+  is (memcmp (`(vector), `(vector), 1) == 0);
+  is (memcmp (`(vector 1), `(vector 1), 1) == 0);
+  is (memcmp (`(vector 1), `(vector 1), 0) == 0);
+
+  is (memcmp (`(vector 0 0), `(vector 0 1), 2) < 0);
+  is (memcmp (`(vector 0 0), `(vector 1 0), 2) < 0);
+  is (memcmp (`(vector 1 0), `(vector 0 1), 2) > 0);
+  is (memcmp (`(vector 1 0), `(vector 1 1), 2) < 0);
+  is (memcmp (`(vector 1 0 1), `(vector 1 1), 2) < 0);
+  is (memcmp (`(vector 1 0 1), `(vector 1 1 1), 2) < 0);
+
+  is (memcmp ("abc", "abd", 3, :predicate, #'char<) < 0);
+  is (memcmp ("abd", "abc", 3, :predicate, #'char<) > 0);
+  is (memcmp ("abc", "abc", 3, :predicate, #'char<) == 0);
+  }#)
+
+(test test-string-memset
+  #{
+  void * v = `(vector 0 1 2 3 4);
+
+  is (equalp (memset (v, 0, 2), `(vector 0 0 2 3 4)));
+  is (equalp (v, `(vector 0 0 2 3 4)));
+
+  is (equalp (memset (v, #x10, 5), `(vector #x10 #x10 #x10 #x10 #x10)));
+  is (equalp (v, `(vector #x10 #x10 #x10 #x10 #x10)));
+  }#)
+
+(test test-string-memcpy
+  #{
+  void * v = `(vector 0 1 2 3 4);
+  void * w = `(vector 99 98 97);
+
+  is (equalp (memcpy (v, w, 2), `(vector 99 98 2 3 4)));
+  is (equalp (v, `(vector 99 98 2 3 4)));
+
+  is (equalp (memcpy (v, w, 3), `(vector 99 98 97 3 4)));
+  is (equalp (v, `(vector 99 98 97 3 4)));
+  }#)
+
+(test test-string-memmove
+  #{
+  void * v = `(vector 0 1 2 3 4);
+  void * w = `(vector 99 98 97);
+
+  is (equalp (memmove (v, w, 2), `(vector 99 98 2 3 4)));
+  is (equalp (v, `(vector 99 98 2 3 4)));
+
+  is (equalp (memmove (v, w, 3), `(vector 99 98 97 3 4)));
+  is (equalp (v, `(vector 99 98 97 3 4)));
+  }#)

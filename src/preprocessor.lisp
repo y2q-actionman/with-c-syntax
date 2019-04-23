@@ -116,6 +116,69 @@ indicated by `+preprocessor-macro+'."
        finally
          (return (values macro-args lis-head)))))
 
+(defmacro mv-cond-let ((&rest vars) &body clauses)
+  "This is like the famous 'COND-LET', but takes multiple values."
+  (let ((clause1 (first clauses)))
+    (cond
+      ((null clauses) nil)
+      ((length= clause1 1)
+       `(multiple-value-bind (,@vars) ,(first clause1)
+	  (declare (ignorable ,@(rest vars)))
+	  (if ,(first vars)
+	      (values ,@vars)
+	      (mv-cond-let (,@vars) ,@(rest clauses)))))
+      ((eql (first clause1) t)
+       `(progn ,@(rest clause1)))
+      (t
+       `(multiple-value-bind (,@vars) ,(first clause1)
+	  (declare (ignorable ,@(rest vars)))
+	  (if ,(first vars)
+	      (progn ,@(rest clause1))
+	      (mv-cond-let (,@vars) ,@(rest clauses))))))))
+
+(defun intern-to-its-package (name symbol)
+  "`intern' NAME into the package of SYMBOL."
+  (intern name (symbol-package symbol)))
+
+(defun find-operator-on-prefix (operator symbol)
+  "This function tries to find OPERATOR in front of SYMBOL.
+If found, it returns T and list of of splited symbols.  If not found,
+it returns NIL."
+  (multiple-value-bind (found suffix)
+      (starts-with-subseq (symbol-name operator) (symbol-name symbol)
+			  :return-suffix t)
+    (if found
+	(values t
+		(list operator
+		      (intern-to-its-package suffix symbol))))))
+
+(defun find-operator-on-suffix (operator symbol)
+  "This function tries to find OPERATOR in back of SYMBOL.
+If found, it returns T and list of of splited symbols.  If not found,
+it returns NIL."
+  (let ((sym-name (symbol-name symbol))
+	(op-name (symbol-name operator)))
+    (if (ends-with-subseq op-name sym-name)
+	(values t
+		(list (intern-to-its-package
+		       (subseq sym-name 0 (- (length sym-name) (length op-name)))
+		       symbol)
+		      operator)))))
+
+(defun preprocessor-try-split (symbol)	; TODO: consider this name
+  "This function tries to find some C operators in SYMBOL.
+If found, it returns T and list of splited symbols. If not found, it
+returns NIL."
+  (mv-cond-let (found trimed)
+    ((find-operator-on-prefix 'with-c-syntax.syntax:++ symbol))
+    ((find-operator-on-prefix 'with-c-syntax.syntax:-- symbol))
+    ((find-operator-on-suffix 'with-c-syntax.syntax:++ symbol))
+    ((find-operator-on-suffix 'with-c-syntax.syntax:-- symbol))
+    ((find-operator-on-prefix 'with-c-syntax.syntax:* symbol))
+    ((find-operator-on-prefix 'with-c-syntax.syntax:& symbol))
+    (t
+     (values nil symbol))))
+
 (defun preprocessor (lis &optional (case-spec nil))
   "* Syntax
 ~preprocessor~ list-of-tokens &key allow-upcase-keyword => preprocesed-list
@@ -207,7 +270,12 @@ calls the function like:
 		 (go processed!)))
 	      (t			; symbol expansion
                (push pp-macro ret)
-	       (go processed!)))))
+	       (go processed!))))
+      (unless (boundp token)
+	(multiple-value-bind (splited-p results) (preprocessor-try-split token)
+	  (when splited-p
+	    (setf lis (nconc results lis))
+	    (go continue)))))
     ;; string concatenation
     (when (stringp token)
       (loop for next = (first lis)
@@ -227,4 +295,5 @@ calls the function like:
 	  ((and typedef-hack
 		(eq (first ret) '\;))
 	   (setf typedef-hack nil)
-	   (revappendf ret '(|void| \;))))))
+	   (revappendf ret '(|void| \;))))
+   continue))

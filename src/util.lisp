@@ -3,18 +3,21 @@
 ;; These are referenced by the parser directly.
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun add-to-tail (lis i)
-    (append lis (list i)))
-)
+    (append lis (list i))))
+
+(defun not-eql (x y)
+  "Used for '!=' of C language."
+  (not (eql x y)))
 
 (defun reverse-ash (i c)
   (ash i (- c)))
 
 (defun revappend-to (tail list)
-  "Calls revappend with reversed order args. A helper for ~revappendf~."
+  "Calls revappend with reversed order args. A helper for `revappendf'."
   (revappend list tail))
 
 (defun nreconc-to (tail list)
-  "Calls nreconc with reversed order args. A helper for ~nreconcf~."
+  "Calls nreconc with reversed order args. A helper for `nreconcf'."
   (nreconc list tail))
 
 ;; modify macros

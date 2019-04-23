@@ -2,16 +2,16 @@
 
 (add-typedef '|va_list| 'list)
 
-(define-preprocessor-function |va_start| ((ap) (last))
-  (declare (ignore last))		; TODO: FIXME: use this.
-  `(setf ,ap (get-variadic-arguments)))
+(defmacro |va_start| (ap last)
+  `(setf ,ap (get-variadic-arguments ,last)))
 
+;;; FIXME: This is the only point using `define-preprocessor-function'. I want to remove this..
 (define-preprocessor-function |va_arg| ((ap) (type))
   (declare (ignore type))		; TODO: FIXME: use this.
   `(pop ,ap))
 
-(define-preprocessor-function |va_end| ((ap))
+(defmacro |va_end| (ap)
   `(setf ,ap nil))
 
-(define-preprocessor-function |va_copy| ((dest) (src))
+(defmacro |va_copy| (dest src)
   `(setf ,dest (copy-list ,src)))

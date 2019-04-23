@@ -35,6 +35,7 @@ This library is quicklisp-ready.
 - alexandria
 - named-readtables
 - 1am (only by test codes.)
+- trivial-cltl2 (only by test codes.)
 
 ** Load with ASDF
 #+BEGIN_SRC lisp
@@ -86,7 +87,7 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
   #{
     int i, sum = 0;
   
-    for (i = 0; i <= 100; ++ i )
+    for (i = 0; i <= 100; ++i)
       sum += i;
     return sum;
   }#
@@ -102,8 +103,8 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
     (destructuring-bind (i-max j-max) (array-dimensions arr)
       #{
         int i,j;
-        for (i = 0; i < i-max; i ++) {
-            for (j = i + 1; j < j-max; j ++) {
+        for (i = 0; i < i-max; i++) {
+            for (j = i + 1; j < j-max; j++) {
 	        rotatef(arr[i][j], arr[j][i]);
             }
         }
@@ -125,7 +126,7 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
     int list-length = length(list);
     int i, ret = 0;
 
-    for (i = 0; i < list-length; ++ i) {
+    for (i = 0; i < list-length; ++i) {
        ret += nth(i, list);
     }
 
@@ -142,21 +143,21 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
 
   (defun w-c-s-duff-device (to-seq from-seq cnt)
       #{
-      int * to = & to-seq;
-      int * from = & from-seq;
+      int *to = &to-seq;
+      int *from = &from-seq;
   
       int n = (cnt + 7) / 8;
       n = floor(n);           /* Lisp's CL:/ produces rational */
       switch (cnt % 8) {
-      case 0 :    do {    * to ++ = * from ++;
-      case 7 :            * to ++ = * from ++;
-      case 6 :            * to ++ = * from ++;
-      case 5 :            * to ++ = * from ++;
-      case 4 :            * to ++ = * from ++;
-      case 3 :            * to ++ = * from ++;
-      case 2 :            * to ++ = * from ++;
-      case 1 :            * to ++ = * from ++;
-        } while (-- n > 0);
+      case 0 :    do {    *to++ = *from++;
+      case 7 :            *to++ = *from++;
+      case 6 :            *to++ = *from++;
+      case 5 :            *to++ = *from++;
+      case 4 :            *to++ = *from++;
+      case 3 :            *to++ = *from++;
+      case 2 :            *to++ = *from++;
+      case 1 :            *to++ = *from++;
+        } while (--n > 0);
       }
       }#
     to-seq)
@@ -167,6 +168,12 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
   
   arr1 ;; => #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
 #+END_SRC
+
+This example shows some C operators (=++=, =--=, unary =*= and =&=)
+behave as you expected as possible.
+
+(This feature is based on [[https://github.com/phoe][@phoe]]'s suggestion. See [[https://github.com/y2q-actionman/with-c-syntax/issues/2][Issue #2]] .)
+
 
 * API
 Please see these docstrings or comments:
