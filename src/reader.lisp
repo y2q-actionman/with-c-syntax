@@ -5,49 +5,22 @@
       (#\{ . #\}) (#\< . #\>))
   :test 'equal
   :documentation
-  "* Value Type
-alist :: <character> -> <character>.
+  "Holds an alist of bracket pairs.")
 
-* Description
-Holds an alist of bracket pairs.
-")
-
-(define-constant +reader-level-specifier-alist+
-    '((0 . 0) (1 . 1) (2 . 2) (3 . 3)
-      (:conservative . 0) (:aggressive . 1)
-      (:overkill . 2) (:insane . 3))
-  :test 'equal
-  :documentation
-  "* Value Type
-alist :: <atom> -> <fixnum>.
-
-* Description
-Holds an alist translates 'reader level'.
-
-* See Also
-~use-reader~.
-")
-
-(defun translate-reader-level (rlspec)
-  (cdr (assoc rlspec +reader-level-specifier-alist+)))
-
-(defconstant +with-c-syntax-default-reader-level+ :overkill)
+(defconstant +with-c-syntax-default-reader-level+ 2)
 
 (defvar *with-c-syntax-reader-level* nil
-  "* Value Type
-a symbol or a fixnum.
+  "Holds the reader level used by '#{' reader function.
 
-* Description
-Holds the reader level used by '#{' reader function.
-
-The value is one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
-~:overkill~, or ~:insane~. The default is nil, recognized as ~:overkill~.
+The value is one of 0, 1, 2, 3, or nil (default).
+The default is nil, recognized as `+with-c-syntax-default-reader-level+'.
 
 For inside '#{' and '}#', four syntaxes are defined. These syntaxes
 are selected by the infix parameter of the '#{' dispatching macro
 character. If it not specified, its default is this value.
 
 If you interest for what syntaxes are defined, Please see the 'reader.lisp'")
+;;; TODO: move docstrings of `use-reader'.
 
 (defvar *with-c-syntax-reader-case* nil
   "* Value Type
@@ -276,7 +249,7 @@ Default is nil, which is treated as the standard readtable.")
 	 (keyword-case (or *with-c-syntax-reader-case*
 			   (readtable-case *readtable*))))
     (setf (readtable-case *readtable*) keyword-case)
-    (install-c-reader *readtable* (translate-reader-level level))
+    (install-c-reader *readtable* level)
     ;; I forgot why this is required.. (2018-11-12)
     ;; (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
     `(with-c-syntax (:keyword-case ,keyword-case)
@@ -304,27 +277,26 @@ wrapped with ~with-c-syntax~ form.
 ~use-reader~ &key level case => readtable
 
 * Arguments and Values
-- level :: one of 0, 1, 2, 3, ~:conservative~, ~:aggressive~,
-           ~:overkill~, or ~:insane~.
-           The default is specified by ~*with-c-syntax-reader-level*~.
+- level :: one of 0, 1, 2, or 3.
+           The default is specified by `*with-c-syntax-reader-level*'.
 - case :: one of ~:upcase~, ~:downcase~, ~:preserve~, ~:invert~, or
           nil. The default is nil.
 
 * Description
 This macro establishes a C syntax reader.
 
-~use-reader~ introduces a dispatching macro character '#{'.  Inside
+`use-reader' introduces a dispatching macro character '#{'.  Inside
 '#{' and '}#', the reader uses completely different syntax, and
-wrapped with ~with-c-syntax~ form.
+wrapped with `with-c-syntax' form.
 
 ** Syntax Levels
 For inside '#{' and '}#', four syntaxes are defined. These syntaxes
 are selected by the infix parameter of the '#{' dispatching macro
-character. If it not specified, The default is the ~level~ specified
-at ~use-reader~.
+character. If it not specified, The default is the LEVEL specified
+at `use-reader;.
 
 *** Level 0 (conservative)
-This is used when ~level~ is 0 or ~:conservative~.
+This is used when LEVEL is 0.
 
 In this level, these reader macros are installed.
 
@@ -334,7 +306,7 @@ In this level, these reader macros are installed.
          package marker) works as is.
 
 *** Level 1 (aggressive)
-This is used when ~level~ is 1 or ~:aggressive~.
+This is used when LEVEL is 1.
 
 In this level, these reader macros are installed.
 
@@ -342,7 +314,7 @@ In this level, these reader macros are installed.
                         and read as a symbol.
 
 *** Level 2 (overkill)
-This is used when ~level~ is 2 or ~:overkill~.
+This is used when LEVEL is 2.
 
 In this level, these reader macros are installed.
 
@@ -372,7 +344,7 @@ In this level, '(' and ')' loses its functionalities. For constructing
 a list, the '`' syntax must be used.
 
 *** Level 3 (insane)
-This is used when ~level~ is 3 or ~:insane~.
+This is used when LEVEL is 3.
 
 In this level, these characters become terminating, and read as a
 symbol listed below.
@@ -420,7 +392,7 @@ There is no support for trigraphs or digraphs.
      ;; But I removed this feature because I use named-readtables.
      (shiftf *previous-syntax* *readtable* (copy-readtable))
      (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
-     (setf *with-c-syntax-reader-level* (translate-reader-level ,level)
+     (setf *with-c-syntax-reader-level* ,level
 	   *with-c-syntax-reader-case* ,case)
      *readtable*))
 

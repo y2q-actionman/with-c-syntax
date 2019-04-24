@@ -10,7 +10,6 @@
   (is (equal #{ format (nil, "Hello World!"); }#
 	     "Hello World!")))
 
-#.(setf *with-c-syntax-reader-level* :conservative)
 (test test-reader-conservative
   ;; comma
   (is.equal.wcs 2
@@ -24,12 +23,12 @@
     return 1 ? 2 : 3 \;
     }#)
   ;; check default-level
+  #.(setf *with-c-syntax-reader-level* 0)
   (is.equal.wcs 2
     #{
     return 1 ? 2 : 3 \;
     }#))
 
-#.(setf *with-c-syntax-reader-level* :aggressive)
 (test test-reader-aggressive
   ;; { and }
   (is.equal.wcs 99
@@ -41,10 +40,10 @@
     return hoge-array[2]\;
     }#)
   ;; check default-level
+  #.(setf *with-c-syntax-reader-level* 1)
   (is.equal.wcs 99
     #{{return 99 \;}}#))
 
-#.(setf *with-c-syntax-reader-level* :overkill)
 (test test-reader-overkill
   ;; `
   (is.equal.wcs 7
@@ -118,11 +117,11 @@
     return string('a');
     }#)
   ;; check default-level
+  #.(setf *with-c-syntax-reader-level* 2)
   (is.equal.wcs 3
     #{{1;2;return 3;}}#
     ))
 
-#.(setf *with-c-syntax-reader-level* :insane)
 (test test-reader-insane
  (let ((x 2) (y 3)) 
   ;; comments
@@ -317,6 +316,7 @@
     }#)
 
   ;; check default-level
+  #.(setf *with-c-syntax-reader-level* 3)
   (is.equal.wcs 6
     #{
     return 1 // + 8000
@@ -359,7 +359,7 @@ int test\-reader\-toplevel\-insane(){
   (is (test-reader-toplevel-overkill))
   (is (test-reader-toplevel-insane)))
 
-#.(setf *with-c-syntax-reader-level* :conservative)
+#.(setf *with-c-syntax-reader-level* nil)
 #.(setf *with-c-syntax-reader-case* :preserve)
 (test test-reader-case-sensitivity
   (is.equal.wcs nil
