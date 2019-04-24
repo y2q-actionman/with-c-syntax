@@ -165,7 +165,11 @@ it returns NIL."
 		       symbol)
 		      operator)))))
 
-(defun earmuff-length (string earmuff-char)
+(defun earmuff-lengthes (string earmuff-char)
+  "Calculates '*earmuff*' lengthes in STRING with EARMUFF-CHAR, and
+returns it lengthes in front and in last.
+
+  e.g. (earmuff-lengthes \"*foo**\" #\*) ; => (values 1 2)"
   (let* ((len (length string))
          (prefix-len
           (if (char/= (char string 0) earmuff-char)
@@ -187,15 +191,15 @@ returns NIL."
   ;; I think operators their precedence is equal or more than '~'
   ;; are candidates, in my personal C style.
   (mv-cond-let (found trimed)
-    ;; Operator precedence 1.
+    ;; -- Operator precedence 1 --
     ;; TODO: add '.' and '->' operator.
     ((find-operator-on-suffix 'with-c-syntax.syntax:++ symbol))
     ((find-operator-on-suffix 'with-c-syntax.syntax:-- symbol))
-    ;; Operator precedence 2.
+    ;; -- Operator precedence 2 --
     ((find-operator-on-prefix 'with-c-syntax.syntax:++ symbol))
     ((find-operator-on-prefix 'with-c-syntax.syntax:-- symbol))
     ((find-operator-on-prefix 'with-c-syntax.syntax:|sizeof| symbol))
-    ;; I think these are rarely used for Lisp symbols.
+    ;; I think these are rarely used in Lisp symbols.
     ((find-operator-on-prefix 'with-c-syntax.syntax:- symbol))
     ((find-operator-on-prefix 'with-c-syntax.syntax:! symbol))
     ((find-operator-on-prefix 'with-c-syntax.syntax:~ symbol))
@@ -203,18 +207,18 @@ returns NIL."
     ;; These are used as *earmuffs*. I handle them specially.
     ((find-operator-on-prefix 'with-c-syntax.syntax:* symbol)
      (multiple-value-bind (prefix-len suffix-len)
-         (earmuff-length (symbol-name symbol) #\*)
-       ;; TODO: What to do when (> prefix-len 1) ?
+         (earmuff-lengthes (symbol-name symbol) #\*)
        (if (> prefix-len suffix-len)
            (values t trimed)
            (values nil symbol))))
     ((find-operator-on-prefix 'with-c-syntax.syntax:+ symbol)
      (multiple-value-bind (prefix-len suffix-len)
-         (earmuff-length (symbol-name symbol) #\+)
-       ;; TODO: (see above)
+         (earmuff-lengthes (symbol-name symbol) #\+)
        (if (> prefix-len suffix-len)
            (values t trimed)
            (values nil symbol))))
+    ;; FIXME: What to do when (>= prefix-len 2) or (>= suffix-len 2) ?
+    ;; Should I accept 'int n = ++a-constant++ 10' as '(+ (+ +a-constant+) 10)'?
     (t
      (values nil symbol))))
 
@@ -310,7 +314,8 @@ calls the function like:
 	      (t			; symbol expansion
                (push pp-macro ret)
 	       (go processed!))))
-      (unless (boundp token)
+      (unless (or (boundp token)
+                  (fboundp token))
 	(multiple-value-bind (splited-p results) (preprocessor-try-split token)
 	  (when splited-p
 	    (setf lis (nconc results lis))
