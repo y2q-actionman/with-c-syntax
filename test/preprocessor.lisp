@@ -35,20 +35,9 @@
   (is.equal.wcs most-positive-long-float
     return LDBL_MAX \;)
 
-  (is.equal.wcs short-float-epsilon
-    return SFLT_EPSILON \;)
-  (is.equal.wcs least-positive-normalized-short-float
-    return SFLT_MIN \;)
-  (is.equal.wcs most-positive-short-float
-    return SFLT_MAX \;)
-
   ;; C required limits.
   (is.equal.wcs t
     return FLT_RADIX >= 2 \;)
-  (is.equal.wcs t
-    return DBL_RADIX >= 2 \;)
-  (is.equal.wcs t
-    return LDBL_RADIX >= 2 \;)
 
   (is.equal.wcs t
     return FLT_DIG >= 6 \;)
