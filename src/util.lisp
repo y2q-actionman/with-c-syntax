@@ -65,6 +65,7 @@
 	      (,(car newval) (+ ,ret ,delta-tmp)))
 	 (prog1 ,ret
 	   ,setter)))))
+;;; TODO: use define-post-modify-macro of in serapeum.
 
 (defmacro replace-operator-if-no-bindings (to form)
   "This macro sees FORM as a `LET'-like binding syntax.
