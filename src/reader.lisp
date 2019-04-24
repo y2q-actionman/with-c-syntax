@@ -7,13 +7,13 @@
   :documentation
   "Holds an alist of bracket pairs.")
 
-(defconstant +with-c-syntax-default-reader-level+ 2)
+(defconstant +with-c-syntax-default-reader-level+ 1)
 
 (defvar *with-c-syntax-reader-level* nil
   "Holds the reader level used by '#{' reader function.
 
-The value is one of 0, 1, 2, 3, or nil (default).
-The default is nil, recognized as `+with-c-syntax-default-reader-level+'.
+The value is one of 0, 1, 2, or nil (default).
+The default is nil, recognized same as `+with-c-syntax-default-reader-level+'.
 
 For inside '#{' and '}#', four syntaxes are defined. These syntaxes
 are selected by the infix parameter of the '#{' dispatching macro
@@ -206,22 +206,21 @@ Default is nil, which is treated as the standard readtable.")
     (set-macro-character #\{ #'read-single-character-symbol nil readtable)
     (set-macro-character #\} #'read-single-character-symbol nil readtable)
     (set-macro-character #\[ #'read-single-character-symbol nil readtable)
-    (set-macro-character #\] #'read-single-character-symbol nil readtable))
-  (when (>= level 2)			; Overkill
+    (set-macro-character #\] #'read-single-character-symbol nil readtable)
     ;; for accessing normal syntax.
     (set-macro-character #\` #'read-in-previous-syntax readtable)
     ;; Disables 'consing dots', with replacement of ()
     (set-macro-character #\. #'read-lonely-single-symbol t readtable)
     ;; removes 'multi-escape'
     (set-syntax-from-char #\| #\& readtable)
-    ;; destroys CL syntax COMPLETELY!
+    ;; Destroying CL standard syntax -- overwrite standard macro chars.
     (set-macro-character #\/ #'read-slash-comment t readtable)
     (set-macro-character #\' #'read-single-quote nil readtable)
     (set-macro-character #\" #'read-double-quote nil readtable)
     (set-macro-character #\; #'read-single-character-symbol nil readtable)
     (set-macro-character #\( #'read-single-character-symbol nil readtable)
     (set-macro-character #\) #'read-single-character-symbol nil readtable))
-  (when (>= level 3)			; Insane
+  (when (>= level 2)			; Overkill
     ;; No compatibilities between CL symbols.
     (set-macro-character #\? #'read-single-character-symbol nil readtable)
     (set-macro-character #\~ #'read-single-character-symbol nil readtable)
@@ -243,7 +242,7 @@ Default is nil, which is treated as the standard readtable.")
 
 (defun read-in-c-syntax (stream char n)
   (let* ((*readtable* (copy-readtable))
-	 (level (if n (alexandria:clamp n 0 3)
+	 (level (if n (alexandria:clamp n 0 2)
 		    (or *with-c-syntax-reader-level*
 			+with-c-syntax-default-reader-level+)))
 	 (keyword-case (or *with-c-syntax-reader-case*
@@ -277,7 +276,7 @@ wrapped with ~with-c-syntax~ form.
 ~use-reader~ &key level case => readtable
 
 * Arguments and Values
-- level :: one of 0, 1, 2, or 3.
+- level :: one of 0, 1, or 2.
            The default is specified by `*with-c-syntax-reader-level*'.
 - case :: one of ~:upcase~, ~:downcase~, ~:preserve~, ~:invert~, or
           nil. The default is nil.
@@ -296,7 +295,6 @@ character. If it not specified, The default is the LEVEL specified
 at `use-reader;.
 
 *** Level 0 (conservative)
-This is used when LEVEL is 0.
 
 In this level, these reader macros are installed.
 
@@ -306,18 +304,11 @@ In this level, these reader macros are installed.
          package marker) works as is.
 
 *** Level 1 (aggressive)
-This is used when LEVEL is 1.
 
 In this level, these reader macros are installed.
 
 - '{', '}', '[', ']' :: These become a terminating character,
                         and read as a symbol.
-
-*** Level 2 (overkill)
-This is used when LEVEL is 2.
-
-In this level, these reader macros are installed.
-
 - '`' :: '`' reads a next s-exp in the previous syntax. This works as
          an escape from '#{' and '}#' The 'backquote' functionality is
          lost.
@@ -343,8 +334,7 @@ In this level, these reader macros are installed.
 In this level, '(' and ')' loses its functionalities. For constructing
 a list, the '`' syntax must be used.
 
-*** Level 3 (insane)
-This is used when LEVEL is 3.
+*** Level 2 (overkill)
 
 In this level, these characters become terminating, and read as a
 symbol listed below.
