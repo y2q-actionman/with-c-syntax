@@ -225,7 +225,7 @@ void 99-bottles-of-beer (filename) {
 This example creates "99_bottles_of_beer.txt" file into your home directory.
 I used =`= for using =with-open-file= in Lisp syntax.
 
-(You can use =with-open-file= and any Lisp operators in =with-c-syntax= style.
+(You can use any Lisp operators including =with-open-file= in =with-c-syntax= style.
 However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/blob/e3e9ae2f1f29115f30141e3ada33372e2ce6b65d/test/libc_string.lisp#L143][An example exists in my test code]].)
 
 * API
