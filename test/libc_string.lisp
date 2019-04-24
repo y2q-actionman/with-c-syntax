@@ -169,7 +169,7 @@
 (test test-string-strrchr
   ;; https://en.cppreference.com/w/c/string/byte/strrchr
   #{
-    char szSomeFileName [] = "foo/bar/foobar.txt"; // TODO: use 'szDomeFileName[]' style.
+    char szSomeFileName [] = "foo/bar/foobar.txt";
     char * pLastSlash = strrchr(szSomeFileName, '/');
     // ; I use `subseq' instead of pointer calculation.
     char * pszBaseName = pLastSlash ? subseq (pLastSlash, 1) : szSomeFileName;
@@ -341,10 +341,10 @@
   #{
   void * v = `#(0 1 2 3 4);
 
-  is (equalp (memset (v, 0, 2), `#(0 0 2 3 4)));
+  is (equalp (v = memset (v, 0, 2), `#(0 0 2 3 4)));
   is (equalp (v, `#(0 0 2 3 4)));
 
-  is (equalp (memset (v, #x10, 5), `#(#x10 #x10 #x10 #x10 #x10)));
+  is (equalp (v = memset (v, #x10, 5), `#(#x10 #x10 #x10 #x10 #x10)));
   is (equalp (v, `#(#x10 #x10 #x10 #x10 #x10)));
   }#)
 
@@ -353,10 +353,10 @@
   void * v = `#(0 1 2 3 4);
   void * w = `#(99 98 97);
 
-  is (equalp (memcpy (v, w, 2), `#(99 98 2 3 4)));
+  is (equalp (v = memcpy (v, w, 2), `#(99 98 2 3 4)));
   is (equalp (v, `#(99 98 2 3 4)));
 
-  is (equalp (memcpy (v, w, 3), `#(99 98 97 3 4)));
+  is (equalp (v = memcpy (v, w, 3), `#(99 98 97 3 4)));
   is (equalp (v, `#(99 98 97 3 4)));
   }#)
 
@@ -365,9 +365,9 @@
   void * v = `#(0 1 2 3 4);
   void * w = `#(99 98 97);
 
-  is (equalp (memmove (v, w, 2), `#(99 98 2 3 4)));
+  is (equalp (v = memmove (v, w, 2), `#(99 98 2 3 4)));
   is (equalp (v, `#(99 98 2 3 4)));
 
-  is (equalp (memmove (v, w, 3), `#(99 98 97 3 4)));
+  is (equalp (v = memmove (v, w, 3), `#(99 98 97 3 4)));
   is (equalp (v, `#(99 98 97 3 4)));
   }#)
