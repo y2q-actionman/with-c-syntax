@@ -140,8 +140,6 @@
   void * output;
 
   while((result = strchr(result, target)) != NULL) {
-  // ; FIXME: If I use internal declaration (like 'void * output = ...'),
-  // ; it is initialized only once!
     output = with-output-to-string (`(*standard-output*), //; To preserve parens, I used Lisp escape
 				     format(t, "Found '~C' starting at '~A'", target, result));
 
@@ -160,6 +158,8 @@
     result = subseq (result, 1); // Proceed it. (in original code, incremented 'result' pointer).
   }
   }#
+  ;; FIXME: If I use internal declaration (like 'void * output = ...'),
+  ;; it is initialized only once!
 
   #{
   is (! strchr ("hoge", #\x));
