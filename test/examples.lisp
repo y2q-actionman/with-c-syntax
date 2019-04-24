@@ -298,7 +298,7 @@ void 99-bottles-of-beer (filename) {
 (defparameter *test-file-name*
   (make-pathname :name "bottles_of_beer" :type "txt"))
 
-(test test-lisp-c-lisp-c
+(test test-c-lisp-c-lisp
   (let ((output-path (merge-pathnames *test-file-name*
 				      (user-homedir-pathname))))
     (unwind-protect
