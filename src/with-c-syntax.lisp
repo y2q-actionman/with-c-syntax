@@ -75,9 +75,9 @@ on its ~return~ argument.
       (let ((value (pop list)))
         (typecase value
           (null
-	   (if list
-	       (values 'id nil)
-	       (values nil nil)))
+           (if list
+               (values 'id nil)
+               (values nil nil)))
           (symbol
            (cond ((eql (symbol-package value) syntax-package)
                   ;; They must be belongs this package.
@@ -95,10 +95,8 @@ on its ~return~ argument.
            (values 'float-const value))
           (string
            (values 'string value))
-          (list
-           (values 'lisp-expression value))
           (otherwise
-           (error 'lexer-error :token value))))))
+           (values 'lisp-expression value))))))
 
 ;;; Declarations
 (defstruct decl-specs
@@ -272,7 +270,7 @@ If required, makes a new struct-spec object."
       ((|long| |unsigned|)		.	(unsigned-byte 32))
       ((|long| |long| |unsigned|)	.	(unsigned-byte 64))
       ;; Char
-      ((|char|)                         .	(signed-byte 8))
+      ((|char|)                         .	character)
       ((|char| |signed|)                .	(signed-byte 8))
       ((|char| |unsigned|)              .	(unsigned-byte 8))
       ;; Float
@@ -360,7 +358,9 @@ For each entry of alist, the car is sorted alphabetically.
 
 (defun array-dimension-combine (array-dimension-list init)
   "Resolves unspecified dimensions with an initializer."
-  (loop with init-dims = (dimension-list-max-dimensions init)
+  (loop with init-dims = (etypecase init
+                           (list (dimension-list-max-dimensions init))
+                           (array (array-dimensions init))) 
      for a-elem in array-dimension-list
      for i-elem = (pop init-dims)
      if (null i-elem)
@@ -376,10 +376,10 @@ For each entry of alist, the car is sorted alphabetically.
      and collect a-elem))
 
 (defun setup-init-list (dims dspecs abst-declarator init)
-  "Makes a list for ~:initial-contents~ of ~make-array~, from initializer-list."
+  "Makes a list for `:initial-contents' of `make-array', from initializer-list."
   (let* ((default (expand-init-declarator-init dspecs
-                   (nthcdr (length dims) abst-declarator)
-                   nil))
+                                               (nthcdr (length dims) abst-declarator)
+                                               nil))
          (ret (make-dimension-list dims default)))
     (labels ((var-init-setup (rest-dims subscripts abst-decls init)
                (if (null rest-dims)
@@ -404,13 +404,13 @@ Returns (values var-init var-type)."
     (ecase (car (first abst-declarator))
       (:pointer
        (if (and (null (cdr abst-declarator)) ; 'void*' check
-		(equal (decl-specs-type-spec dspecs) '(|void|)))
-	   (values initializer t)
-	   (let ((next-type
-		  (nth-value 1 (expand-init-declarator-init
-				dspecs (cdr abst-declarator) nil
-				:allow-incomplete t))))
-             (values (or initializer 0)
+                (equal (decl-specs-type-spec dspecs) '(|void|)))
+           (values initializer t)
+           (let ((next-type
+                  (nth-value 1 (expand-init-declarator-init
+                                dspecs (cdr abst-declarator) nil
+                                :allow-incomplete t))))
+             (values (or initializer nil)
                      `(pseudo-pointer ,next-type)))))
       (:funcall
        (case (car (second abst-declarator))
@@ -427,22 +427,25 @@ Returns (values var-init var-type)."
        (values nil 'function))
       (:aref
        (let* ((aref-type (decl-specs-lisp-type dspecs))
-              (aref-dim                   ; reads abst-declarator
+              (aref-dim                 ; reads abst-declarator
                (loop for (tp tp-args) in abst-declarator
-                  if (eq :funcall tp)
-                  do (error 'compile-error
-                            :format-control "An array of functions is not accepted.")
-                  else if (eq :aref tp)
-                  collect (or tp-args '*)
-                  else if (eq :pointer tp)
-                  do (setf aref-type `(pseudo-pointer ,aref-type))
-                    (loop-finish)
-                  else
-                  do (assert nil () "Unexpected internal type: ~S." tp)))
+                  collect
+                    (case tp
+                      (:funcall
+                       (error 'compile-error
+                              :format-control "An array of functions is not accepted."))
+                      (:aref (or tp-args '*))
+                      (:pointer
+                       (setf aref-type `(pseudo-pointer ,aref-type))
+                       (loop-finish))
+                      (otherwise
+                       (assert nil () "Unexpected internal type: ~S." tp)))))
               (merged-dim
                (array-dimension-combine aref-dim initializer))
               (lisp-elem-type
-               (if (subtypep aref-type 'number) aref-type t)) ; excludes compound types
+               (cond ((subtypep aref-type 'number) aref-type)
+                     ((subtypep aref-type 'character) aref-type)
+                     (t t)))            ; excludes compound types 
               (var-type
                (if (and (or (null aref-dim) (member '* aref-dim))
                         (null initializer))
@@ -452,13 +455,18 @@ Returns (values var-init var-type)."
                     :format-arguments (list aref-dim initializer))
                    `(simple-array ,lisp-elem-type ,merged-dim)))
               (var-init
-               `(make-array ',merged-dim
-                            :element-type ',lisp-elem-type
-                            :initial-contents
-                            ,(make-dimension-list-load-form
-                              (setup-init-list merged-dim dspecs
-                                               abst-declarator initializer)
-                              (length merged-dim)))))
+               (if (and (arrayp initializer)
+                        (equal (array-dimensions initializer) merged-dim))
+                   ;; This path is for 'char foo[] = "bar..";' syntax.
+                   ;; FIXME: To support an array of string, change `setup-init-list' function.
+                   initializer 
+                   `(make-array ',merged-dim
+                                :element-type ',lisp-elem-type
+                                :initial-contents
+                                ,(make-dimension-list-load-form
+                                  (setup-init-list merged-dim dspecs
+                                                   abst-declarator initializer)
+                                  (length merged-dim))))))
          (values var-init var-type)))
       ((nil)
        (let ((var-type (decl-specs-lisp-type dspecs)))
@@ -489,7 +497,7 @@ Returns (values var-init var-type)."
                                         (getf mem :abst-declarator)
                                         init))))))
               (values var-init var-type)))
-           (t             ; unknown type. Maybe user supplied lisp-type.
+           (t           ; unknown type. Maybe user supplied lisp-type.
             (values initializer var-type))))))))
 
 (defun finalize-init-declarator (dspecs init-decl)

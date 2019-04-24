@@ -16,6 +16,12 @@ At this stage, this package has almost all features of ISO C 90
 freestanding implementation. (The lacking part is the full
 implementation of the C Preprocessor.)
 
+* News
+** 2019-4-25
+- I added some special handlings around =++=, =*=, etc.
+  The *Duff's Device* example becomes prettier.
+- I added a new  example, *C in Lisp in C in Lisp*. (+unholy mixture..+)
+
 * Loading
 
 ** Loading by quicklisp
@@ -174,6 +180,53 @@ behave as you expected as possible.
 
 (This feature is based on [[https://github.com/phoe][@phoe]]'s suggestion. See [[https://github.com/y2q-actionman/with-c-syntax/issues/2][Issue #2]] .)
 
+** C in Lisp in C in Lisp
+Sometimes you want to use the Lisp syntax even in =with-c-syntax=.
+If you feel so, you can use =`= as an escape. Here is an example:
+
+#+BEGIN_SRC lisp
+(named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+#{
+void 99-bottles-of-beer (filename) {
+  void * output-path = merge-pathnames (filename, user-homedir-pathname());
+  `(with-open-file (*standard-output* output-path :direction :output
+				      :if-exists :supersede :if-does-not-exist :create)
+     #{
+     int b;
+     for (b = 99; b >= 0; b--) {
+         switch (b) {
+         case 0 :
+           write-line("No more bottles of beer on the wall, no more bottles of beer.");
+           write-line("Go to the store and buy some more, 99 bottles of beer on the wall.");
+           break;
+         case 1 :
+           write-line("1 bottle of beer on the wall, 1 bottle of beer.");
+           write-line("Take one down and pass it around, no more bottles of beer on the wall.");
+           break;
+         default :
+           format(t, "~D bottles of beer on the wall, ~D bottles of beer.~%", b, b);      
+           format(t, "Take one down and pass it around, ~D ~A of beer on the wall.~%"
+                     , b - 1
+                     , ((b - 1) > 1)? "bottles" : "bottle");
+           break;
+         }
+     }
+     }#);
+  return;
+  }
+}#
+
+(99-bottles-of-beer "99_bottles_of_beer.txt")
+
+(probe-file "~/99_bottles_of_beer.txt") ; => T
+#+END_SRC
+
+This example creates "99_bottles_of_beer.txt" file into your home directory.
+I used =`= for using =with-open-file= in Lisp syntax.
+
+(You can use any Lisp operators including =with-open-file= in =with-c-syntax= style.
+However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/blob/e3e9ae2f1f29115f30141e3ada33372e2ce6b65d/test/libc_string.lisp#L143][An example exists in my test code]].)
 
 * API
 Please see these docstrings or comments:
