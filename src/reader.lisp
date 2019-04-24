@@ -4,31 +4,99 @@
 
 (defvar *with-c-syntax-reader-level* nil
   "Holds the reader level used by '#{' reader function.
-
 The value is one of 0, 1, 2, or nil (default).
 The default is nil, recognized same as `+with-c-syntax-default-reader-level+'.
 
-For inside '#{' and '}#', four syntaxes are defined. These syntaxes
+For inside '#{' and '}#', three syntaxes are defined. These syntaxes
 are selected by the infix parameter of the '#{' dispatching macro
 character. If it not specified, its default is this value.
 
-If you interest for what syntaxes are defined, Please see the 'reader.lisp'")
-;;; TODO: move docstrings of `use-reader'.
+Available syntaxes are below:
+
+
+* Level 0 (conservative)
+
+In level 0, these reader macros are installed.
+
+- ',' :: ',' is read as a symbol. (In ANSI CL, a comma is defined as
+         an invalid char outside the backquote syntax.)
+- ':' :: Reads a solely ':' as a symbol. Not a solely one (as a
+         package marker) works as is.
+
+Level 0 is almost comatible with the standard syntax. However, we need
+many escapes using C symbols.
+
+
+* Level 1 (aggressive).
+
+In level 1, these reader macros are installed.
+
+- '{', '}', '[', ']' :: These become a terminating character,
+                        and read as a symbol.
+- '`' :: '`' reads a next s-exp in the previous syntax. This works as
+         an escape from '#{' and '}#' The 'backquote' functionality is
+         lost.
+- '.' :: Reads a solely '.' as a symbol. The 'consing dot'
+         functionality is lost.
+- '\' :: The '\' becomes a ordinary constituent character. The
+         'multiple escaping' functionality is lost.
+- '/' :: '//' means a line comment, '/* ... */' means a block comment.
+         '/' is still non-terminating, and has special meanings only
+         if followed by '/' or '*'. Ex: 'a/b/c' or '/+aaa+/' are still
+         valid symbols.
+- ''' (single-quote) :: The single-quote works as a character literal
+                        of C. The 'quote' functionality is lost.
+- '\"' (double-quote) :: The double-quote works as a string literal of
+                         C. Especially, escaping is treated as C. The
+                         original functionality is lost.
+- ';' :: ';' becomes a terminating character, and read as a symbol.
+         The 'comment' functionality is lost.
+- '(' and ')' :: parenthesis become a terminating character, and read
+                 as a symbol.  The 'reading a list' functionality is
+                 lost.
+
+Level 1 overwrites macro characters in the standard syntax.  Only
+constituent characters are left unchanged.  Especially, '(' and ')'
+loses its functionalities. For constructing a list of Lisp, the '`'
+syntax must be used.
+
+
+* Level 2 (overkill)
+
+In this level, these characters become terminating, and read as a
+symbol listed below.
+
+- '?' :: '?'
+- '~' :: '~'
+- ':' :: ':'
+- '.' :: '.'
+- '=' :: '=' or '=='
+- '*' :: '*' or '*='
+- '^' :: '^' or '^='
+- '!' :: '!' or '!='
+- '&' :: '&', '&&', or '&='
+- '|' :: '|', '||', or '|='
+- '+' :: '+', '++', or '+='
+- '-' :: '-', '--', '-=', or '->'
+- '>' :: '>', '>>', or '>>='
+- '<' :: '<', '<<', or '<<='
+- '/' :: '/', or '/='. '//' means a line comment, and '/* ... */'
+         means a block comment.
+
+In this level, there is no compatibilities between symbols of Common
+Lisp.  Especially, for denoting a symbol has terminating characters,
+escapes are required. (ex. most\-positive\-fixnum)")
 
 (defvar *with-c-syntax-reader-case* nil ; TODO: clean this variable usage.
-  "* Value Type
-a symbol or nil
+  "Holds the reader case used by '#{' reader function.
 
-* Description
-Holds the reader case used by '#{' reader function.
+When this is not nil, it must be one of `:upcase', `:downcase',
+`:preserve', or `:invert'.  The specified case is used as the
+readtable-case inside '#{' and '}#' and passed to the
+wrapping `with-c-syntax' form.
 
-When this is not nil, the specified case is used as the
-readtable-case inside '#{' and '}#', and the case is passed to the
-wrapping ~with-c-syntax~ form.
-
-When this is nil, the readtable-case of ~*readtable*~ at using
-'#{' is used.
-")
+When this is nil, the readtable-case of `*readtable*' at using
+'#{' is used.")
 
 (defvar *previous-syntax* (copy-readtable)
   "* Value Type
@@ -231,9 +299,16 @@ Default is the copy of `*readtable*' at load-time of this source.")
     (set-macro-character #\< #'read-shift nil readtable)
     (set-macro-character #\> #'read-shift nil readtable)
     (set-macro-character #\/ #'read-slash nil readtable))
+  ;; TODO: If I support trigraphs or digraphs, I'll add them here.
+  ;; (But I think these are not needed because the Standard characters include
+  ;; the replaced characters/)
   readtable)
 
 (defun read-in-c-syntax (stream char n)
+  "Called by '#{' reader macro of `with-c-syntax-readtable'.
+Inside '#{' and '}#', the reader uses completely different syntax, and
+wrapped with `with-c-syntax' form.
+ See `*with-c-syntax-reader-level*' and `*with-c-syntax-reader-case*'."
   (assert (char= char #\{))
   (let* ((*previous-syntax* *readtable*)
 	 (*readtable* (copy-readtable))
@@ -249,158 +324,12 @@ Default is the copy of `*readtable*' at load-time of this source.")
     `(with-c-syntax (:keyword-case ,keyword-case)
        ,@(read-2chars-delimited-list #\} #\# stream t))))
 
-
 (defreadtable with-c-syntax-readtable
   (:merge :standard)
   (:dispatch-macro-char #\# #\{ #'read-in-c-syntax))
 
 ;;; Sadly, `defreadtable' does not have docstring syntax..
-#|
-This readtable supplies '#{' reader macro.
-Inside '#{' and '}#', the reader uses completely different syntax, and
-wrapped with ~with-c-syntax~ form.
-|#
-
-
-;;; Old hand-made syntax changing macro. (TODO: move these docstrings).
-
-(defmacro use-reader (&key level case)
-  "* Syntax
-~use-reader~ &key level case => readtable
-
-* Arguments and Values
-- level :: one of 0, 1, or 2.
-           The default is specified by `*with-c-syntax-reader-level*'.
-- case :: one of ~:upcase~, ~:downcase~, ~:preserve~, ~:invert~, or
-          nil. The default is nil.
-
-* Description
-This macro establishes a C syntax reader.
-
-`use-reader' introduces a dispatching macro character '#{'.  Inside
-'#{' and '}#', the reader uses completely different syntax, and
-wrapped with `with-c-syntax' form.
-
-** Syntax Levels
-For inside '#{' and '}#', four syntaxes are defined. These syntaxes
-are selected by the infix parameter of the '#{' dispatching macro
-character. If it not specified, The default is the LEVEL specified
-at `use-reader;.
-
-*** Level 0 (conservative)
-
-In this level, these reader macros are installed.
-
-- ',' :: ',' is read as a symbol. (In ANSI CL, a comma is defined as
-         an invalid char outside the backquote syntax.)
-- ':' :: Reads a solely ':' as a symbol. Not a solely one (as a
-         package marker) works as is.
-
-*** Level 1 (aggressive)
-
-In this level, these reader macros are installed.
-
-- '{', '}', '[', ']' :: These become a terminating character,
-                        and read as a symbol.
-- '`' :: '`' reads a next s-exp in the previous syntax. This works as
-         an escape from '#{' and '}#' The 'backquote' functionality is
-         lost.
-- '.' :: Reads a solely '.' as a symbol. The 'consing dot'
-         functionality is lost.
-- '\' :: The '\' becomes a ordinary constituent character. The
-         'multiple escaping' functionality is lost.
-- '/' :: '//' means a line comment, '/* ... */' means a block comment.
-         '/' is still non-terminating, and has special meanings only
-         if followed by '/' or '*'. Ex: 'a/b/c' or '/+aaa+/' are still
-         valid symbols.
-- ''' (single-quote) :: The single-quote works as a character literal
-                        of C. The 'quote' functionality is lost.
-- '\"' (double-quote) :: The double-quote works as a string literal of
-                         C. Especially, escaping is treated as C. The
-                         original functionality is lost.
-- ';' :: ';' becomes a terminating character, and read as a symbol.
-         The 'comment' functionality is lost.
-- '(' and ')' :: parenthesis become a terminating character, and read
-                 as a symbol.  The 'reading a list' functionality is
-                 lost.
-
-In this level, '(' and ')' loses its functionalities. For constructing
-a list, the '`' syntax must be used.
-
-*** Level 2 (overkill)
-
-In this level, these characters become terminating, and read as a
-symbol listed below.
-
-- '?' :: '?'
-- '~' :: '~'
-- ':' :: ':'
-- '.' :: '.'
-- '=' :: '=' or '=='
-- '*' :: '*' or '*='
-- '^' :: '^' or '^='
-- '!' :: '!' or '!='
-- '&' :: '&', '&&', or '&='
-- '|' :: '|', '||', or '|='
-- '+' :: '+', '++', or '+='
-- '-' :: '-', '--', '-=', or '->'
-- '>' :: '>', '>>', or '>>='
-- '<' :: '<', '<<', or '<<='
-- '/' :: '/', or '/='. '//' means a line comment, and '/* ... */'
-         means a block comment.
-
-In this level, there is no compatibilities between symbols of Common
-Lisp.  Especially, for denoting a symbol has terminating characters,
-escapes are required. (ex. most\-positive\-fixnum)
-
-** Syntax Cases
-When ~case~ is not nil, the specified case is used as the
-readtable-case inside '#{' and '}#', and the case is passed to the
-wrapping ~with-c-syntax~ form.
-
-When ~case~ is nil, the readtable-case of ~*readtable*~ at using
-'#{' is used.
-
-* Side Effects
-Changes ~*readtable*~.
-
-* Notes
-There is no support for trigraphs or digraphs.
-
-* See Also
-~with-c-syntax~, ~unuse-reader~.
-"
-  `(eval-when (:compile-toplevel :load-toplevel :execute)
-     ;; (2018-11-13) In old code, I stucked readtables into
-     ;; `*previous-syntax*' as a list.
-     ;; But I removed this feature because I use named-readtables.
-     (shiftf *previous-syntax* *readtable* (copy-readtable))
-     (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
-     (setf *with-c-syntax-reader-level* ,level
-	   *with-c-syntax-reader-case* ,case)
-     *readtable*))
-
-(defmacro unuse-reader ()
-  "* Syntax
-~unuse-reader~ <no arguments> => readtable
-
-* Arguments and Values
-- readtable :: a readtable
-
-* Description
-Disposes the C reader established by ~use-reader~, and restores the
-previous readtable.
-
-* Side Effects
-Changes ~*readtable*~.
-
-* See Also
-~unuse-reader~.
-"
-  `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (setf *with-c-syntax-reader-level* nil
-	   *with-c-syntax-reader-case* nil)
-     (setf *readtable* (copy-readtable *previous-syntax*))))
+;;; So, I added them into `read-in-c-syntax'.
 
 ;;; References at implementation
 ;;; - https://gist.github.com/chaitanyagupta/9324402
