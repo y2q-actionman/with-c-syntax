@@ -1,12 +1,5 @@
 (in-package #:with-c-syntax.core)
 
-(define-constant +bracket-pair-alist+
-    '((#\( . #\)) (#\[ . #\])
-      (#\{ . #\}) (#\< . #\>))
-  :test 'equal
-  :documentation
-  "Holds an alist of bracket pairs.")
-
 (defconstant +with-c-syntax-default-reader-level+ 1)
 
 (defvar *with-c-syntax-reader-level* nil
@@ -22,7 +15,7 @@ character. If it not specified, its default is this value.
 If you interest for what syntaxes are defined, Please see the 'reader.lisp'")
 ;;; TODO: move docstrings of `use-reader'.
 
-(defvar *with-c-syntax-reader-case* nil
+(defvar *with-c-syntax-reader-case* nil ; TODO: clean this variable usage.
   "* Value Type
 a symbol or nil
 
@@ -208,7 +201,7 @@ Default is the copy of `*readtable*' at load-time of this source.")
     (set-macro-character #\[ #'read-single-character-symbol nil readtable)
     (set-macro-character #\] #'read-single-character-symbol nil readtable)
     ;; for accessing normal syntax.
-    (set-macro-character #\` #'read-in-previous-syntax readtable)
+    (set-macro-character #\` #'read-in-previous-syntax nil readtable)
     ;; Disables 'consing dots', with replacement of ()
     (set-macro-character #\. #'read-lonely-single-symbol t readtable)
     ;; removes 'multi-escape'
@@ -241,6 +234,7 @@ Default is the copy of `*readtable*' at load-time of this source.")
   readtable)
 
 (defun read-in-c-syntax (stream char n)
+  (assert (char= char #\{))
   (let* ((*previous-syntax* *readtable*)
 	 (*readtable* (copy-readtable))
 	 (level (if n (alexandria:clamp n 0 2)
@@ -253,9 +247,7 @@ Default is the copy of `*readtable*' at load-time of this source.")
     ;; I forgot why this is required.. (2018-11-12)
     ;; (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
     `(with-c-syntax (:keyword-case ,keyword-case)
-       ,@(read-2chars-delimited-list
-	  (cdr (assoc char +bracket-pair-alist+))
-	  #\# stream t))))
+       ,@(read-2chars-delimited-list #\} #\# stream t))))
 
 
 (defreadtable with-c-syntax-readtable
