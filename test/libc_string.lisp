@@ -339,35 +339,35 @@
 
 (test test-string-memset
   #{
-  void * v = `#(0 1 2 3 4);
+  void * v = `(vector 0 1 2 3 4);
 
-  is (equalp (v = memset (v, 0, 2), `#(0 0 2 3 4)));
+  is (equalp (memset (v, 0, 2), `#(0 0 2 3 4)));
   is (equalp (v, `#(0 0 2 3 4)));
 
-  is (equalp (v = memset (v, #x10, 5), `#(#x10 #x10 #x10 #x10 #x10)));
+  is (equalp (memset (v, #x10, 5), `#(#x10 #x10 #x10 #x10 #x10)));
   is (equalp (v, `#(#x10 #x10 #x10 #x10 #x10)));
   }#)
 
 (test test-string-memcpy
   #{
-  void * v = `#(0 1 2 3 4);
-  void * w = `#(99 98 97);
+  void * v = `(vector 0 1 2 3 4);
+  void * w = `(vector 99 98 97);
 
-  is (equalp (v = memcpy (v, w, 2), `#(99 98 2 3 4)));
+  is (equalp (memcpy (v, w, 2), `#(99 98 2 3 4)));
   is (equalp (v, `#(99 98 2 3 4)));
 
-  is (equalp (v = memcpy (v, w, 3), `#(99 98 97 3 4)));
+  is (equalp (memcpy (v, w, 3), `#(99 98 97 3 4)));
   is (equalp (v, `#(99 98 97 3 4)));
   }#)
 
 (test test-string-memmove
   #{
-  void * v = `#(0 1 2 3 4);
-  void * w = `#(99 98 97);
+  void * v = `(vector 0 1 2 3 4); // To make it non-literal, I use `vector' instead of '#()'.
+  void * w = `(vector 99 98 97);
 
-  is (equalp (v = memmove (v, w, 2), `#(99 98 2 3 4)));
+  is (equalp (memmove (v, w, 2), `#(99 98 2 3 4)));
   is (equalp (v, `#(99 98 2 3 4)));
 
-  is (equalp (v = memmove (v, w, 3), `#(99 98 97 3 4)));
+  is (equalp (memmove (v, w, 3), `#(99 98 97 3 4)));
   is (equalp (v, `#(99 98 97 3 4)));
   }#)
