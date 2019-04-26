@@ -311,12 +311,13 @@ wrapped with `with-c-syntax' form.
  See `*with-c-syntax-reader-level*' and `*with-c-syntax-reader-case*'."
   (assert (char= char #\{))
   (let* ((*previous-syntax* *readtable*)
-	 (*readtable* (copy-readtable))
-	 (level (if n (alexandria:clamp n 0 2)
-		    (or *with-c-syntax-reader-level*
-			+with-c-syntax-default-reader-level+)))
-	 (keyword-case (or *with-c-syntax-reader-case*
-			   (readtable-case *readtable*))))
+         (*readtable* (copy-readtable))
+         (*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
+         (level (if n (alexandria:clamp n 0 2)
+                    (or *with-c-syntax-reader-level*
+                        +with-c-syntax-default-reader-level+)))
+         (keyword-case (or *with-c-syntax-reader-case*
+                           (readtable-case *readtable*))))
     (setf (readtable-case *readtable*) keyword-case)
     (install-c-reader *readtable* level)
     ;; I forgot why this is required.. (2018-11-12)

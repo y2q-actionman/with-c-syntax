@@ -3,9 +3,10 @@
 ;;; declarations
 
 (test test-decl-simple
-  (is.equal.wcs nil
-    int *xxx* \;)
-  (is (boundp '*xxx*))
+  (with-testing-wcs-bind (*xxx*)
+    (is.equal.wcs nil
+      int *xxx* \;)
+    (is (boundp '*xxx*)))
   (is.equal.wcs 1
     { int a \; a = 1 \; return a \; })
   (is.equal.wcs nil
@@ -54,8 +55,10 @@
     { auto x = 6 \; return x \; })
   (is.equal.wcs 7
     { register x = 7 \; return x \; })
-  (is.equal.wcs 8
-    { static x = 8 \; return x \; })
+  (with-testing-wcs-bind (x)
+    (is.equal.wcs 8
+      { static x = 8 \; return x \; })
+    (is (not (boundp 'x))))
   (let ((x 9))
     (is.equal.wcs 9
       { extern x \; return x \; }))
@@ -486,6 +489,7 @@
     int z = y + x \;
     return z \;
     })
+  ;; FIXME: this causes (let ((x (0 1))) ...)
   ;; (signals.macroexpand.wcs ()
   ;;   { int x = { 0 \, 1 } \; })
   (is.equal.wcs t
@@ -509,8 +513,9 @@
     int x [ ] = { 0 \, 1 } \;
     return x [ 1 ] \;
     })
-  ;; (signals.macroexpand.wcs ()
-  ;;   { int x [ ] [ ] = { 0 \, 1 } \; })
+  ;; FIXME: this should be `with-c-syntax-error'
+  (signals.macroexpand.wcs (error)
+    { int x [ ] [ ] = { 0 \, 1 } \; })
   (is.equal.wcs 3
     {
     int x [ ] [ ] = { { 0 \, 1 } \, { 2 \, 3 } } \;

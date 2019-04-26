@@ -41,3 +41,17 @@
      ,@body)
   #-(or sbcl)			; To be supported..
   `(progn ,@body))
+
+(defmacro with-testing-wcs-bind ((&rest symbols) &body body)
+  "Make SYMBOLS unbound outside of BODY."
+  (assert (loop for sym in symbols
+	     always (equal (symbol-package sym) *package*)))
+  `(progn
+     (when (or (some #'boundp ',symbols)
+	       (some #'fboundp ',symbols)) 
+       (warn "Some symbols are already bound. (bound ~{~A~^, ~}, fbound ~{~A~^, ~})"
+	     (remove-if-not #'boundp ',symbols)
+	     (remove-if-not #'fboundp ',symbols)))
+     (unwind-protect (progn ,@body)
+       (mapcar #'makunbound ',symbols)
+       (mapcar #'fmakunbound ',symbols))))
