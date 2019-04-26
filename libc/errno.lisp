@@ -1,4 +1,4 @@
-(in-package :with-c-syntax.libc)
+(in-package :with-c-syntax.libc-implementation)
 
 ;;; TODO: use osicat
 (defvar |errno|)

@@ -1,4 +1,4 @@
-(in-package #:with-c-syntax.libc)
+(in-package #:with-c-syntax.libc-implementation)
 
 ;;; My hand-crafted codes assume 'C' locale.
 

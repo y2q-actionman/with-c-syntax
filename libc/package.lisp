@@ -1,8 +1,7 @@
 (in-package #:cl-user)
 
 (defpackage #:with-c-syntax.libc
-  (:use #:cl #:with-c-syntax.core #:alexandria)
-  (:shadow #:null)
+  (:use)
   (:import-from #:osicat-posix
                 #:EDOM #:EILSEQ #:ERANGE)
   (:export
@@ -55,8 +54,10 @@
   (:documentation
    "with-c-syntax libc package."))
 
-;;; At this point, the libc package was fixed. I build its cache here.
-(with-c-syntax.core:build-libc-symbol-cache (find-package '#:with-c-syntax.libc))
-
-;;; TODO: split 'libc' package from 'implementation' package.
-;;; (I want to `:use' osicat!)
+(defpackage #:with-c-syntax.libc-implementation
+  (:use #:cl #:with-c-syntax.core #:with-c-syntax.libc
+        #:alexandria)
+  (:shadowing-import-from #:with-c-syntax.libc
+                          #:NULL)
+  (:documentation
+   "with-c-syntax libc implemetation package."))

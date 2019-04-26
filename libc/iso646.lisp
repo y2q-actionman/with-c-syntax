@@ -1,4 +1,4 @@
-(in-package #:with-c-syntax.libc)
+(in-package #:with-c-syntax.libc-implementation)
 
 (define-preprocessor-constant |and| 'with-c-syntax.core::&&)
 (define-preprocessor-constant |and_eq| 'with-c-syntax.core::&=)

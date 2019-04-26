@@ -1,4 +1,4 @@
-(in-package #:with-c-syntax.libc)
+(in-package #:with-c-syntax.libc-implementation)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun mantissa-radix-change (mantissa from-radix to-radix)

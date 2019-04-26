@@ -1,4 +1,4 @@
-(in-package #:with-c-syntax.libc)
+(in-package #:with-c-syntax.libc-implementation)
 
 ;;; I do not define NULL as a preprocessor macro. If do so, I
 ;;; destroy `CL:NULL' usage. I use `defconstant' and `defun' instead.
