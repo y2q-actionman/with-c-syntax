@@ -39,6 +39,13 @@
    #:UCHAR_MAX #:UINT_MAX #:USHRT_MAX #:ULONG_MAX #:ULLONG_MAX
    #:MB_LEN_MAX
    ;; math
+   #:|fabs| #:|fmod| #:|remainder| #:|fmax| #:|fmin|
+   #:|exp| #:|exp2| #:|log| #:|log10| #:|log2|
+   #:|pow| #:|sqrt|
+   #:|sin| #:|cos| #:|tan| #:|asin| #:|acos| #:|atan| #:|atan2|
+   #:|sinh| #:|cosh| #:|tanh| #:|asinh| #:|acosh| #:|atanh|
+   #:|ceil| #:|floor| #:|trunc| #:|round|
+   #:|frexp| #:|ldexp| #:|modf| #:|scalbn| #:|ilogb| #:|logb| #:|logb|
    #:HUGE_VAL
    #:HUGE_VALF #:HUGE_VALL #:INFINITY   ; C99
    #:|isnan| #:|isinf| #:|isfinite| #:|isnormal| #:|fpclassify| ; C99
