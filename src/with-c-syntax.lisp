@@ -1926,8 +1926,11 @@ Establishes variable bindings for a new compilation.
 
 (defmacro with-c-syntax ((&rest options
 			  &key (keyword-case (readtable-case *readtable*))
-				 (return :auto)
-				 (try-add-{} t))
+                          (case-sensitive (ecase keyword-case
+                                            ((:upcase :downcase) nil)
+                                            ((:preserve :invert) t)))
+			  (return :auto)
+			  (try-add-{} t))
 			 &environment *wcs-expanding-environment*
 			 &body body)
   "* Syntax
@@ -1969,7 +1972,7 @@ tries to parse again.
        (declare (ignore op_))
        `(with-c-syntax (,@options ,@options2) ,@body2)))
     (t
-     (expand-c-syntax (preprocessor body keyword-case)
+     (expand-c-syntax (preprocessor body case-sensitive)
 		      try-add-{}
 		      (if (eq return :auto) nil return)
 		      (eq return :auto)))))
