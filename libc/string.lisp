@@ -123,27 +123,27 @@ This function is used for emulating C string truncation with pointer movements."
   "Emulates 'strrchr' of the C language."
   (strchr* str ch t))
 
-(defun strspn* (str char-set accept-p)
-  "Used by '|strspn|' and '|strcspn|'"
-  ;; I've used `position-if-not' for 'strspn' like:
-  ;;   (position-if-not (lambda (c) (find c accept)) str)
-  ;; However, this code returns nil when no acceptable characters in
-  ;; 'str' AND all characters in 'str' is acceptable.
-  ;; So, I decided to write by myself.
-  (loop with ret = 0
-     for c across str
-     as found = (find c char-set)
-     while (if accept-p found (not found))
-     do (incf ret)
-     finally (return ret)))
+(defun strspn* (str accept)
+  "Finds the position of the end of acceptable chars in STR.
+If no such chars, return NIL."
+  (flet ((acceptable-p (c) (find c accept)))
+    (position-if-not #'acceptable-p str)))
 
 (defun |strspn| (str accept)
   "Emulates 'strspn' of the C language."
-  (strspn* str accept t))
+  (or (strspn* str accept)
+      (length str)))                    ; C's strspn requests it.
+
+(defun strcspn* (str reject)
+  "Finds the position of the end of rejected chars in STR.
+If no such chars, return NIL."
+  (flet ((rejected-p (c) (find c reject)))
+    (position-if #'rejected-p str)))
 
 (defun |strcspn| (str reject)
   "Emulates 'strcspn' of the C language."
-  (strspn* str reject nil))
+  (or (strcspn* str reject)
+      (length str)))                    ; C's strcspn requests it.
 
 (defun |strpbrk| (str accept)
   "Emulates 'strpbrk' of the C language."
@@ -167,17 +167,16 @@ This function is used for emulating C string truncation with pointer movements."
   (when str
     (setf *strtok-target* str))
   ;; find token-start
-  (let ((token-start (|strspn| *strtok-target* delim)))
-    (when (length= token-start *strtok-target*)
+  (if-let ((token-start (strspn* *strtok-target* delim)))
+    (make-trimed-vectorf *strtok-target* token-start)
+    (progn
       (setf *strtok-target* "")
-      (return-from |strtok| nil))
-    (make-trimed-vectorf *strtok-target* token-start))
+      (return-from |strtok| nil)))
   ;; find token-end
-  (let ((token-end (|strcspn| *strtok-target* delim)))
+  (if-let ((token-end (strcspn* *strtok-target* delim)))
     (prog1 (make-trimed-vector *strtok-target* 0 token-end)
-      (if (length= token-end *strtok-target*)
-	  (setf *strtok-target* "")
-	  (make-trimed-vectorf *strtok-target* token-end)))))
+      (make-trimed-vectorf *strtok-target* token-end))
+    (shiftf *strtok-target* "")))
 
 
 ;;; mem- family functions
