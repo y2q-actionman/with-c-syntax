@@ -1,6 +1,9 @@
 (in-package :with-c-syntax.libc-implementation)
 
-;;; TODO: use osicat
-(defvar |errno|)
+(defvar |errno| nil
+  "A symbol denoting 'errno' of C, or NIL.
+If a function of `with-c-syntax.libc' caught error, it will set the
+error to this.
+(If this has a symbol, that is usable as a condition type of 'osicat-posix'.)")
 
-;;; .. and standard errnos are exported. See the package definition.
+;;; .. and symbols denotiong errnos are exported. See the package definition.

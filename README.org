@@ -40,6 +40,7 @@ This library is quicklisp-ready.
 - cl-yacc
 - alexandria
 - named-readtables
+- osicat (for libc.)
 - 1am (only by test codes.)
 - trivial-cltl2 (only by test codes.)
 
