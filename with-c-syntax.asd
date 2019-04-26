@@ -3,8 +3,8 @@
   :license "WTFPL"
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
   :depends-on (#:alexandria #:yacc #:named-readtables
-                            ;; for libc implementation
-                            #:osicat)
+                            ;; for libc implementation (TODO: split libc defsystem from core?)
+                            #:osicat #:float-features)
   :serial t
   :components ((:file "package")
 	       (:module "src"
@@ -31,6 +31,7 @@
                  (:file "float" :depends-on ("util"))
                  (:file "iso646" :depends-on ("util"))
                  (:file "limits" :depends-on ("util"))
+                 (:file "math" :depends-on ("util"))
                  (:file "stdarg" :depends-on ("util"))
                  (:file "stddef" :depends-on ("util"))
 		 (:file "string" :depends-on ("util")))))

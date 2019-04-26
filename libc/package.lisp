@@ -38,6 +38,12 @@
    #:LLONG_MAX #:LLONG_MIN #:SCHAR_MAX #:SCHAR_MIN
    #:UCHAR_MAX #:UINT_MAX #:USHRT_MAX #:ULONG_MAX #:ULLONG_MAX
    #:MB_LEN_MAX
+   ;; math
+   #:HUGE_VAL
+   #:HUGE_VALF #:HUGE_VALL #:INFINITY   ; C99
+   #:|isnan| #:|isinf| #:|isfinite| #:|isnormal| #:|fpclassify| ; C99
+   #:|signbit|                          ; C99
+   #:|lerp|                             ; C++20
    ;; stdarg
    #:|va_list|
    #:|va_start| #:|va_arg| #:|va_end|
@@ -56,7 +62,7 @@
 
 (defpackage #:with-c-syntax.libc-implementation
   (:use #:cl #:with-c-syntax.core #:with-c-syntax.libc
-        #:alexandria)
+        #:alexandria #:float-features)
   (:shadowing-import-from #:with-c-syntax.libc
                           #:NULL)
   (:documentation
