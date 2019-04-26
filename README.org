@@ -35,8 +35,7 @@ This library is quicklisp-ready.
 
 ** or, Loading manually
 
-** Libraries depending on
-- asdf
+*** Libraries depending on
 - cl-yacc
 - alexandria
 - named-readtables
@@ -44,13 +43,13 @@ This library is quicklisp-ready.
 - 1am (only by test codes.)
 - trivial-cltl2 (only by test codes.)
 
-** Load with ASDF
+*** Load with ASDF
 #+BEGIN_SRC lisp
 (asdf:load-asd "with-c-syntax.asd")
 (asdf:load-system :with-c-syntax)
 #+END_SRC
 
-** Running tests
+*** Running tests
 #+BEGIN_SRC lisp
 (asdf:load-asd "with-c-syntax-test.asd")
 (asdf:test-system :with-c-syntax)
