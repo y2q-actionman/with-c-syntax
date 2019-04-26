@@ -28,14 +28,11 @@ This function is used for emulating C string truncation with NUL char."
   resize-string
   "Modify macro of `resize-string'")
 
-
 (defun |strcpy| (dst src)
-  "Emulates 'strcpy' of the C language."
   (resize-stringf dst (length src))
   (replace dst src))
 
 (defun |strncpy| (dst src count)
-  "Emulates 'strncpy' of the C language."
   (resize-stringf dst count)
   (replace dst src)
   ;; zero-filling of 'strncpy'.
@@ -45,18 +42,15 @@ This function is used for emulating C string truncation with NUL char."
   dst)
 
 (defun |strcat| (dst src)
-  "Emulates 'strcat' of the C language."
   (|strncat| dst src (length src)))
 
 (defun |strncat| (dst src count)
-  "Emulates 'strncat' of the C language."
   (let ((dst-len (length dst))
 	(src-cat-len (min (length src) count) ))
     (resize-stringf dst (+ dst-len src-cat-len))
     (replace dst src :start1 dst-len :end2 src-cat-len)))
 
 (defun |strlen| (str)
-  "Emulates 'strlen' of the C language."
   (length str))
 
 (defun strcmp* (str1 str1-len str2 str2-len)
@@ -71,11 +65,9 @@ This function is used for emulating C string truncation with NUL char."
        (1+ mismatch)))))
 
 (defun |strcmp| (str1 str2)
-  "Emulates 'strcmp' of the C language."
   (strcmp* str1 nil str2 nil))
 
 (defun |strncmp| (str1 str2 count)
-  "Emulates 'strncmp' of the C language."
   (strcmp* str1 (min count (length str1))
 	   str2 (min count (length str2))))
 
@@ -116,11 +108,9 @@ This function is used for emulating C string truncation with pointer movements."
 	  (t nil))))
 
 (defun |strchr| (str ch)
-  "Emulates 'strchr' of the C language."
   (strchr* str ch nil))
 
 (defun |strrchr| (str ch)
-  "Emulates 'strrchr' of the C language."
   (strchr* str ch t))
 
 (defun strspn* (str accept)
@@ -130,7 +120,6 @@ If no such chars, return NIL."
     (position-if-not #'acceptable-p str)))
 
 (defun |strspn| (str accept)
-  "Emulates 'strspn' of the C language."
   (or (strspn* str accept)
       (length str)))                    ; C's strspn requests it.
 
@@ -141,19 +130,16 @@ If no such chars, return NIL."
     (position-if #'rejected-p str)))
 
 (defun |strcspn| (str reject)
-  "Emulates 'strcspn' of the C language."
   (or (strcspn* str reject)
       (length str)))                    ; C's strcspn requests it.
 
 (defun |strpbrk| (str accept)
-  "Emulates 'strpbrk' of the C language."
   (let ((pos (|strcspn| str accept)))
     (if (length= pos str)
 	nil
 	(make-trimed-vector str pos))))
 
 (defun |strstr| (haystack needle)
-  "Emulates 'strstr' of the C language."
   (if-let (i (search needle haystack))
     (make-trimed-vector haystack i)
     nil))
@@ -163,7 +149,6 @@ If no such chars, return NIL."
   "Used by |strtok|")
 
 (defun |strtok| (str delim)
-  "Emulates 'strtok' of the C language."
   (when str
     (setf *strtok-target* str))
   ;; find token-start
@@ -182,13 +167,11 @@ If no such chars, return NIL."
 ;;; mem- family functions
 
 (defun |memchr| (ptr ch count)
-  "Emulates 'memchr' of the C language."
   (if-let (pos (position ch ptr :end (min count (length ptr))))
     (make-trimed-vector ptr pos)
     nil))
 
 (defun |memcmp| (lhs rhs count &key (test #'eql) (predicate #'<) )
-  "Emulates 'memcmp' of the C language."
   (let* ((lhs-len (length lhs))
 	 (rhs-len (length rhs))
 	 (mismatch (mismatch lhs rhs :test test
@@ -201,16 +184,13 @@ If no such chars, return NIL."
       (t +1))))
 
 (defun |memset| (dest ch count)
-  "Emulates 'memset' of the C language."
   (fill dest ch :end (min count (length dest))))
 
 (defun |memcpy| (dest src count)
-  "Emulates 'memcpy' of the C language."
   (replace dest src :end1 (min count (length dest))
 	   :end2 (min count (length src))))
 
 (defun |memmove| (dest src count)
-  "Emulates 'memmove' of the C language."
   ;; `replace' does not fulfill 'memmove' requirements.
   ;; So, I copy the contents of SRC first.
   ;; 
