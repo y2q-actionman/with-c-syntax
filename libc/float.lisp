@@ -4,12 +4,21 @@
   (defun mantissa-radix-change (mantissa from-radix to-radix)
     (+ (floor (* (1- mantissa)
 		 (log from-radix to-radix)))
-       (if (= from-radix to-radix) 1 0))))
+       (if (= from-radix to-radix) 1 0)))
+
+  (let ((short-float-radix (float-radix 1s0))
+        (single-float-radix (float-radix 1f0))
+        (double-float-radix (float-radix 1d0))
+        (long-float-radix (float-radix 1l0)))
+    (unless (= short-float-radix single-float-radix double-float-radix long-float-radix)
+      (warn
+       "In this Lisp, the float radix is different for all types. (short ~A, single ~A, double ~A, long ~A"
+       short-float-radix single-float-radix double-float-radix long-float-radix))))
+
+(defconstant FLT_RADIX                ; I use double-float
+  (float-radix 1d0))
 
 ;; single-float
-(defconstant FLT_RADIX
-  (float-radix 1f0))
-
 (defconstant FLT_MANT_DIG
   (float-digits 1f0))
 
@@ -17,8 +26,7 @@
   single-float-epsilon)
 
 (defconstant FLT_DIG
-  (mantissa-radix-change
-     FLT_MANT_DIG FLT_RADIX 10))
+  (mantissa-radix-change FLT_MANT_DIG (float-radix 1f0) 10))
 
 (defconstant FLT_MIN_EXP
   (nth-value 1 (decode-float least-positive-normalized-single-float)))
@@ -39,9 +47,6 @@
   (floor (log most-positive-single-float 10)))
 
 ;; double-float
-(defconstant DBL_RADIX	; extension
-  (float-radix 1d0))
-
 (defconstant DBL_MANT_DIG
   (float-digits 1d0))
 
@@ -49,7 +54,7 @@
   double-float-epsilon)
 
 (defconstant DBL_DIG
-  (mantissa-radix-change DBL_MANT_DIG DBL_RADIX 10))
+  (mantissa-radix-change DBL_MANT_DIG (float-radix 1d0) 10))
 
 (defconstant DBL_MIN_EXP
   (nth-value 1 (decode-float least-positive-normalized-double-float)))
@@ -70,9 +75,6 @@
   (floor (log most-positive-double-float 10)))
 
 ;; long-float
-(defconstant LDBL_RADIX	; extension
-  (float-radix 1l0))
-
 (defconstant LDBL_MANT_DIG
   (float-digits 1l0))
 
@@ -80,7 +82,7 @@
   long-float-epsilon)
 
 (defconstant LDBL_DIG
-  (mantissa-radix-change LDBL_MANT_DIG LDBL_RADIX 10))
+  (mantissa-radix-change LDBL_MANT_DIG (float-radix 1l0) 10))
 
 (defconstant LDBL_MIN_EXP
   (nth-value 1 (decode-float least-positive-normalized-long-float)))
@@ -100,36 +102,8 @@
 (defconstant LDBL_MAX_10_EXP
   (floor (log most-positive-long-float 10)))
 
-;; short-float ; extension
-(defconstant SFLT_RADIX
-  (float-radix 1s0))
-
-(defconstant SFLT_MANT_DIG
-  (float-digits 1s0))
-
-(defconstant SFLT_EPSILON
-  short-float-epsilon)
-
-(defconstant SFLT_DIG
-  (mantissa-radix-change SFLT_MANT_DIG SFLT_RADIX 10))
-
-(defconstant SFLT_MIN_EXP
-  (nth-value 1 (decode-float least-positive-normalized-short-float)))
-
-(defconstant SFLT_MIN
-  least-positive-normalized-short-float)
-
-(defconstant SFLT_MIN_10_EXP
-  (ceiling (log least-positive-normalized-short-float 10)))
-  
-(defconstant SFLT_MAX_EXP
-  (nth-value 1 (decode-float most-positive-short-float)))
-
-(defconstant SFLT_MAX
-  most-positive-short-float)
-
-(defconstant SFLT_MAX_10_EXP
-  (floor (log most-positive-short-float 10)))
+;; CL has short-float, but I do not define them because they are not
+;; required by C.
 
 ;; XXX:
 ;; In ANSI CL, There is no way to accessing the Floating Point Mode.
@@ -141,7 +115,7 @@
 
 ;; C99
 (defconstant DECIMAL_DIG
-  (max SFLT_DIG FLT_DIG DBL_DIG LDBL_DIG))
+  (max FLT_DIG DBL_DIG LDBL_DIG))
 
 ;; XXX:
 ;; 
