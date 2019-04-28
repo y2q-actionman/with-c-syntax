@@ -3,7 +3,8 @@
   :license "WTFPL"
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
   :pathname #.(make-pathname :directory '(:relative "test"))
-  :depends-on (#:with-c-syntax #:1am #:trivial-cltl2)
+  :depends-on (#:with-c-syntax #:1am #:trivial-cltl2
+                               #:floating-point)
   :components ((:file "package")
 	       (:file "util" :depends-on ("package"))
                (:file "stmt" :depends-on ("util"))
@@ -17,6 +18,7 @@
 	       (:file "libc__freestanding" :depends-on ("util"))
 	       (:file "libc_assert" :depends-on ("util"))
 	       (:file "libc_ctype" :depends-on ("util"))
+	       (:file "libc_math" :depends-on ("util"))
 	       (:file "libc_string" :depends-on ("util")))
   :perform (prepare-op :before (o c)
              (set (find-symbol* '#:*tests* '#:1am) '()))

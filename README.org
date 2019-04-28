@@ -39,10 +39,15 @@ This library is quicklisp-ready.
 - cl-yacc
 - alexandria
 - named-readtables
-- osicat (for libc.)
-- float-features (for libc.)
-- 1am (only by test codes.)
-- trivial-cltl2 (only by test codes.)
+
+**** by libc
+- osicat
+- float-features
+
+**** by test codes
+- 1am
+- trivial-cltl2
+- floating-point
 
 *** Load with ASDF
 #+BEGIN_SRC lisp
