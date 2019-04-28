@@ -43,6 +43,7 @@ This library is quicklisp-ready.
 **** by libc
 - osicat
 - float-features
+- floating-point-contractions
 
 **** by test codes
 - 1am

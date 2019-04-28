@@ -30,7 +30,8 @@
 (defun |exp2| (x)        ; C99
   (expt 2 x))            ; may raise ERANGE, FE_OVERFLOW, FE_UNDERFLOW
 
-;;; expm1 is in floating-point-contractions
+(defun |expm1| (x)
+  (exp-1 x))
 
 (defun |log| (x)
   (log x))          ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO
@@ -41,7 +42,8 @@
 (defun |log2| (x)   ; C99
   (log x 2))       ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO
 
-;;; log1p is in floating-point-contractions
+(defun |log1p| (x)
+  (log1+ x))
 
 (defun |pow| (x y)
   (expt x y)) ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO, FE_UNDERFLOW, FE_OVERFLOW
@@ -52,6 +54,9 @@
 (defun |cbrt| (x)
   ;; TODO: FIXME: I must check its accuracy.
   (expt x 1/3))                         ; may raise EDOM, FE_INVALID
+
+(defun |hypot| (x)
+  (hypot x))
 
 (defun |sin| (x)
   (sin x))                              ; may raise EDOM, FE_INVALID

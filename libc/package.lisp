@@ -40,8 +40,8 @@
    #:MB_LEN_MAX
    ;; math
    #:|fabs| #:|fmod| #:|remainder| #:|fmax| #:|fmin|
-   #:|exp| #:|exp2| #:|log| #:|log10| #:|log2|
-   #:|pow| #:|sqrt| #:|cbrt|
+   #:|exp| #:|exp2| #:|expm1| #:|log| #:|log10| #:|log2| #:|log1p|
+   #:|pow| #:|sqrt| #:|cbrt| #:|hypot|
    #:|sin| #:|cos| #:|tan| #:|asin| #:|acos| #:|atan| #:|atan2|
    #:|sinh| #:|cosh| #:|tanh| #:|asinh| #:|acosh| #:|atanh|
    #:|ceil| #:|floor| #:|trunc| #:|round|
@@ -70,6 +70,8 @@
 (defpackage #:with-c-syntax.libc-implementation
   (:use #:cl #:with-c-syntax.core #:with-c-syntax.libc
         #:alexandria #:float-features)
+  (:import-from #:floating-point-contractions
+                #:exp-1 #:log1+ #:hypot)
   (:shadowing-import-from #:with-c-syntax.libc
                           #:NULL)
   (:documentation

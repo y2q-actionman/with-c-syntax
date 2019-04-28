@@ -4,7 +4,7 @@
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
   :depends-on (#:alexandria #:yacc #:named-readtables
                             ;; for libc implementation (TODO: split libc defsystem from core?)
-                            #:osicat #:float-features)
+                            #:osicat #:float-features #:floating-point-contractions)
   :serial t
   :components ((:file "package")
 	       (:module "src"
