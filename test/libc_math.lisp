@@ -26,7 +26,7 @@
 
 (test test-math-fabs
   #{
-  is.float-equal (fabs (0.0), 0.0);
+  is (fabs (0.0) == 0.0);
   is.float-equal (fabs (5.0), 5.0);
   is.float-equal (fabs (-5.0), 5.0);
   
@@ -89,7 +89,7 @@
          #{ return exp(1); }#
          2.71829));
   is.float-equal (exp(0), 1);
-  is.float-equal (exp(double-float-negative-infinity), 0);
+  is (exp(double-float-negative-infinity) == 0.0);
   is (exp(double-float-positive-infinity) == double-float-positive-infinity);
   // ; TODO: add NaN test.
   }#)
@@ -97,8 +97,8 @@
 (test test-math-exp2
   #{
   is.float-equal (exp2(1.0), 2);
-  is.float-equal (exp2(0.0), 1);
-  is.float-equal (exp2(double-float-negative-infinity), 0);
+  is (exp2(0.0) == 1.0);
+  is (exp2(double-float-negative-infinity) == 0.0);
   is (exp2(double-float-positive-infinity) == double-float-positive-infinity);
   // ; TODO: add NaN test.
   }#)
@@ -108,20 +108,129 @@
   is (`(< 1.71828
          #{ return expm1(1); }#
          1.71829));
-  is.float-equal (expm1(0.0), 0);
+  is (expm1(0.0) == 0.0);
   is.float-equal (expm1(double-float-negative-infinity), -1.0);
   may-fail ( is (expm1(double-float-positive-infinity) == double-float-positive-infinity));
   // ; TODO: add NaN test.
   }#)
 
+(test test-math-log
+  #{
+  is.float-equal (log (exp (2)), 2);
+  is (log(1.0) == 0.0);
+  is (log(0.0) == double-float-negative-infinity);
+  is (complexp (log(-1.0))); // FIXME: Common Lisp returns a complex.
+  is (log(double-float-positive-infinity) == double-float-positive-infinity);
+  // ; TODO: add NaN test.
+  }#)
 
+(test test-math-log10
+  #{
+  is.float-equal (log10 (100), 2);
+  is (log10 (1.0) == 0.0);
+  is (log10 (0.0) == double-float-negative-infinity);
+  is (complexp (log10(-1.0))); // FIXME: Common Lisp returns a complex.
+  is (log10(double-float-positive-infinity) == double-float-positive-infinity);
+  // ; TODO: add NaN test.
+  }#)
 
+(test test-math-log2
+  #{
+  is.float-equal (log2 (8), 3);
+  is (log2 (1.0) == 0.0);
+  is (log2 (0.0) == double-float-negative-infinity);
+  is (complexp (log10(-1.0))); // FIXME: Common Lisp returns a complex.
+  is (log2(double-float-positive-infinity) == double-float-positive-infinity);
+  // ; TODO: add NaN test.
+  }#)
 
+(test test-math-log1p
+  #{
+  is.float-equal (log1p (11), log (12));
+  is (log1p (0.0) == 0.0);
+  is (log1p (-1.0) == double-float-negative-infinity);
+  is (complexp (log1p (-2))); // FIXME: Common Lisp returns a complex.
+  is (complexp (log1p (double-float-negative-infinity))); // FIXME: Common Lisp returns a complex.
+  is (log2(double-float-positive-infinity) == double-float-positive-infinity);
+  // ; TODO: add NaN test.
+  }#)
 
+(test test-math-pow
+  #{
+  is.float-equal (pow (2, 3), 8.0);
+  is.float-equal (pow (-1.1, 2), 1.21);
+  is.float-equal (pow (-1.1, -2), `(/ 1.21));
+  // ; Specials
+  is (pow (0.0, -1) == double-float-positive-infinity);
+  is (pow (-0.0, -1) == double-float-negative-infinity);
+  is (pow (0.0, -2) == double-float-positive-infinity);
+  is (pow (-0.0, -2.5) == double-float-positive-infinity);
+  is (pow (-0.0, double-float-negative-infinity) == double-float-positive-infinity);
+  is (pow (0.0, 1) == 0.0);
+  is (pow (-0.0, 1) == -0.0);
+  is (pow (0.0, 2) == 0.0);
+  is (pow (-0.0, 2.5) == 0.0);
+  may-fail (pow (-1, double-float-positive-infinity) == 1.0);
+  may-fail (pow (-1, double-float-negative-infinity) == 1.0);
+  may-fail (pow (1, double-float-positive-infinity) == 1.0);
+  may-fail (pow (1, double-float-negative-infinity) == 1.0);
+  // ; TODO: add pow(1, NaN) test.
+  is (pow (double-float-positive-infinity, +0.0) == 1.0);
+  is (pow (double-float-negative-infinity, -0.0) == 1.0);
+  // ; TODO: add pow(NaN, 0)
+  is (complexp (pow (-2.1, 0.3))); // FIXME: Common Lisp returns a complex.
+  is (pow (least-positive-double-float, double-float-negative-infinity)
+          == double-float-positive-infinity);
+  is (pow (double-float-positive-infinity, double-float-negative-infinity)
+          == 0.0);
+  is (pow (least-negative-double-float, double-float-positive-infinity)
+          == 0.0);
+  is (pow (double-float-negative-infinity, double-float-positive-infinity)
+          == double-float-positive-infinity);
+  is (pow (double-float-negative-infinity, -3) == -0.0);
+  is (pow (double-float-negative-infinity, -2) == 0.0);
+  is (pow (double-float-negative-infinity, -2.1) == 0.0);
+  is (pow (double-float-negative-infinity, 3) == double-float-negative-infinity);
+  is (pow (double-float-negative-infinity, 2) == double-float-positive-infinity);
+  is (pow (double-float-negative-infinity, 2.1) == double-float-positive-infinity);
+  is (pow (double-float-positive-infinity, -10) == 0.0);
+  is (pow (double-float-positive-infinity, double-float-negative-infinity) == 0.0);
+  is (pow (double-float-positive-infinity, 10) == double-float-positive-infinity);
+  is (pow (double-float-positive-infinity, double-float-positive-infinity)
+          == double-float-positive-infinity);
+  // ; TODO: add NaN test.
+  }#)
 
+(test test-math-sqrt
+  #{
+  is.float-equal (sqrt (100.0), 10.0);
+  // ; Specials
+  is (complexp (sqrt (-2.1))); // FIXME: Common Lisp returns a complex.
+  is (sqrt (double-float-positive-infinity) == double-float-positive-infinity);
+  is (sqrt (0.0) == 0.0);
+  is (sqrt (-0.0) == -0.0);
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-cbrt
+  #{
+  is.float-equal (cbrt (1000.0), 10.0);
+  // ; Specials
+  is (complexp (cbrt (-2.1))); // FIXME: Common Lisp returns a complex.
+  is (cbrt (double-float-positive-infinity) == double-float-positive-infinity);
+  may-fail (cbrt (double-float-negative-infinity) == double-float-negative-infinity);
+  is (cbrt (0.0) == 0.0);
+  may-fail (cbrt (-0.0) == -0.0);
+  // ; TODO: add NaN test.
+  }#)
 
 (test test-math-hypot
   #{
   is.float-equal (hypot (1, 1), 1.41421356);
   is.float-equal (hypot (3, 4), 5);
+  is.float-equal (hypot (1.23, -4.56), hypot (4.56, -1.23));
+  is.float-equal (hypot (1.23, 0), fabs (1.23));
+  is.float-equal (hypot (-0, -9928.123456), fabs (-9928.123456));
+  is (hypot (double-float-negative-infinity, 0) == double-float-positive-infinity);
+  // ; TODO: add NaN test.
   }#)

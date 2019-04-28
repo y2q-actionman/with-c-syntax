@@ -18,11 +18,19 @@
       (round x y)
     (values remainder quotient)))       ; may raise EDOM, FE_INVALID
 
+;;; TODO: real 'remquo'
+
+;;; TODO: 'fma'
+
 (defun |fmax| (x y)
   (max x y))                            ; no error
 
 (defun |fmin| (x y)
   (min x y))                            ; no error
+
+;;; TODO: 'fdim'
+
+;;; TODO: 'nan'
 
 (defun |exp| (x)
   (exp x))               ; may raise ERANGE, FE_OVERFLOW, FE_UNDERFLOW
