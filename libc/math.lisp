@@ -1,5 +1,8 @@
 (in-package #:with-c-syntax.libc-implementation)
 
+;;; I define only type-generic functions like <tgmath.h>,
+;;; The numeric functions of Common Lisp are already so.
+
 (defun |fabs| (x)
   (abs x))                              ; no error
 

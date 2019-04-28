@@ -50,7 +50,8 @@
   void * dst;
   char * src = "abcde";
   char * prefix = "XYZ";
-  char * expected = concatenate (quote (string), prefix, src);
+  char * expected = concatenate (quote (string), // ; `cl:string' type specifier.
+                                       prefix, src);
 
   // ; normal concatenatation.
   dst = copy-seq (prefix) ;
@@ -289,7 +290,7 @@
       token-list = nreverse (token-list);
     }#
     ;; My 'strtok' implementation does not destroy the original string.
-    ;; (this behavior is required??)
+    ;; (the destruction is required??)
     (is (tree-equal token-list
 		    '("A" "bird" "came" "down" "the" "walk")
 		    :test #'string=)))
