@@ -39,16 +39,19 @@
    #:UCHAR_MAX #:UINT_MAX #:USHRT_MAX #:ULONG_MAX #:ULLONG_MAX
    #:MB_LEN_MAX
    ;; math
-   #:|fabs| #:|fmod| #:|remainder| #:|fmax| #:|fmin|
+   #:|fabs| #:|fmod| #:|remainder| #:REMQUO* #:|fmax| #:|fmin|
    #:|exp| #:|exp2| #:|expm1| #:|log| #:|log10| #:|log2| #:|log1p|
    #:|pow| #:|sqrt| #:|cbrt| #:|hypot|
    #:|sin| #:|cos| #:|tan| #:|asin| #:|acos| #:|atan| #:|atan2|
    #:|sinh| #:|cosh| #:|tanh| #:|asinh| #:|acosh| #:|atanh|
    #:|ceil| #:|floor| #:|trunc| #:|round|
-   #:|frexp| #:|ldexp| #:|modf| #:|scalbn| #:|ilogb| #:|logb| #:|logb|
+   #:FREXP* #:|ldexp| #:MODF* #:|scalbn| #:|ilogb| #:|logb|
+   #:FP_ILOGB0
+   #:|copysign|
    #:HUGE_VAL
    #:HUGE_VALF #:HUGE_VALL #:INFINITY   ; C99
    #:|isnan| #:|isinf| #:|isfinite| #:|isnormal| #:|fpclassify| ; C99
+   #:FP_NAN #:FP_INFINITE #:FP_ZERO #:FP_SUBNORMAL #:FP_NORMAL
    #:|signbit|                          ; C99
    #:|lerp|                             ; C++20
    ;; stdarg

@@ -70,6 +70,35 @@
   is.float-nan-p (remainder(double-float-positive-infinity, 10.0), t); // Domain error.
   }#)
 
+(test test-math-remquo*
+  ;; This test shows how to treat multiple values in with-c-syntax.
+  #{
+  double rem, quo;
+
+  values (rem, quo) = remquo* (3.125, 2.0);
+  is (float-equal (rem, -0.875));
+  is (quo == 2);
+
+  values (rem, quo) = remquo* (-3.125, 2.0);
+  is (float-equal (rem, 0.875));
+  is (quo == -2);
+
+  values (rem, quo) = remquo* (3.125, -2.0);
+  is (float-equal (rem, -0.875));
+  is (quo == -2);
+
+  values (rem, quo) = remquo* (-3.125, -2.0);
+  is (float-equal (rem, 0.875));
+  is (quo == 2);
+
+  // ; Specials
+  is.float-nan-p (remquo* (double-float-positive-infinity, 2.0), t);
+  is.float-nan-p (remquo* (double-float-negative-infinity, 2.0), t);
+  is.float-nan-p (remquo* (10, +0.0), t);
+  is.float-nan-p (remquo* (999, -0.0), t);
+  // ; TODO: add NaN test.
+  }#)
+
 (test test-math-fmax
   #{
   is (fmax(3.125, 2.0) == 3.125);
@@ -409,5 +438,218 @@
   is (atanh (-1.0) == double-float-negative-infinity);
   is.complexp (atanh (1.1));
   is.complexp (atanh (-1.1));
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-ceil
+  #{
+  is.float-equal (ceil (3.14), 4.0);
+  is.float-equal (ceil (-3.14), -3.0);
+  // ; Specials
+  is (ceil (0.0) == 0.0);
+  is (ceil (-0.0) == -0.0);
+  is (ceil (double-float-positive-infinity) == double-float-positive-infinity);
+  is (ceil (double-float-negative-infinity) == double-float-negative-infinity);
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-floor
+  #{
+  is.float-equal (floor (3.14), 3.0);
+  is.float-equal (floor (-3.14), -4.0);
+  // ; Specials
+  is (floor (0.0) == 0.0);
+  is (floor (-0.0) == -0.0);
+  is (floor (double-float-positive-infinity) == double-float-positive-infinity);
+  is (floor (double-float-negative-infinity) == double-float-negative-infinity);
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-round
+  #{
+  is.float-equal (round (3.14), 3.0);
+  is.float-equal (round (3.9), 4.0);
+  is.float-equal (round (-3.14), -3.0);
+  is.float-equal (round (-3.9), -4.0);
+  // ; Specials
+  is (round (0.0) == 0.0);
+  may-fail (round (-0.0) == -0.0);
+  may-fail (round (double-float-positive-infinity) == double-float-positive-infinity);
+  may-fail (round (double-float-negative-infinity) == double-float-negative-infinity);
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-frexp*-and-ldexp
+  #{
+  double d;
+  int e;
+
+  values (d, e) = frexp* (3.14);
+  is (0.5 <= d && d < 1);
+  is.float-equal (ldexp (d, e), 3.14);
+  
+  values (d, e) = frexp* (-10.001);
+  is (-0.5 >= d && d > -1);
+  is.float-equal (ldexp (d, e), -10.001);
+  
+  // ; Specials (frexp*)
+  values (d, e) = frexp* (0.0);
+  is (d == 0.0);
+  is (e == 0);
+  values (d, e) = frexp* (-0.0);
+  is (d == -0.0);
+  is (e == 0);
+  if (may-fail (values (d, e) = frexp* (double-float-positive-infinity))) {
+    is (d == double-float-positive-infinity);
+  }
+  if (may-fail (values (d, e) = frexp* (double-float-negative-infinity))) {
+    is (d == double-float-negative-infinity);
+  }
+
+  // ; Specials (ldexp)
+  is (ldexp (0.0, most-positive-fixnum) == 0.0);
+  is (ldexp (-0.0, most-negative-fixnum) == -0.0);
+  may-fail (ldexp (double-float-positive-infinity, most-negative-fixnum)
+                  == double-float-positive-infinity);
+  is (ldexp (double-float-negative-infinity, -1) == double-float-negative-infinity);
+  is (ldexp (double-float-negative-infinity, 0) == double-float-negative-infinity);
+  
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-modf*
+  #{
+  double rem, quot;
+  
+  values (rem, quot) = modf* (1.125);
+  is.float-equal (rem, 0.125);
+  is.float-equal (quot, 1.0);
+  
+  values (rem, quot) = modf* (-1.125);
+  is.float-equal (rem, -0.125);
+  is.float-equal (quot, -1.0);
+  
+  // ; Specials
+  values (rem, quot) = modf* (0.0);
+  is (rem == 0.0);
+  is (quot == 0.0);
+  
+  values (rem, quot) = modf* (-0.0);
+  may-fail (rem == -0.0);
+  is (quot == -0.0);
+  
+  values (rem, quot) = modf* (double-float-positive-infinity);
+  may-fail (rem == 0.0);
+  may-fail (quot == double-float-positive-infinity);
+  
+  values (rem, quot) = modf* (double-float-negative-infinity);
+  may-fail (rem == 0.0);
+  may-fail (quot == double-float-negative-infinity);
+  
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-scalbn
+  #{
+  is.float-equal (scalbn (2.0, 2), 8.0);
+  is.float-equal (scalbn (-2.0, -2), -.5);
+  
+  // ; Specials
+  is (scalbn (0.0, most-positive-fixnum) == 0.0);
+  is (scalbn (-0.0, most-negative-fixnum) == -0.0);
+  may-fail (scalbn (double-float-positive-infinity, most-negative-fixnum)
+                  == double-float-positive-infinity);
+  is (scalbn (double-float-negative-infinity, -1) == double-float-negative-infinity);
+  is (scalbn (double-float-negative-infinity, 0) == double-float-negative-infinity);
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-ilogb
+  #{
+  is (integerp (ilogb (1.0)));
+  is (ilogb (0.0) == FP_ILOGB0);
+  
+  // ; Specials
+  is (integerp (ilogb (0.0)));
+  may-fail (integerp (ilogb (double-float-negative-infinity)));
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-logb
+  #{
+  is (floatp (logb (1.0)));
+  
+  // ; Specials
+  is (floatp (logb (0.0)));
+  may-fail (floatp (logb (double-float-negative-infinity)));
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-copysign
+  #{
+  is.float-equal (copysign (1.0, 2.0), 1.0);
+  is.float-equal (copysign (1.9999, -1.284), -1.9999);
+  is.float-equal (copysign (1.2, 0.0), 1.2);
+  is.float-equal (copysign (1.2, -0.0), -1.2);
+  
+  is (copysign (double-float-positive-infinity, double-float-negative-infinity)
+               == double-float-negative-infinity);
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-isnan
+  #{
+  is (! isnan (double-float-negative-infinity));
+  is (!isnan (0.0));
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-isinf
+  #{
+  is (isinf (double-float-positive-infinity));
+  is (isinf (double-float-negative-infinity));
+  is (!isinf (10.0));
+  is (!isinf (0.0));
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-isfinite
+  #{
+  is (!isfinite (double-float-positive-infinity));
+  is (!isfinite (double-float-negative-infinity));
+  is (isfinite (10.0));
+  is (isfinite (0.0));
+  is (isfinite (least-negative-double-float));
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-isnormal
+  #{
+  is (!isnormal (double-float-positive-infinity));
+  is (!isnormal (double-float-negative-infinity));
+  is (isnormal (10.0));
+  is (!isnormal (0.0));
+  is (!isnormal (least-negative-double-float));
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-fpclassify
+  #{
+  is (fpclassify (double-float-positive-infinity) == FP_INFINITE);
+  is (fpclassify (double-float-negative-infinity) == FP_INFINITE);
+  is (fpclassify (10.0) == FP_NORMAL);
+  is (fpclassify (0.0) == FP_ZERO);
+  is (fpclassify (least-negative-double-float) == FP_SUBNORMAL);
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-signbit
+  #{
+  is (!signbit (1.0));
+  is (signbit (-1.0));
+  is (!signbit (double-float-positive-infinity));
+  is (signbit (double-float-negative-infinity));
+  is (!signbit (0.0));
+  is (signbit (-0.0));
   // ; TODO: add NaN test.
   }#)

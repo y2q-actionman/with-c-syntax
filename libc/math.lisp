@@ -20,7 +20,7 @@
 
 ;;; TODO: real 'remquo'
 
-;;; TODO: 'fma'
+;;; TODO: 'fma', FP_FAST_FMA
 
 (defun |fmax| (x y)
   (max x y))                            ; no error
@@ -105,6 +105,11 @@
 (defun |atanh| (x)
   (atanh x))        ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO
 
+;;; TODO: 'erf'
+;;; TODO: 'erfc'
+;;; TODO: 'tgamma'
+;;; TODO: 'lgamma'
+
 (defun |ceil| (x)
   (fceiling x))                            ; no error
 
@@ -117,7 +122,13 @@
 (defun |round| (x)                      ; C99
   (fround x))                           ; no error
 
-(defun |frexp| (x)                      ; FIXME: how to treat pointer? (cons as a storage?)
+;;; TODO: 'lround', 'llround'
+
+;;; TODO: 'nearbyint'
+
+;;; TODO: 'rint', 'lrint', 'llrint'
+
+(defun frexp* (x)                      ; FIXME: how to treat pointer? (cons as a storage?)
   (assert (= 2 (float-radix x)))
   (multiple-value-bind (significant exponent sign)
       (decode-float x)
@@ -128,8 +139,9 @@
   (assert (= 2 (float-radix x)))
   (scale-float x exp))                  ; may raise ERANGE, FE_OVERFLOW, FE_UNDERFLOW
 
-(defun |modf| (x)                       ; FIXME: how to treat pointer? (cons as a storage?)
-  (ftruncate x))
+(defun modf* (x)                       ; FIXME: how to treat pointer? (cons as a storage?)
+  (multiple-value-bind (quot rem) (ftruncate x)
+    (values rem quot)))
 
 (defun |scalbn| (x exp)                 ; C99
   (scale-float x exp))
@@ -137,8 +149,15 @@
 (defun |ilogb| (x)                      ; C99
   (nth-value 1 (decode-float x)))
 
+(defconstant FP_ILOGB0                  ; C99
+  (|ilogb| 0d0))
+
+;;; TODO: FP_ILOGBNAN
+
 (defun |logb| (x)                       ; C99
   (float (nth-value 1 (decode-float x)) x))
+
+;;; TODO: 'nextafter', 'nexttoward'
 
 (defun |copysign| (abs sign)            ; C99
   (float-sign sign abs))
@@ -157,7 +176,7 @@
 (defconstant INFINITY                  ; C99
   single-float-positive-infinity)
 
-;; sadly, float-features does not provide NAN constant.
+;; TODO: 'NAN'
 
 ;;; FPCLASSIFY (C99)
 
@@ -184,6 +203,17 @@
      (< least-negative-normalized-long-float x least-positive-normalized-long-float))
     (t nil)))
 
+(defun |isnormal| (x)
+  (not (or (float-nan-p x)
+           (float-infinity-p x)
+           (denormalized-float-p x))))
+
+(defconstant FP_NAN :FP_NAN)
+(defconstant FP_INFINITE :FP_INFINITE)
+(defconstant FP_ZERO :FP_ZERO)
+(defconstant FP_SUBNORMAL :FP_SUBNORMAL)
+(defconstant FP_NORMAL :FP_NORMAL)
+
 (defun |fpclassify| (x)
   (cond ((float-nan-p x) :FP_NAN)
         ((float-infinity-p x) :FP_INFINITE)
@@ -191,18 +221,18 @@
         ((denormalized-float-p x) :FP_SUBNORMAL)
         (t :FP_NORMAL)))
 
-(defun |isnormal| (x)
-  (not (or (float-nan-p x)
-           (float-infinity-p x))))
-
 ;;; SIGNBIT (C99)
 
 (defun |signbit| (x)
   (minusp (float-sign x)))
 
-;;; C++20
+;;; TODO: isgreater, isgreaterequal, isless, islessequal, islessgreater, isunordered
 
+;;; C++20
 ;;; I found it in https://cpprefjp.github.io/reference/cmath/lerp.html
 ;;; and Alexardia has it!
 (defun |lerp| (a b v)
   (alexandria:lerp v a b))
+
+;;; TODO:
+;;; float_t, double_t, MATH_ERRNO, MATH_ERREXCEPT, math_errhandling
