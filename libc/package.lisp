@@ -41,7 +41,7 @@
    ;; math
    #:|fabs| #:|fmod| #:|remainder| #:|fmax| #:|fmin|
    #:|exp| #:|exp2| #:|log| #:|log10| #:|log2|
-   #:|pow| #:|sqrt|
+   #:|pow| #:|sqrt| #:|cbrt|
    #:|sin| #:|cos| #:|tan| #:|asin| #:|acos| #:|atan| #:|atan2|
    #:|sinh| #:|cosh| #:|tanh| #:|asinh| #:|acosh| #:|atanh|
    #:|ceil| #:|floor| #:|trunc| #:|round|

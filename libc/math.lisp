@@ -43,6 +43,10 @@
 (defun |sqrt| (x)
   (sqrt x))                             ; may raise EDOM, FE_INVALID
 
+(defun |cbrt| (x)
+  ;; TODO: FIXME: I must check its accuracy.
+  (expt x 1/3))                         ; may raise EDOM, FE_INVALID
+
 (defun |sin| (x)
   (sin x))                              ; may raise EDOM, FE_INVALID
 
