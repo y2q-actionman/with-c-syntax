@@ -55,8 +55,8 @@
   ;; TODO: FIXME: I must check its accuracy.
   (expt x 1/3))                         ; may raise EDOM, FE_INVALID
 
-(defun |hypot| (x)
-  (hypot x))
+(defun |hypot| (x y)
+  (hypot x y))
 
 (defun |sin| (x)
   (sin x))                              ; may raise EDOM, FE_INVALID

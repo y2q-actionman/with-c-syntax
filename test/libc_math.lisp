@@ -102,3 +102,26 @@
   is (exp2(double-float-positive-infinity) == double-float-positive-infinity);
   // ; TODO: add NaN test.
   }#)
+
+(test test-math-expm1
+  #{
+  is (`(< 1.71828
+         #{ return expm1(1); }#
+         1.71829));
+  is.float-equal (expm1(0.0), 0);
+  is.float-equal (expm1(double-float-negative-infinity), -1.0);
+  may-fail ( is (expm1(double-float-positive-infinity) == double-float-positive-infinity));
+  // ; TODO: add NaN test.
+  }#)
+
+
+
+
+
+
+
+(test test-math-hypot
+  #{
+  is.float-equal (hypot (1, 1), 1.41421356);
+  is.float-equal (hypot (3, 4), 5);
+  }#)
