@@ -12,6 +12,12 @@
 (defun |remainder| (x y)                ; C99
   (nth-value 1 (fround x y)))           ; may raise EDOM, FE_INVALID
 
+(defun remquo* (x y)                    ; C99
+  ;; TODO: support pointer passing..
+  (multiple-value-bind (quotient remainder)
+      (round x y)
+    (values remainder quotient)))       ; may raise EDOM, FE_INVALID
+
 (defun |fmax| (x y)
   (max x y))                            ; no error
 

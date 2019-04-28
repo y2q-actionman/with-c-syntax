@@ -7,13 +7,22 @@
 (defmacro is.float-equal (x y)
   `(is (float-equal ,x ,y)))
 
-(defmacro is.float-nan-p (x)
-  `(is (float-nan-p ,x)))
+(defmacro is.float-nan-p (x &optional suppress-all-error)
+  `(handler-case (is (float-nan-p ,x))
+     (arithmetic-error () t)
+     ,@(if suppress-all-error
+           '((error (e)
+              (warn "caught unexpected error ~A; ~A"
+               (type-of e) e))))))
 
 (defmacro may-fail (form)
-  `(if-let ((result ,form))
-     result
-     (warn "~A was evaluated to false" ',form)))
+  (let ((result (gensym)) (condition (gensym)))
+    `(multiple-value-bind (,result ,condition)
+         (ignore-errors ,form)
+       (or ,result
+           (if ,condition
+               (warn "~A raised ~A" ',form ,condition)
+               (warn "~A was evaluated to false" ',form))))))
 
 (test test-math-fabs
   #{
@@ -40,4 +49,56 @@
   is.float-equal (fmod(-0.0, 2.0), -0.0);
   is.float-nan-p (fmod(99.0, 0.0)); // Domain error.
   is.float-nan-p (fmod(double-float-positive-infinity, 10.0)); // Domain error.
+  }#)
+
+(test test-math-remainder
+  #{
+  is.float-equal (remainder(3.125, 2.0), -0.875);
+  is.float-equal (remainder(-3.125, 2.0), 0.875);
+  is.float-equal (remainder(3.125, -2.0), -0.875);
+  is.float-equal (remainder(-3.125, -2.0), 0.875);
+  
+  // ; Specials
+  is (remainder(0.0, 2.0) == 0.0);
+  // ; Sadly, SBCL 1.5.0 on MacOS X does not preserve minus-zero sign.
+  may-fail (remainder(-0.0, 2.0) == -0.0);
+  is.float-equal (remainder(-0.0, 2.0), -0.0);
+  is.float-nan-p (remainder(99.0, 0.0), t); // Domain error.
+  is.float-nan-p (remainder(double-float-positive-infinity, 10.0), t); // Domain error.
+  }#)
+
+(test test-math-fmax
+  #{
+  is (fmax(3.125, 2.0) == 3.125);
+  is (fmax(double-float-negative-infinity, 2.0) == 2.0);
+  is (fmax(double-float-positive-infinity, 2.0) == double-float-positive-infinity);
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-fmin
+  #{
+  is (fmin(3.125, 2.0) == 2.0);
+  is (fmin(double-float-negative-infinity, 2.0) == double-float-negative-infinity);
+  is (fmin(double-float-positive-infinity, 2.0) == 2.0);
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-exp
+  #{
+  is (`(< 2.71828
+         #{ return exp(1); }#
+         2.71829));
+  is.float-equal (exp(0), 1);
+  is.float-equal (exp(double-float-negative-infinity), 0);
+  is (exp(double-float-positive-infinity) == double-float-positive-infinity);
+  // ; TODO: add NaN test.
+  }#)
+
+(test test-math-exp2
+  #{
+  is.float-equal (exp2(1.0), 2);
+  is.float-equal (exp2(0.0), 1);
+  is.float-equal (exp2(double-float-negative-infinity), 0);
+  is (exp2(double-float-positive-infinity) == double-float-positive-infinity);
+  // ; TODO: add NaN test.
   }#)
