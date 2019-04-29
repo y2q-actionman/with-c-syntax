@@ -150,7 +150,8 @@
   #{
   is.float-equal (log (exp (2)), 2);
   is (log(1.0) == 0.0);
-  is (log(0.0) == double-float-negative-infinity);
+  signals (arithmetic-error, log(0.0));
+  may-fail (log(0.0) == double-float-negative-infinity);
   is.complexp (log(-1.0)); // FIXME: Common Lisp returns a complex.
   is (log(double-float-positive-infinity) == double-float-positive-infinity);
   // ; TODO: add NaN test.
@@ -160,7 +161,8 @@
   #{
   is.float-equal (log10 (100), 2);
   is (log10 (1.0) == 0.0);
-  is (log10 (0.0) == double-float-negative-infinity);
+  signals (arithmetic-error, log10 (0.0));
+  may-fail (log10 (0.0) == double-float-negative-infinity);
   is.complexp (log10(-1.0)); // FIXME: Common Lisp returns a complex.
   is (log10(double-float-positive-infinity) == double-float-positive-infinity);
   // ; TODO: add NaN test.
@@ -170,7 +172,8 @@
   #{
   is.float-equal (log2 (8), 3);
   is (log2 (1.0) == 0.0);
-  is (log2 (0.0) == double-float-negative-infinity);
+  signals (arithmetic-error, log2 (0.0));
+  may-fail (log2 (0.0) == double-float-negative-infinity);
   is.complexp (log10(-1.0)); // FIXME: Common Lisp returns a complex.
   is (log2(double-float-positive-infinity) == double-float-positive-infinity);
   // ; TODO: add NaN test.
@@ -180,9 +183,11 @@
   #{
   is.float-equal (log1p (11), log (12));
   is (log1p (0.0) == 0.0);
-  is (log1p (-1.0) == double-float-negative-infinity);
+  signals (arithmetic-error, log1p (-1.0));
+  may-fail (log1p (-1.0) == double-float-negative-infinity);
   is.complexp (log1p (-2)); // FIXME: Common Lisp returns a complex.
-  is.complexp (log1p (double-float-negative-infinity)); // FIXME: Common Lisp returns a complex.
+  signals (arithmetic-error, log1p (double-float-negative-infinity)); // FIXME: Common Lisp returns a complex.
+  may-fail (complexp (log1p (double-float-negative-infinity))); // FIXME: Common Lisp returns a complex.
   is (log2(double-float-positive-infinity) == double-float-positive-infinity);
   // ; TODO: add NaN test.
   }#)
@@ -193,10 +198,14 @@
   is.float-equal (pow (-1.1, 2), 1.21);
   is.float-equal (pow (-1.1, -2), `(/ 1.21));
   // ; Specials
-  is (pow (0.0, -1) == double-float-positive-infinity);
-  is (pow (-0.0, -1) == double-float-negative-infinity);
-  is (pow (0.0, -2) == double-float-positive-infinity);
-  is (pow (-0.0, -2.5) == double-float-positive-infinity);
+  signals (arithmetic-error, pow (0.0, -1));
+  may-fail (pow (0.0, -1) == double-float-positive-infinity);
+  signals (arithmetic-error, pow (-0.0, -1));
+  may-fail (pow (-0.0, -1) == double-float-negative-infinity);
+  signals (arithmetic-error, pow (0.0, -2));
+  may-fail (pow (0.0, -2) == double-float-positive-infinity);
+  signals (arithmetic-error, pow (-0.0, -2.5));
+  may-fail (pow (-0.0, -2.5) == double-float-positive-infinity);
   is (pow (-0.0, double-float-negative-infinity) == double-float-positive-infinity);
   is (pow (0.0, 1) == 0.0);
   is (pow (-0.0, 1) == -0.0);
@@ -207,10 +216,11 @@
   may-fail (pow (1, double-float-positive-infinity) == 1.0);
   may-fail (pow (1, double-float-negative-infinity) == 1.0);
   // ; TODO: add pow(1, NaN) test.
-  is (pow (double-float-positive-infinity, +0.0) == 1.0);
-  is (pow (double-float-negative-infinity, -0.0) == 1.0);
+  signals (arithmetic-error, pow (double-float-positive-infinity, +0.0) == 1.0);
+  signals (arithmetic-error, pow (double-float-negative-infinity, -0.0) == 1.0);
   // ; TODO: add pow(NaN, 0)
   is.complexp (pow (-2.1, 0.3)); // FIXME: Common Lisp returns a complex.
+  may-fail (complexp (pow (-2.1, 0.3))); // FIXME: Common Lisp returns a complex.
   is (pow (least-positive-double-float, double-float-negative-infinity)
           == double-float-positive-infinity);
   is (pow (double-float-positive-infinity, double-float-negative-infinity)
@@ -315,7 +325,8 @@
   // ; Specials
   is (asin (-0.0) == -0.0);
   is.complexp (asin (1.001)); // FIXME: Common Lisp returns a complex.
-  is.complexp (asin (double-float-negative-infinity)); // FIXME: Common Lisp returns a complex.
+  signals (arithmetic-error, asin (double-float-negative-infinity)); // FIXME: Common Lisp returns a complex.
+  may-fail (complexp (asin (double-float-negative-infinity))); // FIXME: Common Lisp returns a complex.
   // ; TODO: add NaN test.
   }#)
 
@@ -327,7 +338,8 @@
   is.float-equal (acos (0), PI / 2);
   // ; Specials
   is.complexp (acos (1.0001));
-  is.complexp (acos (double-float-negative-infinity));
+  signals(arithmetic-error, acos (double-float-negative-infinity));
+  may-fail (complexp (acos (double-float-negative-infinity)));
   // ; TODO: add NaN test.
   }#)
 
@@ -370,7 +382,8 @@
   #{
   is.float-equal (sinh (2.3), (exp (2.3) - exp (-2.3)) / 2);
   is.float-equal (sinh (-9), (exp (-9) - exp (- - 9)) / 2);
-  is (sinh (1000.0) == double-float-positive-infinity);
+  signals (arithmetic-error, sinh (1000.0));
+  may-fail (sinh (1000.0) == double-float-positive-infinity);
   // ; Specials
   is (sinh (0.0) == 0.0);
   is (sinh (-0.0) == -0.0);
@@ -383,7 +396,8 @@
   #{
   is.float-equal (cosh (2.3), (exp (2.3) + exp (-2.3)) / 2);
   is.float-equal (cosh (-9), (exp (-9) + exp (- - 9)) / 2);
-  is (cosh (1000.0) == double-float-positive-infinity);
+  signals (arithmetic-error, cosh (1000.0));
+  may-fail (cosh (1000.0) == double-float-positive-infinity);
   // ; Specials
   is (cosh (0.0) == 1.0);
   is (cosh (-0.0) == 1.0);
@@ -434,8 +448,10 @@
   // ; Specials
   is (atanh (0.0) == 0.0);
   is (atanh (-0.0) == -0.0);
-  is (atanh (1.0) == double-float-positive-infinity);
-  is (atanh (-1.0) == double-float-negative-infinity);
+  signals (arithmetic-error, atanh (1.0));
+  may-fail (atanh (1.0) == double-float-positive-infinity);
+  signals (arithmetic-error, atanh (-1.0));
+  may-fail (atanh (-1.0) == double-float-negative-infinity);
   is.complexp (atanh (1.1));
   is.complexp (atanh (-1.1));
   // ; TODO: add NaN test.
@@ -448,8 +464,10 @@
   // ; Specials
   is (ceil (0.0) == 0.0);
   is (ceil (-0.0) == -0.0);
-  is (ceil (double-float-positive-infinity) == double-float-positive-infinity);
-  is (ceil (double-float-negative-infinity) == double-float-negative-infinity);
+  signals (arithmetic-error, ceil (double-float-positive-infinity));
+  may-fail (ceil (double-float-positive-infinity) == double-float-positive-infinity);
+  signals (arithmetic-error, ceil (double-float-negative-infinity));
+  may-fail (ceil (double-float-negative-infinity) == double-float-negative-infinity);
   // ; TODO: add NaN test.
   }#)
 
@@ -460,8 +478,10 @@
   // ; Specials
   is (floor (0.0) == 0.0);
   is (floor (-0.0) == -0.0);
-  is (floor (double-float-positive-infinity) == double-float-positive-infinity);
-  is (floor (double-float-negative-infinity) == double-float-negative-infinity);
+  signals (arithmetic-error, floor (double-float-positive-infinity));
+  may-fail (floor (double-float-positive-infinity) == double-float-positive-infinity);
+  signals (arithmetic-error, floor (double-float-negative-infinity));
+  may-fail (floor (double-float-negative-infinity) == double-float-negative-infinity);
   // ; TODO: add NaN test.
   }#)
 
@@ -538,13 +558,15 @@
   may-fail (rem == -0.0);
   is (quot == -0.0);
   
-  values (rem, quot) = modf* (double-float-positive-infinity);
-  may-fail (rem == 0.0);
-  may-fail (quot == double-float-positive-infinity);
+  if (may-fail (values (rem, quot) = modf* (double-float-positive-infinity))) {
+    may-fail (rem == 0.0);
+    may-fail (quot == double-float-positive-infinity);
+  }
   
-  values (rem, quot) = modf* (double-float-negative-infinity);
-  may-fail (rem == 0.0);
-  may-fail (quot == double-float-negative-infinity);
+  if (may-fail (values (rem, quot) = modf* (double-float-negative-infinity))) {
+    may-fail (rem == 0.0);
+    may-fail (quot == double-float-negative-infinity);
+  }
   
   // ; TODO: add NaN test.
   }#)
