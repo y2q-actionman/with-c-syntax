@@ -150,7 +150,7 @@
   (nth-value 1 (decode-float x)))
 
 (defconstant FP_ILOGB0                  ; C99
-  (|ilogb| 0d0))
+  (nth-value 1 (decode-float 0d0)))
 
 ;;; TODO: FP_ILOGBNAN
 
