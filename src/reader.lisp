@@ -87,7 +87,7 @@ In this level, there is no compatibilities between symbols of Common
 Lisp.  Especially, for denoting a symbol has terminating characters,
 escapes are required. (ex. most\-positive\-fixnum)")
 
-(defvar *with-c-syntax-reader-case* nil ; TODO: clean this variable usage.
+(defvar *with-c-syntax-reader-case* nil
   "Holds the reader case used by '#{' reader function.
 
 When this is not nil, it must be one of `:upcase', `:downcase',
@@ -95,16 +95,12 @@ When this is not nil, it must be one of `:upcase', `:downcase',
 readtable-case inside '#{' and '}#' and passed to the
 wrapping `with-c-syntax' form.
 
-When this is nil, the readtable-case of `*readtable*' at using
-'#{' is used.")
+When this is nil, it is used as the readtable-case of `*readtable*' at
+'#{'.")
 
 (defvar *previous-syntax* (copy-readtable)
-  "* Value Type
-a readtable.
-
-* Description
-Holds the readtable used by #\` syntax.
-Default is the copy of `*readtable*' at load-time of this source.")
+  "Holds the readtable used by #\` syntax.
+This is bound by '#{' read macro to the `*readtable*' at that time.")
 
 
 (defun read-in-previous-syntax (stream char)

@@ -1933,35 +1933,26 @@ Establishes variable bindings for a new compilation.
 			  (try-add-{} t))
 			 &environment *wcs-expanding-environment*
 			 &body body)
-  "* Syntax
-~with-c-syntax~ (&key keyword-case entry-form try-add-{}) form* => result*
-
-* Arguments and Values
-- keyword-case :: one of ~:upcase~, ~:downcase~, ~:preserve~, or
-                  ~:invert~.  The default is the current readtable
-                  case.
-- return   :: ~:auto~, or a form
-- try-add-{} :: a boolean.
-- form   :: form(s) interpreted by this macro.
-- results :: the values returned by the ~forms~
-
-* Description
-This macro is a entry point of the with-c-syntax system.  ~forms~ are
+  "This macro is a entry point of the with-c-syntax system. BODY will be
 interpreted as C syntax, executed, and return values.
 
-~keyword-case~ specifies case sensitivity. Especially, if ~:upcase~ is
-specified, some case-insensitive feature is enabled for convenience.
 
-If ~return~ is ~:auto~, returns the last form's value if ~body~ is a
-simple compound statement, or returns NIL is ~body~ is a compilation
-unit.
-If it is not, its valus is inserted after the compilation result
-translation units. (This feature is intended to access 'static' variables.)
+CASE-SENSITIVE specifies case-sensitivity in interpreting symbols.
+If nil, C syntactic keyworks and Libc functions are treated case-insentisively.
 
-If ~try-add-{}~ is t and an error occurred at parsing, with-c-syntax
-adds '{' and '}' into the head and tail of ~form~ respectively, and
-tries to parse again.
-"
+KEYWORD-CASE is used for calculating CASE-SENSITIVE parameter.
+
+If RETURN is `:auto', returns the last form's value if BODY is a
+compound statement. (If BODY is a compilation unit, this returns NIL
+now, but this behavior may be changed.)
+
+If RETURN is any other value, its valus is inserted after the
+compilation result translation units. (This feature is intended to
+access 'static' variables.)
+
+?f TRY-ADD-{} is t and an error occurred at parsing, `with-c-syntax'
+adds '{' and '}' into the head and tail of FORM respectively, and
+tries to parse again."
   (cond
     ((null body)
      nil)
