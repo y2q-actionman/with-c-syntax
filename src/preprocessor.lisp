@@ -119,7 +119,7 @@ indicated by `+preprocessor-macro+'."
   (let ((clause1 (first clauses)))
     (cond
       ((null clauses) nil)
-      ((length= clause1 1)
+      ((length= 1 clause1)
        `(multiple-value-bind (,@vars) ,(first clause1)
 	  (declare (ignorable ,@(rest vars)))
 	  (if ,(first vars)
