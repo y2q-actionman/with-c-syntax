@@ -250,6 +250,71 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
   (read-slash-comment stream char
                       #'read-single-or-equal-symbol))
 
+(eval-when (:compile-toplevel)
+  (defconstant +acceptable-numeric-characters+
+    '(( 2 . (#\0 #\1))
+      ( 8 . (#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7))
+      (10 . (#\- #\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\.))
+      (16 . (#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\A #\B #\C #\D #\E #\F #\a #\b #\c #\d #\e #\f)))))
+
+(defun read-bare-number (&optional (base 10) (stream *standard-input*) (c0 nil))
+  (let ((string (make-array '(0) :element-type 'character :adjustable t))
+        (floatp)
+        (acceptable-characters (cdr (assoc base +acceptable-numeric-characters+))))
+    (when c0
+      (vector-push-extend c0 string))
+    (loop for c = (peek-char nil stream)
+          while (cond
+                  ((char= c #\') (read-char stream)) ; Skip character
+                  ((char= c #\.) (setf floatp t) (vector-push-extend (read-char stream) string))
+                  ((member c acceptable-characters) (vector-push-extend (read-char stream) string))
+                  (t nil))) ; Finish processing if any other character
+    (if floatp
+        (let ((*readtable* named-readtables::*standard-readtable*))
+          (read-from-string string))
+        (parse-integer string :radix base))))
+
+(defun read-numeric-literal (stream c0)
+  "Read a C numeric literal of approximate format (0([XxBb])?)?([0-9A-Fa-b.']+)([Uu])?([Ll]{1,2})? .
+Scientific notation not yet supported."
+  (let* ((c1 (peek-char nil stream))
+         ;; 1. Determine base
+         (base (if (char= c0 #\0)
+                   (alexandria:switch (c1 :test #'char-equal)
+                     (#\b (read-char stream) 2)
+                     (#\x (read-char stream) 16)
+                     (#\u 10) ; We got 0u
+                     (#\l 10) ; We got 0l
+                     (t (if (member c1 '(#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7))
+                            8
+                            (error 'with-c-syntax-reader-error
+                                   :format-control "Bad numeric base char: ~C."
+                                   :format-arguments (list c1)))))
+                   10))
+         ;; 2. Read number, including fractional part
+         (number (if (= base 10)
+                     (read-bare-number base stream c0)
+                     (read-bare-number base stream)))
+         (signedp)
+         (longp)
+         (longlongp))
+    (tagbody
+       (macrolet
+           ((read-signifier (variable signifier expected-chars)
+              `(let ((char (peek-char nil stream)))
+                 (cond
+                   ((char-equal char ,signifier) (read-char stream) (setf ,variable t))
+                   ((not (member char ,expected-chars)) (go finish-processing))))))
+         ;; 3. Determine signedness
+         (read-signifier signedp #\u '(#\U #\u #\L #\l))
+         ;; 4. Determine size
+         (read-signifier longp #\l '(#\L #\l))
+         (read-signifier longlongp #\l '(#\L #\l)))
+       ;; 5. Construct CL value of appropriate type and return it
+     finish-processing
+       ;; For now, signedp/longp/longlongp are ignored.
+     (return-from read-numeric-literal number))))
+
 (defun install-c-reader (readtable level)
   "Inserts reader macros for C reader. Called by '#{' reader macro."
   (check-type level integer)
@@ -294,7 +359,18 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
     (set-macro-character #\- #'read-minus nil readtable)
     (set-macro-character #\< #'read-shift nil readtable)
     (set-macro-character #\> #'read-shift nil readtable)
-    (set-macro-character #\/ #'read-slash nil readtable))
+    (set-macro-character #\/ #'read-slash nil readtable)
+    ;; (set-macro-character #\- #'read-numeric-literal nil readtable) ;; FIXME: Handle negative numbers correctly
+    (set-macro-character #\0 #'read-numeric-literal nil readtable)
+    (set-macro-character #\1 #'read-numeric-literal nil readtable)
+    (set-macro-character #\2 #'read-numeric-literal nil readtable)
+    (set-macro-character #\3 #'read-numeric-literal nil readtable)
+    (set-macro-character #\4 #'read-numeric-literal nil readtable)
+    (set-macro-character #\5 #'read-numeric-literal nil readtable)
+    (set-macro-character #\6 #'read-numeric-literal nil readtable)
+    (set-macro-character #\7 #'read-numeric-literal nil readtable)
+    (set-macro-character #\8 #'read-numeric-literal nil readtable)
+    (set-macro-character #\9 #'read-numeric-literal nil readtable))
   ;; TODO: If I support trigraphs or digraphs, I'll add them here.
   ;; (But I think these are not needed because the Standard characters include
   ;; the replaced characters/)
