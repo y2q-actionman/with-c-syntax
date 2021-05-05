@@ -254,7 +254,7 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
   (defconstant +acceptable-numeric-characters+
     '(( 2 . (#\0 #\1))
       ( 8 . (#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7))
-      (10 . (#\- #\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\.))
+      (10 . (#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\.))
       (16 . (#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\A #\B #\C #\D #\E #\F #\a #\b #\c #\d #\e #\f)))))
 
 (defun read-bare-number (&optional (base 10) (stream *standard-input*) (c0 nil))
@@ -275,21 +275,16 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
         (parse-integer string :radix base))))
 
 (defun read-numeric-literal (stream c0)
-  "Read a C numeric literal of approximate format (0([XxBb])?)?([0-9A-Fa-b.']+)([Uu])?([Ll]{1,2})? .
+  "Read a C numeric literal of approximate format (0([XxBb])?)?([0-9A-Fa-f.']+)([Uu])?([Ll]{1,2})? .
 Scientific notation not yet supported."
   (let* ((c1 (peek-char nil stream))
          ;; 1. Determine base
          (base (if (char= c0 #\0)
-                   (alexandria:switch (c1 :test #'char-equal)
-                     (#\b (read-char stream) 2)
-                     (#\x (read-char stream) 16)
-                     (#\u 10) ; We got 0u
-                     (#\l 10) ; We got 0l
-                     (t (if (member c1 '(#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7))
-                            8
-                            (error 'with-c-syntax-reader-error
-                                   :format-control "Bad numeric base char: ~C."
-                                   :format-arguments (list c1)))))
+                   (cond
+                     ((char-equal c1 #\b) (read-char stream) 2)
+                     ((char-equal c1 #\x) (read-char stream) 16)
+                     ((member c1 '(#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7)) 8)
+                     (t 10)) ; c1 is probably #\u or #\l or part of next token
                    10))
          ;; 2. Read number, including fractional part
          (number (if (= base 10)
