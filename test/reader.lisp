@@ -337,6 +337,164 @@
       + 3;
     }#)))
 
+(test test-reader-numeric-literal
+  ;; decimal integers
+  (is.equal.wcs 0
+    #2{
+    return 0;
+    }#)
+  (is.equal.wcs 10
+    #2{
+    return 10;
+    }#)
+  (is.equal.wcs 10
+    #2{
+    return 10;
+    }#)
+  ;; octal integers
+  (is.equal.wcs #o0
+    #2{
+    return 00;
+    }#)
+  (is.equal.wcs #o10
+    #2{
+    return 010;
+    }#)
+  (is.equal.wcs #o11
+    #2{
+    return 011;
+    }#)
+  ;; hexadecimal integers
+  (is.equal.wcs #x0
+    #2{
+    return 0x00;
+    }#)
+  (is.equal.wcs #x10
+    #2{
+    return 0x10;
+    }#)
+  (is.equal.wcs #xdeadbeef
+    #2{
+    return 0xDeadBeef;
+    }#)
+  ;; suffixes
+  (is.equal.wcs 0
+    #2{
+    return 0u;
+    }#)
+  (is.equal.wcs 1
+    #2{
+    unsigned int u = 1U;
+    return u;
+    }#)
+  (is.equal.wcs -2
+    #2{
+    return -2l;
+    }#)
+  (is.equal.wcs 3
+    #2{
+    long l = 3L;
+    return l;
+    }#)
+  (is.equal.wcs 4
+    #2{
+    return 4ul;
+    }#)
+  (is.equal.wcs 5
+    #2{
+    int LU = 5LU;
+    return LU;
+    }#)
+  (is.equal.wcs 6
+    #2{
+    return 6ll;
+    }#)
+  (is.equal.wcs -7
+    #2{
+    long long int LL = 7LL;
+    return -LL;
+    }#)
+  (is.equal.wcs 8
+    #2{
+    unsigned long long int ull = 8ull;
+    return ull;
+    }#)
+  (is.equal.wcs 9
+    #2{
+    long long unsigned int llu = 9llu;
+    return llu;
+    }#)
+  (is.equal.wcs 10
+    #2{
+    return 10Ull;
+    }#)
+  (is.equal.wcs 11
+    #2{
+    return 11llU;
+    }#)
+  (is.equal.wcs 12
+    #2{
+    return 12uLL;
+    }#)
+  (is.equal.wcs 13
+    #2{
+    return 13LLu;
+    }#)
+  (is.equal.wcs 14
+    #2{
+    return 14ULL;
+    }#)
+  (is.equal.wcs 15
+    #2{
+    return 15LLU;
+    }#)
+  
+  (is.equal.wcs #xABC
+    #2{
+    return 0xabcULL;
+    }#)
+  (is.equal.wcs #o42
+    #2{
+    return 042uLL;
+    }#)
+
+  ;; Bad suffixes
+  (signals.macroexpand.wcs ()
+    #2{
+    return 1xx;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0lL;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0Ll;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0Lul;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0uuL;
+    }#)
+  
+  ;; minus operator ('-' not a part of integer literal.)
+  (is.equal.wcs -0
+    #2{
+    return -0;
+    }#)
+  (is.equal.wcs #x-100
+    #2{
+    return -0x100l;
+    }#)
+  (is.equal.wcs #x-100
+    #2{
+    long long int ll = -0x100ll;
+    return ll;
+    }#)
+  )
 
 #.(setf *with-c-syntax-reader-level* nil)
 
