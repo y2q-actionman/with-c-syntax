@@ -206,7 +206,7 @@
   may-fail (pow (0.0, -2) == double-float-positive-infinity);
   signals (arithmetic-error, pow (-0.0, -2.5));
   may-fail (pow (-0.0, -2.5) == double-float-positive-infinity);
-  is (pow (-0.0, double-float-negative-infinity) == double-float-positive-infinity);
+  may-fail (pow (-0.0, double-float-negative-infinity) == double-float-positive-infinity);
   is (pow (0.0, 1) == 0.0);
   is (pow (-0.0, 1) == -0.0);
   is (pow (0.0, 2) == 0.0);
