@@ -337,6 +337,25 @@
       + 3;
     }#)))
 
+(test test-reader-overkill-2
+  ;; Some numeric operator combinations.
+  (is.equal.wcs t
+    #2{
+    return 1+2+3-4+5+6+78+9==100
+    && 1*2*3*4+5+6+7*8+9==100
+    && 1*2*3-4*5+6*7+8*9==100
+    && -1+2-3+4+5+6+78+9==100
+    && 98-76+54+3+21==100
+    && 98+7-6*5+4*3*2+1==100;
+    }#)
+  (is.equal.wcs t
+    #2{
+    int x = 96+1428/357;
+    return x == 3+69258/714;
+    }#)
+  ;; 
+  )
+
 (test test-reader-numeric-literal
   ;; decimal integers
   (is.equal.wcs 0
