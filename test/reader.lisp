@@ -477,28 +477,6 @@
     return 042uLL;
     }#)
 
-  ;; Bad suffixes
-  (signals.macroexpand.wcs ()
-    #2{
-    return 1xx;
-    }#)
-  (signals.macroexpand.wcs ()
-    #2{
-    return 0lL;
-    }#)
-  (signals.macroexpand.wcs ()
-    #2{
-    return 0Ll;
-    }#)
-  (signals.macroexpand.wcs ()
-    #2{
-    return 0Lul;
-    }#)
-  (signals.macroexpand.wcs ()
-    #2{
-    return 0uuL;
-    }#)
-  
   ;; minus operator ('-' not a part of integer literal.)
   (is.equal.wcs -0
     #2{
@@ -513,6 +491,17 @@
     long long int ll = -0x100ll;
     return ll;
     }#)
+  )
+
+(test test-reader-numeric-bad-suffix
+  (signals.wcs.reader () "#2{ return 0uu; }#")    
+  (signals.wcs.reader () "#2{ return 0lll; }#")
+  ;; (signals.wcs.reader () "#2{ return 1xx; }#")
+  (signals.wcs.reader () "#2{ return 0lL; }#")
+  (signals.wcs.reader () "#2{ return 0Ll; }#")
+  (signals.wcs.reader () "#2{ return 0Lul; }#")
+  (signals.wcs.reader () "#2{ return 0uuL; }#")
+  ;; 
   )
 
 #.(setf *with-c-syntax-reader-level* nil)
