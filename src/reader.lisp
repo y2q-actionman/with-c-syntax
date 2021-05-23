@@ -382,9 +382,9 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
   (let ((string (make-array (length pp-number-string)
                             :element-type 'character :fill-pointer 0))
         (integer-suffix-exists nil)
-        (unsigned-p nil)
-        (integer-size nil))
-    (with-input-from-string (stream pp-number-string :start (number-prefix-length radix))
+        (index nil))
+    (with-input-from-string (stream pp-number-string :start (number-prefix-length radix)
+                                                     :index index)
       (loop for c = (read-char stream nil nil)
             while c
             do (cond
@@ -397,42 +397,32 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
                  (t
                   (error 'with-c-syntax-reader-error
                          :format-control "Integer constant '~A' contains invalid char '~C' (radix ~D)."
-                         :format-arguments (list pp-number-string c radix)))))
+                         :format-arguments (list pp-number-string c radix))))))
+    (let ((integer-type (list '|int|)))
       (when integer-suffix-exists
-        (loop
-          for suffix1 = (read-char stream nil nil)
-          while suffix1
-          do (case suffix1
-               ((#\u #\U)
-                (when unsigned-p
-                  (error 'with-c-syntax-reader-error
-                         :format-control "Integer constant '~A' contains two unsigned-suffix (radix ~D)."
-                         :format-arguments (list pp-number-string radix)))
-                (setf unsigned-p t))
-               ((#\l #\L)
-                (when integer-size
-                  (error 'with-c-syntax-reader-error
-                         :format-control "Integer constant '~A' contains two long-suffix (radix ~D)."
-                         :format-arguments (list pp-number-string radix)))
-                (let ((suffix2 (peek-char nil stream nil nil)))
-                  (case suffix2
-                    ((#\l #\L)
-                     (unless (char= suffix1 suffix2)
-                       (error 'with-c-syntax-reader-error
-                              :format-control "Integer constant '~A' contains invalid suffix '~C~C' (radix ~D)."
-                              :format-arguments (list pp-number-string suffix1 suffix2 radix)))
-                     (read-char stream t nil t)
-                     (setf integer-size 'long-long))
-                    (otherwise
-                     (setf integer-size 'long)))))
-               (otherwise
-                (error 'with-c-syntax-reader-error
-                       :format-control "Integer constant '~A' contains invalid suffix '~C' (radix ~D)."
-                       :format-arguments (list pp-number-string suffix1 radix)))))))
-    (values
-     (parse-integer string :radix radix)
-     unsigned-p
-     integer-size)))
+        (flet ((suffix-to-numeric-type (l-suffix u-suffix)
+                 "See `+numeric-types-alist+'"
+                 `(,@(ecase (length l-suffix)
+                       (0 nil)
+                       (1 '(|long|))
+                       (2 '(|long| |long|)))
+                   ,@(if u-suffix
+                         '(|unsigned|)))))
+          (or
+           (cl-ppcre:register-groups-bind (l-suffix)
+               ("^[uU](|[lL]|ll|LL)$" pp-number-string :start index :sharedp t)
+             (setf integer-type
+                   (suffix-to-numeric-type l-suffix t)))
+           (cl-ppcre:register-groups-bind (l-suffix u-suffix)
+               ("^([lL]|ll|LL)([uU]?)$" pp-number-string :start index :sharedp t)
+             (setf integer-type
+                   (suffix-to-numeric-type l-suffix (not (length= 0 u-suffix)))))
+           (error 'with-c-syntax-reader-error
+                  :format-control "Integer constant '~A' contains invalid suffix '~A' (radix ~D)."
+                  :format-arguments (list pp-number-string (subseq pp-number-string index))))))
+      (values
+       (parse-integer string :radix radix)
+       integer-type))))
 
 (defun find-lisp-type-by-c-floating-suffix (suffix)
   (cond ((or (null suffix) (string= suffix "")) 'double-float)
