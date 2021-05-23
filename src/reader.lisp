@@ -151,61 +151,101 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
     (otherwise
      (funcall next-function stream char))))
 
-(defun read-escaped-char (stream)
-  (flet ((numeric-escape (radix init)
-	   (loop with tmp = init
-	      for c = (peek-char nil stream t nil t)
-	      as weight = (digit-char-p c radix)
-	      while weight
-	      do (read-char stream t nil t)
-		(setf tmp (+ (* tmp radix) weight))
-	      finally (return (code-char tmp)))))
-    (let ((c0 (read-char stream t nil t)))
-      (case c0
-        ;; FIXME: This code assumes ASCII is used for char-code..
-	(#\a #.(code-char #x07))	; alarm
-	(#\b #\Backspace)
-	(#\f #\Page)
-	(#\n #\Newline)
-	(#\r #\Return)
-	(#\t #\Tab)
-	(#\v #.(code-char #x0b))	; vertical tab
-	(#\\ #\\)
-	(#\' #\')
-	(#\" #\")
-	(#\? #\?)
-	((#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\0)
-	 (numeric-escape 10 (digit-char-p c0)))
-	(#\x
-	 (numeric-escape 16 0))
-        (otherwise
-         (error 'with-c-syntax-reader-error
-                :format-control "Bad escaped char: ~C."
-                :format-arguments (list c0)))))))
+(defun read-universal-character-name (stream number-of-digits)
+  "Reads \unnnn or \Unnnnnnnn syntax."
+  (check-type number-of-digits (and fixnum (member 4 8)))
+  (let* ((hexadecimals
+           (with-output-to-string (out)
+             (loop
+               repeat number-of-digits
+               for char = (read-char stream t nil t)
+               unless (digit-char-p char 16)
+                 do (error 'with-c-syntax-reader-error
+                           :format-control "Character '~C' is not a hexadecimal for universal character names."
+                           :format-arguments (list char))
+               do (write-char char out))))
+         (code (parse-integer hexadecimals :radix 16)))
+    ;; See 6.4.3 Universal character names in ISO/IEC 9899:1999.
+    (when (or (and (< code #x00A0)
+                   (not (member code '(#x0024 #x0040 #x0060)))) ; $, @, `
+              (<= #xD8000 code #xDFFF))
+      (error 'with-c-syntax-reader-error
+             :format-control "Universal character name '~A' is not usable."
+             :format-arguments (list hexadecimals)))
+    (code-char code)))
 
-(defun read-single-quote (stream c0)
+(defun read-numeric-escape (stream radix &key (limit most-positive-fixnum))
+  "Used by `read-escaped-char'."
+  (loop with tmp = 0
+        for count from 0 below limit   ; Octal escape is limited for 3 characters.
+	for c = (peek-char nil stream t nil t)
+	as weight = (digit-char-p c radix)
+	while weight
+	do (read-char stream t nil t)
+	   (setf tmp (+ (* tmp radix) weight))
+	finally (return (code-char tmp))))
+
+(defun read-escaped-char (stream)
+  (let ((c0 (read-char stream t nil t)))
+    (case c0
+      ;; FIXME: This code assumes ASCII is used for char-code..
+      (#\a #.(code-char #x07))          ; alarm
+      (#\b #\Backspace)
+      (#\f #\Page)
+      (#\n #\Newline)
+      (#\r #\Return)
+      (#\t #\Tab)
+      (#\v #.(code-char #x0b))          ; vertical tab
+      (#\\ #\\)
+      (#\' #\')
+      (#\" #\")
+      (#\? #\?)
+      ((#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7)
+       (unread-char c0 stream)
+       (read-numeric-escape stream 8 :limit 3))
+      (#\x
+       (read-numeric-escape stream 16))
+      (#\u
+       (read-universal-character-name stream 4))
+      (#\U
+       (read-universal-character-name stream 8))
+      (otherwise
+       (error 'with-c-syntax-reader-error
+              :format-control "Bad escaped char: ~C."
+              :format-arguments (list c0))))))
+
+(defun read-single-quote (stream &optional (c0 #\'))
+  (declare (ignore c0))
   (let ((c1 (read-char stream t nil t)))
-    (cond ((char= c1 c0)
-	   (error 'with-c-syntax-reader-error
-		  :format-control "Empty char constant."))
-	  ((char= c1 #\\)
-	   (setf c1 (read-escaped-char stream))))
+    (case c1
+      (#\'
+       (error 'with-c-syntax-reader-error
+	      :format-control "Empty char constant."))
+      (#\newline
+       (error 'with-c-syntax-reader-error
+	      :format-control "Char constant cannot contain a newline directly."))
+      (#\\
+       (setf c1 (read-escaped-char stream))))
     (let ((c2 (read-char stream t nil t)))
-      (unless (char= c2 c0)
+      (unless (char= c2 #\')
 	(error 'with-c-syntax-reader-error
                :format-control "Too many chars appeared between '' :~C, ~C, ..."
                :format-arguments (list c1 c2))))
     c1))
 
-(defun read-double-quote (stream c0)
-  (loop with str = (make-array '(0) :element-type 'character
-			       :adjustable t :fill-pointer t)
-     for c = (read-char stream t nil t)
-     until (char= c c0)
-     do (vector-push-extend
-         (if (char= c #\\) (read-escaped-char stream) c)
-         str)
-     finally (return str)))
+(defun read-double-quote (stream &optional (c0 #\"))
+  (declare (ignore c0))
+  (with-output-to-string (out)
+    (loop
+      for c = (read-char stream t nil t)
+      until (eql c #\")
+      if (eql c #\\)
+        do (write-char (read-escaped-char stream) out)
+      else if (eql c #\newline)
+        do (error 'with-c-syntax-reader-error
+	          :format-control "String literal cannot contain a newline directly.")
+      else
+        do (write-char c out))))
 
 (defun read-single-or-equal-symbol (stream char)
   (let ((next (peek-char nil stream t nil t)))
@@ -216,7 +256,8 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
       (otherwise
        (read-single-character-symbol stream char)))))
 
-(defun read-single-or-equal-or-self-symbol (stream char)  
+(defun read-single-or-equal-or-self-symbol (stream char)
+  "For '>>=' or '<<='."
   (let ((next (peek-char nil stream t nil t)))
     (cond ((char= next char)
 	   (read-char stream t nil t)
@@ -369,6 +410,9 @@ Scientific notation not yet supported."
   ;; TODO: If I support trigraphs or digraphs, I'll add them here.
   ;; (But I think these are not needed because the Standard characters include
   ;; the replaced characters/)
+  ;; TODO: C99 support?
+  ;; - an identifier begins with '\u' (universal character)
+  ;; - 'L' prefix of character literals.
   readtable)
 
 (defun read-in-c-syntax (stream char n)

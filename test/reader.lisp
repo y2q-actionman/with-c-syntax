@@ -96,10 +96,18 @@
     #1{
     return 'a'\;
     }#)
+  (is.equal.wcs (code-char #xa0)
+    #1{
+    return '\u00A0'\;
+    }#)
   ;; double quote
   (is.equal.wcs "abc"
     #1{
     return "abc";
+    }#)
+  (is.equal.wcs ""
+    #1{
+    return "";
     }#)
   (is.equal.wcs (coerce '(#\Backspace #\Page #\Newline
 			#\Tab #\\ #\' #\" #\?)
@@ -114,13 +122,22 @@
     #1{
     return "\a\r\v";
     }#)
-  (is.equal.wcs (string (code-char 99))
+  (is.equal.wcs (string (code-char #o77))
     #1{
-    return "\99";
+    return "\77";
+    }#)
+  (is.equal.wcs (coerce '(#.(code-char #o123) #\4)
+			'string)
+    #1{
+    return "\1234";
     }#)
   (is.equal.wcs (string (code-char #x99))
     #1{
     return "\x99";
+    }#)
+  (is.equal.wcs "$@`"
+    #1{
+    return "\u0024\u0040\u0060";
     }#)
   ;; parens
   (is.equal.wcs "a"
@@ -134,6 +151,31 @@
   (is.equal.wcs 3
     #{{1;2;return 3;}}#
     ))
+
+(test test-reader-aggressive-bad-char
+  (signals.wcs.reader (end-of-file) "#1{ return \"; }#")
+  (signals.wcs.reader (end-of-file) "#1{ return \"\\\"; }#")
+  (signals.wcs.reader () "#1{ return \"
+\"; }#")
+  ;; 
+  (signals.wcs.reader (end-of-file) "#1{ return '")
+  (signals.wcs.reader () "#1{ return ''; }#")
+  (signals.wcs.reader () "#1{ return '
+'; }#")
+  (signals.wcs.reader () "#1{ return '; }#")
+  (signals.wcs.reader () "#1{ return '\\'; }#")
+  (signals.wcs.reader () "#1{ return '\\Y'; }#")
+  (signals.wcs.reader () "#1{ return '\\x; }#")
+  (signals.wcs.reader () "#1{ return '\\u; }#")
+  (signals.wcs.reader () "#1{ return '\\u12; }#")
+  (signals.wcs.reader () "#1{ return '\\U1234; }#")
+  (signals.wcs.reader () "#1{ return '\\u0060; }#")
+  (signals.wcs.reader () "#1{ return '\\U0000D800; }#")
+  (signals.wcs.reader () "#1{ return '\\uDFFF; }#")
+  (signals.wcs.reader () "#1{ return '\\99'; }#")
+  ;; Below will make a two-character integer constant (\022 and 3).
+  ;; See "6.4.4.4 Character constants" 14 Example 3.
+  (signals.wcs.reader () "#1{ return '\\0223; }#"))
 
 (test test-reader-overkill
  (let ((x 2) (y 3)) 
