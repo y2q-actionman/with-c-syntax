@@ -69,7 +69,6 @@ symbol listed below.
 - '?' :: '?'
 - '~' :: '~'
 - ':' :: ':'
-- '.' :: '.'
 - '=' :: '=' or '=='
 - '*' :: '*' or '*='
 - '^' :: '^' or '^='
@@ -82,6 +81,8 @@ symbol listed below.
 - '<' :: '<', '<<', or '<<='
 - '/' :: '/', or '/='. '//' means a line comment, and '/* ... */'
          means a block comment.
+- '.' :: '.' or a numeric literal of C language..
+- 0,1,2,3,4,5,6,7,8,9 :: A numeric literal of C language.
 
 In this level, there is no compatibilities between symbols of Common
 Lisp.  Especially, for denoting a symbol has terminating characters,
@@ -247,6 +248,13 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
       else
         do (write-char c out))))
 
+(defun read-dot (stream char)
+  "Dot may be an operator or a prefix of floating numbers."
+  (let ((next (peek-char nil stream t nil t)))
+    (if (digit-char-p next 10)
+        (read-numeric-literal stream char)
+        (read-single-character-symbol stream char))))
+
 (defun read-single-or-equal-symbol (stream char)
   (let ((next (peek-char nil stream t nil t)))
     (case next
@@ -291,65 +299,155 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
   (read-slash-comment stream char
                       #'read-single-or-equal-symbol))
 
-(eval-when (:compile-toplevel)
-  (defconstant +acceptable-numeric-characters+
-    '(( 2 . (#\0 #\1))
-      ( 8 . (#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7))
-      (10 . (#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\.))
-      (16 . (#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\A #\B #\C #\D #\E #\F #\a #\b #\c #\d #\e #\f)))))
+(defun read-preprocessing-number (stream c0)
+  "Reads a preprocessing number token, defined in
+  \"6.4.8 Preprocessing numbers\" in ISO/IEC 9899:1999."
+  ;; pp-number:
+  ;;   digit
+  ;;   . digit
+  ;;   pp-number digit
+  ;;   pp-number identifier-nondigit
+  ;;   pp-number e sign
+  ;;   pp-number E sign
+  ;;   pp-number p sign
+  ;;   pp-number P sign
+  ;;   pp-number .
+  (with-output-to-string (out)
+    (write-char c0 out)                 ; Write the first char.
+    (loop for char = (read-char stream nil nil t)
+          while char
+          if (or (alphanumericp char)
+                 (char= char #\_)
+                 (char= char #\.))
+            do (write-char char out)
+               (case char
+                 ((#\e #\E #\p #\P)
+                  (let ((next (peek-char nil stream nil nil t)))
+                    (case next
+                      ((#\+ #\-)
+                       (read-char stream t nil t)
+                       (write-char next out))))))
+          else
+            if (char= char #\\)  ; May be an universal-character-name.
+              do (let ((esc (read-char stream t nil t)))
+                   (case esc
+                     (#\u
+                      (write-char (read-universal-character-name stream 4) out))
+                     (#\U
+                      (write-char (read-universal-character-name stream 8) out))
+                     (otherwise
+                      (error 'with-c-syntax-reader-error
+                             :format-control "Bad escaped character in number: ~C."
+                             :format-arguments (list esc)))))
+          else
+            do (unread-char char stream)
+               (loop-finish))))
 
-(defun read-bare-number (&optional (base 10) (stream *standard-input*) (c0 nil))
-  (let ((string (make-array '(0) :element-type 'character :adjustable t))
-        (floatp)
-        (acceptable-characters (cdr (assoc base +acceptable-numeric-characters+))))
-    (when c0
-      (vector-push-extend c0 string))
-    (loop for c = (peek-char nil stream)
-          while (cond
-                  ((char= c #\') (read-char stream)) ; Skip character
-                  ((char= c #\.) (setf floatp t) (vector-push-extend (read-char stream) string))
-                  ((member c acceptable-characters) (vector-push-extend (read-char stream) string))
-                  (t nil))) ; Finish processing if any other character
-    (if floatp
-        (let ((*readtable* named-readtables::*standard-readtable*))
-          (read-from-string string))
-        (parse-integer string :radix base))))
+(defun find-numeric-literal-type (pp-number-string)
+  "Looks PP-NUMBER-STRING and returns its radix (integer) and type (:float or :integer)."
+  (multiple-value-bind (base floatp)
+      ;; See prefix.
+      (case (char pp-number-string 0)   ; I use `ecase' 
+        (#\.
+         (values 10 t)) ; fractional-constant, a part of decimal-floating-constant.
+        (#\0
+         (if (length= 1 pp-number-string) ; '0'
+             (values 10 nil)
+             (case (char pp-number-string 1)
+               ((#\b #\B)               ; binary-constant. Since C23.
+                (values 2 nil))
+               ((#\x #\X) ; hexadecimal-constant or hexadecimal-floating-constant.
+                (values 16 :unspecific))
+               ((#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7) ; octal-constant.
+                (values 8 nil))
+               (otherwise
+                (values 10 :unspecific))))) ; Decimal. May be '0u' or '0.'
+        ((#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9) ; decimal-constant or decimal-floating-constant
+         (values 10 :unspecific))
+        (otherwise     ; This is a bug of `read-preprocessing-number'.
+         (error 'with-c-syntax-reader-error
+                :format-control "~A contains a prefix as a numeric constants."
+                :format-arguments (list pp-number-string))))
+    ;; Determine type.
+    (when (eq floatp :unspecific)
+      (setf floatp
+            (find-if (ecase base
+                       (10 (lambda (c) (member c '(#\. #\e #\E))))
+                       (16 (lambda (c) (member c '(#\. #\p #\P))))) 
+                     pp-number-string)))
+    (values base floatp)))
+
+(defun number-prefix-length (radix)
+  (ecase radix
+    (10 0)
+    (8 1)
+    ((2 16) 2)))
+
+(defun read-integer-constant (pp-number-string radix)
+  (let ((string (make-array (length pp-number-string)
+                            :element-type 'character :fill-pointer 0))
+        (integer-suffix-exists nil)
+        (unsigned-p nil)
+        (integer-size nil))
+    (with-input-from-string (stream pp-number-string :start (number-prefix-length radix))
+      (loop for c = (read-char stream nil nil)
+            while c
+            do (cond
+                 ((digit-char-p c radix)
+                  (vector-push c string))
+                 ((member c '(#\u #\U #\l #\L)) ; Integer suffixes
+                  (setf integer-suffix-exists t)
+                  (unread-char c stream)
+                  (loop-finish))
+                 (t
+                  (error 'with-c-syntax-reader-error
+                         :format-control "Integer constant '~A' contains invalid char '~C' (radix ~D)."
+                         :format-arguments (list pp-number-string c radix)))))
+      (when integer-suffix-exists
+        (loop
+          for suffix1 = (read-char stream nil nil)
+          while suffix1
+          do (case suffix1
+               ((#\u #\U)
+                (when unsigned-p
+                  (error 'with-c-syntax-reader-error
+                         :format-control "Integer constant '~A' contains two unsigned-suffix (radix ~D)."
+                         :format-arguments (list pp-number-string radix)))
+                (setf unsigned-p t))
+               ((#\l #\L)
+                (when integer-size
+                  (error 'with-c-syntax-reader-error
+                         :format-control "Integer constant '~A' contains two long-suffix (radix ~D)."
+                         :format-arguments (list pp-number-string radix)))
+                (let ((suffix2 (peek-char nil stream nil nil)))
+                  (case suffix2
+                    ((#\l #\L)
+                     (unless (char= suffix1 suffix2)
+                       (error 'with-c-syntax-reader-error
+                              :format-control "Integer constant '~A' contains invalid suffix '~C~C' (radix ~D)."
+                              :format-arguments (list pp-number-string suffix1 suffix2 radix)))
+                     (read-char stream t nil t)
+                     (setf integer-size 'long-long))
+                    (otherwise
+                     (setf integer-size 'long)))))
+               (otherwise
+                (error 'with-c-syntax-reader-error
+                       :format-control "Integer constant '~A' contains invalid suffix '~C' (radix ~D)."
+                       :format-arguments (list pp-number-string suffix1 radix)))))))
+    (values
+     (parse-integer string :radix radix)
+     unsigned-p
+     integer-size)))
 
 (defun read-numeric-literal (stream c0)
   "Read a C numeric literal of approximate format (0([XxBb])?)?([0-9A-Fa-f.']+)([Uu])?([Ll]{1,2})? .
 Scientific notation not yet supported."
-  (let* ((c1 (peek-char nil stream))
-         ;; 1. Determine base
-         (base (if (char= c0 #\0)
-                   (cond
-                     ((char-equal c1 #\b) (read-char stream) 2)
-                     ((char-equal c1 #\x) (read-char stream) 16)
-                     ((member c1 '(#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7)) 8)
-                     (t 10)) ; c1 is probably #\u or #\l or part of next token
-                   10))
-         ;; 2. Read number, including fractional part
-         (number (if (= base 10)
-                     (read-bare-number base stream c0)
-                     (read-bare-number base stream)))
-         (signedp)
-         (longp)
-         (longlongp))
-    (tagbody
-       (macrolet
-           ((read-signifier (variable signifier expected-chars)
-              `(let ((char (peek-char nil stream)))
-                 (cond
-                   ((char-equal char ,signifier) (read-char stream) (setf ,variable t))
-                   ((not (member char ,expected-chars)) (go finish-processing))))))
-         ;; 3. Determine signedness
-         (read-signifier signedp #\u '(#\U #\u #\L #\l))
-         ;; 4. Determine size
-         (read-signifier longp #\l '(#\L #\l))
-         (read-signifier longlongp #\l '(#\L #\l)))
-       ;; 5. Construct CL value of appropriate type and return it
-     finish-processing
-       ;; For now, signedp/longp/longlongp are ignored.
-     (return-from read-numeric-literal number))))
+  (let ((pp-number (read-preprocessing-number stream c0)))
+    (multiple-value-bind (radix floatp)
+        (find-numeric-literal-type pp-number)
+      (if floatp
+          (error "TODO")
+          (read-integer-constant pp-number radix)))))
 
 (defun install-c-reader (readtable level)
   "Inserts reader macros for C reader. Called by '#{' reader macro."
@@ -383,7 +481,7 @@ Scientific notation not yet supported."
     (set-macro-character #\? #'read-single-character-symbol nil readtable)
     (set-macro-character #\~ #'read-single-character-symbol nil readtable)
     (set-macro-character #\: #'read-single-character-symbol nil readtable)
-    (set-macro-character #\. #'read-single-character-symbol nil readtable)
+    (set-macro-character #\. #'read-dot nil readtable)
     (set-macro-character #\= #'read-single-or-equal-symbol nil readtable)
     (set-macro-character #\* #'read-single-or-equal-symbol nil readtable)
     (set-macro-character #\% #'read-single-or-equal-symbol nil readtable)
