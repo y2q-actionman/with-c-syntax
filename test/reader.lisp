@@ -396,12 +396,12 @@
   ;; 
   )
 
-(test test-reader-numeric-literal
-  ;; decimal integers
+(test test-reader-integer
   (is.equal.wcs 0
     #2{
     return 0;
     }#)
+  ;; decimal integers
   (is.equal.wcs 10
     #2{
     return 10;
@@ -430,13 +430,31 @@
     }#)
   (is.equal.wcs #x10
     #2{
-    return 0x10;
+    return 0X10;
     }#)
   (is.equal.wcs #xdeadbeef
     #2{
     return 0xDeadBeef;
     }#)
-  ;; suffixes
+  ;; binary integers
+  (is.equal.wcs #b0
+    #2{
+    return 0b00;
+    }#)
+  (is.equal.wcs #b10
+    #2{
+    return 0b10;
+    }#)
+  )
+  
+(test test-reader-integer-bad-character
+  (signals.wcs.reader () "#2{ return 1ff; }#")    
+  (signals.wcs.reader () "#2{ return 08; }#")
+  (signals.wcs.reader () "#2{ return 0xgg; }#")
+  (signals.wcs.reader () "#2{ return 0b22; }#")
+  )
+
+(test test-reader-integer-suffix
   (is.equal.wcs 0
     #2{
     return 0u;
@@ -516,11 +534,238 @@
     #2{
     return 042uLL;
     }#)
+  )
 
-  ;; minus operator ('-' not a part of integer literal.)
+(test test-reader-integer-bad-suffix
+  (signals.wcs.reader () "#2{ return 0uu; }#")    
+  (signals.wcs.reader () "#2{ return 0lll; }#")
+  (signals.wcs.reader () "#2{ return 1xx; }#")
+  (signals.wcs.reader () "#2{ return 0lL; }#")
+  (signals.wcs.reader () "#2{ return 0Ll; }#")
+  (signals.wcs.reader () "#2{ return 0Lul; }#")
+  (signals.wcs.reader () "#2{ return 0uuL; }#")
+  ;; 
+  )
+
+(test test-reader-decimal-float
+  (is.equal.wcs 1d0
+    #2{
+    return 1.0;
+    }#)
+  (is.equal.wcs 2d0
+    #2{
+    return 2.;
+    }#)
+  (is.equal.wcs 0.3f0
+    #2{
+    return .3f;
+    }#)
+  (is.equal.wcs 810d0
+    #2{
+    return 810e+0;
+    }#)
+  (is.equal.wcs 2112L-93
+    #2{
+    return 2112E-93L;
+    }#)
+  (is.equal.wcs 0d0
+    #2{
+    return 0.;
+    }#)
+  (is.equal.wcs 0d0
+    #2{
+    return .0;
+    }#)
+  (is.equal.wcs 70d0
+    #2{
+    return 070.;
+    }#)
+  (signals.wcs.reader () "#2{ 0..0; }#")    
+  (signals.wcs.reader () "#2{ 0.0.0; }#")    
+  (is.equal.wcs 1.3d0
+    #2{
+    return 1.3e0;
+    }#)
+  (is.equal.wcs 4.2d-10
+    #2{
+    return 4.2E-10;
+    }#)
+  (is.equal.wcs -0.11f+2
+    #2{
+    return -.11E+2f;
+    }#)
+  (is.equal.wcs 114.51L+4
+    #2{
+    return 114.51E+4L;
+    }#)
+  (signals.wcs.reader () "#2{ 0.0fl; }#")
+  (signals.wcs.reader () "#2{ 1f; }#")
+  (signals.wcs.reader () "#2{ -0f; }#")
+  (signals.wcs.reader () "#2{ 0.e; }#")
+  (signals.wcs.reader () "#2{ .1e+; }#")
+  (signals.wcs.reader () "#2{ .1eF; }#")
+
+  ;; Identifiers consists of decimal float chars.
+  (is.equal.wcs 100d0
+    #2{
+    double e0 = 100e0;
+    return e0;
+    }#)
+  (is.equal.wcs 1L1
+    #2{
+    long double e0FL = 1e+1l;
+    return e0FL;
+    }#)
+  
+  ;; Dot operator and identifier
+  (is.equal.wcs (+ 42d1 2f0)
+    #2{
+    struct hoge {
+       double e1;
+    } xxx;
+    xxx.e1 = 42.e1;
+    return xxx.e1 + 2.f;
+    }#)    
+  (is.equal.wcs (- 3L-3 3)
+    #2{
+    struct hoge {
+       double E3;
+    } xxx;
+    xxx.E3 = 3E-3L-3L;
+    return xxx.E3;
+    }#)    
+  (is.equal.wcs (+ 42 0d1 0.1f-1 0.1f0 1)
+    #2{
+    struct hoge {
+       int e;
+    } f = {42};
+    return f.e+0.e+1+.1e-1f+.1f+1;
+    }#)    
+  )
+
+(test test-reader-hexadecimal-float
+  (signals.wcs.reader () "#2{ 0x0.0; }#")
+  (is.equal.wcs 0d0
+    #2{
+    return 0x0.0p0;
+    }#)
+  (signals.wcs.reader () "#2{ 0x2.; }#")
+  (is.equal.wcs (* 2d0 (expt 2 1))
+    #2{
+    return 0x2.p1;
+    }#)
+  (signals.wcs.reader () "#2{ 0x.3f; }#")
+  (signals.wcs.reader () "#2{ .3p0f; }#")
+  (is.equal.wcs 0.1875f0
+    #2{
+    return 0x.3p0f;
+    }#)
+  (signals.wcs.reader () "#2{ 0x810e+0; }#")
+  (is.equal.wcs (float #x810 0d0)
+    #2{
+    return 0x810p+0;
+    }#)
+  (signals.wcs.reader () "#2{ 0x2112E-93L; }#")
+  (is.equal.wcs (* 8466l0 (expt 2 -93))
+    #2{
+    return 0x2112P-93L;
+    }#)
+  (signals.wcs.reader () "#2{ 0x0.; }#")
+  (is.equal.wcs 0d0
+    #2{
+    return 0x0.p0;
+    }#)
+  (signals.wcs.reader () "#2{ 0x.0; }#")
+  (is.equal.wcs 0d0
+    #2{
+    return 0x.0p0;
+    }#)
+  (signals.wcs.reader () "#2{ 0x..p0; }#")    
+  (signals.wcs.reader () "#2{ 0x.0.p0; }#")    
+  (signals.wcs.reader () "#2{ 0x1.3e0; }#")
+  (is.equal.wcs 1.1875d0
+    #2{
+    return 0x1.3p0;
+    }#)
+  (signals.wcs.reader () "#2{ 0x4.2E-10; }#")
+  (is.equal.wcs (* 4.125d0 (expt 2 -10))
+    #2{
+    return 0x4.2P-10;
+    }#)
+  (signals.wcs.reader () "#2{ -0x.11E+2f; }#")
+  (is.equal.wcs (* -0.0625f0 (expt 2 2))
+    #2{
+    return -0x.1P+2f;
+    }#)
+  (signals.wcs.reader () "#2{ -0x114.5E+14L; }#")
+  (is.equal.wcs (* 276.3125L0 (expt 2 14))
+    #2{
+    return 0x114.5P+14L;
+    }#)
+  (signals.wcs.reader () "#2{ 0x0.0p0fl; }#")
+  (signals.wcs.reader () "#2{ 0x0.p; }#")
+  (signals.wcs.reader () "#2{ 0x.1p+; }#")
+  (signals.wcs.reader () "#2{ 0x.1pF; }#")
+
+  ;; Integers consists of hexadicimal float chars.
+  (is.equal.wcs #x0e0
+    #2{
+    return 0x0e0;
+    }#)
+  (is.equal.wcs #x0e0f
+    #2{
+    return 0x0e0f;
+    }#)
+  
+  ;; Identifiers consists of hexadecimal float chars.
+  (is.equal.wcs (float #x100 0d0)
+    #2{
+    double p0 = 0x100p0;
+    return p0;
+    }#)
+  (is.equal.wcs (* (float #x1 0d0) (expt 2 1))
+    #2{
+    long double p0FL = 0x1p+1l;
+    return p0FL;
+    }#)
+  
+  ;; Dot operator and identifier
+  (is.equal.wcs (* (float #x42 0d0) (expt 2 1))
+    #2{
+    struct hoge {
+       double p1;
+    } xxx;
+    xxx.p1 = 0x42.p1;
+    return xxx.p1;
+    }#)    
+  (signals.wcs.reader () "#2{ 0x3E-3L; }#")
+  (signals.wcs.reader () "#2{ 0x3E- 3L; }#")
+  (is.equal.wcs (- #x3E 3 (* (float #x3 0d0) (expt 2 -3)))
+    #2{
+    struct hoge {
+       double P3;
+    } xxx;
+    xxx.P3 = 0x3E -3L-0x3.P-3L;
+    return xxx.P3;
+    }#)    
+  (is.equal.wcs (+ 42 0d1 (* 0.0625f0 (expt 2 -1)) 0.0625f0 1)
+    #2{
+    struct hoge {
+       int p;
+    } f = {42};
+    return f.p+0x0.p+1+0x.1p-1f+0x.1p0f+1;
+    }#)    
+  )
+
+(test test-reader-minus-number
+  ;; minus operator (Prefix '-' is not a part of C numeric literal.)
   (is.equal.wcs -0
     #2{
     return -0;
+    }#)
+  (is.equal.wcs -0
+    #2{
+    return -0L;
     }#)
   (is.equal.wcs #x-100
     #2{
@@ -531,18 +776,33 @@
     long long int ll = -0x100ll;
     return ll;
     }#)
-  )
-
-(test test-reader-numeric-bad-suffix
-  (signals.wcs.reader () "#2{ return 0uu; }#")    
-  (signals.wcs.reader () "#2{ return 0lll; }#")
-  ;; (signals.wcs.reader () "#2{ return 1xx; }#")
-  (signals.wcs.reader () "#2{ return 0lL; }#")
-  (signals.wcs.reader () "#2{ return 0Ll; }#")
-  (signals.wcs.reader () "#2{ return 0Lul; }#")
-  (signals.wcs.reader () "#2{ return 0uuL; }#")
-  ;; 
-  )
+  (is.equal.wcs #b-101
+    #2{
+    return -0b101LL;
+    }#)
+  (is.equal.wcs #o-777
+    #2{
+    return -00777;
+    }#)
+  (is.equal.wcs -0d0
+    #2{
+    return -0e0;
+    }#)
+  (is.equal.wcs -0d0
+    #2{
+    return -0x0p0;
+    }#)
+  ;; minus exponents
+  (is.equal.wcs -1d-1
+    #2{
+    return -1e-1L;
+    }#)
+  (signals.wcs.reader () "#2{ return -1e -1L; }#")
+  (is.equal.wcs (* -1d0 (expt 2 -1)) 
+    #2{
+    return -0x1p-1L;
+    }#)
+  (signals.wcs.reader () "#2{ return -0x1p -1L; }#"))
 
 #.(setf *with-c-syntax-reader-level* nil)
 

@@ -39,6 +39,7 @@ This library is quicklisp-ready.
 - cl-yacc
 - alexandria
 - named-readtables
+- cl-ppcre  
 
 **** by libc
 - osicat

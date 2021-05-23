@@ -345,42 +345,37 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
 
 (defun find-numeric-literal-type (pp-number-string)
   "Looks PP-NUMBER-STRING and returns its radix (integer) and type (:float or :integer)."
-  (multiple-value-bind (base floatp)
-      ;; See prefix.
-      (case (char pp-number-string 0)   ; I use `ecase' 
-        (#\.
-         (values 10 t)) ; fractional-constant, a part of decimal-floating-constant.
-        (#\0
-         (if (length= 1 pp-number-string) ; '0'
-             (values 10 nil)
-             (case (char pp-number-string 1)
-               ((#\b #\B)               ; binary-constant. Since C23.
-                (values 2 nil))
-               ((#\x #\X) ; hexadecimal-constant or hexadecimal-floating-constant.
-                (values 16 :unspecific))
-               ((#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7) ; octal-constant.
-                (values 8 nil))
-               (otherwise
-                (values 10 :unspecific))))) ; Decimal. May be '0u' or '0.'
-        ((#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9) ; decimal-constant or decimal-floating-constant
-         (values 10 :unspecific))
-        (otherwise     ; This is a bug of `read-preprocessing-number'.
-         (error 'with-c-syntax-reader-error
-                :format-control "~A contains a prefix as a numeric constants."
-                :format-arguments (list pp-number-string))))
-    ;; Determine type.
-    (when (eq floatp :unspecific)
-      (setf floatp
-            (find-if (ecase base
-                       (10 (lambda (c) (member c '(#\. #\e #\E))))
-                       (16 (lambda (c) (member c '(#\. #\p #\P))))) 
-                     pp-number-string)))
-    (values base floatp)))
+  (flet ((find-decimal-float-marker ()
+           (find-if (lambda (c) (member c '(#\. #\e #\E))) pp-number-string))
+         (find-hexadecimal-float-marker ()
+           (find-if (lambda (c) (member c '(#\. #\p #\P))) pp-number-string)))
+    ;; See prefix.
+    (case (char pp-number-string 0)
+      (#\.
+       (values 10 t)) ; fractional-constant, a part of decimal-floating-constant.
+      (#\0
+       (if (length= 1 pp-number-string) ; '0'
+           (values 8 nil)
+           (case (char pp-number-string 1)
+             ((#\b #\B)                 ; binary-constant. Since C23.
+              (values 2 nil))
+             ((#\x #\X) ; hexadecimal-constant or hexadecimal-floating-constant.
+              (values 16 (find-hexadecimal-float-marker)))
+             (otherwise
+              ;; May be octal (like '007' or '0u'), or decimal float ('0.').
+              (if (find-decimal-float-marker)
+                  (values 10 t)
+                  (values 8 nil))))))
+      ((#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9) ; decimal-constant or decimal-floating-constant
+       (values 10 (find-decimal-float-marker)))
+      (otherwise       ; This is a bug of `read-preprocessing-number'.
+       (error 'with-c-syntax-reader-error
+              :format-control "~A contains a prefix as a numeric constants."
+              :format-arguments (list pp-number-string))))))
 
 (defun number-prefix-length (radix)
   (ecase radix
-    (10 0)
-    (8 1)
+    ((10 8) 0)
     ((2 16) 2)))
 
 (defun read-integer-constant (pp-number-string radix)
@@ -439,14 +434,76 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
      unsigned-p
      integer-size)))
 
+(defun find-lisp-type-by-c-floating-suffix (suffix)
+  (cond ((or (null suffix) (string= suffix "")) 'double-float)
+        ((string-equal suffix "f") 'single-float)
+        ((string-equal suffix "l") 'long-float)
+        (t (assert nil () "Unknown float suffix ~A" suffix))))
+
+(defun read-decimal-floating-constant (pp-number-string)
+  ;; See '6.4.4.2 Floating Constants' in ISO/IEC 9899:1999.
+  (flet ((read-decimal-float (fractional exponent suffix)
+           (let ((lisp-float-string
+                   (format nil "~A~C~A"
+                           fractional
+                           (ecase (find-lisp-type-by-c-floating-suffix suffix)
+                             (single-float #\f)
+                             (double-float #\d)
+                             (long-float #\l))
+                           exponent)))
+             (with-standard-io-syntax
+               (read-from-string lisp-float-string)))))
+    (or
+     (cl-ppcre:register-groups-bind (fractional exponent suffix)
+         ("^([0-9]*\\.[0-9]+|[0-9]+\\.)(?:[eE]([+-]?[0-9]+)|(?:))([flFL]?)$"
+          pp-number-string :sharedp t)
+       (read-decimal-float fractional
+                           (if (or (null exponent) (string= exponent ""))
+                               "0"
+                               exponent)
+                           suffix))
+     (cl-ppcre:register-groups-bind (fractional exponent suffix)
+         ("^([0-9]+)[eE]([+-]?[0-9]+)([flFL]?)$"
+          pp-number-string :sharedp t)
+       (read-decimal-float fractional exponent suffix))
+     (error 'with-c-syntax-reader-error
+            :format-control "Decimal floating constant '~A' cannot be read."
+            :format-arguments (list pp-number-string)))))
+
+(defun read-hexadecimal-floating-constant (pp-number-string)
+  ;; See '6.4.4.2 Floating Constants' in ISO/IEC 9899:1999.
+  (flet ((read-hex-float (int-part frac-part exponent suffix)
+           (let* ((prototype (coerce 1 (find-lisp-type-by-c-floating-suffix suffix)))
+                  (significand-string (format nil "~A~A" int-part frac-part)) ; scales frac-part to integer.
+                  (significand-int (parse-integer significand-string :radix 16))
+                  (frac-part-length (length frac-part))
+                  (exp-num (+ (if exponent (parse-integer exponent :radix 10) 0)
+                              (* -4 frac-part-length)))) ; Decrease exponent corresponding to the scaling above.
+             ;; Inverse of `integer-decode-float'. See the Hyperspec.
+             (scale-float (float significand-int prototype)
+                          exp-num))))
+    (or
+     (cl-ppcre:register-groups-bind (int-part frac-part exponent suffix)
+         ("^0[xX]([0-9a-fA-F]*)\\.([0-9a-fA-F]+)[pP]([+-]?[0-9]+)([flFL]?)$"
+          pp-number-string :sharedp t)
+       (read-hex-float int-part frac-part exponent suffix))
+     (cl-ppcre:register-groups-bind (int-part exponent suffix)
+         ("^0[xX]([0-9a-fA-F]+)\\.?[pP]([+-]?[0-9]+)([flFL]?)$"
+          pp-number-string :sharedp t)
+       (read-hex-float int-part "" exponent suffix))
+     (error 'with-c-syntax-reader-error
+            :format-control "Hexadecimal floating constant '~A' cannot be read."
+            :format-arguments (list pp-number-string)))))
+
 (defun read-numeric-literal (stream c0)
-  "Read a C numeric literal of approximate format (0([XxBb])?)?([0-9A-Fa-f.']+)([Uu])?([Ll]{1,2})? .
-Scientific notation not yet supported."
+  "Read a C numeric literal."
   (let ((pp-number (read-preprocessing-number stream c0)))
     (multiple-value-bind (radix floatp)
         (find-numeric-literal-type pp-number)
       (if floatp
-          (error "TODO")
+          (ecase radix
+            (10 (read-decimal-floating-constant pp-number))
+            (16 (read-hexadecimal-floating-constant pp-number)))
           (read-integer-constant pp-number radix)))))
 
 (defun install-c-reader (readtable level)
@@ -494,17 +551,16 @@ Scientific notation not yet supported."
     (set-macro-character #\< #'read-shift nil readtable)
     (set-macro-character #\> #'read-shift nil readtable)
     (set-macro-character #\/ #'read-slash nil readtable)
-    ;; (set-macro-character #\- #'read-numeric-literal nil readtable) ;; FIXME: Handle negative numbers correctly
-    (set-macro-character #\0 #'read-numeric-literal nil readtable)
-    (set-macro-character #\1 #'read-numeric-literal nil readtable)
-    (set-macro-character #\2 #'read-numeric-literal nil readtable)
-    (set-macro-character #\3 #'read-numeric-literal nil readtable)
-    (set-macro-character #\4 #'read-numeric-literal nil readtable)
-    (set-macro-character #\5 #'read-numeric-literal nil readtable)
-    (set-macro-character #\6 #'read-numeric-literal nil readtable)
-    (set-macro-character #\7 #'read-numeric-literal nil readtable)
-    (set-macro-character #\8 #'read-numeric-literal nil readtable)
-    (set-macro-character #\9 #'read-numeric-literal nil readtable))
+    (set-macro-character #\0 #'read-numeric-literal t readtable)
+    (set-macro-character #\1 #'read-numeric-literal t readtable)
+    (set-macro-character #\2 #'read-numeric-literal t readtable)
+    (set-macro-character #\3 #'read-numeric-literal t readtable)
+    (set-macro-character #\4 #'read-numeric-literal t readtable)
+    (set-macro-character #\5 #'read-numeric-literal t readtable)
+    (set-macro-character #\6 #'read-numeric-literal t readtable)
+    (set-macro-character #\7 #'read-numeric-literal t readtable)
+    (set-macro-character #\8 #'read-numeric-literal t readtable)
+    (set-macro-character #\9 #'read-numeric-literal t readtable))
   ;; TODO: If I support trigraphs or digraphs, I'll add them here.
   ;; (But I think these are not needed because the Standard characters include
   ;; the replaced characters/)
