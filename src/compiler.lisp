@@ -970,6 +970,28 @@ This is not intended for calling directly. The `va_start' macro uses this."
                  dynamic-established-syms
 		 (nreverse toplevel-defs)))))
 
+(defmacro wcs-toplevel-let* (bindings &body body)
+  "Works like `LET*' except if BINDINGS was empty this macro is expanded to `locally'.
+ This macro is intended to make expansion of `with-c-syntax' to be a top-level form."
+  (if bindings
+      `(let* ,bindings ,@body)
+      `(locally ,@body)))
+
+(defmacro wcs-toplevel-labels (local-functions &body body)
+  "Works like `LABELS' except if LOCAL-FUNCTIONS was empty this macro is expanded to `locally'.
+ This macro is intended to make expansion of `with-c-syntax' to be a top-level form."
+  (if local-functions
+      `(labels ,local-functions ,@body)
+      `(locally ,@body)))
+
+(defmacro with-wcs-dynamic-bound-symbols ((&rest symbols) &body body)
+  "Inside this, passed symbols are dynamically bound to itself."
+  (if symbols
+      `(let ,(loop for s in symbols collect `(,s ,s))
+         (declare (special ,@symbols))
+         ,@body)
+      `(locally ,@body)))
+
 (defun expand-toplevel (mode decls fdefs code)
   "This is a final compilation phase. Makes a toplevel form.
 ~mode~ is one of :statement or :translation-unit"
@@ -1056,23 +1078,20 @@ This is not intended for calling directly. The `va_start' macro uses this."
     (prog1
         `(progn
 	   ,@toplevel-defs
-	   (replace-operator-if-no-bindings locally
-	     (let* (,@lexical-binds)
-	       (declare (dynamic-extent ,@dynamic-extent-vars)
-			(special ,@special-vars))
-	       ;; 'global-defs' must be here, because some global variables may use
-	       ;; 'static' variables, which are lexically bound.
-	       ,@global-defs
-	       (replace-operator-if-no-bindings progn
-	         (labels (,@local-funcs)	; 'static' functions.
-		   ,@func-defs		; 'global' functions.
-		   (replace-operator-if-no-bindings progn
-		     (with-dynamic-bound-symbols
-			 ,(ecase mode
-			    (:statement *dynamic-binding-requested*)
-			    (:translation-unit nil))
-		       (symbol-macrolet (,@sym-macro-defs)
-			 ,@code))))))))
+	   (wcs-toplevel-let* (,@lexical-binds)
+	     (declare (dynamic-extent ,@dynamic-extent-vars)
+		      (special ,@special-vars))
+	     ;; 'global-defs' must be here, because some global variables may use
+	     ;; 'static' variables, which are lexically bound.
+	     ,@global-defs
+	     (wcs-toplevel-labels (,@local-funcs) ; 'static' functions.
+	       ,@func-defs		; 'global' functions.
+	       (with-wcs-dynamic-bound-symbols
+		   ,(ecase mode
+		      (:statement *dynamic-binding-requested*)
+		      (:translation-unit nil))
+		 (symbol-macrolet (,@sym-macro-defs)
+		   ,@code)))))
       ;; drop expanded definitions
       (loop for sym in cleanup-typedef-names
          do (remove-typedef sym))
