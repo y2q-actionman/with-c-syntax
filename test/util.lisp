@@ -55,3 +55,8 @@
      (unwind-protect (progn ,@body)
        (mapcar #'makunbound ',symbols)
        (mapcar #'fmakunbound ',symbols))))
+
+(defmacro signals.wcs.reader ((&optional (condition 'with-c-syntax-error)) string)
+  `(let ((*readtable* (copy-named-readtable 'with-c-syntax:with-c-syntax-readtable)))
+     (signals ,condition
+       (read-from-string ,string))))
