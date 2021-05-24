@@ -18,8 +18,9 @@
                  (:file "typedef" :depends-on ("package"))
                  (:file "pseudo-pointer" :depends-on ("util" "condition"))
                  (:file "preprocessor" :depends-on ("condition"))
-                 (:file "with-c-syntax"
+                 (:file "compiler"
 		  :depends-on ("struct" "typedef" "pseudo-pointer" "preprocessor"))
+                 (:file "with-c-syntax" :depends-on ("compiler"))
                  (:file "reader" :depends-on ("with-c-syntax"))))
                (:module "libc"
 		:serial nil	
