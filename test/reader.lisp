@@ -3,7 +3,7 @@
 (in-readtable with-c-syntax-readtable)
 
 ;;; These reader variables should be evaluated in read-time.
-#.(setf *with-c-syntax-reader-level* nil)
+#.(setf *with-c-syntax-reader-level* with-c-syntax.core::+with-c-syntax-default-reader-level+)
 #.(setf *with-c-syntax-reader-case* nil)
 
 (test test-nil-reading
@@ -804,14 +804,14 @@
     }#)
   (signals.wcs.reader () "#2{ return -0x1p -1L; }#"))
 
-#.(setf *with-c-syntax-reader-level* nil)
-
+#.(setf *with-c-syntax-reader-level* 2)
 #0{
 int test-reader-toplevel-conservative \( \) {
   return t \;
 }
 }#
 
+#.(setf *with-c-syntax-reader-level* 0)
 #1{
 int test-reader-toplevel-aggressive(){
   int hoge-array[]={0,1,2};
@@ -831,7 +831,7 @@ int test\-reader\-toplevel\-overkill(){
   (is (test-reader-toplevel-aggressive))
   (is (test-reader-toplevel-overkill)))
 
-#.(setf *with-c-syntax-reader-level* nil)
+#.(setf *with-c-syntax-reader-level* with-c-syntax.core::+with-c-syntax-default-reader-level+)
 #.(setf *with-c-syntax-reader-case* :preserve)
 (test test-reader-case-sensitivity
   (is.equal.wcs nil
@@ -843,5 +843,5 @@ int test\-reader\-toplevel\-overkill(){
     }#))
 
 ;;; Agh, I need file-local variable..
-#.(setf *with-c-syntax-reader-level* nil)
+#.(setf *with-c-syntax-reader-level* with-c-syntax.core::+with-c-syntax-default-reader-level+)
 #.(setf *with-c-syntax-reader-case* nil)

@@ -2,10 +2,9 @@
 
 (defconstant +with-c-syntax-default-reader-level+ 1)
 
-(defvar *with-c-syntax-reader-level* nil
+(defvar *with-c-syntax-reader-level* +with-c-syntax-default-reader-level+
   "Holds the reader level used by '#{' reader function.
-The value is one of 0, 1, 2, or nil (default).
-The default is nil, recognized same as `+with-c-syntax-default-reader-level+'.
+The value is one of 0, 1 (default), 2.
 
 For inside '#{' and '}#', three syntaxes are defined. These syntaxes
 are selected by the infix parameter of the '#{' dispatching macro
@@ -568,9 +567,7 @@ wrapped with `with-c-syntax' form.
   (let* ((*previous-syntax* *readtable*)
          (*readtable* (copy-readtable))
          (*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
-         (level (if n (alexandria:clamp n 0 2)
-                    (or *with-c-syntax-reader-level*
-                        +with-c-syntax-default-reader-level+)))
+         (level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2))
          (keyword-case (or *with-c-syntax-reader-case*
                            (readtable-case *readtable*))))
     (setf (readtable-case *readtable*) keyword-case)
