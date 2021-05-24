@@ -155,7 +155,7 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
 #+BEGIN_SRC lisp
   (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
 
-  (defun w-c-s-duff-device (to-seq from-seq cnt)
+  (defun wcs-duff-device (to-seq from-seq cnt)
       #{
       int *to = &to-seq;
       int *from = &from-seq;
@@ -175,12 +175,17 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
       }
       }#
     to-seq)
-  
-  (setf arr1 (make-array 20 :initial-element 1))
-  (setf arr2 (make-array 20 :initial-element 2))
-  (w-c-s-duff-device arr1 arr2 10)
-  
-  arr1 ;; => #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
+
+  (defparameter *array-1*
+    (make-array 20 :initial-element 1))
+
+  ;; C syntax can also be used for defining a variable.
+  #{
+  int *array-2* [] = {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
+  }#
+
+  (wcs-duff-device *array-1* *array-2* 10)
+  (print *array-1*) ;; => #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
 #+END_SRC
 
 This example shows some C operators (=++=, =--=, unary =*= and =&=)

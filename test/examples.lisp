@@ -1,6 +1,6 @@
 (in-package #:with-c-syntax.test)
 
-(defun w-c-s-hello-world ()
+(defun wcs-hello-world ()
   (with-c-syntax ()
     format \( t \, "Hello, World!" \) \;
     ))
@@ -8,25 +8,25 @@
 (test test-hello-world
   (is (string= "Hello, World!"
 	       (with-output-to-string (*standard-output*)
-		 (w-c-s-hello-world)))))
+		 (wcs-hello-world)))))
 
-(defun w-c-s-add-const ()
+(defun wcs-add-const ()
   (with-c-syntax ()
     return 1 + 2 \;
     ))
 
 (test test-add-const
-  (is (= 3 (w-c-s-add-const))))
+  (is (= 3 (wcs-add-const))))
 
-(defun w-c-s-add-args (x y)
+(defun wcs-add-args (x y)
   (with-c-syntax ()
     return x + y \;
     ))
 
 (test test-add-args
-  (is (= 3 (w-c-s-add-args 1 2))))
+  (is (= 3 (wcs-add-args 1 2))))
 
-(defun w-c-s-while-loop (&aux (x 0))
+(defun wcs-while-loop (&aux (x 0))
   (with-c-syntax ()
     while \( x < 100 \)
       x ++ \;
@@ -34,9 +34,9 @@
     ))
 
 (test test-while-loop
-  (is (= 100 (w-c-s-while-loop))))
+  (is (= 100 (wcs-while-loop))))
   
-(defun w-c-s-for-loop ()
+(defun wcs-for-loop ()
   (let ((i 0) (sum 0))
     (with-c-syntax ()
       for \( i = 0 \; i <= 100 \; ++ i \)
@@ -45,9 +45,9 @@
     sum))
 
 (test test-for-loop
-  (is (= 5050 (w-c-s-for-loop))))
+  (is (= 5050 (wcs-for-loop))))
 
-(defun w-c-s-loop-continue-break (&aux (i 0) (sum 0))
+(defun wcs-loop-continue-break (&aux (i 0) (sum 0))
   (with-c-syntax ()
     for \( i = 0 \; i < 100 \; ++ i \) {
       if \( (oddp i) \)
@@ -60,9 +60,9 @@
    ))
 
 (test test-loop-continue-break
-  (is (= 600 (w-c-s-loop-continue-break))))
+  (is (= 600 (wcs-loop-continue-break))))
 
-(defun w-c-s-switch (x &aux (ret nil))
+(defun wcs-switch (x &aux (ret nil))
   (with-c-syntax ()
     switch \( x \) {
     case 1 \:
@@ -83,13 +83,13 @@
   (nreverse ret))
 
 (test test-switch
-  (is (equal '(case1) (w-c-s-switch 1)))
-  (is (equal '(case2 case3) (w-c-s-switch 2)))
-  (is (equal '(case3) (w-c-s-switch 3)))
-  (is (equal '(case4) (w-c-s-switch 4)))
-  (is (equal '(default) (w-c-s-switch 5))))
+  (is (equal '(case1) (wcs-switch 1)))
+  (is (equal '(case2 case3) (wcs-switch 2)))
+  (is (equal '(case3) (wcs-switch 3)))
+  (is (equal '(case4) (wcs-switch 4)))
+  (is (equal '(default) (wcs-switch 5))))
 
-(defun w-c-s-goto (&aux (ret nil))
+(defun wcs-goto (&aux (ret nil))
   (with-c-syntax ()
       goto d \;
 
@@ -114,9 +114,9 @@
     ))
 
 (test test-goto
-  (is (equal '(d a b e c) (w-c-s-goto))))
+  (is (equal '(d a b e c) (wcs-goto))))
 
-(defun w-c-s-pointer (xxx &aux z)
+(defun wcs-pointer (xxx &aux z)
   (with-c-syntax ()
     z =  & xxx \;
     * z += 1 \;
@@ -125,12 +125,12 @@
     ))
 
 (test test-pointer
-  (is (= 2 (w-c-s-pointer 0)))
-  (is (= 4 (w-c-s-pointer 1)))
-  (is (= 22 (w-c-s-pointer 10))))
+  (is (= 2 (wcs-pointer 0)))
+  (is (= 4 (wcs-pointer 1)))
+  (is (= 22 (wcs-pointer 10))))
 
 (in-readtable with-c-syntax-readtable)  
-(defun w-c-s-duff-device (to-seq from-seq cnt)
+(defun wcs-duff-device (to-seq from-seq cnt)
   (with-c-syntax ()
     #{
     int *to = &to-seq;
@@ -152,10 +152,15 @@
     }#)
   to-seq)
 
+#{
+int *array-2* [] = {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
+}#
+
 (test test-duff-device ()
   (let ((arr1 (make-array 20 :initial-element 1))
-	(arr2 (make-array 20 :initial-element 2)))
-    (w-c-s-duff-device arr1 arr2 10)
+	(arr2 (locally (declare (special *array-2*))
+                (copy-seq *array-2*))))
+    (wcs-duff-device arr1 arr2 10)
     (is (equalp #(2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1)
 		arr1))))
 
