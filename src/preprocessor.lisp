@@ -266,52 +266,55 @@ calls the function like:
        (nreverse ret))
     (declare (type list ret)
 	     (type boolean typedef-hack))
-    (when (symbolp token)
-      ;; interning C keywords.
-      (when-let ((c-op (intern-c-terminal (symbol-name token) case-sensitive)))
-	(push c-op ret)
-	(go processed!)) ; I assume all no proprocessor macros defined.
-      ;; interning libc keywords.
-      (when-let ((lib-op (intern-libc-symbol (symbol-name token) case-sensitive)))
-	(setf token lib-op))
-      ;; preprocessor macro
-      (when-let ((pp-macro (find-preprocessor-macro token)))
-	(cond ((functionp pp-macro)	; preprocessor funcion
-	       (multiple-value-bind (macro-arg new-lis)
-		   (collect-preprocessor-macro-arguments lis)
-		 (push (apply pp-macro macro-arg) ret)
-		 (setf lis new-lis)
-		 (go processed!)))
-	      (t			; symbol expansion
-               (push pp-macro ret)
-	       (go processed!))))
-      (unless (or (boundp token)
-                  (fboundp token))
-	(multiple-value-bind (splited-p results) (preprocessor-try-split token)
-	  (when splited-p
-	    (setf lis (nconc results lis))
-	    (go continue)))))
-    ;; string concatenation
-    (when (stringp token)
-      (loop for next = (first lis)
+    (typecase token
+      (symbol
+       ;; interning C keywords.
+       (when-let ((c-op (intern-c-terminal (symbol-name token) case-sensitive)))
+	 (push c-op ret)
+         ;; typedef hack -- adds "void ;" after each typedef.
+         (cond ((eq c-op '|typedef|)
+	        (setf typedef-hack t))
+	       ((and typedef-hack
+		     (eq c-op '\;))
+	        (setf typedef-hack nil)
+	        (revappendf ret '(|void| \;))))
+	 (go processed!)) ; I assume all no proprocessor macros defined.
+       ;; interning libc keywords.
+       (when-let ((lib-op (intern-libc-symbol (symbol-name token) case-sensitive)))
+	 (setf token lib-op)
+         ;; Fallthough. Libc macro shall be expended.
+         )
+       ;; preprocessor macro
+       (when-let ((pp-macro (find-preprocessor-macro token)))
+	 (cond ((functionp pp-macro)	; preprocessor funcion
+	        (multiple-value-bind (macro-arg new-lis)
+		    (collect-preprocessor-macro-arguments lis)
+		  (push (apply pp-macro macro-arg) ret)
+		  (setf lis new-lis)
+		  (go processed!)))
+	       (t			; symbol expansion
+                (push pp-macro ret)
+	        (go processed!))))
+       (unless (or (boundp token)
+                   (fboundp token))
+	 (multiple-value-bind (splited-p results) (preprocessor-try-split token)
+	   (when splited-p
+	     (setf lis (nconc results lis))
+	     (go processed!))))
+       ;; otherwise..
+       (push token ret))
+      (string
+       ;; string concatenation
+       (loop for next = (first lis)
 	 while (stringp next)
 	 collect (pop lis) into strs
 	 finally
 	   (push (apply #'concatenate 'string token strs) ret)
 	   (go processed!)))
-    ;; otherwise..
-    (push token ret)
-
+      (t
+       (push token ret)))
    processed!
-
-    ;; typedef hack -- adds "void ;" after each typedef.
-    (cond ((eq (first ret) '|typedef|)
-	   (setf typedef-hack t))
-	  ((and typedef-hack
-		(eq (first ret) '\;))
-	   (setf typedef-hack nil)
-	   (revappendf ret '(|void| \;))))
-   continue))
+   ))
 
 ;;; NOTE:
 ;;; I don't plan to implemente the C preprocessor fully.
