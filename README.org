@@ -1,12 +1,5 @@
 # -*- mode: org; coding: utf-8; -*-
 
-* 概要
-*with-c-syntax* は、 Common Lisp に C 言語の記法を持ち込む一発ネタのパッ
-ケージです。全くもって真面目な用途は想定していません。
-
-現在、 C プリプロセッサを除く、 ISO C 90 の freestanding 環境に相当す
-る全ての機能を使用できます。
-
 * Abstract
 *with-c-syntax* is a fun package which introduces the C language
 syntax into Common Lisp. (Yes, this package is not for practical
@@ -17,51 +10,13 @@ freestanding implementation. (The lacking part is the full
 implementation of the C Preprocessor.)
 
 * News
+** 2021-5-24
+   - C Numeric Literals are added. (Inspired by [[https://github.com/akanouras][@akanouras]]. See [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
+   
 ** 2019-4-25
 - I added some special handlings around =++=, =*=, etc.
   The *Duff's Device* example becomes prettier.
 - I added a new  example, *C in Lisp in C in Lisp*. (+unholy mixture..+)
-
-* Loading
-
-** Loading by quicklisp
-
-This library is quicklisp-ready.
-[[http://quickdocs.org/with-c-syntax][http://quickdocs.org/badge/with-c-syntax.svg]]
-
-#+BEGIN_SRC lisp
-(ql:quickload "with-c-syntax")
-#+END_SRC
-
-** or, Loading manually
-
-*** Libraries depending on
-- cl-yacc
-- alexandria
-- named-readtables
-- cl-ppcre  
-
-**** by libc
-- osicat
-- float-features
-- floating-point-contractions
-
-**** by test codes
-- 1am
-- trivial-cltl2
-- floating-point
-
-*** Load with ASDF
-#+BEGIN_SRC lisp
-(asdf:load-asd "with-c-syntax.asd")
-(asdf:load-system :with-c-syntax)
-#+END_SRC
-
-*** Running tests
-#+BEGIN_SRC lisp
-(asdf:load-asd "with-c-syntax-test.asd")
-(asdf:test-system :with-c-syntax)
-#+END_SRC
 
 * Examples
 ** Hello, World
@@ -241,13 +196,54 @@ I used =`= for using =with-open-file= in Lisp syntax.
 (You can use any Lisp operators including =with-open-file= in =with-c-syntax= style.
 However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/blob/e3e9ae2f1f29115f30141e3ada33372e2ce6b65d/test/libc_string.lisp#L143][An example exists in my test code]].)
 
+* How to load
+
+** Loading by quicklisp
+
+This library is quicklisp-ready.
+[[http://quickdocs.org/with-c-syntax][http://quickdocs.org/badge/with-c-syntax.svg]]
+
+#+BEGIN_SRC lisp
+(ql:quickload "with-c-syntax")
+#+END_SRC
+
+** or, Loading manually
+
+*** Libraries depending on
+- cl-yacc
+- alexandria
+- named-readtables
+- cl-ppcre  
+
+**** by libc
+- osicat
+- float-features
+- floating-point-contractions
+
+**** by test codes
+- 1am
+- trivial-cltl2
+- floating-point
+
+*** Load with ASDF
+#+BEGIN_SRC lisp
+(asdf:load-asd "with-c-syntax.asd")
+(asdf:load-system :with-c-syntax)
+#+END_SRC
+
+*** Running tests
+#+BEGIN_SRC lisp
+(asdf:load-asd "with-c-syntax-test.asd")
+(asdf:test-system :with-c-syntax)
+#+END_SRC
+
 * API
 Please see these docstrings or comments:
 
-- Macro ~with-c-syntax~
-- defreadtable of ~with-c-syntax-readtable~
-- Variable ~*with-c-syntax-reader-level*~
-- Variable ~*with-c-syntax-reader-case*~
+- Macro [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/with-c-syntax.lisp#L38][~with-c-syntax~]]
+- Comments around [[https://github.com/y2q-actionman/with-c-syntax/blob/master/src/reader.lisp#L561][~with-c-syntax-readtable~]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L5][~*with-c-syntax-reader-level*~]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L90][~*with-c-syntax-reader-case*~]]
 
 * Further Information
 What this macro does is only expanding a list of symbols to a Lisp form.
