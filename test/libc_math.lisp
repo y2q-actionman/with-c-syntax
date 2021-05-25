@@ -478,10 +478,10 @@
   // ; Specials
   is (floor (0.0) == 0.0);
   is (floor (-0.0) == -0.0);
-  signals (arithmetic-error, floor (double-float-positive-infinity));
-  may-fail (floor (double-float-positive-infinity) == double-float-positive-infinity);
-  signals (arithmetic-error, floor (double-float-negative-infinity));
-  may-fail (floor (double-float-negative-infinity) == double-float-negative-infinity);
+  // signals (arithmetic-error, floor (double-float-positive-infinity));
+  is (floor (double-float-positive-infinity) == double-float-positive-infinity);
+  // signals (arithmetic-error, floor (double-float-negative-infinity));
+  is (floor (double-float-negative-infinity) == double-float-negative-infinity);
   // ; TODO: add NaN test.
   }#)
 
