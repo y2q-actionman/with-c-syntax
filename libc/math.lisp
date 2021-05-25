@@ -114,7 +114,10 @@
   (fceiling x))                            ; no error
 
 (defun |floor| (x)
-  (ffloor x))                            ; no error
+  (if (or (float-infinity-p x)
+          (float-nan-p x))
+      x
+      (ffloor x)))
 
 (defun |trunc| (x)                      ; C99
   (ftruncate x))                        ; no error
