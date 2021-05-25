@@ -197,10 +197,11 @@
 (defconstant HUGE_VALL                  ; C99
   long-float-positive-infinity)
 
-(defconstant INFINITY                  ; C99
+(defconstant INFINITY                   ; C99
   single-float-positive-infinity)
 
-;; TODO: 'NAN'
+(defconstant NAN                        ; C99
+  double-float-nan)
 
 ;;; FPCLASSIFY (C99)
 
