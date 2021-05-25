@@ -88,15 +88,15 @@ Lisp.  Especially, for denoting a symbol has terminating characters,
 escapes are required. (ex. most\-positive\-fixnum)")
 
 (defvar *with-c-syntax-reader-case* nil
-  "Holds the reader case used by '#{' reader function.
+  "Holds the readtable case used by '#{' reader function.
 
 When this is not nil, it must be one of `:upcase', `:downcase',
 `:preserve', or `:invert'.  The specified case is used as the
 readtable-case inside '#{' and '}#' and passed to the
 wrapping `with-c-syntax' form.
 
-When this is nil, it is used as the readtable-case of `*readtable*' at
-'#{'.")
+When this is nil, the `readtable-case' of the current `*readtable*' at
+'#{' is used." )
 
 (defvar *previous-syntax* (copy-readtable)
   "Holds the readtable used by #\` syntax.
@@ -126,14 +126,6 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
 	   (let ((*readtable* (copy-readtable)))
 	     (set-syntax-from-char char #\@) ; gets the constituent syntax.
 	     (return (read-from-string buf t nil))))))
-
-(defun read-2chars-delimited-list (c1 c2 &optional stream recursive-p)
-  (loop for lis = (read-delimited-list c1 stream recursive-p)
-     nconc lis
-     until (char= c2 (peek-char nil stream t nil recursive-p))
-     collect (symbolicate c1)	; assumes c1 is a kind of terminating.
-     finally
-       (assert (char= c2 (read-char stream t nil recursive-p))))) ; eat the peeked char.
 
 (defun read-slash-comment (stream char
                            &optional (next-function #'read-lonely-single-symbol))
@@ -558,23 +550,29 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
   ;; - 'L' prefix of character literals.
   readtable)
 
+(defun read-2chars-delimited-list (c1 c2 &optional stream recursive-p)
+  "Used by `read-in-c-syntax' for reading '#{ ... }#' syntax."
+  (loop for lis = (read-delimited-list c1 stream recursive-p)
+     nconc lis
+     until (char= c2 (peek-char nil stream t nil recursive-p))
+     collect (symbolicate c1)	; assumes c1 is a kind of terminating.
+     finally
+       (assert (char= c2 (read-char stream t nil recursive-p))))) ; eat the peeked char.
+
 (defun read-in-c-syntax (stream char n)
   "Called by '#{' reader macro of `with-c-syntax-readtable'.
 Inside '#{' and '}#', the reader uses completely different syntax, and
-wrapped with `with-c-syntax' form.
+the result is wrapped with `with-c-syntax'.
  See `*with-c-syntax-reader-level*' and `*with-c-syntax-reader-case*'."
   (assert (char= char #\{))
   (let* ((*previous-syntax* *readtable*)
          (*readtable* (copy-readtable))
          (*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
-         (level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2))
-         (keyword-case (or *with-c-syntax-reader-case*
-                           (readtable-case *readtable*))))
-    (setf (readtable-case *readtable*) keyword-case)
+         (level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2)))
+    (when *with-c-syntax-reader-case*
+      (setf (readtable-case *readtable*) *with-c-syntax-reader-case*))
     (install-c-reader *readtable* level)
-    ;; I forgot why this is required.. (2018-11-12)
-    ;; (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
-    `(with-c-syntax (:keyword-case ,keyword-case)
+    `(with-c-syntax ()
        ,@(read-2chars-delimited-list #\} #\# stream t))))
 
 (defreadtable with-c-syntax-readtable

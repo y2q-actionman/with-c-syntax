@@ -36,10 +36,10 @@ Establishes variable bindings for a new compilation.
 		   :yacc-error condition))))))
 
 (defmacro with-c-syntax ((&rest options
-			  &key (keyword-case (readtable-case *readtable*))
-                          (case-sensitive (ecase keyword-case
-                                            ((:upcase :downcase) nil)
-                                            ((:preserve :invert) t)))
+			  &key (case-sensitive
+                                (ecase (readtable-case *readtable*)
+                                  ((:upcase :downcase) nil)
+                                  ((:preserve :invert) t)))
 			  (return :auto)
 			  (try-add-{} t))
 			 &environment *wcs-expanding-environment*
@@ -50,8 +50,6 @@ interpreted as C syntax, executed, and return values.
 
 CASE-SENSITIVE specifies case-sensitivity in interpreting symbols.
 If nil, C syntactic keyworks and Libc functions are treated case-insentisively.
-
-KEYWORD-CASE is used for calculating CASE-SENSITIVE parameter.
 
 If RETURN is `:auto', returns the last form's value if BODY is a
 compound statement. (If BODY is a compilation unit, this returns NIL
