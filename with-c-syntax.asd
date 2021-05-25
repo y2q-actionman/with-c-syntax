@@ -33,7 +33,7 @@
                  (:file "float" :depends-on ("util"))
                  (:file "iso646" :depends-on ("util"))
                  (:file "limits" :depends-on ("util"))
-                 (:file "math" :depends-on ("util"))
+                 (:file "math" :depends-on ("util" "float"))
                  (:file "stdarg" :depends-on ("util"))
                  (:file "stddef" :depends-on ("util"))
 		 (:file "string" :depends-on ("util")))))

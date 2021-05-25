@@ -1,5 +1,24 @@
 (in-package #:with-c-syntax.libc-implementation)
 
+;;; TODO: These should be arranged by the order in C99 (ISO/IEC 9899).
+
+(locally
+    #+sbcl (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
+  (case FLT_EVAL_METHOD
+    (0
+     (add-typedef '|float_t| 'single-float)
+     (add-typedef '|double_t| 'double-float))
+    (1
+     (add-typedef '|float_t| 'double-float)
+     (add-typedef '|double_t| 'double-float))
+    (2
+     (add-typedef '|float_t| 'long-float)
+     (add-typedef '|double_t| 'long-float))
+    (otherwise
+     (warn "Please consult the author about `FLT_EVAL_METHOD'.")
+     (add-typedef '|float_t| 'single-float)
+     (add-typedef '|double_t| 'double-float))))
+
 ;;; I define only type-generic functions like <tgmath.h>,
 ;;; The numeric functions of Common Lisp are already so.
 
@@ -238,4 +257,4 @@
   (alexandria:lerp v a b))
 
 ;;; TODO:
-;;; float_t, double_t, MATH_ERRNO, MATH_ERREXCEPT, math_errhandling
+;;; MATH_ERRNO, MATH_ERREXCEPT, math_errhandling
