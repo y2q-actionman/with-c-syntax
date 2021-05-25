@@ -42,12 +42,13 @@
     ((#\space #\tab) t)
     (otherwise nil)))
 
-(defun |isprint| (char)			; assumes 'C' locale.
-  (not (|iscntrl| char)))
+(defun |isprint| (char)
+  (graphic-char-p char))
 
 (defun |ispunct| (char)			; assumes 'C' locale.
   (and (|isgraph| char)
-       (not (|isalnum| char))))
+       (not (|isalnum| char))
+       (not (|isspace| char))))
 
 (defun |tolower| (char)
   (char-downcase char))
