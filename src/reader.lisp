@@ -8,7 +8,7 @@ The value is one of 0, 1 (default), 2.
 
 For inside '#{' and '}#', three syntaxes are defined. These syntaxes
 are selected by the infix parameter of the '#{' dispatching macro
-character. If it not specified, its default is this value.
+character. If it not specified, the value of this variable is used.
 
 Available syntaxes are below:
 
@@ -30,29 +30,27 @@ many escapes using C symbols.
 
 In level 1, these reader macros are installed.
 
-- '{', '}', '[', ']' :: These become a terminating character,
-                        and read as a symbol.
-- '`' :: '`' reads a next s-exp in the previous syntax. This works as
-         an escape from '#{' and '}#' The 'backquote' functionality is
-         lost.
+- '{', '}', '[', ']' :: These become a terminating character, and read
+  as a symbol.
+- '`' :: '`' reads a next s-exp in `*previous-syntax*' readtable. This
+  works as an escape from '#{' and '}#'. The 'backquote' functionality
+  is lost.
 - '.' :: Reads a solely '.' as a symbol. The 'consing dot'
-         functionality is lost.
+  functionality is lost.
 - '\' :: The '\' becomes a ordinary constituent character. The
-         'multiple escaping' functionality is lost.
-- '/' :: '//' means a line comment, '/* ... */' means a block comment.
-         '/' is still non-terminating, and has special meanings only
-         if followed by '/' or '*'. Ex: 'a/b/c' or '/+aaa+/' are still
-         valid symbols.
-- ''' (single-quote) :: The single-quote works as a character literal
-                        of C. The 'quote' functionality is lost.
-- '\"' (double-quote) :: The double-quote works as a string literal of
-                         C. Especially, escaping is treated as C. The
-                         original functionality is lost.
-- ';' :: ';' becomes a terminating character, and read as a symbol.
-         The 'comment' functionality is lost.
+  'multiple escaping' functionality is lost.
+- '/' :: '//' means a line comment, '/* ... */' means a block
+  comment. '/' is still non-terminating, and has special meanings only
+  if followed by '/' or '*'. (Ex: 'a/b/c' or '/+aaa+/' are still valid
+  symbols.)
+- ''' :: The single-quote works as a character literal of C.  The
+  `quote' functionality is lost.
+- '\"' :: The double-quote works as a string literal of C. Especially,
+  escaping is treated as C. The original functionality is lost.
+- ';' :: ';' becomes a terminating character, and read as a
+  symbol. The 'comment' functionality is lost.
 - '(' and ')' :: parenthesis become a terminating character, and read
-                 as a symbol.  The 'reading a list' functionality is
-                 lost.
+  as a symbol.  The 'reading a list' functionality is lost.
 
 Level 1 overwrites macro characters in the standard syntax.  Only
 constituent characters are left unchanged.  Especially, '(' and ')'
@@ -80,12 +78,14 @@ symbol listed below.
 - '<' :: '<', '<<', or '<<='
 - '/' :: '/', or '/='. '//' means a line comment, and '/* ... */'
          means a block comment.
-- '.' :: '.' or a numeric literal of C language..
-- 0,1,2,3,4,5,6,7,8,9 :: A numeric literal of C language.
+- '.' :: '.' or a numeric literal of C language.
+
+And, digit characters (0,1,2,3,4,5,6,7,8,9) are read as a C numeric
+literals.
 
 In this level, there is no compatibilities between symbols of Common
-Lisp.  Especially, for denoting a symbol has terminating characters,
-escapes are required. (ex. most\-positive\-fixnum)")
+Lisp.  Especially, for denoting a symbol consists of terminating
+characters, escapes are required. (ex. most\-positive\-fixnum)")
 
 (defvar *with-c-syntax-reader-case* nil
   "Holds the readtable case used by '#{' reader function.
@@ -98,7 +98,7 @@ wrapping `with-c-syntax' form.
 When this is nil, the `readtable-case' of the current `*readtable*' at
 '#{' is used." )
 
-(defvar *previous-syntax* (copy-readtable)
+(defvar *previous-syntax* (copy-readtable nil)
   "Holds the readtable used by #\` syntax.
 This is bound by '#{' read macro to the `*readtable*' at that time.")
 
