@@ -572,7 +572,7 @@ the result is wrapped with `with-c-syntax'.
     (when *with-c-syntax-reader-case*
       (setf (readtable-case *readtable*) *with-c-syntax-reader-case*))
     (install-c-reader *readtable* level)
-    `(with-c-syntax ()
+    `(with-c-syntax (:readtable-case ,(readtable-case *readtable*)) ; Capture the readtable-case used for reading inside '#{ ... }#'.
        ,@(read-2chars-delimited-list #\} #\# stream t))))
 
 (defreadtable with-c-syntax-readtable
