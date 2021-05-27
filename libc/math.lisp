@@ -1,7 +1,6 @@
 ;;; Notes:
 ;;; 
-;;; * Currently, I define only type-generic functions like <tgmath.h>,
-;;; The numeric functions of Common Lisp are already so.
+;;; * Currently, I define only double-float versions, like C90.
 ;;; 
 ;;; * When using NaN, many mathematical functions of Common Lisp
 ;;; behave differently from C99. So I manually handle these
@@ -82,21 +81,26 @@
               ret)))))
 
 (defun |exp| (x)
+  (declare (type double-float x))
   (with-exp-family-error-handling (x 0.0d0)
     (exp x)))
 
 (defun |exp2| (x)                       ; C99
+  (declare (type double-float x))
   (with-exp-family-error-handling (x 0.0d0)
     (expt 2 x)))
 
 (defun |expm1| (x)
+  (declare (type double-float x))
   (with-exp-family-error-handling (x -1.0d0)
     (exp-1 x)))
 
 (defun |fabs| (x)
+  (declare (type double-float x))
   (abs x))                              ; no error
 
 (defun |fmod| (x y)
+  (declare (type double-float x y))
   (cond ((or (float-nan-p x) (float-nan-p y))
          double-float-nan)
         ((or (float-infinity-p x) (zerop y))
@@ -108,6 +112,7 @@
          (nth-value 1 (ftruncate x y)))))
 
 (defun |remainder| (x y)                ; C99
+  (declare (type double-float x y))
   (cond ((or (float-nan-p x) (float-nan-p y))
          double-float-nan)
         ((and (float-infinity-p x) (not (float-nan-p y)))
@@ -121,6 +126,7 @@
          (nth-value 1 (fround x y)))))
 
 (defun remquo* (x y)                    ; C99
+  (declare (type double-float x y))
   (cond ((or (float-nan-p x) (float-nan-p y))
          double-float-nan)
         ((or (and (float-infinity-p x) (not (float-nan-p y)))
@@ -149,6 +155,7 @@
        (bits-double-float new-nan-bits)))))
 
 (defun |fdim| (x y)                     ; C99
+  (declare (type double-float x y))
   (cond ((or (float-nan-p x) (float-nan-p y))
          double-float-nan)
         ((<= x y) 
@@ -175,10 +182,12 @@
             ,@body))))
 
 (defun |fmax| (x y)
+  (declare (type double-float x y))
   (with-fmax-fmin-parameter-check (x y)
     (max x y)))
 
 (defun |fmin| (x y)
+  (declare (type double-float x y))
   (with-fmax-fmin-parameter-check (x y)
     (min x y)))
 
