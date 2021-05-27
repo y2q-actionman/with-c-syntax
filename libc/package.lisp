@@ -53,6 +53,7 @@
    #:|isnan| #:|isinf| #:|isfinite| #:|isnormal| #:|fpclassify| ; C99
    #:FP_NAN #:FP_INFINITE #:FP_ZERO #:FP_SUBNORMAL #:FP_NORMAL
    #:|signbit|                          ; C99
+   #:|isgreater| #:|isgreaterequal| #:|isless| #:|islessequal| #:|islessgreater| #:|isunordered| ; C99
    #:|lerp|                             ; C++20
    ;; stdarg
    #:|va_list|

@@ -292,7 +292,36 @@
 (defun |signbit| (x)
   (minusp (float-sign x)))
 
-;;; TODO: isgreater, isgreaterequal, isless, islessequal, islessgreater, isunordered
+(defun |isgreater| (x y)        ; FIXME: In C99, this must be a macro.
+  (if (|isunordered| x y)
+      nil
+      (> x y)))
+
+(defun |isgreaterequal| (x y)   ; FIXME: In C99, this must be a macro.
+  (if (|isunordered| x y)
+      nil
+      (>= x y)))
+
+(defun |isless| (x y)           ; FIXME: In C99, this must be a macro.
+  (if (|isunordered| x y)
+      nil
+      (< x y)))
+
+(defun |islessequal| (x y)      ; FIXME: In C99, this must be a macro.
+  (if (|isunordered| x y)
+      nil
+      (<= x y)))
+
+(defun |islessgreater| (x y)    ; FIXME: In C99, this must be a macro.
+  (if (|isunordered| x y)
+      nil
+      (/= x y)))
+
+(defun |isunordered| (x y)      ; FIXME: In C99, this must be a macro.
+  (or (float-nan-p x) (float-nan-p y)))
+
+(define-compiler-macro |isunordered| (x y)
+  `(or (float-nan-p ,x) (float-nan-p ,y)))
 
 ;;; C++20
 ;;; I found it in https://cpprefjp.github.io/reference/cmath/lerp.html
