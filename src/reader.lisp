@@ -37,8 +37,6 @@ In level 1, these reader macros are installed.
   is lost.
 - '.' :: Reads a solely '.' as a symbol. The 'consing dot'
   functionality is lost.
-- '\' :: The '\' becomes a ordinary constituent character. The
-  'multiple escaping' functionality is lost.
 - '/' :: '//' means a line comment, '/* ... */' means a block
   comment. '/' is still non-terminating, and has special meanings only
   if followed by '/' or '*'. (Ex: 'a/b/c' or '/+aaa+/' are still valid
@@ -246,7 +244,7 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
         (read-numeric-literal stream char)
         (read-single-character-symbol stream char))))
 
-(defun read-single-or-equal-symbol (stream char)
+(defun read-single-or-compound-assign (stream char)
   (let ((next (peek-char nil stream t nil t)))
     (case next
       (#\=
@@ -256,13 +254,13 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
        (read-single-character-symbol stream char)))))
 
 (defun read-single-or-equal-or-self-symbol (stream char)
-  "For '>>=' or '<<='."
+  "For '+', '&', '|'. They may be '+', '++', or '+='"
   (let ((next (peek-char nil stream t nil t)))
     (cond ((char= next char)
 	   (read-char stream t nil t)
 	   (symbolicate char next))
 	  (t
-	   (read-single-or-equal-symbol stream char)))))
+	   (read-single-or-compound-assign stream char)))))
 
 (defun read-minus (stream char)
   (let ((next (peek-char nil stream t nil t)))
@@ -284,11 +282,11 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
 	       (otherwise
 		(symbolicate char next)))))
 	  (t
-	   (read-single-or-equal-symbol stream char)))))
+	   (read-single-or-compound-assign stream char)))))
 
 (defun read-slash (stream char)
   (read-slash-comment stream char
-                      #'read-single-or-equal-symbol))
+                      #'read-single-or-compound-assign))
 
 (defun read-preprocessing-number (stream c0)
   "Reads a preprocessing number token, defined in
@@ -505,8 +503,6 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
     (set-macro-character #\` #'read-in-previous-syntax nil readtable)
     ;; Disables 'consing dots', with replacement of ()
     (set-macro-character #\. #'read-lonely-single-symbol t readtable)
-    ;; removes 'multi-escape'
-    (set-syntax-from-char #\| #\& readtable)
     ;; Destroying CL standard syntax -- overwrite standard macro chars.
     (set-macro-character #\/ #'read-slash-comment t readtable)
     (set-macro-character #\' #'read-single-quote nil readtable)
@@ -520,18 +516,19 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
     (set-macro-character #\~ #'read-single-character-symbol nil readtable)
     (set-macro-character #\: #'read-single-character-symbol nil readtable)
     (set-macro-character #\. #'read-dot nil readtable)
-    (set-macro-character #\= #'read-single-or-equal-symbol nil readtable)
-    (set-macro-character #\* #'read-single-or-equal-symbol nil readtable)
-    (set-macro-character #\% #'read-single-or-equal-symbol nil readtable)
-    (set-macro-character #\^ #'read-single-or-equal-symbol nil readtable)
-    (set-macro-character #\! #'read-single-or-equal-symbol nil readtable)
+    (set-macro-character #\= #'read-single-or-compound-assign nil readtable)
+    (set-macro-character #\* #'read-single-or-compound-assign nil readtable)
+    (set-macro-character #\% #'read-single-or-compound-assign nil readtable)
+    (set-macro-character #\^ #'read-single-or-compound-assign nil readtable)
+    (set-macro-character #\! #'read-single-or-compound-assign nil readtable)
     (set-macro-character #\& #'read-single-or-equal-or-self-symbol nil readtable)
-    (set-macro-character #\| #'read-single-or-equal-or-self-symbol nil readtable)
+    (set-macro-character #\| #'read-single-or-equal-or-self-symbol nil readtable) ; TODO: Should I use Lisp escape for a symbol like '|assert|'?
     (set-macro-character #\+ #'read-single-or-equal-or-self-symbol nil readtable)
     (set-macro-character #\- #'read-minus nil readtable)
     (set-macro-character #\< #'read-shift nil readtable)
     (set-macro-character #\> #'read-shift nil readtable)
     (set-macro-character #\/ #'read-slash nil readtable)
+    ;; Numeric litrals
     (set-macro-character #\0 #'read-numeric-literal t readtable)
     (set-macro-character #\1 #'read-numeric-literal t readtable)
     (set-macro-character #\2 #'read-numeric-literal t readtable)
@@ -546,7 +543,8 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
   ;; (But I think these are not needed because the Standard characters include
   ;; the replaced characters/)
   ;; TODO: C99 support?
-  ;; - an identifier begins with '\u' (universal character)
+  ;; - An identifier begins with '\u' (universal character)
+  ;;   How to be '\' treated?
   ;; - 'L' prefix of character literals.
   readtable)
 
