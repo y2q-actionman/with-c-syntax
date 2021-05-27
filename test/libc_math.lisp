@@ -109,7 +109,9 @@
   is.float-equal (|fdim|(2.0, 1.0), 1.0);
   is.float-equal (|fdim|(1.0, 2.0), 0.0);
   is (|fdim|(double-float-positive-infinity, 1.0) == double-float-positive-infinity);
+  |errno| = 0;
   is (|fdim|(most-positive-double-float, most-negative-double-float) == HUGE_VAL);
+  is (|errno| == `'ERANGE);
   is.float-nan-p (|fdim|(-1.0, double-float-nan));
   }#)
 
