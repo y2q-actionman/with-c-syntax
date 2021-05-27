@@ -8,7 +8,7 @@ The value is one of 0, 1 (default), 2.
 
 For inside '#{' and '}#', three syntaxes are defined. These syntaxes
 are selected by the infix parameter of the '#{' dispatching macro
-character. If it not specified, its default is this value.
+character. If it not specified, the value of this variable is used.
 
 Available syntaxes are below:
 
@@ -30,29 +30,25 @@ many escapes using C symbols.
 
 In level 1, these reader macros are installed.
 
-- '{', '}', '[', ']' :: These become a terminating character,
-                        and read as a symbol.
-- '`' :: '`' reads a next s-exp in the previous syntax. This works as
-         an escape from '#{' and '}#' The 'backquote' functionality is
-         lost.
+- '{', '}', '[', ']' :: These become a terminating character, and read
+  as a symbol.
+- '`' :: '`' reads a next s-exp in `*previous-syntax*' readtable. This
+  works as an escape from '#{' and '}#'. The 'backquote' functionality
+  is lost.
 - '.' :: Reads a solely '.' as a symbol. The 'consing dot'
-         functionality is lost.
-- '\' :: The '\' becomes a ordinary constituent character. The
-         'multiple escaping' functionality is lost.
-- '/' :: '//' means a line comment, '/* ... */' means a block comment.
-         '/' is still non-terminating, and has special meanings only
-         if followed by '/' or '*'. Ex: 'a/b/c' or '/+aaa+/' are still
-         valid symbols.
-- ''' (single-quote) :: The single-quote works as a character literal
-                        of C. The 'quote' functionality is lost.
-- '\"' (double-quote) :: The double-quote works as a string literal of
-                         C. Especially, escaping is treated as C. The
-                         original functionality is lost.
-- ';' :: ';' becomes a terminating character, and read as a symbol.
-         The 'comment' functionality is lost.
+  functionality is lost.
+- '/' :: '//' means a line comment, '/* ... */' means a block
+  comment. '/' is still non-terminating, and has special meanings only
+  if followed by '/' or '*'. (Ex: 'a/b/c' or '/+aaa+/' are still valid
+  symbols.)
+- ''' :: The single-quote works as a character literal of C.  The
+  `quote' functionality is lost.
+- '\"' :: The double-quote works as a string literal of C. Especially,
+  escaping is treated as C. The original functionality is lost.
+- ';' :: ';' becomes a terminating character, and read as a
+  symbol. The 'comment' functionality is lost.
 - '(' and ')' :: parenthesis become a terminating character, and read
-                 as a symbol.  The 'reading a list' functionality is
-                 lost.
+  as a symbol.  The 'reading a list' functionality is lost.
 
 Level 1 overwrites macro characters in the standard syntax.  Only
 constituent characters are left unchanged.  Especially, '(' and ')'
@@ -80,25 +76,27 @@ symbol listed below.
 - '<' :: '<', '<<', or '<<='
 - '/' :: '/', or '/='. '//' means a line comment, and '/* ... */'
          means a block comment.
-- '.' :: '.' or a numeric literal of C language..
-- 0,1,2,3,4,5,6,7,8,9 :: A numeric literal of C language.
+- '.' :: '.' or a numeric literal of C language.
+
+And, digit characters (0,1,2,3,4,5,6,7,8,9) are read as a C numeric
+literals.
 
 In this level, there is no compatibilities between symbols of Common
-Lisp.  Especially, for denoting a symbol has terminating characters,
-escapes are required. (ex. most\-positive\-fixnum)")
+Lisp.  Especially, for denoting a symbol consists of terminating
+characters, escapes are required. (ex. most\-positive\-fixnum)")
 
 (defvar *with-c-syntax-reader-case* nil
-  "Holds the reader case used by '#{' reader function.
+  "Holds the readtable case used by '#{' reader function.
 
 When this is not nil, it must be one of `:upcase', `:downcase',
 `:preserve', or `:invert'.  The specified case is used as the
 readtable-case inside '#{' and '}#' and passed to the
 wrapping `with-c-syntax' form.
 
-When this is nil, it is used as the readtable-case of `*readtable*' at
-'#{'.")
+When this is nil, the `readtable-case' of the current `*readtable*' at
+'#{' is used." )
 
-(defvar *previous-syntax* (copy-readtable)
+(defvar *previous-syntax* (copy-readtable nil)
   "Holds the readtable used by #\` syntax.
 This is bound by '#{' read macro to the `*readtable*' at that time.")
 
@@ -126,14 +124,6 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
 	   (let ((*readtable* (copy-readtable)))
 	     (set-syntax-from-char char #\@) ; gets the constituent syntax.
 	     (return (read-from-string buf t nil))))))
-
-(defun read-2chars-delimited-list (c1 c2 &optional stream recursive-p)
-  (loop for lis = (read-delimited-list c1 stream recursive-p)
-     nconc lis
-     until (char= c2 (peek-char nil stream t nil recursive-p))
-     collect (symbolicate c1)	; assumes c1 is a kind of terminating.
-     finally
-       (assert (char= c2 (read-char stream t nil recursive-p))))) ; eat the peeked char.
 
 (defun read-slash-comment (stream char
                            &optional (next-function #'read-lonely-single-symbol))
@@ -254,7 +244,7 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
         (read-numeric-literal stream char)
         (read-single-character-symbol stream char))))
 
-(defun read-single-or-equal-symbol (stream char)
+(defun read-single-or-compound-assign (stream char)
   (let ((next (peek-char nil stream t nil t)))
     (case next
       (#\=
@@ -264,13 +254,13 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
        (read-single-character-symbol stream char)))))
 
 (defun read-single-or-equal-or-self-symbol (stream char)
-  "For '>>=' or '<<='."
+  "For '+', '&', '|'. They may be '+', '++', or '+='"
   (let ((next (peek-char nil stream t nil t)))
     (cond ((char= next char)
 	   (read-char stream t nil t)
 	   (symbolicate char next))
 	  (t
-	   (read-single-or-equal-symbol stream char)))))
+	   (read-single-or-compound-assign stream char)))))
 
 (defun read-minus (stream char)
   (let ((next (peek-char nil stream t nil t)))
@@ -292,11 +282,11 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
 	       (otherwise
 		(symbolicate char next)))))
 	  (t
-	   (read-single-or-equal-symbol stream char)))))
+	   (read-single-or-compound-assign stream char)))))
 
 (defun read-slash (stream char)
   (read-slash-comment stream char
-                      #'read-single-or-equal-symbol))
+                      #'read-single-or-compound-assign))
 
 (defun read-preprocessing-number (stream c0)
   "Reads a preprocessing number token, defined in
@@ -513,8 +503,6 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
     (set-macro-character #\` #'read-in-previous-syntax nil readtable)
     ;; Disables 'consing dots', with replacement of ()
     (set-macro-character #\. #'read-lonely-single-symbol t readtable)
-    ;; removes 'multi-escape'
-    (set-syntax-from-char #\| #\& readtable)
     ;; Destroying CL standard syntax -- overwrite standard macro chars.
     (set-macro-character #\/ #'read-slash-comment t readtable)
     (set-macro-character #\' #'read-single-quote nil readtable)
@@ -528,18 +516,19 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
     (set-macro-character #\~ #'read-single-character-symbol nil readtable)
     (set-macro-character #\: #'read-single-character-symbol nil readtable)
     (set-macro-character #\. #'read-dot nil readtable)
-    (set-macro-character #\= #'read-single-or-equal-symbol nil readtable)
-    (set-macro-character #\* #'read-single-or-equal-symbol nil readtable)
-    (set-macro-character #\% #'read-single-or-equal-symbol nil readtable)
-    (set-macro-character #\^ #'read-single-or-equal-symbol nil readtable)
-    (set-macro-character #\! #'read-single-or-equal-symbol nil readtable)
+    (set-macro-character #\= #'read-single-or-compound-assign nil readtable)
+    (set-macro-character #\* #'read-single-or-compound-assign nil readtable)
+    (set-macro-character #\% #'read-single-or-compound-assign nil readtable)
+    (set-macro-character #\^ #'read-single-or-compound-assign nil readtable)
+    (set-macro-character #\! #'read-single-or-compound-assign nil readtable)
     (set-macro-character #\& #'read-single-or-equal-or-self-symbol nil readtable)
-    (set-macro-character #\| #'read-single-or-equal-or-self-symbol nil readtable)
+    (set-macro-character #\| #'read-single-or-equal-or-self-symbol nil readtable) ; TODO: Should I use Lisp escape for a symbol like '|assert|'?
     (set-macro-character #\+ #'read-single-or-equal-or-self-symbol nil readtable)
     (set-macro-character #\- #'read-minus nil readtable)
     (set-macro-character #\< #'read-shift nil readtable)
     (set-macro-character #\> #'read-shift nil readtable)
     (set-macro-character #\/ #'read-slash nil readtable)
+    ;; Numeric litrals
     (set-macro-character #\0 #'read-numeric-literal t readtable)
     (set-macro-character #\1 #'read-numeric-literal t readtable)
     (set-macro-character #\2 #'read-numeric-literal t readtable)
@@ -554,27 +543,34 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
   ;; (But I think these are not needed because the Standard characters include
   ;; the replaced characters/)
   ;; TODO: C99 support?
-  ;; - an identifier begins with '\u' (universal character)
+  ;; - An identifier begins with '\u' (universal character)
+  ;;   How to be '\' treated?
   ;; - 'L' prefix of character literals.
   readtable)
+
+(defun read-2chars-delimited-list (c1 c2 &optional stream recursive-p)
+  "Used by `read-in-c-syntax' for reading '#{ ... }#' syntax."
+  (loop for lis = (read-delimited-list c1 stream recursive-p)
+     nconc lis
+     until (char= c2 (peek-char nil stream t nil recursive-p))
+     collect (symbolicate c1)	; assumes c1 is a kind of terminating.
+     finally
+       (assert (char= c2 (read-char stream t nil recursive-p))))) ; eat the peeked char.
 
 (defun read-in-c-syntax (stream char n)
   "Called by '#{' reader macro of `with-c-syntax-readtable'.
 Inside '#{' and '}#', the reader uses completely different syntax, and
-wrapped with `with-c-syntax' form.
+the result is wrapped with `with-c-syntax'.
  See `*with-c-syntax-reader-level*' and `*with-c-syntax-reader-case*'."
   (assert (char= char #\{))
   (let* ((*previous-syntax* *readtable*)
          (*readtable* (copy-readtable))
          (*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
-         (level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2))
-         (keyword-case (or *with-c-syntax-reader-case*
-                           (readtable-case *readtable*))))
-    (setf (readtable-case *readtable*) keyword-case)
+         (level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2)))
+    (when *with-c-syntax-reader-case*
+      (setf (readtable-case *readtable*) *with-c-syntax-reader-case*))
     (install-c-reader *readtable* level)
-    ;; I forgot why this is required.. (2018-11-12)
-    ;; (set-dispatch-macro-character #\# #\{ #'read-in-c-syntax)
-    `(with-c-syntax (:keyword-case ,keyword-case)
+    `(with-c-syntax (:readtable-case ,(readtable-case *readtable*)) ; Capture the readtable-case used for reading inside '#{ ... }#'.
        ,@(read-2chars-delimited-list #\} #\# stream t))))
 
 (defreadtable with-c-syntax-readtable

@@ -1,5 +1,23 @@
 (in-package #:with-c-syntax.core)
 
+(defun find-c-terminal (name)
+  "Find a symbol in `with-c-syntax.syntax' package having a same
+NAME. If not found, returns `nil'."
+  (find-symbol name :with-c-syntax.syntax))
+
+(defvar *cache-for-find-c-terminal-upcase*
+  (loop with cache = (make-hash-table :test #'equal)
+        for sym being the external-symbol of (find-package :with-c-syntax.syntax)
+        as upcase-name = (string-upcase (symbol-name sym))
+        do (setf (gethash upcase-name cache) sym)
+        finally (return cache)))
+
+(defun find-c-terminal-by-upcased-name (name)
+  "Find a symbol in `with-c-syntax.syntax' package having a same
+ upcased NAME. If not found, returns `nil'."
+  (gethash name *cache-for-find-c-terminal-upcase*))
+
+
 (defun build-interning-cache (package)
   "Build hash-tables used by `intern-c-terminal' and `intern-libc-symbol'."
   (loop with tab = (make-hash-table :test #'equal)
@@ -9,15 +27,6 @@
      do (setf (gethash name tab) sym)
      do (setf (gethash name ci-tab) sym)
      finally (return (values tab ci-tab))))
-
-(multiple-value-bind (terminal-symbol-table ci-terminal-symbol-table)
-    (build-interning-cache (find-syntax-package))
-  (defun intern-c-terminal (name case-sensitive)
-    "Finds a symbol in `with-c-syntax.syntax' package having a same
-name as NAME based on CASE-SPEC. If not found, returns `nil'."
-    (gethash name (if case-sensitive
-                      terminal-symbol-table
-                      ci-terminal-symbol-table))))
 
 (let (libc-symbol-table ci-libc-symbol-table)
   (defun build-libc-symbol-cache (&optional (package (find-package '#:with-c-syntax.libc)))
@@ -220,13 +229,14 @@ returns NIL."
     (t
      (values nil symbol))))
 
-(defun preprocessor (lis case-sensitive)
+(defun preprocessor (lis readtable-case)
   "This function preprocesses LIS before parsing.
 
 Current workings are below:
 
 - Interning a symbol into this package when it has a same name as C
   keywords or operators, or libc symbols.
+  READTABLE-CASE affects how to do it.
 
 - Concatenation of string literals.
 
@@ -237,9 +247,6 @@ Current workings are below:
   Automatically adds 'void ;' after each typedef declarations.  This
   is a workaround for avoiding the problem between 'the lexer hack'
   and the look-aheading of cl-yacc.
-
-CASE-SENSITIVE specifies interning C keywords or libc symbols is 
-case-sensitively or case-insensitively.
 
 
 Expansion rules:
@@ -266,52 +273,62 @@ calls the function like:
        (nreverse ret))
     (declare (type list ret)
 	     (type boolean typedef-hack))
-    (when (symbolp token)
-      ;; interning C keywords.
-      (when-let ((c-op (intern-c-terminal (symbol-name token) case-sensitive)))
-	(push c-op ret)
-	(go processed!)) ; I assume all no proprocessor macros defined.
-      ;; interning libc keywords.
-      (when-let ((lib-op (intern-libc-symbol (symbol-name token) case-sensitive)))
-	(setf token lib-op))
-      ;; preprocessor macro
-      (when-let ((pp-macro (find-preprocessor-macro token)))
-	(cond ((functionp pp-macro)	; preprocessor funcion
-	       (multiple-value-bind (macro-arg new-lis)
-		   (collect-preprocessor-macro-arguments lis)
-		 (push (apply pp-macro macro-arg) ret)
-		 (setf lis new-lis)
-		 (go processed!)))
-	      (t			; symbol expansion
-               (push pp-macro ret)
-	       (go processed!))))
-      (unless (or (boundp token)
-                  (fboundp token))
-	(multiple-value-bind (splited-p results) (preprocessor-try-split token)
-	  (when splited-p
-	    (setf lis (nconc results lis))
-	    (go continue)))))
-    ;; string concatenation
-    (when (stringp token)
-      (loop for next = (first lis)
+    (typecase token
+      (symbol
+       ;; interning C keywords.
+       (when-let ((c-op (ecase readtable-case ; FIXME: cleanup here.
+                          ((:upcase :invert)
+                           (find-c-terminal-by-upcased-name (symbol-name token)))
+                          ((:downcase :preserve)
+                           (find-c-terminal (symbol-name token))))))
+	 (push c-op ret)
+         ;; typedef hack -- adds "void ;" after each typedef.
+         (cond ((eq c-op '|typedef|)
+	        (setf typedef-hack t))
+	       ((and typedef-hack
+		     (eq c-op '\;))
+	        (setf typedef-hack nil)
+	        (revappendf ret '(|void| \;))))
+	 (go processed!)) ; I assume all no proprocessor macros defined.
+       ;; interning libc keywords.
+       (when-let ((lib-op (intern-libc-symbol (symbol-name token)
+                                              (ecase readtable-case ; FIXME
+                                                ((:upcase :downcase) nil)
+                                                ((:preserve :invert) t)))))
+	 (setf token lib-op)
+         ;; Fallthough. Libc macro shall be expended.
+         )
+       ;; preprocessor macro
+       (when-let ((pp-macro (find-preprocessor-macro token)))
+	 (cond ((functionp pp-macro)	; preprocessor funcion
+	        (multiple-value-bind (macro-arg new-lis)
+		    (collect-preprocessor-macro-arguments lis)
+		  (push (apply pp-macro macro-arg) ret)
+		  (setf lis new-lis)
+		  (go processed!)))
+	       (t			; symbol expansion
+                (push pp-macro ret)
+	        (go processed!))))
+       (unless (or (boundp token)
+                   (fboundp token))
+	 (multiple-value-bind (splited-p results) (preprocessor-try-split token)
+	   (when splited-p
+	     (setf lis (nconc results lis))
+	     (go processed!))))
+       ;; otherwise..
+       (push token ret))
+      (string
+       ;; string concatenation
+       (loop for next = (first lis)
 	 while (stringp next)
 	 collect (pop lis) into strs
 	 finally
 	   (push (apply #'concatenate 'string token strs) ret)
 	   (go processed!)))
-    ;; otherwise..
-    (push token ret)
-
+      (t
+       (push token ret)))
    processed!
-
-    ;; typedef hack -- adds "void ;" after each typedef.
-    (cond ((eq (first ret) '|typedef|)
-	   (setf typedef-hack t))
-	  ((and typedef-hack
-		(eq (first ret) '\;))
-	   (setf typedef-hack nil)
-	   (revappendf ret '(|void| \;))))
-   continue))
+   ))
 
 ;;; NOTE:
 ;;; I don't plan to implemente the C preprocessor fully.
