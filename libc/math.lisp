@@ -22,6 +22,9 @@
 ;;; I define only type-generic functions like <tgmath.h>,
 ;;; The numeric functions of Common Lisp are already so.
 
+;;; When using NaN, many mathematical functions of Common Lisp behave
+;;; differently from C99. So I manually handle these situations..
+
 (defun |fabs| (x)
   (abs x))                              ; no error
 
@@ -63,10 +66,17 @@
 
 ;;; TODO: real 'remquo' -- support pointer passing..
 
-;;; TODO: 'fma', FP_FAST_FMA
-
 (defun |fmax| (x y)
-  (max x y))                            ; no error
+  (cond ((float-nan-p x)
+         (if (float-nan-p y)
+             double-float-nan
+             y))
+        ((float-nan-p y)
+         x)
+        (t
+         (max x y))))
+
+;;; TODO: 'fma', FP_FAST_FMA
 
 (defun |fmin| (x y)
   (min x y))                            ; no error

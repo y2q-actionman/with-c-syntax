@@ -106,10 +106,12 @@
 
 (test test-math-fmax
   #{
-  is (fmax(3.125, 2.0) == 3.125);
-  is (fmax(double-float-negative-infinity, 2.0) == 2.0);
-  is (fmax(double-float-positive-infinity, 2.0) == double-float-positive-infinity);
-  // ; TODO: add NaN test.
+  is (|fmax|(3.125, 2.0) == 3.125);
+  is (|fmax|(double-float-negative-infinity, 2.0) == 2.0);
+  is (|fmax|(double-float-positive-infinity, 2.0) == double-float-positive-infinity);
+  is.float-equal (|fmax|(double-float-nan, 1.0), 1.0);
+  is.float-equal (|fmax|(-1.0, double-float-nan), -1.0);
+  is.float-nan-p (|fmax|(double-float-nan, double-float-nan));
   }#)
 
 (test test-math-fmin
