@@ -104,6 +104,11 @@
   is.float-nan-p (remquo* (1.0, double-float-nan));
   }#)
 
+(test test-math-nan
+  #{
+  is.float-nan-p (|nan|(""));
+  }#)
+
 (test test-math-fdim
   #{
   is.float-equal (|fdim|(2.0, 1.0), 1.0);

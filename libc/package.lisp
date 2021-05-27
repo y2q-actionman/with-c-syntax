@@ -43,7 +43,7 @@
    #:HUGE_VAL #:HUGE_VALF #:HUGE_VALL #:INFINITY #:NAN
    #:FP_INFINITE #:FP_NAN #:FP_NORMAL #:FP_SUBNORMAL #:FP_ZERO
    #:MATH_ERRNO #:MATH_ERREXCEPT #:|math_errhandling|
-   #:|fabs| #:|fmod| #:|remainder| #:REMQUO* #:|fdim| #:|fmax| #:|fmin|
+   #:|fabs| #:|fmod| #:|remainder| #:REMQUO* #:|nan| #:|fdim| #:|fmax| #:|fmin|
    #:|exp| #:|exp2| #:|expm1| #:|log| #:|log10| #:|log2| #:|log1p|
    #:|pow| #:|sqrt| #:|cbrt| #:|hypot|
    #:|sin| #:|cos| #:|tan| #:|asin| #:|acos| #:|atan| #:|atan2|

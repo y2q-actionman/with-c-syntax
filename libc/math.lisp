@@ -50,6 +50,8 @@
 (defconstant MATH_ERREXCEPT 2)
 (defconstant |math_errhandling| 0) ; TODO: change to 1 when all functions are supported.
 
+;;; TODO: FP_CONTRACT
+
 
 ;;; Functions
 
@@ -94,6 +96,20 @@
 
 ;;; TODO: real 'remquo' -- support pointer passing..
 
+(defun |nan| (&optional (tagp ""))      ; C99
+  (cond
+    ((string= tagp "") double-float-nan)
+    (t
+     ;; Uses TAGP for specifing lower bits of NAN.
+     ;; This is my experiment.
+     (let* ((lower-bits-int (or (parse-integer tagp :junk-allowed t)
+                                0))
+            (bitmask #b11111111111111111111111) ; 23 bits.
+            (nan-bits (double-float-bits double-float-nan))
+            (new-nan-bits (logior (logand lower-bits-int bitmask)
+                                  nan-bits)))
+       (bits-double-float new-nan-bits)))))
+
 (defun |fdim| (x y)                     ; C99
   (cond ((or (float-nan-p x) (float-nan-p y))
          double-float-nan)
@@ -131,7 +147,6 @@
 
 ;;; TODO: 'fma'
 
-;;; TODO: 'nan'
 
 (defun |exp| (x)
   (exp x))               ; may raise ERANGE, FE_OVERFLOW, FE_UNDERFLOW
