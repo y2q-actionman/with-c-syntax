@@ -39,7 +39,7 @@
    #:UCHAR_MAX #:UINT_MAX #:USHRT_MAX #:ULONG_MAX #:ULLONG_MAX
    #:MB_LEN_MAX
    ;; math
-   #:|fabs| #:|fmod| #:|remainder| #:REMQUO* #:|fmax| #:|fmin|
+   #:|fabs| #:|fmod| #:|remainder| #:REMQUO* #:|fdim| #:|fmax| #:|fmin|
    #:|exp| #:|exp2| #:|expm1| #:|log| #:|log10| #:|log2| #:|log1p|
    #:|pow| #:|sqrt| #:|cbrt| #:|hypot|
    #:|sin| #:|cos| #:|tan| #:|asin| #:|acos| #:|atan| #:|atan2|

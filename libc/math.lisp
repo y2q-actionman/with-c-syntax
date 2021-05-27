@@ -66,6 +66,21 @@
 
 ;;; TODO: real 'remquo' -- support pointer passing..
 
+(defun |fdim| (x y)                     ; C99
+  (cond ((or (float-nan-p x) (float-nan-p y))
+         double-float-nan)
+        ((<= x y) 
+         0.0d0)
+        (t
+         (let ((diff (- x y)))
+           (cond ((and (not (|isfinite| diff))
+                       (not (float-infinity-p x))
+                       (not (float-infinity-p y)))
+                  (setf |errno| 'with-c-syntax.libc:ERANGE)
+                  HUGE_VAL)
+                 (t
+                  diff))))))
+
 (defun |fmax| (x y)
   (cond ((float-nan-p x)
          (if (float-nan-p y)
@@ -87,8 +102,6 @@
          (min x y))))
 
 ;;; TODO: 'fma', FP_FAST_FMA
-
-;;; TODO: 'fdim'
 
 ;;; TODO: 'nan'
 

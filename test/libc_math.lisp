@@ -104,6 +104,15 @@
   is.float-nan-p (remquo* (1.0, double-float-nan));
   }#)
 
+(test test-math-fdim
+  #{
+  is.float-equal (|fdim|(2.0, 1.0), 1.0);
+  is.float-equal (|fdim|(1.0, 2.0), 0.0);
+  is (|fdim|(double-float-positive-infinity, 1.0) == double-float-positive-infinity);
+  is (|fdim|(most-positive-double-float, most-negative-double-float) == HUGE_VAL);
+  is.float-nan-p (|fdim|(-1.0, double-float-nan));
+  }#)
+
 (test test-math-fmax
   #{
   is (|fmax|(3.125, 2.0) == 3.125);
