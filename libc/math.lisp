@@ -55,6 +55,44 @@
 
 ;;; Functions
 
+(defmacro with-exp-family-error-handling ((x underflow-value) &body body)
+  (once-only (x underflow-value)
+    `(cond ((float-nan-p ,x) double-float-nan)
+           ((float-infinity-p ,x)
+            (if (plusp ,x)
+                double-float-positive-infinity
+                ,underflow-value))
+           (t
+            (let ((ret
+                    ;; This is for Allegro.
+                    ;; `with-float-traps-masked' may also be used.
+                    (handler-case (progn ,@body)
+                      (floating-point-overflow ()
+                        (setf |errno| 'with-c-syntax.libc:ERANGE)
+                        ;; TODO: raise FE_OVERFLOW
+                        HUGE_VAL)
+                      (floating-point-underflow ()
+                        (setf |errno| 'with-c-syntax.libc:ERANGE)
+                        ;; TODO: raise FE_UNDERFLOW
+                        ,underflow-value))))
+              (cond ((zerop ret)
+                     (setf |errno| 'with-c-syntax.libc:ERANGE))
+                    ((float-infinity-p ret)
+                     (setf |errno| 'with-c-syntax.libc:ERANGE)))
+              ret)))))
+
+(defun |exp| (x)
+  (with-exp-family-error-handling (x 0.0d0)
+    (exp x)))
+
+(defun |exp2| (x)                       ; C99
+  (with-exp-family-error-handling (x 0.0d0)
+    (expt 2 x)))
+
+(defun |expm1| (x)
+  (with-exp-family-error-handling (x -1.0d0)
+    (exp-1 x)))
+
 (defun |fabs| (x)
   (abs x))                              ; no error
 
@@ -147,15 +185,6 @@
 
 ;;; TODO: 'fma'
 
-
-(defun |exp| (x)
-  (exp x))               ; may raise ERANGE, FE_OVERFLOW, FE_UNDERFLOW
-
-(defun |exp2| (x)        ; C99
-  (expt 2 x))            ; may raise ERANGE, FE_OVERFLOW, FE_UNDERFLOW
-
-(defun |expm1| (x)
-  (exp-1 x))
 
 (defun |log| (x)
   (log x))          ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO

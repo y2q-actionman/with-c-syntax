@@ -4,6 +4,11 @@
 ;;; if they are not free-standing.
 (in-readtable with-c-syntax-readtable)
 
+(defmacro with-checking-errno ((expected-errno) &body body)
+  `(let ((|errno| 0))
+     (prog1 (progn ,@body)
+       (is (eql |errno| ,expected-errno)))))
+
 (defmacro is.float-equal (x y)
   `(is (float-equal ,x ,y)))
 
@@ -26,6 +31,70 @@
            (if ,condition
                (warn "~A raised ~A" ',form ,condition)
                (warn "~A was evaluated to false" ',form))))))
+
+(test test-math-exp
+  #{
+  is (`(< 2.71828
+         #{ return |exp|(1); }#
+         2.71829));
+  is.float-equal (|exp|(0), 1);
+  `(with-checking-errno ('ERANGE) #{
+     is (|exp|(most-positive-double-float) == HUGE_VAL);
+     }#);
+  `(with-checking-errno ('ERANGE) #{
+     is (|exp|(most-negative-double-float) == 0.0);
+     }#);
+  `(with-checking-errno (0) #{
+     is (|exp|(double-float-positive-infinity) == HUGE_VAL);
+     }#);
+  `(with-checking-errno (0) #{
+     is (|exp|(double-float-negative-infinity) == 0.0);
+     }#);
+  is (float-nan-p (|exp|(double-float-nan)));
+  }#)
+
+(test test-math-exp2
+  #{
+  is.float-equal (|exp2|(2.0), 4.0);
+  is (|exp2|(0.0) == 1.0);
+  `(with-checking-errno ('ERANGE) #{
+     is (|exp2|(most-positive-double-float) == HUGE_VAL);
+     }#);
+  `(with-checking-errno ('ERANGE) #{
+     is (|exp2|(most-negative-double-float) == 0.0);
+     }#);
+  `(with-checking-errno (0)
+     #{
+     is (|exp2|(double-float-positive-infinity) == HUGE_VAL);
+     }#);
+  `(with-checking-errno (0)
+     #{
+     is (|exp2|(double-float-negative-infinity) == 0.0);
+     }#);
+  is (float-nan-p (|exp2|(double-float-nan)));
+  }#)
+
+(test test-math-expm1
+  #{
+  is (`(< 1.71828
+         #{ return |expm1|(1); }#
+         1.71829));
+  is (|expm1|(0.0) == 0.0);
+  is.float-equal (|expm1|(double-float-negative-infinity), -1.0);
+  `(with-checking-errno ('ERANGE) #{
+     is (|expm1|(most-positive-double-float) == HUGE_VAL);
+     }#);
+  `(with-checking-errno ('ERANGE) #{
+     is (|expm1|(most-negative-double-float) == -1.0);
+     }#);
+  `(with-checking-errno (0) #{
+     is (|expm1|(double-float-positive-infinity) == HUGE_VAL);
+     }#);
+  `(with-checking-errno (0) #{
+     is (|expm1|(double-float-negative-infinity) == -1.0);
+     }#);
+  is (float-nan-p (|expm1|(double-float-nan)));
+  }#)
 
 (test test-math-fabs
   #{
@@ -104,6 +173,8 @@
   is.float-nan-p (remquo* (1.0, double-float-nan));
   }#)
 
+;;; FIXME: I have |NAN| and |nan| in Libc package. So this code misses which to use.
+#+ ()
 (test test-math-nan
   #{
   is.float-nan-p (|nan|(""));
@@ -114,9 +185,9 @@
   is.float-equal (|fdim|(2.0, 1.0), 1.0);
   is.float-equal (|fdim|(1.0, 2.0), 0.0);
   is (|fdim|(double-float-positive-infinity, 1.0) == double-float-positive-infinity);
-  |errno| = 0;
-  is (|fdim|(most-positive-double-float, most-negative-double-float) == HUGE_VAL);
-  is (|errno| == `'ERANGE);
+  `(with-checking-errno ('ERANGE) #{
+     is (|fdim|(most-positive-double-float, most-negative-double-float) == HUGE_VAL);
+     }#);
   is.float-nan-p (|fdim|(-1.0, double-float-nan));
   }#)
 
@@ -140,36 +211,7 @@
   is.float-nan-p (|fmin|(double-float-nan, double-float-nan));
   }#)
 
-(test test-math-exp
-  #{
-  is (`(< 2.71828
-         #{ return exp(1); }#
-         2.71829));
-  is.float-equal (exp(0), 1);
-  is (exp(double-float-negative-infinity) == 0.0);
-  is (exp(double-float-positive-infinity) == double-float-positive-infinity);
-  // ; TODO: add NaN test.
-  }#)
 
-(test test-math-exp2
-  #{
-  is.float-equal (exp2(1.0), 2);
-  is (exp2(0.0) == 1.0);
-  is (exp2(double-float-negative-infinity) == 0.0);
-  is (exp2(double-float-positive-infinity) == double-float-positive-infinity);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-expm1
-  #{
-  is (`(< 1.71828
-         #{ return expm1(1); }#
-         1.71829));
-  is (expm1(0.0) == 0.0);
-  is.float-equal (expm1(double-float-negative-infinity), -1.0);
-  may-fail ( is (expm1(double-float-positive-infinity) == double-float-positive-infinity));
-  // ; TODO: add NaN test.
-  }#)
 
 (test test-math-log
   #{
