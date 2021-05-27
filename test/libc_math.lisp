@@ -59,18 +59,19 @@
 
 (test test-math-remainder
   #{
-  is.float-equal (remainder(3.125, 2.0), -0.875);
-  is.float-equal (remainder(-3.125, 2.0), 0.875);
-  is.float-equal (remainder(3.125, -2.0), -0.875);
-  is.float-equal (remainder(-3.125, -2.0), 0.875);
+  is.float-equal (|remainder|(3.125, 2.0), -0.875);
+  is.float-equal (|remainder|(-3.125, 2.0), 0.875);
+  is.float-equal (|remainder|(3.125, -2.0), -0.875);
+  is.float-equal (|remainder|(-3.125, -2.0), 0.875);
   
   // ; Specials
-  is (remainder(0.0, 2.0) == 0.0);
-  // ; Sadly, SBCL 1.5.0 on MacOS X does not preserve minus-zero sign.
-  may-fail (remainder(-0.0, 2.0) == -0.0);
-  is.float-equal (remainder(-0.0, 2.0), -0.0);
-  is.float-nan-p (remainder(99.0, 0.0), t); // Domain error.
-  is.float-nan-p (remainder(double-float-positive-infinity, 10.0), t); // Domain error.
+  is (|remainder|(0.0, 2.0) == 0.0);
+  is (|remainder|(-0.0, 2.0) == -0.0);
+  is.float-equal (|remainder|(-0.0, 2.0), -0.0);
+  is.float-nan-p (|remainder|(99.0, 0.0)); // Domain error.
+  is.float-nan-p (|remainder|(double-float-positive-infinity, 10.0)); // Domain error.
+  is.float-nan-p (|remainder|(double-float-nan, 1));
+  is.float-nan-p (|remainder|(1, double-float-nan));
   }#)
 
 (test test-math-remquo*
@@ -95,11 +96,12 @@
   is (quo == 2);
 
   // ; Specials
-  is.float-nan-p (remquo* (double-float-positive-infinity, 2.0), t);
-  is.float-nan-p (remquo* (double-float-negative-infinity, 2.0), t);
-  is.float-nan-p (remquo* (10, +0.0), t);
-  is.float-nan-p (remquo* (999, -0.0), t);
-  // ; TODO: add NaN test.
+  is.float-nan-p (remquo* (double-float-positive-infinity, 2.0));
+  is.float-nan-p (remquo* (double-float-negative-infinity, 2.0));
+  is.float-nan-p (remquo* (10, +0.0));
+  is.float-nan-p (remquo* (999, -0.0));
+  is.float-nan-p (remquo* (double-float-nan, +1.0));
+  is.float-nan-p (remquo* (1.0, double-float-nan));
   }#)
 
 (test test-math-fmax

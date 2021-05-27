@@ -37,15 +37,31 @@
          (nth-value 1 (ftruncate x y)))))
 
 (defun |remainder| (x y)                ; C99
-  (nth-value 1 (fround x y)))           ; may raise EDOM, FE_INVALID
+  (cond ((or (float-nan-p x) (float-nan-p y))
+         double-float-nan)
+        ((and (float-infinity-p x) (not (float-nan-p y)))
+         ;; TODO: raise FE_INVALID
+         double-float-nan)
+        ((and (zerop y) (not (float-nan-p x)))
+         (setf |errno| 'with-c-syntax.libc:EDOM)
+         ;; TODO: raise FE_INVALID
+         double-float-nan)
+        (t
+         (nth-value 1 (fround x y)))))
 
 (defun remquo* (x y)                    ; C99
-  ;; TODO: support pointer passing..
-  (multiple-value-bind (quotient remainder)
-      (round x y)
-    (values remainder quotient)))       ; may raise EDOM, FE_INVALID
+  (cond ((or (float-nan-p x) (float-nan-p y))
+         double-float-nan)
+        ((or (and (float-infinity-p x) (not (float-nan-p y)))
+             (and (zerop y) (not (float-nan-p x))))
+         ;; TODO: raise FE_INVALID
+         double-float-nan)
+        (t
+         (multiple-value-bind (quotient remainder)
+             (round x y)
+           (values remainder quotient)))))
 
-;;; TODO: real 'remquo'
+;;; TODO: real 'remquo' -- support pointer passing..
 
 ;;; TODO: 'fma', FP_FAST_FMA
 
