@@ -1,3 +1,12 @@
+;;; Notes:
+;;; 
+;;; * Currently, I define only type-generic functions like <tgmath.h>,
+;;; The numeric functions of Common Lisp are already so.
+;;; 
+;;; * When using NaN, many mathematical functions of Common Lisp
+;;; behave differently from C99. So I manually handle these
+;;; situations..
+
 (in-package #:with-c-syntax.libc-implementation)
 
 ;;; TODO: These should be arranged by the order in C99 (ISO/IEC 9899).
@@ -19,11 +28,30 @@
      (add-typedef '|float_t| 'single-float)
      (add-typedef '|double_t| 'double-float))))
 
-;;; I define only type-generic functions like <tgmath.h>,
-;;; The numeric functions of Common Lisp are already so.
+;;; INFINITY (C99)
+(defconstant HUGE_VAL double-float-positive-infinity)
+(defconstant HUGE_VALF single-float-positive-infinity) ; C99
+(defconstant HUGE_VALL long-float-positive-infinity)   ; C99
+(defconstant INFINITY single-float-positive-infinity)  ; C99
+(defconstant NAN double-float-nan)                     ; C99
 
-;;; When using NaN, many mathematical functions of Common Lisp behave
-;;; differently from C99. So I manually handle these situations..
+;;; FPCLASSIFY constants (C99)
+(defconstant FP_INFINITE :FP_INFINITE)
+(defconstant FP_NAN :FP_NAN)
+(defconstant FP_NORMAL :FP_NORMAL)
+(defconstant FP_SUBNORMAL :FP_SUBNORMAL)
+(defconstant FP_ZERO :FP_ZERO)
+
+;;; TODO: FP_FAST_FMA (...in far future)
+
+;;; TODO: FP_ILOGB0, FP_ILOGBNAN
+
+(defconstant MATH_ERRNO 1)
+(defconstant MATH_ERREXCEPT 2)
+(defconstant |math_errhandling| 0) ; TODO: change to 1 when all functions are supported.
+
+
+;;; Functions
 
 (defun |fabs| (x)
   (abs x))                              ; no error
@@ -101,7 +129,7 @@
         (t
          (min x y))))
 
-;;; TODO: 'fma', FP_FAST_FMA
+;;; TODO: 'fma'
 
 ;;; TODO: 'nan'
 
@@ -240,23 +268,6 @@
 (defun |copysign| (abs sign)            ; C99
   (float-sign sign abs))
 
-;;; INFINITY (C99)
-
-(defconstant HUGE_VAL
-  double-float-positive-infinity)
-
-(defconstant HUGE_VALF                  ; C99
-  single-float-positive-infinity)
-
-(defconstant HUGE_VALL                  ; C99
-  long-float-positive-infinity)
-
-(defconstant INFINITY                   ; C99
-  single-float-positive-infinity)
-
-(defconstant NAN                        ; C99
-  double-float-nan)
-
 ;;; FPCLASSIFY (C99)
 
 (defun |isnan| (x)
@@ -286,12 +297,6 @@
   (not (or (float-nan-p x)
            (float-infinity-p x)
            (denormalized-float-p x))))
-
-(defconstant FP_NAN :FP_NAN)
-(defconstant FP_INFINITE :FP_INFINITE)
-(defconstant FP_ZERO :FP_ZERO)
-(defconstant FP_SUBNORMAL :FP_SUBNORMAL)
-(defconstant FP_NORMAL :FP_NORMAL)
 
 (defun |fpclassify| (x)
   (cond ((float-nan-p x) :FP_NAN)
