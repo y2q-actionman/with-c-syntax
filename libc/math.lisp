@@ -5,6 +5,8 @@
 ;;; * When using NaN, many mathematical functions of Common Lisp
 ;;; behave differently from C99. So I manually handle these
 ;;; situations..
+;;; 
+;;; * If a NaN passed to parameters, I try to save it to the result.
 
 (in-package #:with-c-syntax.libc-implementation)
 
@@ -56,7 +58,7 @@
 
 (defmacro with-exp-family-error-handling ((x underflow-value) &body body)
   (once-only (x underflow-value)
-    `(cond ((float-nan-p ,x) double-float-nan)
+    `(cond ((float-nan-p ,x) ,x)
            ((float-infinity-p ,x)
             (if (plusp ,x)
                 double-float-positive-infinity
@@ -74,9 +76,11 @@
                         (setf |errno| 'with-c-syntax.libc:ERANGE)
                         ;; TODO: raise FE_UNDERFLOW
                         ,underflow-value))))
-              (cond ((zerop ret)
+              (cond ((float-infinity-p ret)
+                     ;; TODO: raise FE_OVERFLOW
                      (setf |errno| 'with-c-syntax.libc:ERANGE))
-                    ((float-infinity-p ret)
+                    ((zerop ret)
+                     ;; TODO: raise FE_UNDERFLOW
                      (setf |errno| 'with-c-syntax.libc:ERANGE)))
               ret)))))
 
@@ -101,8 +105,8 @@
 
 (defun |fmod| (x y)
   (declare (type double-float x y))
-  (cond ((or (float-nan-p x) (float-nan-p y))
-         double-float-nan)
+  (cond ((float-nan-p x) x)
+        ((float-nan-p y) y)
         ((or (float-infinity-p x) (zerop y))
          (setf |errno| 'with-c-syntax.libc:EDOM)
          double-float-nan)
@@ -113,12 +117,12 @@
 
 (defun |remainder| (x y)                ; C99
   (declare (type double-float x y))
-  (cond ((or (float-nan-p x) (float-nan-p y))
-         double-float-nan)
-        ((and (float-infinity-p x) (not (float-nan-p y)))
+  (cond ((float-nan-p x) x)
+        ((float-nan-p y) y)
+        ((float-infinity-p x)
          ;; TODO: raise FE_INVALID
          double-float-nan)
-        ((and (zerop y) (not (float-nan-p x)))
+        ((zerop y)
          (setf |errno| 'with-c-syntax.libc:EDOM)
          ;; TODO: raise FE_INVALID
          double-float-nan)
@@ -127,10 +131,10 @@
 
 (defun remquo* (x y)                    ; C99
   (declare (type double-float x y))
-  (cond ((or (float-nan-p x) (float-nan-p y))
-         double-float-nan)
-        ((or (and (float-infinity-p x) (not (float-nan-p y)))
-             (and (zerop y) (not (float-nan-p x))))
+  (cond ((float-nan-p x) x)
+        ((float-nan-p y) y)
+        ((or (float-infinity-p x)
+             (zerop y))
          ;; TODO: raise FE_INVALID
          double-float-nan)
         (t
@@ -156,8 +160,8 @@
 
 (defun |fdim| (x y)                     ; C99
   (declare (type double-float x y))
-  (cond ((or (float-nan-p x) (float-nan-p y))
-         double-float-nan)
+  (cond ((float-nan-p x) x)
+        ((float-nan-p y) y)
         ((<= x y) 
          0.0d0)
         (t
@@ -172,12 +176,10 @@
 
 (defmacro with-fmax-fmin-parameter-check ((x y) &body body)
   (once-only (x y)
-    `(cond ((float-nan-p ,x)
-            (if (float-nan-p ,y)
-                double-float-nan
-                ,y))
-           ((float-nan-p ,y)
-            ,x)
+    `(cond ((float-nan-p ,y)
+            ,x)        ; If X is a NaN, just the NaN of X is returned. I prioritize X over Y.
+           ((float-nan-p ,x)
+            ,y)
            (t
             ,@body))))
 
