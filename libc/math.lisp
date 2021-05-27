@@ -26,7 +26,15 @@
   (abs x))                              ; no error
 
 (defun |fmod| (x y)
-  (nth-value 1 (ftruncate x y)))        ; may raise EDOM, FE_INVALID
+  (cond ((or (float-nan-p x) (float-nan-p y))
+         double-float-nan)
+        ((or (float-infinity-p x) (zerop y))
+         (setf |errno| 'with-c-syntax.libc:EDOM)
+         double-float-nan)
+        ((zerop x)
+         x)
+        (t
+         (nth-value 1 (ftruncate x y)))))
 
 (defun |remainder| (x y)                ; C99
   (nth-value 1 (fround x y)))           ; may raise EDOM, FE_INVALID

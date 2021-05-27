@@ -37,23 +37,24 @@
   // ; I use '==' (which is `eql'), because (float-equal +Inf +Inf) is false.
   is (|fabs|(double-float-negative-infinity) == double-float-positive-infinity);
   is (|fabs|(double-float-positive-infinity) == double-float-positive-infinity);
-  is (|fabs|(double-float-nan) == double-float-nan);
+  is.float-nan-p (|fabs|(double-float-nan));
   }#)
 
 (test test-math-fmod
   #{
-  is.float-equal (fmod(3.123, 2.0), 1.123);
-  is.float-equal (fmod(-3.123, 2.0), -1.123);
-  is.float-equal (fmod(3.123, -2.0), 1.123);
-  is.float-equal (fmod(-3.123, -2.0), -1.123);
+  is.float-equal (|fmod|(3.123, 2.0), 1.123);
+  is.float-equal (|fmod|(-3.123, 2.0), -1.123);
+  is.float-equal (|fmod|(3.123, -2.0), 1.123);
+  is.float-equal (|fmod|(-3.123, -2.0), -1.123);
   
   // ; Specials
-  is (fmod(0.0, 2.0) == 0.0);
-  // ; Sadly, SBCL 1.5.0 on MacOS X does not preserve minus-zero sign.
-  may-fail (fmod(-0.0, 2.0) == -0.0);
-  is.float-equal (fmod(-0.0, 2.0), -0.0);
-  is.float-nan-p (fmod(99.0, 0.0)); // Domain error.
-  is.float-nan-p (fmod(double-float-positive-infinity, 10.0)); // Domain error.
+  is (|fmod|(0.0, 2.0) == 0.0);
+  is (|fmod|(-0.0, 2.0) == -0.0);
+  is.float-equal (|fmod|(-0.0, 2.0), -0.0);
+  is.float-nan-p (|fmod|(99.0, 0.0)); // Domain error.
+  is.float-nan-p (|fmod|(double-float-positive-infinity, 10.0)); // Domain error.
+  is.float-nan-p (|fmod|(double-float-nan, 1));
+  is.float-nan-p (|fmod|(1, double-float-nan));
   }#)
 
 (test test-math-remainder
