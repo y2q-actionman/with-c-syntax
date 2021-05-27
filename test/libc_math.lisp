@@ -116,10 +116,12 @@
 
 (test test-math-fmin
   #{
-  is (fmin(3.125, 2.0) == 2.0);
-  is (fmin(double-float-negative-infinity, 2.0) == double-float-negative-infinity);
-  is (fmin(double-float-positive-infinity, 2.0) == 2.0);
-  // ; TODO: add NaN test.
+  is (|fmin|(3.125, 2.0) == 2.0);
+  is (|fmin|(double-float-negative-infinity, 2.0) == double-float-negative-infinity);
+  is (|fmin|(double-float-positive-infinity, 2.0) == 2.0);
+  is.float-equal (|fmin|(double-float-nan, 1.0), 1.0);
+  is.float-equal (|fmin|(-1.0, double-float-nan), -1.0);
+  is.float-nan-p (|fmin|(double-float-nan, double-float-nan));
   }#)
 
 (test test-math-exp

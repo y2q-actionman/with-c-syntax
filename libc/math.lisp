@@ -76,10 +76,17 @@
         (t
          (max x y))))
 
-;;; TODO: 'fma', FP_FAST_FMA
-
 (defun |fmin| (x y)
-  (min x y))                            ; no error
+  (cond ((float-nan-p x)
+         (if (float-nan-p y)
+             double-float-nan
+             y))
+        ((float-nan-p y)
+         x)
+        (t
+         (min x y))))
+
+;;; TODO: 'fma', FP_FAST_FMA
 
 ;;; TODO: 'fdim'
 
