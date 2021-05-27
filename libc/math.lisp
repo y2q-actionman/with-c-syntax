@@ -163,25 +163,24 @@
                  (t
                   diff))))))
 
+(defmacro with-fmax-fmin-parameter-check ((x y) &body body)
+  (once-only (x y)
+    `(cond ((float-nan-p ,x)
+            (if (float-nan-p ,y)
+                double-float-nan
+                ,y))
+           ((float-nan-p ,y)
+            ,x)
+           (t
+            ,@body))))
+
 (defun |fmax| (x y)
-  (cond ((float-nan-p x)
-         (if (float-nan-p y)
-             double-float-nan
-             y))
-        ((float-nan-p y)
-         x)
-        (t
-         (max x y))))
+  (with-fmax-fmin-parameter-check (x y)
+    (max x y)))
 
 (defun |fmin| (x y)
-  (cond ((float-nan-p x)
-         (if (float-nan-p y)
-             double-float-nan
-             y))
-        ((float-nan-p y)
-         x)
-        (t
-         (min x y))))
+  (with-fmax-fmin-parameter-check (x y)
+    (min x y)))
 
 ;;; TODO: 'fma'
 
