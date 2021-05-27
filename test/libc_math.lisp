@@ -29,13 +29,15 @@
 
 (test test-math-fabs
   #{
-  is (fabs (0.0) == 0.0);
-  is.float-equal (fabs (5.0), 5.0);
-  is.float-equal (fabs (-5.0), 5.0);
+  is (|fabs|(0.0) == 0.0);
+  is.float-equal (|fabs|(5.0), 5.0);
+  is.float-equal (|fabs|(-5.0), 5.0);
   
   // ; Specials
   // ; I use '==' (which is `eql'), because (float-equal +Inf +Inf) is false.
-  is (fabs (double-float-negative-infinity) == double-float-positive-infinity);
+  is (|fabs|(double-float-negative-infinity) == double-float-positive-infinity);
+  is (|fabs|(double-float-positive-infinity) == double-float-positive-infinity);
+  is (|fabs|(double-float-nan) == double-float-nan);
   }#)
 
 (test test-math-fmod
@@ -271,8 +273,8 @@
   is.float-equal (hypot (1, 1), 1.41421356);
   is.float-equal (hypot (3, 4), 5);
   is.float-equal (hypot (1.23, -4.56), hypot (4.56, -1.23));
-  is.float-equal (hypot (1.23, 0), fabs (1.23));
-  is.float-equal (hypot (-0, -9928.123456), fabs (-9928.123456));
+  is.float-equal (hypot (1.23, 0), |fabs| (1.23));
+  is.float-equal (hypot (-0, -9928.123456), |fabs| (-9928.123456));
   is (hypot (double-float-negative-infinity, 0) == double-float-positive-infinity);
   // ; TODO: add NaN test.
   }#)
