@@ -160,28 +160,27 @@
 
 (defun |fdim| (x y)                     ; C99
   (declare (type double-float x y))
-  (cond ((float-nan-p x) x)
-        ((float-nan-p y) y)
-        ((<= x y) 
-         0.0d0)
-        (t
-         (let ((diff (- x y)))
-           (cond ((and (not (|isfinite| diff))
-                       (not (float-infinity-p x))
-                       (not (float-infinity-p y)))
-                  (setf |errno| 'with-c-syntax.libc:ERANGE)
-                  HUGE_VAL)
-                 (t
-                  diff))))))
+  (cond
+    ((float-nan-p x) x)
+    ((float-nan-p y) y)
+    ((<= x y) 
+     0.0d0)
+    (t
+     (let ((diff (- x y)))
+       (cond ((and (not (|isfinite| diff))
+                   (not (float-infinity-p x))
+                   (not (float-infinity-p y)))
+              (setf |errno| 'with-c-syntax.libc:ERANGE)
+              HUGE_VAL)
+             (t
+              diff))))))
 
 (defmacro with-fmax-fmin-parameter-check ((x y) &body body)
   (once-only (x y)
-    `(cond ((float-nan-p ,y)
-            ,x)        ; If X is a NaN, just the NaN of X is returned. I prioritize X over Y.
-           ((float-nan-p ,x)
-            ,y)
-           (t
-            ,@body))))
+    `(cond
+       ((float-nan-p ,y) ,x) ; If X is a NaN, just the NaN of X is returned. I prioritize X over Y.
+       ((float-nan-p ,x) ,y)
+       (t ,@body))))
 
 (defun |fmax| (x y)
   (declare (type double-float x y))
