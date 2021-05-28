@@ -27,13 +27,15 @@
                 :components
                 ((:file "package")
 		 (:file "util" :depends-on ("package"))
+                 ;; alphabetical order
                  (:file "assert" :depends-on ("util"))
                  (:file "ctype" :depends-on ("util"))
                  (:file "errno" :depends-on ("util"))
+                 (:file "fenv" :depends-on ("util"))
                  (:file "float" :depends-on ("util"))
                  (:file "iso646" :depends-on ("util"))
                  (:file "limits" :depends-on ("util"))
-                 (:file "math" :depends-on ("util" "float" "errno"))
+                 (:file "math" :depends-on ("util" "errno" "fenv" "float"))
                  (:file "stdarg" :depends-on ("util"))
                  (:file "stddef" :depends-on ("util"))
 		 (:file "string" :depends-on ("util")))))

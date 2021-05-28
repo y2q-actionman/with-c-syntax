@@ -14,6 +14,11 @@
    #:|tolower| #:|toupper|
    ;; errno
    #:|errno| #:EDOM #:EILSEQ #:ERANGE
+   ;; fenv
+   #:|fexcept_t|
+   #:FE_DIVBYZERO #:FE_INVALID #:FE_OVERFLOW #:FE_UNDERFLOW #:FE_ALL_EXCEPT
+   #:|feclearexcept| #:|fegetexceptflag| #:|feraiseexcept| #:|fesetexceptflag| #:|fetestexcept|
+   #:|fegetround|
    ;; float
    #:FLT_RADIX
    #:FLT_MANT_DIG #:FLT_EPSILON #:FLT_DIG
