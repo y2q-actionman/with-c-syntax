@@ -35,9 +35,10 @@
 (test test-math-exp
   #{
   is (`(< 2.71828
-         #{ return |exp|(1); }#
+         #{ return |exp|(1.0d0); }#
          2.71829));
-  is.float-equal (|exp|(0), 1);
+  // ; TODO: I require implicit numeric type conversions to write it like exp(0);
+  is.float-equal (|exp|(0.0d0), 1.0d0);
   `(with-checking-errno ('ERANGE) #{
      is (|exp|(most-positive-double-float) == HUGE_VAL);
      }#);
@@ -77,7 +78,7 @@
 (test test-math-expm1
   #{
   is (`(< 1.71828
-         #{ return |expm1|(1); }#
+         #{ return |expm1|(1.0d0); }#
          1.71829));
   is (|expm1|(0.0) == 0.0);
   is.float-equal (|expm1|(double-float-negative-infinity), -1.0);
@@ -122,8 +123,8 @@
   is.float-equal (|fmod|(-0.0, 2.0), -0.0);
   is.float-nan-p (|fmod|(99.0, 0.0)); // Domain error.
   is.float-nan-p (|fmod|(double-float-positive-infinity, 10.0)); // Domain error.
-  is.float-nan-p (|fmod|(double-float-nan, 1));
-  is.float-nan-p (|fmod|(1, double-float-nan));
+  is.float-nan-p (|fmod|(double-float-nan, 1.0));
+  is.float-nan-p (|fmod|(1.0, double-float-nan));
   }#)
 
 (test test-math-remainder
@@ -139,8 +140,8 @@
   is.float-equal (|remainder|(-0.0, 2.0), -0.0);
   is.float-nan-p (|remainder|(99.0, 0.0)); // Domain error.
   is.float-nan-p (|remainder|(double-float-positive-infinity, 10.0)); // Domain error.
-  is.float-nan-p (|remainder|(double-float-nan, 1));
-  is.float-nan-p (|remainder|(1, double-float-nan));
+  is.float-nan-p (|remainder|(double-float-nan, 1.0));
+  is.float-nan-p (|remainder|(1.0, double-float-nan));
   }#)
 
 (test test-math-remquo*
@@ -167,8 +168,8 @@
   // ; Specials
   is.float-nan-p (remquo* (double-float-positive-infinity, 2.0));
   is.float-nan-p (remquo* (double-float-negative-infinity, 2.0));
-  is.float-nan-p (remquo* (10, +0.0));
-  is.float-nan-p (remquo* (999, -0.0));
+  is.float-nan-p (remquo* (10.0, +0.0));
+  is.float-nan-p (remquo* (999.0, -0.0));
   is.float-nan-p (remquo* (double-float-nan, +1.0));
   is.float-nan-p (remquo* (1.0, double-float-nan));
   }#)

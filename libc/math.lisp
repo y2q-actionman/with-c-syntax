@@ -2,6 +2,9 @@
 ;;; 
 ;;; * Currently, I define only double-float versions, like C90.
 ;;; 
+;;; * If I implement <tgmath.h>, I will  define 'f' and 'l' variants,
+;;;   and write a compiler-macro to use them.
+;;; 
 ;;; * When using NaN, many mathematical functions of Common Lisp
 ;;; behave differently from C99. So I manually handle these
 ;;; situations..
@@ -64,40 +67,40 @@
                 double-float-positive-infinity
                 ,underflow-value))
            (t
-            (let ((ret
-                    ;; This is for Allegro.
-                    ;; `with-float-traps-masked' may also be used.
-                    (handler-case (progn ,@body)
-                      (floating-point-overflow ()
-                        (setf |errno| 'with-c-syntax.libc:ERANGE)
-                        ;; TODO: raise FE_OVERFLOW
-                        HUGE_VAL)
-                      (floating-point-underflow ()
-                        (setf |errno| 'with-c-syntax.libc:ERANGE)
-                        ;; TODO: raise FE_UNDERFLOW
-                        ,underflow-value))))
-              (cond ((float-infinity-p ret)
-                     ;; TODO: raise FE_OVERFLOW
-                     (setf |errno| 'with-c-syntax.libc:ERANGE))
-                    ((zerop ret)
-                     ;; TODO: raise FE_UNDERFLOW
-                     (setf |errno| 'with-c-syntax.libc:ERANGE)))
-              ret)))))
+            ;; This is for Allegro.
+            ;; `with-float-traps-masked' may also be used.
+            (handler-case
+                (let ((ret (progn ,@body)))
+                  (cond ((float-infinity-p ret)
+                         ;; TODO: raise FE_OVERFLOW
+                         (setf |errno| 'with-c-syntax.libc:ERANGE))
+                        ((= ret ,underflow-value)
+                         ;; TODO: raise FE_UNDERFLOW
+                         (setf |errno| 'with-c-syntax.libc:ERANGE)))
+                  ret)
+              (floating-point-overflow ()
+                (setf |errno| 'with-c-syntax.libc:ERANGE)
+                ;; TODO: raise FE_OVERFLOW
+                HUGE_VAL)
+              (floating-point-underflow ()
+                (setf |errno| 'with-c-syntax.libc:ERANGE)
+                ;; TODO: raise FE_UNDERFLOW
+                ,underflow-value))))))
 
 (defun |exp| (x)
   (declare (type double-float x))
-  (with-exp-family-error-handling (x 0.0d0)
+  (with-exp-family-error-handling (x (float 0 x))
     (exp x)))
 
 (defun |exp2| (x)                       ; C99
   (declare (type double-float x))
-  (with-exp-family-error-handling (x 0.0d0)
+  (with-exp-family-error-handling (x (float 0 x))
     (expt 2 x)))
 
 (defun |expm1| (x)
   (declare (type double-float x))
-  (with-exp-family-error-handling (x -1.0d0)
-    (exp-1 x)))
+  (with-exp-family-error-handling (x (float -1 x))
+    (float (exp-1 x) x)))
 
 (defun |fabs| (x)
   (declare (type double-float x))
@@ -203,17 +206,20 @@
   (cond
     ((float-nan-p x) x)
     ((float-nan-p y) y)
-    ((<= x y) 
-     0.0d0)
+    ((<= x y) (float 0 x))
     (t
-     (let ((diff (- x y)))
-       (cond ((and (not (|isfinite| diff))
-                   (not (float-infinity-p x))
-                   (not (float-infinity-p y)))
-              (setf |errno| 'with-c-syntax.libc:ERANGE)
-              HUGE_VAL)
-             (t
-              diff))))))
+     (handler-case
+         (let ((diff (- x y)))
+           (cond ((and (not (|isfinite| diff))
+                       (not (float-infinity-p x))
+                       (not (float-infinity-p y)))
+                  (setf |errno| 'with-c-syntax.libc:ERANGE)
+                  HUGE_VAL)
+                 (t
+                  diff)))
+       (floating-point-overflow ()
+         (setf |errno| 'with-c-syntax.libc:ERANGE)
+         HUGE_VAL)))))
 
 (defmacro with-fmax-fmin-parameter-check ((x y) &body body)
   (once-only (x y)
