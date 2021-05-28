@@ -158,6 +158,46 @@
                                   nan-bits)))
        (bits-double-float new-nan-bits)))))
 
+(defun |nextafter| (x y)
+  (declare (type double-float x y))
+  (cond
+    ((float-nan-p x) x)
+    ((float-nan-p y) y)
+    ((= x y) y)
+    (t
+     (let* ((direction-plus (< x y))
+            (ret
+              (cond
+                ((float-infinity-p x)
+                 (if (plusp x)
+                     (if direction-plus
+                         x
+                         most-positive-double-float)
+                     (if direction-plus
+                         most-negative-double-float
+                         x)))
+                ((zerop x)
+                 (if direction-plus
+                     least-positive-double-float
+                     least-negative-double-float))
+                (t
+                 (multiple-value-bind (signif expon sign)
+                     (integer-decode-float x)
+                   (incf signif
+                         (if direction-plus
+                             (if (plusp sign) 1 -1)
+                             (if (plusp sign) -1 1)))
+                   (* (scale-float (float signif x) expon)
+                      sign))))))
+       (cond ((float-infinity-p ret)
+              (setf |errno| 'with-c-syntax.libc:ERANGE)
+              (|feraiseexcept| FE_OVERFLOW))
+             ((and (denormalized-float-p ret)
+                   (not (denormalized-float-p x)))
+              (setf |errno| 'with-c-syntax.libc:ERANGE)
+              (|feraiseexcept| FE_UNDERFLOW)))
+       ret))))
+
 (defun |fdim| (x y)                     ; C99
   (declare (type double-float x y))
   (cond
@@ -335,16 +375,19 @@
            (float-infinity-p x))))
 
 (defun denormalized-float-p (x)
-  (typecase x
+  (etypecase x
     (short-float
-     (< least-negative-normalized-short-float x least-positive-normalized-short-float))
+     (or (< least-negative-normalized-short-float x 0)
+         (< 0 x least-positive-normalized-short-float)))
     (single-float
-     (< least-negative-normalized-single-float x least-positive-normalized-single-float))
+     (or (< least-negative-normalized-single-float x 0)
+         (< 0 x least-positive-normalized-single-float)))
     (double-float
-     (< least-negative-normalized-double-float x least-positive-normalized-double-float))
+     (or (< least-negative-normalized-double-float x 0)
+         (< 0 x least-positive-normalized-double-float)))
     (long-float
-     (< least-negative-normalized-long-float x least-positive-normalized-long-float))
-    (t nil)))
+     (or (< least-negative-normalized-long-float x 0)
+         (< 0 x least-positive-normalized-long-float)))))
 
 (defun |isnormal| (x)
   (not (or (float-nan-p x)
