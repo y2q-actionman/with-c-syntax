@@ -133,6 +133,19 @@
   is (|cbrt| (double-float-nan) == double-float-nan);
   }#)
 
+(test test-math-fabs
+  #{
+  is (|fabs|(0.0) == 0.0);
+  is.float-equal (|fabs|(5.0), 5.0);
+  is.float-equal (|fabs|(-5.0), 5.0);
+  
+  // ; Specials
+  // ; I use '==' (which is `eql'), because (float-equal +Inf +Inf) is false.
+  is (|fabs|(double-float-negative-infinity) == double-float-positive-infinity);
+  is (|fabs|(double-float-positive-infinity) == double-float-positive-infinity);
+  is (float-nan-p (|fabs|(double-float-nan)));
+  }#)
+
 (test test-math-hypot
   #{
   is.float-equal (hypot (1, 1), 1.414213562373095145474621858739);
@@ -152,17 +165,55 @@
   is (hypot (-1, double-float-nan) == double-float-nan);
   }#)
 
-(test test-math-fabs
+(test test-math-pow
   #{
-  is (|fabs|(0.0) == 0.0);
-  is.float-equal (|fabs|(5.0), 5.0);
-  is.float-equal (|fabs|(-5.0), 5.0);
+  is.float-equal (pow (2, 3), 8.0);
+  is.float-equal (pow (-1.1, 2), 1.21);
+  is.float-equal (pow (-1.1, -2), `(/ 1.21));
   
   // ; Specials
-  // ; I use '==' (which is `eql'), because (float-equal +Inf +Inf) is false.
-  is (|fabs|(double-float-negative-infinity) == double-float-positive-infinity);
-  is (|fabs|(double-float-positive-infinity) == double-float-positive-infinity);
-  is (float-nan-p (|fabs|(double-float-nan)));
+
+  /*
+  may-fail (pow (-0.0, double-float-negative-infinity) == double-float-positive-infinity);
+  is (pow (0.0, 1) == 0.0);
+  is (pow (-0.0, 1) == -0.0);
+  is (pow (0.0, 2) == 0.0);
+  is (pow (-0.0, 2.5) == 0.0);
+  may-fail (pow (-1, double-float-positive-infinity) == 1.0);
+  may-fail (pow (-1, double-float-negative-infinity) == 1.0);
+  may-fail (pow (1, double-float-positive-infinity) == 1.0);
+  may-fail (pow (1, double-float-negative-infinity) == 1.0);
+  // ; TODO: add pow(1, NaN) test.
+  signals (arithmetic-error, pow (double-float-positive-infinity, +0.0) == 1.0);
+  signals (arithmetic-error, pow (double-float-negative-infinity, -0.0) == 1.0);
+  // ; TODO: add pow(NaN, 0)
+  is.complexp (pow (-2.1, 0.3)); // FIXME: Common Lisp returns a complex.
+  may-fail (complexp (pow (-2.1, 0.3))); // FIXME: Common Lisp returns a complex.
+  is (pow (least-positive-double-float, double-float-negative-infinity)
+          == double-float-positive-infinity);
+  is (pow (double-float-positive-infinity, double-float-negative-infinity)
+          == 0.0);
+  is (pow (least-negative-double-float, double-float-positive-infinity)
+          == 0.0);
+  is (pow (double-float-negative-infinity, double-float-positive-infinity)
+          == double-float-positive-infinity);
+  is (pow (double-float-negative-infinity, -3) == -0.0);
+  is (pow (double-float-negative-infinity, -2) == 0.0);
+  is (pow (double-float-negative-infinity, -2.1) == 0.0);
+  is (pow (double-float-negative-infinity, 3) == double-float-negative-infinity);
+  is (pow (double-float-negative-infinity, 2) == double-float-positive-infinity);
+  is (pow (double-float-negative-infinity, 2.1) == double-float-positive-infinity);
+  is (pow (double-float-positive-infinity, -10) == 0.0);
+  is (pow (double-float-positive-infinity, double-float-negative-infinity) == 0.0);
+  is (pow (double-float-positive-infinity, 10) == double-float-positive-infinity);
+  is (pow (double-float-positive-infinity, double-float-positive-infinity)
+          == double-float-positive-infinity);
+  */
+
+  check-errno (is (pow (0.0, -1) == double-float-positive-infinity), ERANGE);
+  check-errno (is (pow (-0.0, -3) == double-float-negative-infinity), ERANGE);
+  check-errno (is (pow (0.0, -2) == double-float-positive-infinity), ERANGE);
+  check-errno (is (pow (-0.0, -2.5) == double-float-positive-infinity), ERANGE);
   }#)
 
 (test test-math-fmod
@@ -338,56 +389,7 @@
 
 
 
-(test test-math-pow
-  #{
-  is.float-equal (pow (2, 3), 8.0);
-  is.float-equal (pow (-1.1, 2), 1.21);
-  is.float-equal (pow (-1.1, -2), `(/ 1.21));
-  // ; Specials
-  signals (arithmetic-error, pow (0.0, -1));
-  may-fail (pow (0.0, -1) == double-float-positive-infinity);
-  signals (arithmetic-error, pow (-0.0, -1));
-  may-fail (pow (-0.0, -1) == double-float-negative-infinity);
-  signals (arithmetic-error, pow (0.0, -2));
-  may-fail (pow (0.0, -2) == double-float-positive-infinity);
-  signals (arithmetic-error, pow (-0.0, -2.5));
-  may-fail (pow (-0.0, -2.5) == double-float-positive-infinity);
-  may-fail (pow (-0.0, double-float-negative-infinity) == double-float-positive-infinity);
-  is (pow (0.0, 1) == 0.0);
-  is (pow (-0.0, 1) == -0.0);
-  is (pow (0.0, 2) == 0.0);
-  is (pow (-0.0, 2.5) == 0.0);
-  may-fail (pow (-1, double-float-positive-infinity) == 1.0);
-  may-fail (pow (-1, double-float-negative-infinity) == 1.0);
-  may-fail (pow (1, double-float-positive-infinity) == 1.0);
-  may-fail (pow (1, double-float-negative-infinity) == 1.0);
-  // ; TODO: add pow(1, NaN) test.
-  signals (arithmetic-error, pow (double-float-positive-infinity, +0.0) == 1.0);
-  signals (arithmetic-error, pow (double-float-negative-infinity, -0.0) == 1.0);
-  // ; TODO: add pow(NaN, 0)
-  is.complexp (pow (-2.1, 0.3)); // FIXME: Common Lisp returns a complex.
-  may-fail (complexp (pow (-2.1, 0.3))); // FIXME: Common Lisp returns a complex.
-  is (pow (least-positive-double-float, double-float-negative-infinity)
-          == double-float-positive-infinity);
-  is (pow (double-float-positive-infinity, double-float-negative-infinity)
-          == 0.0);
-  is (pow (least-negative-double-float, double-float-positive-infinity)
-          == 0.0);
-  is (pow (double-float-negative-infinity, double-float-positive-infinity)
-          == double-float-positive-infinity);
-  is (pow (double-float-negative-infinity, -3) == -0.0);
-  is (pow (double-float-negative-infinity, -2) == 0.0);
-  is (pow (double-float-negative-infinity, -2.1) == 0.0);
-  is (pow (double-float-negative-infinity, 3) == double-float-negative-infinity);
-  is (pow (double-float-negative-infinity, 2) == double-float-positive-infinity);
-  is (pow (double-float-negative-infinity, 2.1) == double-float-positive-infinity);
-  is (pow (double-float-positive-infinity, -10) == 0.0);
-  is (pow (double-float-positive-infinity, double-float-negative-infinity) == 0.0);
-  is (pow (double-float-positive-infinity, 10) == double-float-positive-infinity);
-  is (pow (double-float-positive-infinity, double-float-positive-infinity)
-          == double-float-positive-infinity);
-  // ; TODO: add NaN test.
-  }#)
+
 
 (test test-math-sqrt
   #{

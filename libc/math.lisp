@@ -152,6 +152,10 @@
            (warn "Current cbrt() implementation returns a principal complex value, defined in ANSI CL, for minus parameters."))
          (expt x 1/3))))
 
+(defun |fabs| (x)
+  (coercef x 'double-float)
+  (abs x))                              ; no error
+
 (defun |hypot| (x y)
   (coercef x 'double-float)
   (coercef y 'double-float)
@@ -174,9 +178,27 @@
                   HUGE_VAL))
            ret))))
 
-(defun |fabs| (x)
+(defun double-float-oddp (x)
+  (declare (type double-float x))
+  (multiple-value-bind (int frac)
+      (floor x 2)
+    (declare (ignore int))
+    (= frac 1.0)))
+
+(defun |pow| (x y)
   (coercef x 'double-float)
-  (abs x))                              ; no error
+  (coercef y 'double-float)
+  (let ((ret
+          (handler-case (expt x y)
+            (division-by-zero ()
+              (wcs-raise-fe-exception FE_DIVBYZERO)
+              (if (and (minusp y)
+                       (double-float-oddp y)
+                       (eql -0.0d0 x))
+                  (- HUGE_VAL)
+                  HUGE_VAL)))))
+    ret)
+  ) ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO, FE_UNDERFLOW, FE_OVERFLOW
 
 (defmacro with-mod-family-parameter-check ((x y) &body body)
   `(cond ((float-nan-p ,x) ,x)
@@ -322,9 +344,6 @@
 
 ;;; TODO: 'fma'
 
-
-(defun |pow| (x y)
-  (expt x y)) ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO, FE_UNDERFLOW, FE_OVERFLOW
 
 (defun |sqrt| (x)
   (sqrt x))                             ; may raise EDOM, FE_INVALID
