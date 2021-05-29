@@ -2,8 +2,6 @@
 
 (defpackage #:with-c-syntax.libc
   (:use)
-  (:import-from #:osicat-posix
-                #:EDOM #:EILSEQ #:ERANGE)
   (:export
    ;; assert
    #:|assert| #:NDEBUG

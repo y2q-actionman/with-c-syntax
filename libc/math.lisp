@@ -13,7 +13,21 @@
 
 (in-package #:with-c-syntax.libc-implementation)
 
-;;; TODO: These should be arranged by the order in C99 (ISO/IEC 9899).
+;;; Utils
+
+(defun wcs-raise-fe-exception (fe-constant)
+  (eswitch (fe-constant)
+    (FE_DIVBYZERO
+     (error "FIXME"))
+    (FE_INVALID
+     (setf |errno| 'with-c-syntax.libc:EDOM))
+    (FE_OVERFLOW
+     (setf |errno| 'with-c-syntax.libc:ERANGE))
+    (FE_UNDERFLOW
+     (setf |errno| 'with-c-syntax.libc:ERANGE)))
+  (|feraiseexcept| fe-constant))
+
+;;; TODO: libc symbols should be arranged by the order in C99 (ISO/IEC 9899).
 
 (locally
     #+sbcl (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
@@ -72,19 +86,15 @@
             (handler-case
                 (let ((ret (progn ,@body)))
                   (cond ((float-infinity-p ret)
-                         ;; TODO: raise FE_OVERFLOW
-                         (setf |errno| 'with-c-syntax.libc:ERANGE))
+                         (wcs-raise-fe-exception FE_OVERFLOW))
                         ((= ret ,underflow-value)
-                         ;; TODO: raise FE_UNDERFLOW
-                         (setf |errno| 'with-c-syntax.libc:ERANGE)))
+                         (wcs-raise-fe-exception FE_UNDERFLOW)))
                   ret)
               (floating-point-overflow ()
-                (setf |errno| 'with-c-syntax.libc:ERANGE)
-                ;; TODO: raise FE_OVERFLOW
+                (wcs-raise-fe-exception FE_OVERFLOW)
                 HUGE_VAL)
               (floating-point-underflow ()
-                (setf |errno| 'with-c-syntax.libc:ERANGE)
-                ;; TODO: raise FE_UNDERFLOW
+                (wcs-raise-fe-exception FE_UNDERFLOW)
                 ,underflow-value))))))
 
 (defun |exp| (x)
@@ -110,24 +120,20 @@
   (declare (type double-float x y))
   (cond ((float-nan-p x) x)
         ((float-nan-p y) y)
-        ((or (float-infinity-p x) (zerop y))
-         (setf |errno| 'with-c-syntax.libc:EDOM)
+        ((or (float-infinity-p x)
+             (zerop y))
+         (wcs-raise-fe-exception FE_INVALID)
          double-float-nan)
-        ((zerop x)
-         x)
-        (t
-         (nth-value 1 (ftruncate x y)))))
+        ((zerop x) x)
+        (t (nth-value 1 (ftruncate x y)))))
 
 (defun |remainder| (x y)                ; C99
   (declare (type double-float x y))
   (cond ((float-nan-p x) x)
         ((float-nan-p y) y)
-        ((float-infinity-p x)
-         ;; TODO: raise FE_INVALID
-         double-float-nan)
-        ((zerop y)
-         (setf |errno| 'with-c-syntax.libc:EDOM)
-         ;; TODO: raise FE_INVALID
+        ((or (float-infinity-p x)
+             (zerop y))
+         (wcs-raise-fe-exception FE_INVALID)
          double-float-nan)
         (t
          (nth-value 1 (fround x y)))))
@@ -138,7 +144,7 @@
         ((float-nan-p y) y)
         ((or (float-infinity-p x)
              (zerop y))
-         ;; TODO: raise FE_INVALID
+         (wcs-raise-fe-exception FE_INVALID)
          double-float-nan)
         (t
          (multiple-value-bind (quotient remainder)
@@ -210,12 +216,10 @@
                     (step-double-float-minus x))))
        (cond ((and (float-infinity-p ret)
                    (not (float-infinity-p x)))
-              (setf |errno| 'with-c-syntax.libc:ERANGE)
-              (|feraiseexcept| FE_OVERFLOW))
+              (wcs-raise-fe-exception FE_OVERFLOW))
              ((or (zerop ret)
                   (denormalized-float-p ret))
-              (setf |errno| 'with-c-syntax.libc:ERANGE)
-              (|feraiseexcept| FE_UNDERFLOW)))
+              (wcs-raise-fe-exception FE_UNDERFLOW)))
        ret))))
 
 (defun |fdim| (x y)                     ; C99
@@ -230,12 +234,12 @@
            (cond ((and (not (|isfinite| diff))
                        (not (float-infinity-p x))
                        (not (float-infinity-p y)))
-                  (setf |errno| 'with-c-syntax.libc:ERANGE)
+                  (wcs-raise-fe-exception FE_OVERFLOW)
                   HUGE_VAL)
                  (t
                   diff)))
        (floating-point-overflow ()
-         (setf |errno| 'with-c-syntax.libc:ERANGE)
+         (wcs-raise-fe-exception FE_OVERFLOW)
          HUGE_VAL)))))
 
 (defmacro with-fmax-fmin-parameter-check ((x y) &body body)
@@ -458,7 +462,9 @@
   (or (float-nan-p x) (float-nan-p y)))
 
 (define-compiler-macro |isunordered| (x y)
-  `(or (float-nan-p ,x) (float-nan-p ,y)))
+  `(locally
+       (declare #+sbcl (sb-ext:muffle-conditions sb-ext:code-deletion-note))
+     (or (float-nan-p ,x) (float-nan-p ,y))))
 
 ;;; C++20
 ;;; I found it in https://cpprefjp.github.io/reference/cmath/lerp.html

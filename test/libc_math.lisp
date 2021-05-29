@@ -4,9 +4,9 @@
 ;;; if they are not free-standing.
 (in-readtable with-c-syntax-readtable)
 
-(defmacro with-checking-errno ((expected-errno) &body body)
-  `(let ((|errno| 0))
-     (prog1 (progn ,@body)
+(defmacro check-errno (form expected-errno)
+  `(let ((|errno| nil))
+     (prog1 ,form
        (is (eql |errno| ,expected-errno)))))
 
 (defmacro is.float-equal (x y)
@@ -39,18 +39,10 @@
          2.71829));
   // ; TODO: I require implicit numeric type conversions to write it like exp(0);
   is.float-equal (|exp|(0.0d0), 1.0d0);
-  `(with-checking-errno ('ERANGE) #{
-     is (|exp|(most-positive-double-float) == HUGE_VAL);
-     }#);
-  `(with-checking-errno ('ERANGE) #{
-     is (|exp|(most-negative-double-float) == 0.0);
-     }#);
-  `(with-checking-errno (0) #{
-     is (|exp|(double-float-positive-infinity) == HUGE_VAL);
-     }#);
-  `(with-checking-errno (0) #{
-     is (|exp|(double-float-negative-infinity) == 0.0);
-     }#);
+  check-errno (is(|exp|(most-positive-double-float) == HUGE_VAL), ERANGE);
+  check-errno (is(|exp|(most-negative-double-float) == 0.0), ERANGE);
+  check-errno (is(|exp|(double-float-positive-infinity) == HUGE_VAL), nil);
+  check-errno (is(|exp|(double-float-negative-infinity) == 0.0), nil);
   is (float-nan-p (|exp|(double-float-nan)));
   }#)
 
@@ -58,20 +50,10 @@
   #{
   is.float-equal (|exp2|(2.0), 4.0);
   is (|exp2|(0.0) == 1.0);
-  `(with-checking-errno ('ERANGE) #{
-     is (|exp2|(most-positive-double-float) == HUGE_VAL);
-     }#);
-  `(with-checking-errno ('ERANGE) #{
-     is (|exp2|(most-negative-double-float) == 0.0);
-     }#);
-  `(with-checking-errno (0)
-     #{
-     is (|exp2|(double-float-positive-infinity) == HUGE_VAL);
-     }#);
-  `(with-checking-errno (0)
-     #{
-     is (|exp2|(double-float-negative-infinity) == 0.0);
-     }#);
+  check-errno (is (|exp2|(most-positive-double-float) == HUGE_VAL), ERANGE);
+  check-errno (is (|exp2|(most-negative-double-float) == 0.0), ERANGE);
+  check-errno (is (|exp2|(double-float-positive-infinity) == HUGE_VAL), nil);
+  check-errno (is (|exp2|(double-float-negative-infinity) == 0.0), nil);
   is (float-nan-p (|exp2|(double-float-nan)));
   }#)
 
@@ -82,18 +64,10 @@
          1.71829));
   is (|expm1|(0.0) == 0.0);
   is.float-equal (|expm1|(double-float-negative-infinity), -1.0);
-  `(with-checking-errno ('ERANGE) #{
-     is (|expm1|(most-positive-double-float) == HUGE_VAL);
-     }#);
-  `(with-checking-errno ('ERANGE) #{
-     is (|expm1|(most-negative-double-float) == -1.0);
-     }#);
-  `(with-checking-errno (0) #{
-     is (|expm1|(double-float-positive-infinity) == HUGE_VAL);
-     }#);
-  `(with-checking-errno (0) #{
-     is (|expm1|(double-float-negative-infinity) == -1.0);
-     }#);
+  check-errno (is (|expm1|(most-positive-double-float) == HUGE_VAL), ERANGE);
+  check-errno (is (|expm1|(most-negative-double-float) == -1.0), ERANGE);
+  check-errno (is (|expm1|(double-float-positive-infinity) == HUGE_VAL), nil);
+  check-errno (is (|expm1|(double-float-negative-infinity) == -1.0), nil);
   is (float-nan-p (|expm1|(double-float-nan)));
   }#)
 
@@ -107,7 +81,7 @@
   // ; I use '==' (which is `eql'), because (float-equal +Inf +Inf) is false.
   is (|fabs|(double-float-negative-infinity) == double-float-positive-infinity);
   is (|fabs|(double-float-positive-infinity) == double-float-positive-infinity);
-  is.float-nan-p (|fabs|(double-float-nan));
+  is (float-nan-p (|fabs|(double-float-nan)));
   }#)
 
 (test test-math-fmod
@@ -121,10 +95,10 @@
   is (|fmod|(0.0, 2.0) == 0.0);
   is (|fmod|(-0.0, 2.0) == -0.0);
   is.float-equal (|fmod|(-0.0, 2.0), -0.0);
-  is.float-nan-p (|fmod|(99.0, 0.0)); // Domain error.
-  is.float-nan-p (|fmod|(double-float-positive-infinity, 10.0)); // Domain error.
-  is.float-nan-p (|fmod|(double-float-nan, 1.0));
-  is.float-nan-p (|fmod|(1.0, double-float-nan));
+  check-errno (is (float-nan-p (|fmod|(99.0, 0.0))), EDOM);
+  check-errno (is (float-nan-p (|fmod|(double-float-positive-infinity, 10.0))), EDOM);
+  check-errno (is (float-nan-p (|fmod|(double-float-nan, 1.0))), nil);
+  check-errno (is (float-nan-p (|fmod|(1.0, double-float-nan))), nil);
   }#)
 
 (test test-math-remainder
@@ -138,10 +112,11 @@
   is (|remainder|(0.0, 2.0) == 0.0);
   is (|remainder|(-0.0, 2.0) == -0.0);
   is.float-equal (|remainder|(-0.0, 2.0), -0.0);
-  is.float-nan-p (|remainder|(99.0, 0.0)); // Domain error.
-  is.float-nan-p (|remainder|(double-float-positive-infinity, 10.0)); // Domain error.
-  is.float-nan-p (|remainder|(double-float-nan, 1.0));
-  is.float-nan-p (|remainder|(1.0, double-float-nan));
+  check-errno (is (float-nan-p (|remainder|(99.0, 0.0))), EDOM);
+  check-errno (is (float-nan-p (|remainder|(double-float-positive-infinity, 10.0))),
+                  EDOM);
+  check-errno (is (float-nan-p (|remainder|(double-float-nan, 1.0))), nil);
+  check-errno (is (float-nan-p (|remainder|(1.0, double-float-nan))), nil);
   }#)
 
 (test test-math-remquo*
@@ -166,12 +141,12 @@
   is (quo == 2);
 
   // ; Specials
-  is.float-nan-p (remquo* (double-float-positive-infinity, 2.0));
-  is.float-nan-p (remquo* (double-float-negative-infinity, 2.0));
-  is.float-nan-p (remquo* (10.0, +0.0));
-  is.float-nan-p (remquo* (999.0, -0.0));
-  is.float-nan-p (remquo* (double-float-nan, +1.0));
-  is.float-nan-p (remquo* (1.0, double-float-nan));
+  check-errno (is (float-nan-p (remquo* (double-float-positive-infinity, 2.0))), EDOM);
+  check-errno (is (float-nan-p (remquo* (double-float-negative-infinity, 2.0))), EDOM);
+  check-errno (is (float-nan-p (remquo* (10.0, +0.0))), EDOM);
+  check-errno (is (float-nan-p (remquo* (999.0, -0.0))), EDOM);
+  check-errno (is (float-nan-p (remquo* (double-float-nan, +1.0))), nil);
+  check-errno (is (float-nan-p (remquo* (1.0, double-float-nan))), nil);
   }#)
 
 ;;; FIXME: I have |NAN| and |nan| in Libc package. So this code misses which to use.
@@ -210,46 +185,53 @@
   is (|nextafter|(- before-1d0, -10d0) == -1.0d0);
 
   // ; Border of normals and subnormals.
-  is (|nextafter|(least-positive-normalized-double-float, -1d0) == most-positive-subnormal-double-float);
-  is (|nextafter|(most-positive-subnormal-double-float, +1d0) == least-positive-normalized-double-float);
-  
-  is (|nextafter|(least-negative-normalized-double-float, +1d0) == - most-positive-subnormal-double-float);
-  is (|nextafter|(- most-positive-subnormal-double-float, -1d0) == least-negative-normalized-double-float);
+  check-errno (is (|nextafter|(least-positive-normalized-double-float, -1d0) == most-positive-subnormal-double-float),
+                  ERANGE);
+  check-errno (is (|nextafter|(most-positive-subnormal-double-float, +1d0) == least-positive-normalized-double-float),
+                  nil);
+
+  check-errno (is (|nextafter|(least-negative-normalized-double-float, +1d0) == - most-positive-subnormal-double-float),
+                  ERANGE);
+  check-errno (is (|nextafter|(- most-positive-subnormal-double-float, -1d0) == least-negative-normalized-double-float),
+                  nil);
   
   // ; Zero and subnormals.
-  is (|nextafter|(least-negative-double-float, 1d0) == -0d0);
-  is (|nextafter|(-0d0, 1d0) == least-positive-double-float);
-  is (|nextafter|(least-positive-double-float, 1d0) == next-of-least-positive-double-float);
+  check-errno (is (|nextafter|(least-negative-double-float, 1d0) == -0d0), ERANGE);
+  check-errno (is (|nextafter|(-0d0, 1d0) == least-positive-double-float), ERANGE);
+  check-errno (is (|nextafter|(least-positive-double-float, 1d0) == next-of-least-positive-double-float), ERANGE);
 
-  is (|nextafter|(next-of-least-positive-double-float, -1d0) == least-positive-double-float);
-  is (|nextafter|(least-positive-double-float, -1d0) == 0d0);
-  is (|nextafter|(0d0, -1d0) == least-negative-double-float);
+  check-errno (is (|nextafter|(next-of-least-positive-double-float, -1d0) == least-positive-double-float), ERANGE);
+  check-errno (is (|nextafter|(least-positive-double-float, -1d0) == 0d0), ERANGE);
+  check-errno (is (|nextafter|(0d0, -1d0) == least-negative-double-float), ERANGE);
   
   // ; Infinities
-  is (|nextafter|(most-positive-double-float, double-float-positive-infinity)
-                 == double-float-positive-infinity);
-  is (|nextafter|(double-float-negative-infinity, double-float-positive-infinity)
-                 == most-negative-double-float);
-  is (|nextafter|(most-negative-double-float, double-float-negative-infinity)
-                 == double-float-negative-infinity);
-  is (|nextafter|(double-float-negative-infinity, double-float-negative-infinity)
-                 == double-float-negative-infinity);
+  check-errno (is (|nextafter|(most-positive-double-float, double-float-positive-infinity)
+                              == double-float-positive-infinity),
+                  ERANGE);
+  check-errno (is (|nextafter|(double-float-negative-infinity, double-float-positive-infinity)
+                              == most-negative-double-float),
+                  nil);
+  check-errno (is (|nextafter|(most-negative-double-float, double-float-negative-infinity)
+                              == double-float-negative-infinity),
+                  ERANGE);
+  check-errno (is (|nextafter|(double-float-negative-infinity, double-float-negative-infinity)
+                              == double-float-negative-infinity),
+                  nil);
 
   // ; NaN
-  is.float-nan-p (|nextafter|(double-float-nan, double-float-nan));
-  is.float-nan-p (|nextafter|(double-float-nan, 1.0));
-  is.float-nan-p (|nextafter|(1.0, double-float-nan));
+  check-errno (is (float-nan-p (|nextafter|(double-float-nan, double-float-nan))), nil);
+  check-errno (is (float-nan-p (|nextafter|(double-float-nan, 1.0))), nil);
+  check-errno (is (float-nan-p (|nextafter|(1.0, double-float-nan))), nil);
   }#)
 
 (test test-math-fdim
   #{
-  is.float-equal (|fdim|(2.0, 1.0), 1.0);
-  is.float-equal (|fdim|(1.0, 2.0), 0.0);
+  is (|fdim|(2.0, 1.0) == 1.0);
+  is (|fdim|(1.0, 2.0) == 0.0);
   is (|fdim|(double-float-positive-infinity, 1.0) == double-float-positive-infinity);
-  `(with-checking-errno ('ERANGE) #{
-     is (|fdim|(most-positive-double-float, most-negative-double-float) == HUGE_VAL);
-     }#);
-  is.float-nan-p (|fdim|(-1.0, double-float-nan));
+  check-errno (is (|fdim|(most-positive-double-float, most-negative-double-float) == HUGE_VAL),
+                  ERANGE);
+  check-errno (is (float-nan-p (|fdim|(-1.0, double-float-nan))), nil);
   }#)
 
 (test test-math-fmax
@@ -257,9 +239,9 @@
   is (|fmax|(3.125, 2.0) == 3.125);
   is (|fmax|(double-float-negative-infinity, 2.0) == 2.0);
   is (|fmax|(double-float-positive-infinity, 2.0) == double-float-positive-infinity);
-  is.float-equal (|fmax|(double-float-nan, 1.0), 1.0);
-  is.float-equal (|fmax|(-1.0, double-float-nan), -1.0);
-  is.float-nan-p (|fmax|(double-float-nan, double-float-nan));
+  is (|fmax|(double-float-nan, 1.0) == 1.0);
+  is (|fmax|(-1.0, double-float-nan) == -1.0);
+  is (float-nan-p (|fmax|(double-float-nan, double-float-nan)));
   }#)
 
 (test test-math-fmin
@@ -267,9 +249,9 @@
   is (|fmin|(3.125, 2.0) == 2.0);
   is (|fmin|(double-float-negative-infinity, 2.0) == double-float-negative-infinity);
   is (|fmin|(double-float-positive-infinity, 2.0) == 2.0);
-  is.float-equal (|fmin|(double-float-nan, 1.0), 1.0);
-  is.float-equal (|fmin|(-1.0, double-float-nan), -1.0);
-  is.float-nan-p (|fmin|(double-float-nan, double-float-nan));
+  is (|fmin|(double-float-nan, 1.0) == 1.0);
+  is (|fmin|(-1.0, double-float-nan) == -1.0);
+  is (float-nan-p (|fmin|(double-float-nan, double-float-nan)));
   }#)
 
 

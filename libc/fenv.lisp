@@ -5,16 +5,14 @@
 ;;; Internals
 
 (defstruct wcs-fexcept
-  (flags 0 :type fixnum)
-  (operation-name nil :type symbol))
+  (flags 0 :type fixnum))
 
 (defun test-wcs-fexcept-flags (excepts wcs-fexcept)
   (logtest excepts
            (wcs-fexcept-flags wcs-fexcept)))
 
 (defun assign-wcs-fexcept (dst src)
-  (setf (wcs-fexcept-flags dst) (wcs-fexcept-flags src)
-        (wcs-fexcept-operation-name dst) (wcs-fexcept-operation-name src))
+  (setf (wcs-fexcept-flags dst) (wcs-fexcept-flags src))
   dst)
 
 ;;; Types

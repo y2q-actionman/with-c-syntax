@@ -7,3 +7,11 @@ error to this.
 (If this has a symbol, that is usable as a condition type of 'osicat-posix'.)")
 
 ;;; .. and symbols denotiong errnos are exported. See the package definition.
+
+(defmacro define-errno-by-osicat-posix-symbol (name)
+  `(defconstant ,name
+     ',(find-symbol (string name) :osicat-posix)))
+
+(define-errno-by-osicat-posix-symbol EDOM)
+(define-errno-by-osicat-posix-symbol ERANGE)
+(define-errno-by-osicat-posix-symbol EILSEQ)
