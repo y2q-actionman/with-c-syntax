@@ -115,6 +115,23 @@
   check-errno (is (|log2|(double-float-nan) == double-float-nan), nil);
   }#)
 
+(test test-math-cbrt
+  #{
+  double tmp;
+  
+  is.float-equal (|cbrt| (1000.0), 10.0);
+  
+  // ; "cbrt(-1.0) may return a complex. Under implementation..."
+  tmp = |cbrt| (-1.0);
+  is (tmp == -1.0 \|\| complexp (tmp));
+  
+  is (|cbrt| (0.0) == 0.0);
+  is (|cbrt| (-0.0) == -0.0);
+  is (|cbrt| (double-float-positive-infinity) == double-float-positive-infinity);
+  is (|cbrt| (double-float-negative-infinity) == double-float-negative-infinity);
+  is (|cbrt| (double-float-nan) == double-float-nan);
+  }#)
+
 (test test-math-fabs
   #{
   is (|fabs|(0.0) == 0.0);
@@ -360,18 +377,6 @@
   is (sqrt (double-float-positive-infinity) == double-float-positive-infinity);
   is (sqrt (0.0) == 0.0);
   is (sqrt (-0.0) == -0.0);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-cbrt
-  #{
-  is.float-equal (cbrt (1000.0), 10.0);
-  // ; Specials
-  is.complexp (cbrt (-2.1)); // FIXME: Common Lisp returns a complex.
-  is (cbrt (double-float-positive-infinity) == double-float-positive-infinity);
-  may-fail (cbrt (double-float-negative-infinity) == double-float-negative-infinity);
-  is (cbrt (0.0) == 0.0);
-  may-fail (cbrt (-0.0) == -0.0);
   // ; TODO: add NaN test.
   }#)
 

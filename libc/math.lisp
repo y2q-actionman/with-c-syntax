@@ -144,6 +144,16 @@
   (with-log-family-parameter-check (x (float 0 x))
     (log x 2)))
 
+(defun |cbrt| (x)
+  (declare (type double-float x))
+  (cond ((float-nan-p x) x)
+        ((float-infinity-p x) x)        ; For treating -Inf.
+        ((zerop x) x)                   ; For treating -0.0.
+        (t
+         (when (minusp x)
+           (warn "Current cbrt() implementation returns a principal complex value, defined in ANSI CL, for minus parameters."))
+         (expt x 1/3))))
+
 (defun |fabs| (x)
   (declare (type double-float x))
   (abs x))                              ; no error
@@ -291,10 +301,6 @@
 
 (defun |sqrt| (x)
   (sqrt x))                             ; may raise EDOM, FE_INVALID
-
-(defun |cbrt| (x)
-  ;; TODO: FIXME: I must check its accuracy.
-  (expt x 1/3))                         ; may raise EDOM, FE_INVALID
 
 (defun |hypot| (x y)
   (hypot x y))
