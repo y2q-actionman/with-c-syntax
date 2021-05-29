@@ -15,16 +15,14 @@
 
 ;;; Utils
 
-(defun wcs-raise-fe-exception (fe-constant)
-  (eswitch (fe-constant)
-    (FE_DIVBYZERO
-     (setf |errno| 'with-c-syntax.libc:ERANGE))
-    (FE_INVALID
-     (setf |errno| 'with-c-syntax.libc:EDOM))
-    (FE_OVERFLOW
-     (setf |errno| 'with-c-syntax.libc:ERANGE))
-    (FE_UNDERFLOW
-     (setf |errno| 'with-c-syntax.libc:ERANGE)))
+(defun wcs-raise-fe-exception (fe-constant &key (errno nil))
+  (setf |errno|
+        (or errno
+            (eswitch (fe-constant)
+              (FE_DIVBYZERO 'with-c-syntax.libc:ERANGE)
+              (FE_INVALID 'with-c-syntax.libc:EDOM)
+              (FE_OVERFLOW 'with-c-syntax.libc:ERANGE)
+              (FE_UNDERFLOW 'with-c-syntax.libc:ERANGE))))
   (|feraiseexcept| fe-constant))
 
 ;;; TODO: libc symbols should be arranged by the order in C99 (ISO/IEC 9899).
@@ -98,17 +96,17 @@
                 ,underflow-value))))))
 
 (defun |exp| (x)
-  (declare (type double-float x))
+  (coercef x 'double-float)
   (with-exp-family-error-handling (x (float 0 x))
     (exp x)))
 
 (defun |exp2| (x)                       ; C99
-  (declare (type double-float x))
+  (coercef x 'double-float)
   (with-exp-family-error-handling (x (float 0 x))
     (expt 2 x)))
 
 (defun |expm1| (x)
-  (declare (type double-float x))
+  (coercef x 'double-float)
   (with-exp-family-error-handling (x (float -1 x))
     (float (exp-1 x) x)))
 
@@ -125,27 +123,27 @@
            (t ,@body))))
 
 (defun |log| (x)
-  (declare (type double-float x))
+  (coercef x 'double-float)
   (with-log-family-parameter-check (x (float 0 x))
     (log x)))
 
 (defun |log10| (x)
-  (declare (type double-float x))
+  (coercef x 'double-float)
   (with-log-family-parameter-check (x (float 0 x))
     (log x 10)))
 
 (defun |log1p| (x)                      ; C99
-  (declare (type double-float x))
+  (coercef x 'double-float)
   (with-log-family-parameter-check (x (float -1 x))
     (log1+ x)))
 
 (defun |log2| (x)                       ; C99
-  (declare (type double-float x))
+  (coercef x 'double-float)
   (with-log-family-parameter-check (x (float 0 x))
     (log x 2)))
 
-(defun |cbrt| (x)
-  (declare (type double-float x))
+(defun |cbrt| (x)                       ; C99
+  (coercef x 'double-float)
   (cond ((float-nan-p x) x)
         ((float-infinity-p x) x)        ; For treating -Inf.
         ((zerop x) x)                   ; For treating -0.0.
@@ -154,8 +152,30 @@
            (warn "Current cbrt() implementation returns a principal complex value, defined in ANSI CL, for minus parameters."))
          (expt x 1/3))))
 
+(defun |hypot| (x y)
+  (coercef x 'double-float)
+  (coercef y 'double-float)
+  (cond ((or (float-infinity-p x)
+             (float-infinity-p y))
+         double-float-positive-infinity)
+        ((float-nan-p x) x)
+        ((float-nan-p y) y)
+        (t
+         (let ((ret
+                 (handler-case (hypot x y)
+                   (floating-point-overflow ()
+                     (wcs-raise-fe-exception FE_OVERFLOW)
+                     HUGE_VAL)
+                   (floating-point-underflow ()
+                     (wcs-raise-fe-exception FE_UNDERFLOW :errno nil)
+                     +0))))
+           (cond ((float-infinity-p ret)
+                  (wcs-raise-fe-exception FE_OVERFLOW)
+                  HUGE_VAL))
+           ret))))
+
 (defun |fabs| (x)
-  (declare (type double-float x))
+  (coercef x 'double-float)
   (abs x))                              ; no error
 
 (defmacro with-mod-family-parameter-check ((x y) &body body)
@@ -168,19 +188,22 @@
          (t ,@body)))
 
 (defun |fmod| (x y)
-  (declare (type double-float x y))
+  (coercef x 'double-float)
+  (coercef y 'double-float)
   (with-mod-family-parameter-check (x y)
     (if (zerop x)
         x
         (nth-value 1 (ftruncate x y)))))
 
 (defun |remainder| (x y)                ; C99
-  (declare (type double-float x y))
+  (coercef x 'double-float)
+  (coercef y 'double-float)
   (with-mod-family-parameter-check (x y)
     (nth-value 1 (fround x y))))
 
 (defun remquo* (x y)                    ; C99
-  (declare (type double-float x y))
+  (coercef x 'double-float)
+  (coercef y 'double-float)
   (with-mod-family-parameter-check (x y)
     (multiple-value-bind (quotient remainder)
         (round x y)
@@ -240,7 +263,8 @@
        (bits-double-float bits)))))
 
 (defun |nextafter| (x y)
-  (declare (type double-float x y))
+  (coercef x 'double-float)
+  (coercef y 'double-float)
   (cond
     ((float-nan-p x) x)
     ((float-nan-p y) y)
@@ -253,12 +277,13 @@
                    (not (float-infinity-p x)))
               (wcs-raise-fe-exception FE_OVERFLOW))
              ((or (zerop ret)
-                  (denormalized-float-p ret))
+                  (float-subnormal-p ret))
               (wcs-raise-fe-exception FE_UNDERFLOW)))
        ret))))
 
 (defun |fdim| (x y)                     ; C99
-  (declare (type double-float x y))
+  (coercef x 'double-float)
+  (coercef y 'double-float)
   (cond
     ((float-nan-p x) x)
     ((float-nan-p y) y)
@@ -284,12 +309,14 @@
      (t ,@body)))
 
 (defun |fmax| (x y)
-  (declare (type double-float x y))
+  (coercef x 'double-float)
+  (coercef y 'double-float)
   (with-fmax-fmin-parameter-check (x y)
     (max x y)))
 
 (defun |fmin| (x y)
-  (declare (type double-float x y))
+  (coercef x 'double-float)
+  (coercef y 'double-float)
   (with-fmax-fmin-parameter-check (x y)
     (min x y)))
 
@@ -301,9 +328,6 @@
 
 (defun |sqrt| (x)
   (sqrt x))                             ; may raise EDOM, FE_INVALID
-
-(defun |hypot| (x y)
-  (hypot x y))
 
 (defun |sin| (x)
   (sin x))                              ; may raise EDOM, FE_INVALID
@@ -419,12 +443,15 @@
   (not (or (float-nan-p x)
            (float-infinity-p x))))
 
-(defun denormalized-float-p (x)
+(defun float-subnormal-p (x)
   (etypecase x
     (short-float
      (or (< least-negative-normalized-short-float x 0)
          (< 0 x least-positive-normalized-short-float)))
     (single-float
+     ;; I think I can write it as:
+     ;;   (< 0 (abs x) least-positive-normalized-single-float)
+     ;; But it raises 'note: deleting unreachable code' on SBCL. Why?
      (or (< least-negative-normalized-single-float x 0)
          (< 0 x least-positive-normalized-single-float)))
     (double-float
@@ -437,13 +464,13 @@
 (defun |isnormal| (x)
   (not (or (float-nan-p x)
            (float-infinity-p x)
-           (denormalized-float-p x))))
+           (float-subnormal-p x))))
 
 (defun |fpclassify| (x)
   (cond ((float-nan-p x) :FP_NAN)
         ((float-infinity-p x) :FP_INFINITE)
         ((zerop x) :FP_ZERO)
-        ((denormalized-float-p x) :FP_SUBNORMAL)
+        ((float-subnormal-p x) :FP_SUBNORMAL)
         (t :FP_NORMAL)))
 
 ;;; SIGNBIT (C99)
