@@ -116,40 +116,34 @@
   (declare (type double-float x))
   (abs x))                              ; no error
 
+(defmacro with-mod-family-parameter-check ((x y) &body body)
+  (once-only (x y)
+    `(cond ((float-nan-p ,x) ,x)
+           ((float-nan-p ,y) ,y)
+           ((or (float-infinity-p ,x)
+                (zerop ,y))
+            (wcs-raise-fe-exception FE_INVALID)
+            double-float-nan)
+           (t ,@body))))
+
 (defun |fmod| (x y)
   (declare (type double-float x y))
-  (cond ((float-nan-p x) x)
-        ((float-nan-p y) y)
-        ((or (float-infinity-p x)
-             (zerop y))
-         (wcs-raise-fe-exception FE_INVALID)
-         double-float-nan)
-        ((zerop x) x)
-        (t (nth-value 1 (ftruncate x y)))))
+  (with-mod-family-parameter-check (x y)
+    (if (zerop x)
+        x
+        (nth-value 1 (ftruncate x y)))))
 
 (defun |remainder| (x y)                ; C99
   (declare (type double-float x y))
-  (cond ((float-nan-p x) x)
-        ((float-nan-p y) y)
-        ((or (float-infinity-p x)
-             (zerop y))
-         (wcs-raise-fe-exception FE_INVALID)
-         double-float-nan)
-        (t
-         (nth-value 1 (fround x y)))))
+  (with-mod-family-parameter-check (x y)
+    (nth-value 1 (fround x y))))
 
 (defun remquo* (x y)                    ; C99
   (declare (type double-float x y))
-  (cond ((float-nan-p x) x)
-        ((float-nan-p y) y)
-        ((or (float-infinity-p x)
-             (zerop y))
-         (wcs-raise-fe-exception FE_INVALID)
-         double-float-nan)
-        (t
-         (multiple-value-bind (quotient remainder)
-             (round x y)
-           (values remainder quotient)))))
+  (with-mod-family-parameter-check (x y)
+    (multiple-value-bind (quotient remainder)
+        (round x y)
+      (values remainder quotient))))
 
 ;;; TODO: real 'remquo' -- support pointer passing..
 
