@@ -49,7 +49,11 @@
    #:FP_INFINITE #:FP_NAN #:FP_NORMAL #:FP_SUBNORMAL #:FP_ZERO
    #:MATH_ERRNO #:MATH_ERREXCEPT #:|math_errhandling|
    #:|exp| #:|exp2| #:|expm1|
-   #:|fabs| #:|fmod| #:|remainder| #:REMQUO* #:|nan| #:|fdim| #:|fmax| #:|fmin|
+   #:|fabs|
+   #:|fmod| #:|remainder| #:REMQUO*
+   #:|nan| #:|nextafter|
+   #:|fdim| #:|fmax| #:|fmin|
+   
    #:|log| #:|log10| #:|log2| #:|log1p|
    #:|pow| #:|sqrt| #:|cbrt| #:|hypot|
    #:|sin| #:|cos| #:|tan| #:|asin| #:|acos| #:|atan| #:|atan2|

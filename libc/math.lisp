@@ -161,6 +161,43 @@
                                   nan-bits)))
        (bits-double-float new-nan-bits)))))
 
+;;; nextafter (C99)
+
+(defun step-double-float-plus (x)
+  (cond
+    ((float-nan-p x) x)
+    ((float-infinity-p x)
+     (if (plusp x)
+         x
+         most-negative-double-float))
+    ((zerop x)                          ; '+0' or '-0'
+     least-positive-double-float)
+    (t
+     ;; This implementation bases on Binary64 format of IEEE-754.
+     ;; (I tried `integer-decode-float' firstly. It worked for
+     ;;  normalized floats, but subnormals are quite difficult.)
+     (let ((bits (double-float-bits x)))
+       (if (plusp x)
+           (incf bits)
+           (decf bits))
+       (bits-double-float bits)))))
+
+(defun step-double-float-minus (x)
+  (cond
+    ((float-nan-p x) x)
+    ((float-infinity-p x)
+     (if (plusp x)
+         most-positive-double-float
+         x))
+    ((zerop x)
+     least-negative-double-float)
+    (t
+     (let ((bits (double-float-bits x)))
+       (if (plusp x)
+           (decf bits)
+           (incf bits))
+       (bits-double-float bits)))))
+
 (defun |nextafter| (x y)
   (declare (type double-float x y))
   (cond
@@ -168,35 +205,15 @@
     ((float-nan-p y) y)
     ((= x y) y)
     (t
-     (let* ((direction-plus (< x y))
-            (ret
-              (cond
-                ((float-infinity-p x)
-                 (if (plusp x)
-                     (if direction-plus
-                         x
-                         most-positive-double-float)
-                     (if direction-plus
-                         most-negative-double-float
-                         x)))
-                ((zerop x)
-                 (if direction-plus
-                     least-positive-double-float
-                     least-negative-double-float))
-                (t
-                 (multiple-value-bind (signif expon sign)
-                     (integer-decode-float x)
-                   (incf signif
-                         (if direction-plus
-                             (if (plusp sign) 1 -1)
-                             (if (plusp sign) -1 1)))
-                   (* (scale-float (float signif x) expon)
-                      sign))))))
-       (cond ((float-infinity-p ret)
+     (let ((ret (if (< x y)
+                    (step-double-float-plus x)
+                    (step-double-float-minus x))))
+       (cond ((and (float-infinity-p ret)
+                   (not (float-infinity-p x)))
               (setf |errno| 'with-c-syntax.libc:ERANGE)
               (|feraiseexcept| FE_OVERFLOW))
-             ((and (denormalized-float-p ret)
-                   (not (denormalized-float-p x)))
+             ((or (zerop ret)
+                  (denormalized-float-p ret))
               (setf |errno| 'with-c-syntax.libc:ERANGE)
               (|feraiseexcept| FE_UNDERFLOW)))
        ret))))

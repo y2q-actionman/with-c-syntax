@@ -181,6 +181,66 @@
   is.float-nan-p (|nan|(""));
   }#)
 
+;; This test assumes double-float is the Binary64 of IEEE-754.
+;; TODO: Make C hexadecimal float notation to main line, to cleaning up.
+(test test-math-nextafter
+  #{
+  double before-1d0 = `#2{ 0x1.fffffffffffffp-1; }#;
+  double next-of-least-positive-double-float =  `#2{ 0x1p-1073; }#;
+  double most-positive-subnormal-double-float =  `#2{ 0x1.ffffffffffffep-1023; }#;
+  
+  `(muffle-unused-code-warning
+     (unless (= least-positive-double-float #2{ 0x1p-1074; }#
+                )
+       (warn "Your double-float representation is not expected one of this test.")));
+
+  // ; Simple case
+  is (|nextafter|(1.5d0,  10d0) == `#2{ 0x1.8000000000001p+0; }#
+                 );
+  is (|nextafter|(1.5d0, -10d0) == `#2{ 0x1.7ffffffffffffp+0; }#
+                 );
+  is (|nextafter|(1.0d0,  10d0) == `#2{ 0x1.0000000000001p+0; }#
+                 );
+
+  // ; Carry and borrow
+  is (|nextafter|(1.0d0, -10d0) == before-1d0);
+  is (|nextafter|(before-1d0, +10d0) == 1.0d0);
+
+  is (|nextafter|(-1.0d0, +10d0) == - before-1d0);
+  is (|nextafter|(- before-1d0, -10d0) == -1.0d0);
+
+  // ; Border of normals and subnormals.
+  is (|nextafter|(least-positive-normalized-double-float, -1d0) == most-positive-subnormal-double-float);
+  is (|nextafter|(most-positive-subnormal-double-float, +1d0) == least-positive-normalized-double-float);
+  
+  is (|nextafter|(least-negative-normalized-double-float, +1d0) == - most-positive-subnormal-double-float);
+  is (|nextafter|(- most-positive-subnormal-double-float, -1d0) == least-negative-normalized-double-float);
+  
+  // ; Zero and subnormals.
+  is (|nextafter|(least-negative-double-float, 1d0) == -0d0);
+  is (|nextafter|(-0d0, 1d0) == least-positive-double-float);
+  is (|nextafter|(least-positive-double-float, 1d0) == next-of-least-positive-double-float);
+
+  is (|nextafter|(next-of-least-positive-double-float, -1d0) == least-positive-double-float);
+  is (|nextafter|(least-positive-double-float, -1d0) == 0d0);
+  is (|nextafter|(0d0, -1d0) == least-negative-double-float);
+  
+  // ; Infinities
+  is (|nextafter|(most-positive-double-float, double-float-positive-infinity)
+                 == double-float-positive-infinity);
+  is (|nextafter|(double-float-negative-infinity, double-float-positive-infinity)
+                 == most-negative-double-float);
+  is (|nextafter|(most-negative-double-float, double-float-negative-infinity)
+                 == double-float-negative-infinity);
+  is (|nextafter|(double-float-negative-infinity, double-float-negative-infinity)
+                 == double-float-negative-infinity);
+
+  // ; NaN
+  is.float-nan-p (|nextafter|(double-float-nan, double-float-nan));
+  is.float-nan-p (|nextafter|(double-float-nan, 1.0));
+  is.float-nan-p (|nextafter|(1.0, double-float-nan));
+  }#)
+
 (test test-math-fdim
   #{
   is.float-equal (|fdim|(2.0, 1.0), 1.0);
