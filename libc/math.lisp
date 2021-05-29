@@ -18,7 +18,7 @@
 (defun wcs-raise-fe-exception (fe-constant)
   (eswitch (fe-constant)
     (FE_DIVBYZERO
-     (error "FIXME"))
+     (setf |errno| 'with-c-syntax.libc:ERANGE))
     (FE_INVALID
      (setf |errno| 'with-c-syntax.libc:EDOM))
     (FE_OVERFLOW
@@ -74,7 +74,7 @@
 ;;; Functions
 
 (defmacro with-exp-family-error-handling ((x underflow-value) &body body)
-  (once-only (x underflow-value)
+  (once-only (underflow-value)
     `(cond ((float-nan-p ,x) ,x)
            ((float-infinity-p ,x)
             (if (plusp ,x)
@@ -112,19 +112,50 @@
   (with-exp-family-error-handling (x (float -1 x))
     (float (exp-1 x) x)))
 
+(defmacro with-log-family-parameter-check ((x pole) &body body)
+  (once-only (pole)
+    `(cond ((float-nan-p ,x) ,x)
+           ((= ,x ,pole)
+            (wcs-raise-fe-exception FE_DIVBYZERO)
+            (- HUGE_VAL))
+           ((< ,x ,pole)
+            (wcs-raise-fe-exception FE_INVALID)
+            double-float-nan)
+           ((float-infinity-p ,x) ,x)
+           (t ,@body))))
+
+(defun |log| (x)
+  (declare (type double-float x))
+  (with-log-family-parameter-check (x (float 0 x))
+    (log x)))
+
+(defun |log10| (x)
+  (declare (type double-float x))
+  (with-log-family-parameter-check (x (float 0 x))
+    (log x 10)))
+
+(defun |log1p| (x)                      ; C99
+  (declare (type double-float x))
+  (with-log-family-parameter-check (x (float -1 x))
+    (log1+ x)))
+
+(defun |log2| (x)                       ; C99
+  (declare (type double-float x))
+  (with-log-family-parameter-check (x (float 0 x))
+    (log x 2)))
+
 (defun |fabs| (x)
   (declare (type double-float x))
   (abs x))                              ; no error
 
 (defmacro with-mod-family-parameter-check ((x y) &body body)
-  (once-only (x y)
-    `(cond ((float-nan-p ,x) ,x)
-           ((float-nan-p ,y) ,y)
-           ((or (float-infinity-p ,x)
-                (zerop ,y))
-            (wcs-raise-fe-exception FE_INVALID)
-            double-float-nan)
-           (t ,@body))))
+  `(cond ((float-nan-p ,x) ,x)
+         ((float-nan-p ,y) ,y)
+         ((or (float-infinity-p ,x)
+              (zerop ,y))
+          (wcs-raise-fe-exception FE_INVALID)
+          double-float-nan)
+         (t ,@body)))
 
 (defun |fmod| (x y)
   (declare (type double-float x y))
@@ -237,11 +268,10 @@
          HUGE_VAL)))))
 
 (defmacro with-fmax-fmin-parameter-check ((x y) &body body)
-  (once-only (x y)
-    `(cond
-       ((float-nan-p ,y) ,x) ; If X is a NaN, just the NaN of X is returned. I prioritize X over Y.
-       ((float-nan-p ,x) ,y)
-       (t ,@body))))
+  `(cond
+     ((float-nan-p ,y) ,x) ; If X is a NaN, just the NaN of X is returned. I prioritize X over Y.
+     ((float-nan-p ,x) ,y)
+     (t ,@body)))
 
 (defun |fmax| (x y)
   (declare (type double-float x y))
@@ -255,18 +285,6 @@
 
 ;;; TODO: 'fma'
 
-
-(defun |log| (x)
-  (log x))          ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO
-
-(defun |log10| (x)
-  (log x 10))       ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO
-
-(defun |log2| (x)   ; C99
-  (log x 2))       ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO
-
-(defun |log1p| (x)
-  (log1+ x))
 
 (defun |pow| (x y)
   (expt x y)) ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO, FE_UNDERFLOW, FE_OVERFLOW

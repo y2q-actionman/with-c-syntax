@@ -71,6 +71,50 @@
   is (float-nan-p (|expm1|(double-float-nan)));
   }#)
 
+(test test-math-log
+  #{
+  is.float-equal (|log| (|exp| (2.0)), 2);
+  check-errno (is (|log|(1.0) == 0.0), nil);
+  check-errno (is (|log|(0.0) == -HUGE_VAL), ERANGE);
+  check-errno (is (|log|(-1.0) == double-float-nan), EDOM);
+  check-errno (is (|log|(-HUGE_VAL) == double-float-nan), EDOM);
+  check-errno (is (|log|(double-float-nan) == double-float-nan), nil);
+  }#)
+
+(test test-math-log10
+  #{
+  is.float-equal (|log10| (100.0), 2);
+  check-errno (is (|log10|(1.0) == 0.0), nil);
+  check-errno (is (|log10|(0.0) == -HUGE_VAL), ERANGE);
+  check-errno (is (|log10|(-1.0) == double-float-nan), EDOM);
+  check-errno (is (|log10|(-HUGE_VAL) == double-float-nan), EDOM);
+  check-errno (is (|log10|(HUGE_VAL) == double-float-positive-infinity), nil);
+  check-errno (is (|log10|(double-float-nan) == double-float-nan), nil);
+  }#)
+
+(test test-math-log1p
+  #{
+  is.float-equal (|log1p| (11.0), |log| (12.0));
+  check-errno (is (|log1p|(0.0) == 0.0), nil);
+  is (|log1p|(-0.5) < 0);
+  check-errno (is (|log1p|(-1.0) == -HUGE_VAL), ERANGE);
+  check-errno (is (|log1p|(-2.0)) == double-float-nan, EDOM);
+  check-errno (is (|log1p|(-HUGE_VAL) == double-float-nan), EDOM);
+  check-errno (is (|log1p|(HUGE_VAL) == double-float-positive-infinity), nil);
+  check-errno (is (|log1p|(double-float-nan) == double-float-nan), nil);
+  }#)
+
+(test test-math-log2
+  #{
+  is.float-equal (|log2| (8.0), 3);
+  check-errno (is (|log2|(1.0) == 0.0), nil);
+  check-errno (is (|log2|(0.0) == -HUGE_VAL), ERANGE);
+  check-errno (is (|log2|(-1.0) == double-float-nan), EDOM);
+  check-errno (is (|log2|(-HUGE_VAL) == double-float-nan), EDOM);
+  check-errno (is (|log2|(HUGE_VAL) == double-float-positive-infinity), nil);
+  check-errno (is (|log2|(double-float-nan) == double-float-nan), nil);
+  }#)
+
 (test test-math-fabs
   #{
   is (|fabs|(0.0) == 0.0);
@@ -256,51 +300,6 @@
 
 
 
-(test test-math-log
-  #{
-  is.float-equal (log (exp (2)), 2);
-  is (log(1.0) == 0.0);
-  signals (arithmetic-error, log(0.0));
-  may-fail (log(0.0) == double-float-negative-infinity);
-  is.complexp (log(-1.0)); // FIXME: Common Lisp returns a complex.
-  is (log(double-float-positive-infinity) == double-float-positive-infinity);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-log10
-  #{
-  is.float-equal (log10 (100), 2);
-  is (log10 (1.0) == 0.0);
-  signals (arithmetic-error, log10 (0.0));
-  may-fail (log10 (0.0) == double-float-negative-infinity);
-  is.complexp (log10(-1.0)); // FIXME: Common Lisp returns a complex.
-  is (log10(double-float-positive-infinity) == double-float-positive-infinity);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-log2
-  #{
-  is.float-equal (log2 (8), 3);
-  is (log2 (1.0) == 0.0);
-  signals (arithmetic-error, log2 (0.0));
-  may-fail (log2 (0.0) == double-float-negative-infinity);
-  is.complexp (log10(-1.0)); // FIXME: Common Lisp returns a complex.
-  is (log2(double-float-positive-infinity) == double-float-positive-infinity);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-log1p
-  #{
-  is.float-equal (log1p (11), log (12));
-  is (log1p (0.0) == 0.0);
-  signals (arithmetic-error, log1p (-1.0));
-  may-fail (log1p (-1.0) == double-float-negative-infinity);
-  is.complexp (log1p (-2)); // FIXME: Common Lisp returns a complex.
-  signals (arithmetic-error, log1p (double-float-negative-infinity)); // FIXME: Common Lisp returns a complex.
-  may-fail (complexp (log1p (double-float-negative-infinity))); // FIXME: Common Lisp returns a complex.
-  is (log2(double-float-positive-infinity) == double-float-positive-infinity);
-  // ; TODO: add NaN test.
-  }#)
 
 (test test-math-pow
   #{
