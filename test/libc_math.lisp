@@ -167,9 +167,9 @@
 
 (test test-math-pow
   #{
-  is.float-equal (pow (2, 3), 8.0);
-  is.float-equal (pow (-1.1, 2), 1.21);
-  is.float-equal (pow (-1.1, -2), `(/ 1.21));
+  is.float-equal (|pow| (2, 3), 8.0);
+  is.float-equal (|pow| (-1.1, 2), 1.21);
+  is.float-equal (|pow| (-1.1, -2), `(/ 1.21));
   
   // ; Specials
 
@@ -210,10 +210,15 @@
           == double-float-positive-infinity);
   */
 
-  check-errno (is (pow (0.0, -1) == double-float-positive-infinity), ERANGE);
-  check-errno (is (pow (-0.0, -3) == double-float-negative-infinity), ERANGE);
-  check-errno (is (pow (0.0, -2) == double-float-positive-infinity), ERANGE);
-  check-errno (is (pow (-0.0, -2.5) == double-float-positive-infinity), ERANGE);
+  check-errno (is (|pow| (0.0, -1) == double-float-positive-infinity), ERANGE);
+  if (0.0d0 != -0.0d0) {
+    check-errno (is (|pow| (-0.0, -3) == double-float-negative-infinity), ERANGE);
+  } else {
+    // ; Allegro CL 10.1 on MacOS X comes here.
+    `(warn "Your Lisp does not distinguish -0.0d0 from 0.0d0.");
+  }
+  check-errno (is (|pow| (0.0, -2) == double-float-positive-infinity), ERANGE);
+  check-errno (is (|pow| (-0.0, -2.5) == double-float-positive-infinity), ERANGE);
   }#)
 
 (test test-math-fmod
@@ -299,7 +304,7 @@
   `(muffle-unused-code-warning
      (unless (= least-positive-double-float #2{ 0x1p-1074; }#
                 )
-       (warn "Your double-float representation is not expected one of this test.")));
+       (warn "Your Lisp's double-float representation is not expected one of this test.")));
 
   // ; Simple case
   is (|nextafter|(1.5d0,  10d0) == `#2{ 0x1.8000000000001p+0; }#

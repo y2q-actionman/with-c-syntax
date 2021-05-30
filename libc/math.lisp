@@ -180,6 +180,8 @@
                   HUGE_VAL))
            ret))))
 
+;;; pow()
+
 (defun double-float-oddp (x)
   (declare (type double-float x))
   (multiple-value-bind (int frac)
@@ -187,19 +189,48 @@
     (declare (ignore int))
     (= frac 1.0)))
 
+(defconstant +has-minus-zero+
+  (not (eql 0.0d0 -0.0d0)))
+
 (defun |pow| (x y)
   (coercef x 'double-float)
   (coercef y 'double-float)
-  (let ((ret
-          (handler-case (expt x y)
-            (division-by-zero ()
-              (wcs-raise-fe-exception FE_DIVBYZERO)
-              (if (and (minusp y)
-                       (double-float-oddp y)
-                       (eql -0.0d0 x))
-                  (- HUGE_VAL)
-                  HUGE_VAL)))))
-    ret)
+  (labels ((handle-div-0 (_)
+             (declare (ignore _))
+             (wcs-raise-fe-exception FE_DIVBYZERO)
+             (return-from |pow|
+               (if (and +has-minus-zero+
+                        (minusp y)
+                        (double-float-oddp y)
+                        (eql -0.0d0 x))
+                   (- HUGE_VAL)
+                   HUGE_VAL)))
+           (handle-simple-error (condition)
+             "Allegro CL 10.0 on CL comes here -- (expt 0.0 -1)."
+             (cond ((and (zerop x) (minusp y))
+                    (handle-div-0 condition))
+                   (t condition))))
+    (cond
+      (t
+       (let ((ret
+               (handler-bind
+                   ((division-by-zero #'handle-div-0)
+                    (simple-error #'handle-simple-error))
+                 (expt x y))))
+         (cond
+           ((complexp ret)
+            ;; Allegro CL comes here, even if (plusp y).
+            ;;   (expt -1.1 2.0) -> #C(1.2100000000000002d0 -2.963645253936595d-16)
+            ;; FIXME: I am suspicious about this routine.
+            ;;   (Can I utilize `floating-point:relative-error' ?)
+            (let* ((realpart (realpart ret))
+                   (scaled-epsilon
+                     (* 2 double-float-epsilon (max (abs x) (abs y) (abs realpart))))
+                   (significantly-complex? (> (imagpart ret) scaled-epsilon)))
+              (if significantly-complex?
+                  ret
+                  realpart)))
+           (t ret))))))
   ) ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO, FE_UNDERFLOW, FE_OVERFLOW
 
 (defmacro with-mod-family-parameter-check ((x y) &body body)
