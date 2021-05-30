@@ -1,6 +1,8 @@
 ;;; Notes:
 ;;; 
 ;;; * Currently, I define only double-float versions, like C90.
+;;;
+;;; * If I implement implicit conversions, all `coercef' are should deleted.
 ;;; 
 ;;; * If I implement <tgmath.h>, I will  define 'f' and 'l' variants,
 ;;;   and write a compiler-macro to use them.

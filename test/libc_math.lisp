@@ -148,21 +148,21 @@
 
 (test test-math-hypot
   #{
-  is.float-equal (hypot (1, 1), 1.414213562373095145474621858739);
-  is.float-equal (hypot (3, 4), 5);
-  is.float-equal (hypot (1.23, -4.56), hypot (4.56, -1.23));
-  is.float-equal (hypot (1.23, 0), |fabs| (1.23));
-  is.float-equal (hypot (-0, -9928.123456), |fabs| (-9928.123456));
+  is.float-equal (|hypot| (1, 1), 1.414213562373095145474621858739);
+  is.float-equal (|hypot| (3, 4), 5);
+  is.float-equal (|hypot| (1.23, -4.56), |hypot| (4.56, -1.23));
+  is.float-equal (|hypot| (1.23, 0), |fabs| (1.23));
+  is.float-equal (|hypot| (-0, -9928.123456), |fabs| (-9928.123456));
 
-  check-errno (is (hypot (most-positive-double-float, most-positive-double-float)
+  check-errno (is (|hypot| (most-positive-double-float, most-positive-double-float)
                          == double-float-positive-infinity),
                   ERANGE);
-  is (hypot (least-positive-double-float, least-positive-double-float) > 0);
+  is (|hypot| (least-positive-double-float, least-positive-double-float) > 0);
   
-  is (hypot (double-float-negative-infinity, 0) == double-float-positive-infinity);
-  is (hypot (0, double-float-positive-infinity) == double-float-positive-infinity);
-  is (hypot (double-float-nan, double-float-positive-infinity) == double-float-positive-infinity);
-  is (hypot (-1, double-float-nan) == double-float-nan);
+  is (|hypot| (double-float-negative-infinity, 0) == double-float-positive-infinity);
+  is (|hypot| (0, double-float-positive-infinity) == double-float-positive-infinity);
+  is (|hypot| (double-float-nan, double-float-positive-infinity) == double-float-positive-infinity);
+  is (|hypot| (-1, double-float-nan) == double-float-nan);
   }#)
 
 (test test-math-pow
