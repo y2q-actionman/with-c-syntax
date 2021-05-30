@@ -167,56 +167,104 @@
 
 (test test-math-pow
   #{
-  is.float-equal (|pow| (2, 3), 8.0);
-  is.float-equal (|pow| (-1.1, 2), 1.21);
-  is.float-equal (|pow| (-1.1, -2), `(/ 1.21));
+  double d;
   
-  // ; Specials
+  is (float-equal (|pow| (2, 3), 8.0));
+  is (float-equal (|pow| (-1.1, 2), 1.21));
+  is (float-equal (|pow| (-1.1, -2), `(/ 1.21)));
 
-  /*
-  may-fail (pow (-0.0, double-float-negative-infinity) == double-float-positive-infinity);
   is (pow (0.0, 1) == 0.0);
   is (pow (-0.0, 1) == -0.0);
   is (pow (0.0, 2) == 0.0);
   is (pow (-0.0, 2.5) == 0.0);
-  may-fail (pow (-1, double-float-positive-infinity) == 1.0);
-  may-fail (pow (-1, double-float-negative-infinity) == 1.0);
-  may-fail (pow (1, double-float-positive-infinity) == 1.0);
-  may-fail (pow (1, double-float-negative-infinity) == 1.0);
-  // ; TODO: add pow(1, NaN) test.
-  signals (arithmetic-error, pow (double-float-positive-infinity, +0.0) == 1.0);
-  signals (arithmetic-error, pow (double-float-negative-infinity, -0.0) == 1.0);
-  // ; TODO: add pow(NaN, 0)
-  is.complexp (pow (-2.1, 0.3)); // FIXME: Common Lisp returns a complex.
-  may-fail (complexp (pow (-2.1, 0.3))); // FIXME: Common Lisp returns a complex.
-  is (pow (least-positive-double-float, double-float-negative-infinity)
-          == double-float-positive-infinity);
-  is (pow (double-float-positive-infinity, double-float-negative-infinity)
-          == 0.0);
-  is (pow (least-negative-double-float, double-float-positive-infinity)
-          == 0.0);
-  is (pow (double-float-negative-infinity, double-float-positive-infinity)
-          == double-float-positive-infinity);
-  is (pow (double-float-negative-infinity, -3) == -0.0);
-  is (pow (double-float-negative-infinity, -2) == 0.0);
-  is (pow (double-float-negative-infinity, -2.1) == 0.0);
-  is (pow (double-float-negative-infinity, 3) == double-float-negative-infinity);
-  is (pow (double-float-negative-infinity, 2) == double-float-positive-infinity);
-  is (pow (double-float-negative-infinity, 2.1) == double-float-positive-infinity);
-  is (pow (double-float-positive-infinity, -10) == 0.0);
-  is (pow (double-float-positive-infinity, double-float-negative-infinity) == 0.0);
-  is (pow (double-float-positive-infinity, 10) == double-float-positive-infinity);
-  is (pow (double-float-positive-infinity, double-float-positive-infinity)
-          == double-float-positive-infinity);
-  */
+  
+  // ; Errors and specials
+  check-errno (is (float-nan-p (|pow| (-2.1, 0.3))), EDOM);
+  
+  check-errno (is (|pow| (most-positive-double-float, 810.0) == HUGE_VAL), ERANGE);
+  check-errno (is (|pow| (most-negative-double-float, 810.0) == -HUGE_VAL), ERANGE);
+  
+  check-errno (is (|pow| (least-positive-double-float, 810.0) == 0d0), ERANGE);
+  
+  check-errno (is (float-nan-p (|pow| (2, double-float-nan))), nil);
+  check-errno (is (float-nan-p (|pow| (double-float-nan, -42))), nil);
+  
+  check-errno (is (|pow| (1, double-float-positive-infinity) == 1.0), nil);
+  check-errno (is (|pow| (1, double-float-negative-infinity) == 1.0), nil);
+  check-errno (is (|pow| (1, double-float-nan) == 1.0), nil);
 
+  check-errno (is (|pow| (1, 0) == 1.0), nil);
+  check-errno (is (|pow| (double-float-positive-infinity, 0) == 1.0), nil);
+  check-errno (is (|pow| (double-float-negative-infinity, 0) == 1.0), nil);
+  check-errno (is (|pow| (double-float-nan, 0) == 1.0), nil);
+  
+  check-errno (is (|pow| (0, 1) == 0d0), nil);
+  check-errno (is (|pow| (-0d0, 101) == -0d0), nil);
+  
+  check-errno (is (|pow| (0d0, 114514) == 0d0), nil);
+  check-errno (is (|pow| (-0d0, 114514) == 0d0), nil);
+  
+  // ; Linux man page says this is +1.0.
+  |errno| = nil;
+  d = |pow| (-1, double-float-positive-infinity);
+  is ((d == 1d0 && |errno| == nil)
+      \|\| (float-nan-p (d) && |errno| == EDOM));
+  
+  // ; Linux man page says this is +1.0.
+  |errno| = nil;
+  d = |pow| (-1, double-float-negative-infinity);
+  is ((d == 1d0 && |errno| == nil)
+      \|\| float-nan-p (d) && |errno| == EDOM);
+  
+  check-errno (is (|pow| (0.9999, double-float-negative-infinity)
+                         == double-float-positive-infinity),
+                  ERANGE);
+  
+  // ; Linux man page says this is +Inf.
+  |errno| = nil;
+  d = |pow| (-0.9999, double-float-negative-infinity);
+  is ((d == double-float-positive-infinity && |errno| == ERANGE)
+      \|\| float-nan-p (d) && |errno| == EDOM);
+  
+  check-errno (is (|pow| (-0.0, double-float-negative-infinity) == double-float-positive-infinity),
+                  ERANGE); // Linux man page says errno == 0.
+  
+  check-errno (is (|pow| (1.0001, double-float-negative-infinity) == 0d0), ERANGE);
+  
+  check-errno (is (|pow| (0.9999, double-float-positive-infinity) == 0d0), ERANGE);
+  
+  check-errno (is (|pow| (1.0001, double-float-positive-infinity) == double-float-positive-infinity), ERANGE);
+  
+  check-errno (is (|pow| (double-float-negative-infinity, -3) == -0.0), nil);
+  
+  check-errno (is (|pow| (double-float-negative-infinity, -2) == 0.0), nil);
+  check-errno (is (|pow| (double-float-negative-infinity, -2.1) == 0.0), nil);
+
+  // ; Linux man page says this is -Inf.
+  |errno| = 0;
+  check-errno (d = (|pow| (double-float-negative-infinity, 3)), nil);
+  is (d == double-float-negative-infinity \|\| d == double-float-positive-infinity);
+  
+  check-errno (is (|pow| (double-float-negative-infinity, 2) == double-float-positive-infinity), nil);
+  check-errno (is (|pow| (double-float-negative-infinity, 2.1) == double-float-positive-infinity), nil);
+  // ; Linux man page says this is +Inf
+  |errno| = nil;
+  d = |pow| (double-float-negative-infinity, double-float-positive-infinity);
+  is ((d == double-float-positive-infinity && |errno| == nil)
+      \|\| (float-nan-p (d) && |errno| == EDOM));
+  
+  check-errno (is (|pow| (double-float-positive-infinity, -10) == 0.0), nil);
+  check-errno (is (|pow| (double-float-positive-infinity, double-float-negative-infinity) == 0.0), nil);
+  
+  check-errno (is (|pow| (double-float-positive-infinity, 10) == double-float-positive-infinity), nil);
+  check-errno (is (|pow| (double-float-positive-infinity, double-float-positive-infinity) == double-float-positive-infinity), nil);
+  
   check-errno (is (|pow| (0.0, -1) == double-float-positive-infinity), ERANGE);
-  if (0.0d0 != -0.0d0) {
-    check-errno (is (|pow| (-0.0, -3) == double-float-negative-infinity), ERANGE);
-  } else {
-    // ; Allegro CL 10.1 on MacOS X comes here.
-    `(warn "Your Lisp does not distinguish -0.0d0 from 0.0d0.");
-  }
+  // ; Linux man page says this is -Inf.
+  |errno| = 0;
+  check-errno (d = |pow| (-0.0, -3), ERANGE);
+  is (d == double-float-negative-infinity \|\| d == double-float-positive-infinity);
+  
   check-errno (is (|pow| (0.0, -2) == double-float-positive-infinity), ERANGE);
   check-errno (is (|pow| (-0.0, -2.5) == double-float-positive-infinity), ERANGE);
   }#)

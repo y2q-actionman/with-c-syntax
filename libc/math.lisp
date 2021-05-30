@@ -21,10 +21,10 @@
   (setf |errno|
         (or errno
             (eswitch (fe-constant)
-              (FE_DIVBYZERO 'with-c-syntax.libc:ERANGE)
-              (FE_INVALID 'with-c-syntax.libc:EDOM)
-              (FE_OVERFLOW 'with-c-syntax.libc:ERANGE)
-              (FE_UNDERFLOW 'with-c-syntax.libc:ERANGE))))
+              (FE_DIVBYZERO with-c-syntax.libc:ERANGE)
+              (FE_INVALID with-c-syntax.libc:EDOM)
+              (FE_OVERFLOW with-c-syntax.libc:ERANGE)
+              (FE_UNDERFLOW with-c-syntax.libc:ERANGE))))
   (|feraiseexcept| fe-constant))
 
 ;;; TODO: libc symbols should be arranged by the order in C99 (ISO/IEC 9899).
@@ -182,56 +182,75 @@
 
 ;;; pow()
 
-(defun double-float-oddp (x)
-  (declare (type double-float x))
-  (multiple-value-bind (int frac)
-      (floor x 2)
-    (declare (ignore int))
-    (= frac 1.0)))
-
-(defconstant +has-minus-zero+
-  (not (eql 0.0d0 -0.0d0)))
+(defun pow-result-significantly-complex-p (ret x y)
+  (declare (type double-float x y)
+           (type (complex double-float) ret))
+  (let* ((realpart (realpart ret))
+         (scaled-epsilon
+           (* 2 double-float-epsilon (max (abs x) (abs y) (abs realpart)))))
+    (> (imagpart ret) scaled-epsilon)))
 
 (defun |pow| (x y)
   (coercef x 'double-float)
   (coercef y 'double-float)
-  (labels ((handle-div-0 (_)
+  (labels ((handle-div-0 (&optional _)
              (declare (ignore _))
              (wcs-raise-fe-exception FE_DIVBYZERO)
              (return-from |pow|
-               (if (and +has-minus-zero+
-                        (minusp y)
-                        (double-float-oddp y)
-                        (eql -0.0d0 x))
-                   (- HUGE_VAL)
-                   HUGE_VAL)))
+               double-float-positive-infinity))
+           (handle-invalid (&optional _)
+             (declare (ignore _))
+             (wcs-raise-fe-exception FE_INVALID)
+             (return-from |pow| double-float-nan))
+           (handle-overflow (&optional _)
+             (declare (ignore _))
+             (cond ((float-infinity-p x)
+                    (return-from |pow|
+                      double-float-positive-infinity))
+                   (t
+                    (wcs-raise-fe-exception FE_OVERFLOW)
+                    (return-from |pow|
+                      (if (plusp x)
+                          double-float-positive-infinity
+                          double-float-negative-infinity)))))
+           (handle-underflow (&optional _)
+             (declare (ignore _))
+             (unless (float-infinity-p x)
+               (wcs-raise-fe-exception FE_UNDERFLOW))
+             (return-from |pow|
+               (if (plusp x) +0d0 -0d0)))
            (handle-simple-error (condition)
              "Allegro CL 10.0 on CL comes here -- (expt 0.0 -1)."
              (cond ((and (zerop x) (minusp y))
                     (handle-div-0 condition))
                    (t condition))))
-    (cond
-      (t
-       (let ((ret
-               (handler-bind
-                   ((division-by-zero #'handle-div-0)
-                    (simple-error #'handle-simple-error))
-                 (expt x y))))
-         (cond
-           ((complexp ret)
-            ;; Allegro CL comes here, even if (plusp y).
-            ;;   (expt -1.1 2.0) -> #C(1.2100000000000002d0 -2.963645253936595d-16)
-            ;; FIXME: I am suspicious about this routine.
-            ;;   (Can I utilize `floating-point:relative-error' ?)
-            (let* ((realpart (realpart ret))
-                   (scaled-epsilon
-                     (* 2 double-float-epsilon (max (abs x) (abs y) (abs realpart))))
-                   (significantly-complex? (> (imagpart ret) scaled-epsilon)))
-              (if significantly-complex?
-                  ret
-                  realpart)))
-           (t ret))))))
-  ) ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO, FE_UNDERFLOW, FE_OVERFLOW
+    (let ((ret
+            (handler-bind
+                ((division-by-zero #'handle-div-0)
+                 (floating-point-invalid-operation #'handle-invalid)
+                 (floating-point-overflow #'handle-overflow)
+                 (floating-point-underflow #'handle-underflow)
+                 (simple-error #'handle-simple-error))
+              (expt x y))))
+      (cond
+        ((complexp ret)
+         (let ((realpart (realpart ret)))
+           (cond
+             ((float-nan-p realpart)
+              ;; (expt -1 double-float-negative-infinity) comes here, on Allegro CL 10.1 on MacOS X
+              (handle-invalid))
+             ((float-infinity-p realpart)
+              (handle-overflow))
+             ((pow-result-significantly-complex-p ret x y)
+              (handle-invalid))
+             (t
+              ;; Allegro CL comes here, even if (plusp y).
+              ;;   (expt -1.1 2.0) -> #C(1.2100000000000002d0 -2.963645253936595d-16)
+              ;; FIXME: I am suspicious about this routine.
+              ;;   (Can I utilize `floating-point:relative-error' ?)
+              realpart))))
+        (t
+         ret)))))
 
 (defmacro with-mod-family-parameter-check ((x y) &body body)
   `(cond ((float-nan-p ,x) ,x)
