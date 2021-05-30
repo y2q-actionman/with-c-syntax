@@ -267,6 +267,10 @@
   
   check-errno (is (|pow| (0.0, -2) == double-float-positive-infinity), ERANGE);
   check-errno (is (|pow| (-0.0, -2.5) == double-float-positive-infinity), ERANGE);
+
+  is (|pow| (double-float-nan, 2) == double-float-nan);
+  is (|pow| (-1, double-float-nan) == double-float-nan);
+  is (|pow| (double-float-nan, double-float-nan) == double-float-nan);
   }#)
 
 (test test-math-fmod

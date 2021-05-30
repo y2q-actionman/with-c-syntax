@@ -249,8 +249,7 @@
               ;; FIXME: I am suspicious about this routine.
               ;;   (Can I utilize `floating-point:relative-error' ?)
               realpart))))
-        (t
-         ret)))))
+        (t ret)))))
 
 (defmacro with-mod-family-parameter-check ((x y) &body body)
   `(cond ((float-nan-p ,x) ,x)
