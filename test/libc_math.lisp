@@ -182,7 +182,8 @@
   check-errno (is (float-nan-p (|pow| (-2.1, 0.3))), EDOM);
   
   check-errno (is (|pow| (most-positive-double-float, 810.0) == HUGE_VAL), ERANGE);
-  check-errno (is (|pow| (most-negative-double-float, 810.0) == -HUGE_VAL), ERANGE);
+  check-errno (is (|pow| (most-negative-double-float, 810.0) == HUGE_VAL), ERANGE);
+  check-errno (is (|pow| (most-negative-double-float, 811.0) == -HUGE_VAL), ERANGE);
   
   check-errno (is (|pow| (least-positive-double-float, 810.0) == 0d0), ERANGE);
   
@@ -216,9 +217,7 @@
   is ((d == 1d0 && |errno| == nil)
       \|\| float-nan-p (d) && |errno| == EDOM);
   
-  check-errno (is (|pow| (0.9999, double-float-negative-infinity)
-                         == double-float-positive-infinity),
-                  ERANGE);
+  check-errno (is (|pow| (0.9999, double-float-negative-infinity) == double-float-positive-infinity), ERANGE);
   
   // ; Linux man page says this is +Inf.
   |errno| = nil;
@@ -241,9 +240,7 @@
   check-errno (is (|pow| (double-float-negative-infinity, -2.1) == 0.0), nil);
 
   // ; Linux man page says this is -Inf.
-  |errno| = 0;
-  check-errno (d = (|pow| (double-float-negative-infinity, 3)), nil);
-  is (d == double-float-negative-infinity \|\| d == double-float-positive-infinity);
+  check-errno (is (|pow| (double-float-negative-infinity, 3) == double-float-negative-infinity), nil);
   
   check-errno (is (|pow| (double-float-negative-infinity, 2) == double-float-positive-infinity), nil);
   check-errno (is (|pow| (double-float-negative-infinity, 2.1) == double-float-positive-infinity), nil);
@@ -261,9 +258,7 @@
   
   check-errno (is (|pow| (0.0, -1) == double-float-positive-infinity), ERANGE);
   // ; Linux man page says this is -Inf.
-  |errno| = 0;
-  check-errno (d = |pow| (-0.0, -3), ERANGE);
-  is (d == double-float-negative-infinity \|\| d == double-float-positive-infinity);
+  check-errno (is (float-infinity-p (|pow| (-0.0, -3))), ERANGE);
   
   check-errno (is (|pow| (0.0, -2) == double-float-positive-infinity), ERANGE);
   check-errno (is (|pow| (-0.0, -2.5) == double-float-positive-infinity), ERANGE);

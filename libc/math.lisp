@@ -202,23 +202,16 @@
              (declare (ignore _))
              (wcs-raise-fe-exception FE_INVALID)
              (return-from |pow| double-float-nan))
-           (handle-overflow (&optional _)
+           (handle-overflow (&optional _ (ret double-float-positive-infinity))
              (declare (ignore _))
-             (cond ((float-infinity-p x)
-                    (return-from |pow|
-                      double-float-positive-infinity))
-                   (t
-                    (wcs-raise-fe-exception FE_OVERFLOW)
-                    (return-from |pow|
-                      (if (plusp x)
-                          double-float-positive-infinity
-                          double-float-negative-infinity)))))
+             (unless (float-infinity-p x)
+               (wcs-raise-fe-exception FE_OVERFLOW))
+             (return-from |pow| ret))
            (handle-underflow (&optional _)
              (declare (ignore _))
              (unless (float-infinity-p x)
                (wcs-raise-fe-exception FE_UNDERFLOW))
-             (return-from |pow|
-               (if (plusp x) +0d0 -0d0)))
+             (return-from |pow| 0d0))
            (handle-simple-error (condition)
              "Allegro CL 10.0 on CL comes here -- (expt 0.0 -1)."
              (cond ((and (zerop x) (minusp y))
@@ -240,7 +233,7 @@
               ;; (expt -1 double-float-negative-infinity) comes here, on Allegro CL 10.1 on MacOS X
               (handle-invalid))
              ((float-infinity-p realpart)
-              (handle-overflow))
+              (handle-overflow nil realpart))
              ((pow-result-significantly-complex-p ret x y)
               (handle-invalid))
              (t
