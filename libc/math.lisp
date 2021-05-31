@@ -151,7 +151,7 @@
               (cond ((or (= x 1.0d0)
                          (= x -1.0d0))
                      (wcs-raise-fe-exception FE_DIVBYZERO)
-                     (* x double-float-positive-infinity))
+                     (float-sign x double-float-positive-infinity))
                     (t (error e)))))))
     (cond
       ((complexp ret)
@@ -371,6 +371,10 @@
          double-float-nan)
         (t ret)))))
 
+;;; TODO: 'erf()', 'erfc()', 'tgamma()', 'lgamma()'
+
+;;; Nearest Integer
+
 (defmacro with-nearest-int-error-handling ((x) &body body)
   (with-gensyms (block-name)
     `(block ,block-name
@@ -394,9 +398,8 @@
   (with-nearest-int-error-handling (x)
     (ffloor x)))
 
-;;; TODO: 'nearbyint'
-
-;;; TODO: 'rint', 'lrint', 'llrint'
+;;; TODO: 'nearbyint()'
+;;; TODO: 'rint()', 'lrint()', 'llrint()'
 
 (defun |round| (x)                      ; C99
   (coercef x 'double-float)
@@ -435,6 +438,8 @@
           double-float-nan)
          (t ,@body)))
 
+;;; Remainder
+
 (defun |fmod| (x y)
   (coercef x 'double-float)
   (coercef y 'double-float)
@@ -458,6 +463,13 @@
       (values remainder quotient))))
 
 ;;; TODO: real 'remquo' -- support pointer passing..
+
+;;; Manipulation
+
+(defun |copysign| (abs sign)            ; C99
+  (coercef abs 'double-float)
+  (coercef sign 'double-float)
+  (float-sign sign abs))
 
 (defun |nan| (&optional (tagp ""))      ; C99
   (cond
@@ -529,6 +541,10 @@
               (wcs-raise-fe-exception FE_UNDERFLOW)))
        ret))))
 
+;;; TODO: nexttoward()
+
+;;; Maximum, minimum, and positive difference
+
 (defun |fdim| (x y)                     ; C99
   (coercef x 'double-float)
   (coercef y 'double-float)
@@ -571,11 +587,6 @@
 ;;; TODO: 'fma'
 
 
-;;; TODO: 'erf'
-;;; TODO: 'erfc'
-;;; TODO: 'tgamma'
-;;; TODO: 'lgamma'
-
 (defun frexp* (x)                      ; FIXME: how to treat pointer? (cons as a storage?)
   (assert (= 2 (float-radix x)))
   (multiple-value-bind (significant exponent sign)
@@ -604,11 +615,6 @@
 
 (defun |logb| (x)                       ; C99
   (float (nth-value 1 (decode-float x)) x))
-
-;;; TODO: 'nextafter', 'nexttoward'
-
-(defun |copysign| (abs sign)            ; C99
-  (float-sign sign abs))
 
 ;;; FPCLASSIFY (C99)
 

@@ -624,6 +624,23 @@
   is.float-nan-p (|nan|(""));
   }#)
 
+(test test-math-copysign
+  #{
+  is.float-equal (|copysign| (1.0, 2.0), 1.0);
+  is.float-equal (|copysign| (1.9999, -1.284), -1.9999);
+  is.float-equal (|copysign| (1.2, 0.0), 1.2);
+  if (eq (0.0d0, -0.0d0)) {
+    `(warn "Your Lisp does not distinguish -0.0d0 from 0.0d0.");
+  } else {
+    is.float-equal (|copysign| (1.2, -0.0), -1.2);
+  }
+
+  is (|copysign| (double-float-positive-infinity, double-float-negative-infinity)
+               == double-float-negative-infinity);
+  is (float-nan-p (|copysign| (double-float-nan, -1)));
+  check-errno (|copysign| (1, double-float-nan), nil);
+  }#)
+
 ;; This test assumes double-float is the Binary64 of IEEE-754.
 ;; TODO: Make C hexadecimal float notation to main line, to cleaning up.
 (test test-math-nextafter
@@ -832,18 +849,6 @@
   // ; Specials
   is (floatp (logb (0.0)));
   may-fail (floatp (logb (double-float-negative-infinity)));
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-copysign
-  #{
-  is.float-equal (copysign (1.0, 2.0), 1.0);
-  is.float-equal (copysign (1.9999, -1.284), -1.9999);
-  is.float-equal (copysign (1.2, 0.0), 1.2);
-  is.float-equal (copysign (1.2, -0.0), -1.2);
-  
-  is (copysign (double-float-positive-infinity, double-float-negative-infinity)
-               == double-float-negative-infinity);
   // ; TODO: add NaN test.
   }#)
 

@@ -51,14 +51,13 @@
    #:|exp| #:|exp2| #:|expm1| #:|log| #:|log10| #:|log1p| #:|log2|
    #:|cbrt| #:|fabs| #:|hypot| #:|pow| #:|sqrt|
    #:|ceil| #:|floor| #:|round| #:|lround| #:|llround| #:|trunc|
-   
    #:|fmod| #:|remainder| #:REMQUO*
-   #:|nan| #:|nextafter|
+   #:|copysign| #:|nan| #:|nextafter|
    #:|fdim| #:|fmax| #:|fmin|
    
    #:FREXP* #:|ldexp| #:MODF* #:|scalbn| #:|ilogb| #:|logb|
    #:FP_ILOGB0
-   #:|copysign|
+   
    #:|isnan| #:|isinf| #:|isfinite| #:|isnormal| #:|fpclassify| ; C99
    #:|signbit|                          ; C99
    #:|isgreater| #:|isgreaterequal| #:|isless| #:|islessequal| #:|islessgreater| #:|isunordered| ; C99
