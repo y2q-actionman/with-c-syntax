@@ -486,6 +486,72 @@
   check-errno (is (float-nan-p (|sqrt| (double-float-nan))), nil);
   }#)
 
+(test test-math-ceil
+  #{
+  is.float-equal (|ceil| (3.14), 4.0);
+  is.float-equal (|ceil| (-3.14), -3.0);
+  // ; Specials
+  check-errno (is (|ceil| (0.0) == 0.0), nil);
+  check-errno (is (|ceil| (-0.0) == -0.0), nil);
+  check-errno (is (|ceil|(double-float-positive-infinity) == double-float-positive-infinity), nil);
+  check-errno (is (|ceil|(double-float-negative-infinity) == double-float-negative-infinity), nil);
+  check-errno (is (float-nan-p (|ceil| (double-float-nan))), nil);
+  }#)
+
+(test test-math-floor
+  #{
+  is.float-equal (|floor| (3.14), 3.0);
+  is.float-equal (|floor| (-3.14), -4.0);
+  // ; Specials
+  check-errno (is (|floor| (0.0) == 0.0), nil);
+  check-errno (is (|floor| (-0.0) == -0.0), nil);
+  check-errno (is (|floor|(double-float-positive-infinity) == double-float-positive-infinity), nil);
+  check-errno (is (|floor|(double-float-negative-infinity) == double-float-negative-infinity), nil);
+  check-errno (is (float-nan-p (|floor| (double-float-nan))), nil);
+  }#)
+
+(test test-math-round
+  #{
+  is.float-equal (|round| (3.14), 3.0);
+  is.float-equal (|round| (3.9), 4.0);
+  is.float-equal (|round| (-3.14), -3.0);
+  is.float-equal (|round| (-3.9), -4.0);
+  // ; Specials
+  check-errno (is (|round| (0.0) == 0.0), nil);
+  check-errno (is (|round| (-0.0) == -0.0), nil);
+  check-errno (is (|round| (double-float-positive-infinity) == double-float-positive-infinity), nil);
+  check-errno (is (|round| (double-float-negative-infinity) == double-float-negative-infinity), nil);
+  check-errno (is (float-nan-p (|round| (double-float-nan))), nil);
+  }#)
+
+(test test-math-lround
+  #{
+  is (|lround| (3.14) == 3);
+  is (|lround| (3.9) == 4);
+  is (|lround| (-3.14) == -3);
+  is (|lround| (-3.9) == -4);
+  // ; Specials
+  check-errno (is (|lround| (0.0) == 0), nil);
+  check-errno (is (|lround| (-0.0) == 0), nil);
+  is (|lround| (double-float-positive-infinity) != double-float-positive-infinity);
+  is (|lround| (double-float-negative-infinity) != double-float-negative-infinity);
+  is (! float-nan-p (|lround| (double-float-nan)));
+  }#)
+
+(test test-math-trunc
+  #{
+  is.float-equal (|trunc| (3.14), 3.0);
+  is.float-equal (|trunc| (3.9), 3.0);
+  is.float-equal (|trunc| (-3.14), -3.0);
+  is.float-equal (|trunc| (-3.9), -3.0);
+  // ; Specials
+  check-errno (is (|trunc| (0.0) == 0.0), nil);
+  check-errno (is (|trunc| (-0.0) == -0.0), nil);
+  check-errno (is (|trunc| (double-float-positive-infinity) == double-float-positive-infinity), nil);
+  check-errno (is (|trunc| (double-float-negative-infinity) == double-float-negative-infinity), nil);
+  check-errno (is (float-nan-p (|trunc| (double-float-nan))), nil);
+  }#)
+
 (test test-math-fmod
   #{
   is.float-equal (|fmod|(3.123, 2.0), 1.123);
@@ -660,48 +726,6 @@
 
 
 
-
-(test test-math-ceil
-  #{
-  is.float-equal (ceil (3.14), 4.0);
-  is.float-equal (ceil (-3.14), -3.0);
-  // ; Specials
-  is (ceil (0.0) == 0.0);
-  is (ceil (-0.0) == -0.0);
-  signals (arithmetic-error, ceil (double-float-positive-infinity));
-  may-fail (ceil (double-float-positive-infinity) == double-float-positive-infinity);
-  signals (arithmetic-error, ceil (double-float-negative-infinity));
-  may-fail (ceil (double-float-negative-infinity) == double-float-negative-infinity);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-floor
-  #{
-  is.float-equal (floor (3.14), 3.0);
-  is.float-equal (floor (-3.14), -4.0);
-  // ; Specials
-  is (floor (0.0) == 0.0);
-  is (floor (-0.0) == -0.0);
-  // signals (arithmetic-error, floor (double-float-positive-infinity));
-  is (floor (double-float-positive-infinity) == double-float-positive-infinity);
-  // signals (arithmetic-error, floor (double-float-negative-infinity));
-  is (floor (double-float-negative-infinity) == double-float-negative-infinity);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-round
-  #{
-  is.float-equal (round (3.14), 3.0);
-  is.float-equal (round (3.9), 4.0);
-  is.float-equal (round (-3.14), -3.0);
-  is.float-equal (round (-3.9), -4.0);
-  // ; Specials
-  is (round (0.0) == 0.0);
-  may-fail (round (-0.0) == -0.0);
-  may-fail (round (double-float-positive-infinity) == double-float-positive-infinity);
-  may-fail (round (double-float-negative-infinity) == double-float-negative-infinity);
-  // ; TODO: add NaN test.
-  }#)
 
 (test test-math-frexp*-and-ldexp
   #{

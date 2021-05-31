@@ -371,6 +371,61 @@
          double-float-nan)
         (t ret)))))
 
+(defmacro with-nearest-int-error-handling ((x) &body body)
+  (with-gensyms (block-name)
+    `(block ,block-name
+       (handler-bind
+           ((simple-error
+              (lambda (condition) 
+                ;; Allegro CL 10.0 on MacOS comes here; (fceiling double-float-nan).
+                (cond ((or (float-nan-p ,x)
+                           (float-infinity-p x))
+                       (return-from ,block-name ,x))
+                      (t condition)))))
+         ,@body))))
+
+(defun |ceil| (x)
+  (coercef x 'double-float)
+  (with-nearest-int-error-handling (x)
+    (fceiling x)))
+
+(defun |floor| (x)
+  (coercef x 'double-float)
+  (with-nearest-int-error-handling (x)
+    (ffloor x)))
+
+;;; TODO: 'nearbyint'
+
+;;; TODO: 'rint', 'lrint', 'llrint'
+
+(defun |round| (x)                      ; C99
+  (coercef x 'double-float)
+  (with-nearest-int-error-handling (x)
+    (fround x)))
+
+(defun |lround| (x)                     ; C99
+  (coercef x 'double-float)
+  (handler-bind
+      ((simple-error
+         (lambda (condition) 
+           ;; Allegro CL 10.0 on MacOS comes here; (fceiling double-float-nan).
+           (cond ((float-nan-p x)
+                  (wcs-raise-fe-exception FE_INVALID)
+                  (return-from |lround| most-positive-fixnum))
+                 ((float-infinity-p x)
+                  (wcs-raise-fe-exception FE_OVERFLOW)
+                  (return-from |lround| most-positive-fixnum))
+                 (t condition)))))
+    (round x)))
+
+(defun |llround| (x)                    ; C99
+  (|lround| x))                         ; Because we have BigNum.
+
+(defun |trunc| (x)                      ; C99
+  (coercef x 'double-float)
+  (with-nearest-int-error-handling (x)
+    (ftruncate x)))
+
 (defmacro with-mod-family-parameter-check ((x y) &body body)
   `(cond ((float-nan-p ,x) ,x)
          ((float-nan-p ,y) ,y)
@@ -520,29 +575,6 @@
 ;;; TODO: 'erfc'
 ;;; TODO: 'tgamma'
 ;;; TODO: 'lgamma'
-
-(defun |ceil| (x)
-  (fceiling x))                            ; no error
-
-(defun |floor| (x)
-  (if (floatp x)
-      (if (or (float-infinity-p x)
-              (float-nan-p x))
-          x
-          (ffloor x))
-      (cl:floor x)))
-
-(defun |trunc| (x)                      ; C99
-  (ftruncate x))                        ; no error
-
-(defun |round| (x)                      ; C99
-  (fround x))                           ; no error
-
-;;; TODO: 'lround', 'llround'
-
-;;; TODO: 'nearbyint'
-
-;;; TODO: 'rint', 'lrint', 'llrint'
 
 (defun frexp* (x)                      ; FIXME: how to treat pointer? (cons as a storage?)
   (assert (= 2 (float-radix x)))
