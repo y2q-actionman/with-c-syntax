@@ -277,6 +277,56 @@
   is (float-nan-p (|expm1|(double-float-nan)));
   }#)
 
+(test test-math-frexp*-and-ldexp
+  #{
+  double d;
+  int e;
+
+  values (d, e) = frexp* (3.14);
+  is (0.5 <= d && d < 1);
+  is.float-equal (|ldexp| (d, e), 3.14);
+  
+  values (d, e) = frexp* (-10.001);
+  is (-0.5 >= d && d > -1);
+  is.float-equal (|ldexp| (d, e), -10.001);
+  
+  // ; Specials (frexp*)
+  values (d, e) = frexp* (0.0);
+  is (d == 0.0);
+  is (e == 0);
+  values (d, e) = frexp* (-0.0);
+  is (d == -0.0);
+  is (e == 0);
+  check-errno (values (d, e) = frexp* (double-float-positive-infinity), nil);
+  is (d == double-float-positive-infinity);
+  check-errno (values (d, e) = frexp* (double-float-negative-infinity), nil);
+  is (d == double-float-negative-infinity);
+  check-errno (values (d, e) = frexp* (double-float-nan), nil);
+  is (float-nan-p (d));
+
+  // ; Specials (|ldexp|)
+  check-errno (is (|ldexp| (0.0, most-positive-fixnum) == 0.0), nil);
+  check-errno (is (|ldexp| (-0.0, most-negative-fixnum) == -0.0), nil);
+  check-errno (is (|ldexp| (least-positive-double-float, most-positive-fixnum) == 0.0), ERANGE);
+  check-errno (is (|ldexp| (most-negative-double-float, most-positive-fixnum) == double-float-negative-infinity), ERANGE);
+  check-errno (is (|ldexp| (double-float-positive-infinity, most-negative-fixnum) == double-float-positive-infinity), nil);
+  check-errno (is (|ldexp| (double-float-negative-infinity, -1) == double-float-negative-infinity), nil);
+  check-errno (is (|ldexp| (double-float-negative-infinity, 0) == double-float-negative-infinity), nil);
+  is (float-nan-p (|ldexp| (double-float-nan, 0)));
+  }#)
+
+(test test-math-ilogb
+  #{
+  is (integerp (|ilogb| (1.0)));
+  is (|ilogb| (4.0) == 2);
+  
+  // ; Specials
+  check-errno (is (|ilogb| (0.0) == FP_ILOGB0), EDOM);
+  check-errno (is (|ilogb| (double-float-positive-infinity) == INT_MAX), EDOM);
+  check-errno (is (|ilogb| (double-float-negative-infinity) == INT_MAX), EDOM);
+  check-errno (is (|ilogb| (double-float-nan) == FP_ILOGBNAN), EDOM);
+  }#)
+
 (test test-math-log
   #{
   is.float-equal (|log| (|exp| (2.0)), 2);
@@ -319,6 +369,68 @@
   check-errno (is (|log2|(-HUGE_VAL) == double-float-nan), EDOM);
   check-errno (is (|log2|(HUGE_VAL) == double-float-positive-infinity), nil);
   check-errno (is (|log2|(double-float-nan) == double-float-nan), nil);
+  }#)
+
+(test test-math-logb
+  #{
+  is (floatp (|logb| (1.0)));
+  is.float-equal (|logb| (4.0), 2.0);
+  
+  // ; Specials
+  check-errno (is (|logb| (0.0) == double-float-negative-infinity), EDOM);
+  check-errno (is (|logb| (double-float-positive-infinity) == double-float-positive-infinity), nil);
+  check-errno (is (|logb| (double-float-negative-infinity) == double-float-negative-infinity), nil);
+  check-errno (float-nan-p (|logb| (double-float-nan)), nil);
+  }#)
+
+(test test-math-modf*
+  #{
+  double rem, quot;
+  
+  values (rem, quot) = modf* (1.125);
+  is.float-equal (rem, 0.125);
+  is.float-equal (quot, 1.0);
+  
+  values (rem, quot) = modf* (-1.125);
+  is.float-equal (rem, -0.125);
+  is.float-equal (quot, -1.0);
+  
+  // ; Specials
+  values (rem, quot) = modf* (0.0);
+  is (rem == 0.0);
+  is (quot == 0.0);
+  
+  values (rem, quot) = modf* (-0.0);
+  is (rem == -0.0);
+  is (quot == -0.0);
+  
+  check-errno (values (rem, quot) = modf* (double-float-positive-infinity), nil);
+  is (rem == 0.0);
+  is (quot == double-float-positive-infinity);
+  
+  check-errno (values (rem, quot) = modf* (double-float-negative-infinity), nil);
+  is (rem == 0.0);
+  is (quot == double-float-negative-infinity);
+  
+  check-errno (values (rem, quot) = modf* (double-float-nan), nil);
+  is (float-nan-p (rem));
+  is (float-nan-p (quot));
+  }#)
+
+(test test-math-scalbn
+  #{
+  is.float-equal (|scalbn| (2.0, 2), 8.0);
+  is.float-equal (|scalbn| (-2.0, -2), -.5);
+  
+  // ; Specials
+  check-errno (is (|scalbn| (0.0, most-positive-fixnum) == 0.0), nil);
+  check-errno (is (|scalbn| (-0.0, most-negative-fixnum) == -0.0), nil);
+  check-errno (is (|scalbn| (least-positive-double-float, most-positive-fixnum) == 0.0), ERANGE);
+  check-errno (is (|scalbn| (most-negative-double-float, most-positive-fixnum) == double-float-negative-infinity), ERANGE);
+  check-errno (is (|scalbn| (double-float-positive-infinity, most-negative-fixnum) == double-float-positive-infinity), nil);
+  check-errno (is (|scalbn| (double-float-negative-infinity, -1) == double-float-negative-infinity), nil);
+  check-errno (is (|scalbn| (double-float-negative-infinity, 0) == double-float-negative-infinity), nil);
+  check-errno (is (float-nan-p (|scalbn| (double-float-nan, 1))), nil);
   }#)
 
 (test test-math-cbrt
@@ -744,113 +856,11 @@
 
 
 
-(test test-math-frexp*-and-ldexp
-  #{
-  double d;
-  int e;
 
-  values (d, e) = frexp* (3.14);
-  is (0.5 <= d && d < 1);
-  is.float-equal (ldexp (d, e), 3.14);
-  
-  values (d, e) = frexp* (-10.001);
-  is (-0.5 >= d && d > -1);
-  is.float-equal (ldexp (d, e), -10.001);
-  
-  // ; Specials (frexp*)
-  values (d, e) = frexp* (0.0);
-  is (d == 0.0);
-  is (e == 0);
-  values (d, e) = frexp* (-0.0);
-  is (d == -0.0);
-  is (e == 0);
-  if (may-fail (values (d, e) = frexp* (double-float-positive-infinity))) {
-    is (d == double-float-positive-infinity);
-  }
-  if (may-fail (values (d, e) = frexp* (double-float-negative-infinity))) {
-    is (d == double-float-negative-infinity);
-  }
 
-  // ; Specials (ldexp)
-  is (ldexp (0.0, most-positive-fixnum) == 0.0);
-  is (ldexp (-0.0, most-negative-fixnum) == -0.0);
-  may-fail (ldexp (double-float-positive-infinity, most-negative-fixnum)
-                  == double-float-positive-infinity);
-  is (ldexp (double-float-negative-infinity, -1) == double-float-negative-infinity);
-  is (ldexp (double-float-negative-infinity, 0) == double-float-negative-infinity);
-  
-  // ; TODO: add NaN test.
-  }#)
 
-(test test-math-modf*
-  #{
-  double rem, quot;
-  
-  values (rem, quot) = modf* (1.125);
-  is.float-equal (rem, 0.125);
-  is.float-equal (quot, 1.0);
-  
-  values (rem, quot) = modf* (-1.125);
-  is.float-equal (rem, -0.125);
-  is.float-equal (quot, -1.0);
-  
-  // ; Specials
-  values (rem, quot) = modf* (0.0);
-  is (rem == 0.0);
-  is (quot == 0.0);
-  
-  values (rem, quot) = modf* (-0.0);
-  may-fail (rem == -0.0);
-  is (quot == -0.0);
-  
-  if (may-fail (values (rem, quot) = modf* (double-float-positive-infinity))) {
-    may-fail (rem == 0.0);
-    may-fail (quot == double-float-positive-infinity);
-  }
-  
-  if (may-fail (values (rem, quot) = modf* (double-float-negative-infinity))) {
-    may-fail (rem == 0.0);
-    may-fail (quot == double-float-negative-infinity);
-  }
-  
-  // ; TODO: add NaN test.
-  }#)
 
-(test test-math-scalbn
-  #{
-  is.float-equal (scalbn (2.0, 2), 8.0);
-  is.float-equal (scalbn (-2.0, -2), -.5);
-  
-  // ; Specials
-  is (scalbn (0.0, most-positive-fixnum) == 0.0);
-  is (scalbn (-0.0, most-negative-fixnum) == -0.0);
-  may-fail (scalbn (double-float-positive-infinity, most-negative-fixnum)
-                  == double-float-positive-infinity);
-  is (scalbn (double-float-negative-infinity, -1) == double-float-negative-infinity);
-  is (scalbn (double-float-negative-infinity, 0) == double-float-negative-infinity);
-  // ; TODO: add NaN test.
-  }#)
 
-(test test-math-ilogb
-  #{
-  is (integerp (ilogb (1.0)));
-  is (ilogb (0.0) == FP_ILOGB0);
-  
-  // ; Specials
-  is (integerp (ilogb (0.0)));
-  may-fail (integerp (ilogb (double-float-negative-infinity)));
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-logb
-  #{
-  is (floatp (logb (1.0)));
-  
-  // ; Specials
-  is (floatp (logb (0.0)));
-  may-fail (floatp (logb (double-float-negative-infinity)));
-  // ; TODO: add NaN test.
-  }#)
 
 (test test-isnan
   #{

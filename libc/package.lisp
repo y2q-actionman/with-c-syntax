@@ -45,18 +45,16 @@
    #:|float_t| #:|double_t|
    #:HUGE_VAL #:HUGE_VALF #:HUGE_VALL #:INFINITY #:NAN
    #:FP_INFINITE #:FP_NAN #:FP_NORMAL #:FP_SUBNORMAL #:FP_ZERO
+   #:FP_ILOGB0 #:FP_ILOGBNAN
    #:MATH_ERRNO #:MATH_ERREXCEPT #:|math_errhandling|
    #:|acos| #:|asin| #:|atan| #:|atan2| #:|cos| #:|sin| #:|tan|
    #:|acosh| #:|asinh| #:|atanh| #:|cosh| #:|sinh| #:|tanh|
-   #:|exp| #:|exp2| #:|expm1| #:|log| #:|log10| #:|log1p| #:|log2|
+   #:|exp| #:|exp2| #:|expm1| #:FREXP* #:|ilogb| #:|ldexp| #:|log| #:|log10| #:|log1p| #:|log2| #:|logb| #:MODF* #:|scalbn| #:|scalbln|
    #:|cbrt| #:|fabs| #:|hypot| #:|pow| #:|sqrt|
    #:|ceil| #:|floor| #:|round| #:|lround| #:|llround| #:|trunc|
    #:|fmod| #:|remainder| #:REMQUO*
    #:|copysign| #:|nan| #:|nextafter|
    #:|fdim| #:|fmax| #:|fmin|
-   
-   #:FREXP* #:|ldexp| #:MODF* #:|scalbn| #:|ilogb| #:|logb|
-   #:FP_ILOGB0
    
    #:|isnan| #:|isinf| #:|isfinite| #:|isnormal| #:|fpclassify| ; C99
    #:|signbit|                          ; C99

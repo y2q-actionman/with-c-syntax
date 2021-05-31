@@ -62,7 +62,13 @@
 
 ;;; TODO: FP_FAST_FMA (...in far future)
 
-;;; TODO: FP_ILOGB0, FP_ILOGBNAN
+(defconstant FP_ILOGB0                  ; C99
+  (|ilogb| 0)) ; CLHS says `decode-float' returns an integer even for 0. 
+
+(defconstant FP_ILOGBNAN                ; C99
+  most-negative-fixnum
+  "with-c-syntax definition FP_ILOGBNAN")
+
 
 (defconstant MATH_ERRNO 1)
 (defconstant MATH_ERREXCEPT 2)
@@ -183,6 +189,8 @@
   (coercef x 'double-float)
   (tanh x))                             ; no error
 
+;;; Exponential and logarithmic
+
 (defmacro with-exp-family-error-handling ((x underflow-value) &body body)
   (once-only (underflow-value)
     `(cond ((float-nan-p ,x) ,x)
@@ -222,6 +230,44 @@
   (with-exp-family-error-handling (x (float -1 x))
     (float (exp-1 x) x)))
 
+(defun frexp* (x)  ; FIXME: how to treat pointer? (cons as a storage?)
+  (coercef x 'double-float)
+  (assert (= 2 (float-radix x)))
+  (handler-bind
+      ((simple-error
+         (lambda (condition)
+           ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
+           (cond ((or (float-nan-p x)
+                      (float-infinity-p x))
+                  (return-from frexp* x))
+                 (t condition)))))
+    (multiple-value-bind (significant exponent sign)
+        (decode-float x)
+      (values (float-sign sign significant)
+              exponent))))
+
+(defun |ilogb| (x)                      ; C99
+  (coercef x 'double-float)
+  (cond ((float-nan-p x)
+         (wcs-raise-fe-exception FE_INVALID)
+         FP_ILOGBNAN)
+        ((float-infinity-p x)
+         (wcs-raise-fe-exception FE_INVALID)
+         INT_MAX)
+        ((zerop x)
+         (wcs-raise-fe-exception FE_INVALID)
+         FP_ILOGB0)
+        (t
+         (let ((expon (nth-value 1 (decode-float x))))
+           ;; Common Lisp normalizes the significant to [1/radix ~ 1), see `decode-float'.
+           ;; C99 normalizes it to [1 ~ FLT_RADIX), see the description of logb() function,
+           (1- expon)))))
+
+(defun |ldexp| (x exp)
+  (coercef x 'double-float)
+  (assert (= 2 (float-radix x)))
+  (|scalbn| x exp))
+
 (defmacro with-log-family-parameter-check ((x pole) &body body)
   (once-only (pole)
     `(cond ((float-nan-p ,x) ,x)
@@ -253,6 +299,59 @@
   (coercef x 'double-float)
   (with-log-family-parameter-check (x (float 0 x))
     (log x 2)))
+
+(defun |logb| (x)                       ; C99
+  (coercef x 'double-float)
+  (cond ((float-nan-p x) x)
+        ((float-infinity-p x) x)
+        ((zerop x)
+         (wcs-raise-fe-exception FE_DIVBYZERO :errno EDOM)
+         double-float-negative-infinity)
+        (t
+         (let ((expon (nth-value 1 (decode-float x))))
+           ;; See `|ilogb|'.
+           (float (1- expon) x)))))
+
+(defun modf* (x)   ; FIXME: how to treat pointer? (cons as a storage?)
+  (coercef x 'double-float)
+  (handler-bind
+      ((simple-error
+         (lambda (condition)
+           ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
+           (cond ((float-nan-p x)
+                  (return-from modf* (values x x)))
+                 ((float-infinity-p x)
+                  (return-from modf*
+                    (values (float-sign x 0d0) x)))
+                 (t condition)))))
+    (multiple-value-bind (quot rem) (ftruncate x)
+      (values rem quot))))
+
+(defun |scalbn| (x exp)                 ; C99
+  (coercef x 'double-float)
+  (let ((ret
+          (handler-bind
+              ((simple-error
+                 (lambda (condition)
+                   ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
+                   (cond ((or (float-nan-p x)
+                              (float-infinity-p x))
+                          (return-from |scalbn| x))
+                         (t condition)))))
+            (scale-float x exp))))
+    (cond
+      ((and (float-infinity-p ret)
+            (not (float-infinity-p x)))
+       (wcs-raise-fe-exception FE_OVERFLOW))
+      ((and (zerop ret)
+            (not (zerop x)))
+       (wcs-raise-fe-exception FE_UNDERFLOW)))
+    ret))
+
+(defun |scalbln| (x exp)                ; C99
+  (|scalbn| x exp))                     ; Because we have BigNum.
+
+;;; Power and absolute-value 
 
 (defun |cbrt| (x)                       ; C99
   (coercef x 'double-float)
@@ -383,7 +482,7 @@
               (lambda (condition) 
                 ;; Allegro CL 10.0 on MacOS comes here; (fceiling double-float-nan).
                 (cond ((or (float-nan-p ,x)
-                           (float-infinity-p x))
+                           (float-infinity-p ,x))
                        (return-from ,block-name ,x))
                       (t condition)))))
          ,@body))))
@@ -587,34 +686,10 @@
 ;;; TODO: 'fma'
 
 
-(defun frexp* (x)                      ; FIXME: how to treat pointer? (cons as a storage?)
-  (assert (= 2 (float-radix x)))
-  (multiple-value-bind (significant exponent sign)
-      (decode-float x)
-    (values (* significant sign)
-            exponent)))
 
-(defun |ldexp| (x exp)
-  (assert (= 2 (float-radix x)))
-  (scale-float x exp))                  ; may raise ERANGE, FE_OVERFLOW, FE_UNDERFLOW
 
-(defun modf* (x)                       ; FIXME: how to treat pointer? (cons as a storage?)
-  (multiple-value-bind (quot rem) (ftruncate x)
-    (values rem quot)))
 
-(defun |scalbn| (x exp)                 ; C99
-  (scale-float x exp))
 
-(defun |ilogb| (x)                      ; C99
-  (nth-value 1 (decode-float x)))
-
-(defconstant FP_ILOGB0                  ; C99
-  (nth-value 1 (decode-float 0d0)))
-
-;;; TODO: FP_ILOGBNAN
-
-(defun |logb| (x)                       ; C99
-  (float (nth-value 1 (decode-float x)) x))
 
 ;;; FPCLASSIFY (C99)
 
