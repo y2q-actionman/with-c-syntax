@@ -47,6 +47,7 @@
    #:FP_INFINITE #:FP_NAN #:FP_NORMAL #:FP_SUBNORMAL #:FP_ZERO
    #:FP_ILOGB0 #:FP_ILOGBNAN
    #:MATH_ERRNO #:MATH_ERREXCEPT #:|math_errhandling|
+   #:|fpclassify| #:|isfinite| #:|isinf| #:|isnan| #:|isnormal| #:|signbit|
    #:|acos| #:|asin| #:|atan| #:|atan2| #:|cos| #:|sin| #:|tan|
    #:|acosh| #:|asinh| #:|atanh| #:|cosh| #:|sinh| #:|tanh|
    #:|exp| #:|exp2| #:|expm1| #:FREXP* #:|ilogb| #:|ldexp| #:|log| #:|log10| #:|log1p| #:|log2| #:|logb| #:MODF* #:|scalbn| #:|scalbln|
@@ -56,8 +57,6 @@
    #:|copysign| #:|nan| #:|nextafter|
    #:|fdim| #:|fmax| #:|fmin|
    
-   #:|isnan| #:|isinf| #:|isfinite| #:|isnormal| #:|fpclassify| ; C99
-   #:|signbit|                          ; C99
    #:|isgreater| #:|isgreaterequal| #:|isless| #:|islessequal| #:|islessgreater| #:|isunordered| ; C99
    #:|lerp|                             ; C++20
    ;; stdarg

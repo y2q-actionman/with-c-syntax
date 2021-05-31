@@ -40,6 +40,71 @@
                (warn "~A raised ~A" ',form ,condition)
                (warn "~A was evaluated to false" ',form))))))
 
+(test test-fpclassify
+  #{
+  is (|fpclassify| (double-float-positive-infinity) == FP_INFINITE);
+  is (|fpclassify| (double-float-negative-infinity) == FP_INFINITE);
+  is (|fpclassify| (10.0) == FP_NORMAL);
+  is (|fpclassify| (0.0) == FP_ZERO);
+  is (|fpclassify| (least-negative-double-float) == FP_SUBNORMAL);
+  is (|fpclassify| (double-float-nan) == FP_NAN);
+  }#)
+
+(test test-isfinite
+  #{
+  is (! |isfinite| (double-float-positive-infinity));
+  is (! |isfinite| (double-float-negative-infinity));
+  is (|isfinite| (10.0));
+  is (|isfinite| (0.0));
+  is (|isfinite| (least-negative-double-float));
+  is (! |isfinite| (double-float-nan));
+  }#)
+
+(test test-isinf
+  #{
+  is (|isinf| (double-float-positive-infinity));
+  is (|isinf| (double-float-negative-infinity));
+  is (! |isinf| (10.0));
+  is (! |isinf| (0.0));
+  is (! |isinf| (least-negative-double-float));
+  is (! |isinf| (double-float-nan));
+  }#)
+
+(test test-isnan
+  #{
+  is (! |isnan| (double-float-positive-infinity));
+  is (! |isnan| (double-float-negative-infinity));
+  is (! |isnan| (10.0));
+  is (! |isnan| (0.0));
+  is (! |isnan| (least-negative-double-float));
+  is (|isnan| (double-float-nan));
+  }#)
+
+(test test-isnormal
+  #{
+  is (! |isnormal| (double-float-positive-infinity));
+  is (! |isnormal| (double-float-negative-infinity));
+  is (|isnormal| (10.0));
+  is (! |isnormal| (0.0));
+  is (! |isnormal| (least-negative-double-float));
+  is (! |isnormal| (double-float-nan));
+  }#)
+
+(test test-signbit
+  #{
+  is (! |signbit| (1.0));
+  is (|signbit| (-1.0));
+  is (! |signbit| (double-float-positive-infinity));
+  is (|signbit| (double-float-negative-infinity));
+  is (! |signbit| (0.0));
+  if (eq (0.0d0, -0.0d0)) {
+    `(warn "Your Lisp does not distinguish -0.0d0 from 0.0d0.");
+  } else {
+    is (|signbit| (-0.0));
+  }
+  check-errno (|signbit| (double-float-nan), nil);
+  }#)
+
 (test test-math-acos
   #{
   is.float-equal (|acos| (1.0), 0.0);
@@ -861,63 +926,6 @@
 
 
 
-
-(test test-isnan
-  #{
-  is (! isnan (double-float-negative-infinity));
-  is (!isnan (0.0));
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-isinf
-  #{
-  is (isinf (double-float-positive-infinity));
-  is (isinf (double-float-negative-infinity));
-  is (!isinf (10.0));
-  is (!isinf (0.0));
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-isfinite
-  #{
-  is (!isfinite (double-float-positive-infinity));
-  is (!isfinite (double-float-negative-infinity));
-  is (isfinite (10.0));
-  is (isfinite (0.0));
-  is (isfinite (least-negative-double-float));
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-isnormal
-  #{
-  is (!isnormal (double-float-positive-infinity));
-  is (!isnormal (double-float-negative-infinity));
-  is (isnormal (10.0));
-  is (!isnormal (0.0));
-  is (!isnormal (least-negative-double-float));
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-fpclassify
-  #{
-  is (fpclassify (double-float-positive-infinity) == FP_INFINITE);
-  is (fpclassify (double-float-negative-infinity) == FP_INFINITE);
-  is (fpclassify (10.0) == FP_NORMAL);
-  is (fpclassify (0.0) == FP_ZERO);
-  is (fpclassify (least-negative-double-float) == FP_SUBNORMAL);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-signbit
-  #{
-  is (!signbit (1.0));
-  is (signbit (-1.0));
-  is (!signbit (double-float-positive-infinity));
-  is (signbit (double-float-negative-infinity));
-  is (!signbit (0.0));
-  is (signbit (-0.0));
-  // ; TODO: add NaN test.
-  }#)
 
 (test test-isgreater
   #{

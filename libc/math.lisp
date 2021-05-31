@@ -77,7 +77,52 @@
 ;;; TODO: FP_CONTRACT
 
 
-;;; Functions
+;;; Classification
+
+(defun float-subnormal-p (x)
+  ;; I think I can write it as:
+  ;;   (< 0 (abs x) least-positive-normalized-single-float)
+  ;; But it raises 'note: deleting unreachable code' on SBCL. Why?
+  (and
+   (not (float-nan-p x))
+   (/= x 0)
+   (etypecase x
+     (short-float
+      (< least-negative-normalized-short-float x least-positive-normalized-short-float))
+     (single-float
+      (< least-negative-normalized-single-float x least-positive-normalized-single-float))
+     (double-float
+      (< least-negative-normalized-double-float x least-positive-normalized-double-float))
+     (long-float
+      (< least-negative-normalized-long-float x least-positive-normalized-long-float)))))
+
+(defun |fpclassify| (x)
+  (cond ((float-nan-p x) :FP_NAN)
+        ((float-infinity-p x) :FP_INFINITE)
+        ((zerop x) :FP_ZERO)
+        ((float-subnormal-p x) :FP_SUBNORMAL)
+        (t :FP_NORMAL)))
+
+(defun |isfinite| (x)
+  (not (or (float-nan-p x)
+           (float-infinity-p x))))
+
+(defun |isinf| (x)
+  (float-infinity-p x))
+
+(defun |isnan| (x)
+  (float-nan-p x))
+
+(defun |isnormal| (x)
+  (not (or (float-nan-p x)
+           (float-infinity-p x)
+           (float-subnormal-p x)
+           (zerop x))))
+
+(defun |signbit| (x)
+  (minusp (float-sign x)))
+
+;;; Trigonometric
 
 (defmacro with-acos-parameter-check ((x) &body body)
   `(cond ((float-nan-p ,x) ,x)
@@ -691,53 +736,6 @@
 
 
 
-;;; FPCLASSIFY (C99)
-
-(defun |isnan| (x)
-  (float-nan-p x))
-
-(defun |isinf| (x)
-  (if (float-infinity-p x)
-      (signum x)))
-
-(defun |isfinite| (x)
-  (not (or (float-nan-p x)
-           (float-infinity-p x))))
-
-(defun float-subnormal-p (x)
-  (etypecase x
-    (short-float
-     (or (< least-negative-normalized-short-float x 0)
-         (< 0 x least-positive-normalized-short-float)))
-    (single-float
-     ;; I think I can write it as:
-     ;;   (< 0 (abs x) least-positive-normalized-single-float)
-     ;; But it raises 'note: deleting unreachable code' on SBCL. Why?
-     (or (< least-negative-normalized-single-float x 0)
-         (< 0 x least-positive-normalized-single-float)))
-    (double-float
-     (or (< least-negative-normalized-double-float x 0)
-         (< 0 x least-positive-normalized-double-float)))
-    (long-float
-     (or (< least-negative-normalized-long-float x 0)
-         (< 0 x least-positive-normalized-long-float)))))
-
-(defun |isnormal| (x)
-  (not (or (float-nan-p x)
-           (float-infinity-p x)
-           (float-subnormal-p x))))
-
-(defun |fpclassify| (x)
-  (cond ((float-nan-p x) :FP_NAN)
-        ((float-infinity-p x) :FP_INFINITE)
-        ((zerop x) :FP_ZERO)
-        ((float-subnormal-p x) :FP_SUBNORMAL)
-        (t :FP_NORMAL)))
-
-;;; SIGNBIT (C99)
-
-(defun |signbit| (x)
-  (minusp (float-sign x)))
 
 (defun |isgreater| (x y)        ; FIXME: In C99, this must be a macro.
   (if (|isunordered| x y)
