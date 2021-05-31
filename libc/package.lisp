@@ -46,16 +46,14 @@
    #:HUGE_VAL #:HUGE_VALF #:HUGE_VALL #:INFINITY #:NAN
    #:FP_INFINITE #:FP_NAN #:FP_NORMAL #:FP_SUBNORMAL #:FP_ZERO
    #:MATH_ERRNO #:MATH_ERREXCEPT #:|math_errhandling|
-   #:|exp| #:|exp2| #:|expm1|
-   #:|fabs|
+   #:|acos| #:|asin| #:|atan| #:|atan2| #:|cos| #:|sin| #:|tan|
+   #:|acosh| #:|asinh| #:|atanh| #:|cosh| #:|sinh| #:|tanh|
+   #:|exp| #:|exp2| #:|expm1| #:|log| #:|log10| #:|log1p| #:|log2|
+   #:|cbrt| #:|fabs| #:|hypot| #:|pow| #:|sqrt|
    #:|fmod| #:|remainder| #:REMQUO*
    #:|nan| #:|nextafter|
    #:|fdim| #:|fmax| #:|fmin|
    
-   #:|log| #:|log10| #:|log2| #:|log1p|
-   #:|pow| #:|sqrt| #:|cbrt| #:|hypot|
-   #:|sin| #:|cos| #:|tan| #:|asin| #:|acos| #:|atan| #:|atan2|
-   #:|sinh| #:|cosh| #:|tanh| #:|asinh| #:|acosh| #:|atanh|
    #:|ceil| #:|floor| #:|trunc| #:|round|
    #:FREXP* #:|ldexp| #:MODF* #:|scalbn| #:|ilogb| #:|logb|
    #:FP_ILOGB0
