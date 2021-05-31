@@ -131,6 +131,58 @@
              (wcs-raise-fe-exception FE_OVERFLOW)
              HUGE_VAL)))))
 
+(defun |acosh| (x)
+  (coercef x 'double-float)
+  (cond ((float-nan-p x) x)
+        ((< x 1)
+         (wcs-raise-fe-exception FE_INVALID)
+         double-float-nan)
+        (t (acosh x))))
+
+(defun |asinh| (x)
+  (coercef x 'double-float)
+  (asinh x))                            ; no error
+
+(defun |atanh| (x)
+  (coercef x 'double-float)
+  (let ((ret
+          (handler-case (atanh x)
+            (simple-error (e)  ; Allegro CL 10.1 on MacOSX comes here.
+              (cond ((or (= x 1.0d0)
+                         (= x -1.0d0))
+                     (wcs-raise-fe-exception FE_DIVBYZERO)
+                     (* x double-float-positive-infinity))
+                    (t (error e)))))))
+    (cond
+      ((complexp ret)
+       (wcs-raise-fe-exception FE_INVALID)
+       double-float-nan)
+      (t ret))))
+
+(defun check-cosh-result (ret x)
+  (cond
+    ((float-infinity-p ret)
+     (unless (float-infinity-p x)
+       (wcs-raise-fe-exception FE_OVERFLOW))
+     ret)
+    (t ret)))
+
+(defun |cosh| (x)
+  (coercef x 'double-float)
+  (let ((ret (cosh x)))
+    (check-cosh-result ret x)
+    ret))
+
+(defun |sinh| (x)
+  (coercef x 'double-float)
+  (let ((ret (sinh x)))
+    (check-cosh-result ret x)
+    ret))
+
+(defun |tanh| (x)
+  (coercef x 'double-float)
+  (tanh x))                             ; no error
+
 (defmacro with-exp-family-error-handling ((x underflow-value) &body body)
   (once-only (underflow-value)
     `(cond ((float-nan-p ,x) ,x)
@@ -463,24 +515,6 @@
 
 ;;; TODO: 'fma'
 
-
-(defun |sinh| (x)
-  (sinh x))                             ; may raise ERANGE, FE_INVALID
-
-(defun |cosh| (x)
-  (cosh x))                             ; may raise ERANGE, FE_INVALID
-
-(defun |tanh| (x)
-  (tanh x))                             ; no error
-
-(defun |asinh| (x)
-  (asinh x))                            ; no error
-
-(defun |acosh| (x)
-  (acosh x))                            ; may raise EDOM, FE_INVALID
-
-(defun |atanh| (x)
-  (atanh x))        ; may raise EDOM, ERANGE, FE_INVALID, FE_DIVBYZERO
 
 ;;; TODO: 'erf'
 ;;; TODO: 'erfc'

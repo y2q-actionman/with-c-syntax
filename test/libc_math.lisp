@@ -160,6 +160,84 @@
   check-errno (is (float-nan-p (|tan| (double-float-nan))), nil);
   }#)
 
+(test test-math-acosh
+  #{
+  is.float-equal (|acosh| (|cosh| (10.0)), 10.0);
+  is.float-equal (|acosh| (|cosh| (1.1)), 1.1);
+  // ; Specials
+  check-errno (is (float-nan-p (|acosh| (double-float-negative-infinity))), EDOM);
+  check-errno (is (float-nan-p (|acosh| (0.9))), EDOM);
+  check-errno (is (|acosh| (1.0) == 0.0), nil);
+  check-errno (is (|acosh| (double-float-positive-infinity) == double-float-positive-infinity), nil);
+  check-errno (is (float-nan-p (|acosh| (double-float-nan))), nil);
+  }#)
+
+(test test-math-asinh
+  #{
+  is.float-equal (|asinh| (|sinh| (10.0)), 10.0);
+  is.float-equal (|asinh| (|sinh| (-1.0)), -1.0);
+  // ; Specials
+  check-errno (is (|asinh| (0.0) == 0.0), nil);
+  check-errno (is (|asinh| (-0.0) == -0.0), nil);
+  check-errno (is (|asinh| (double-float-positive-infinity) == double-float-positive-infinity), nil);
+  check-errno (is (|asinh| (double-float-negative-infinity) == double-float-negative-infinity), nil);
+  check-errno (is (float-nan-p (|asinh| (double-float-nan))), nil);
+  }#)
+
+(test test-math-atanh
+  #{
+  is.float-equal (|atanh| (|tanh| (.9)), .9);
+  is.float-equal (|atanh| (|tanh| (-.1)), -.1);
+  // ; Specials
+  check-errno (is (|atanh| (0.0) == 0.0), nil);
+  check-errno (is (|atanh| (-0.0) == -0.0), nil);
+  check-errno (is (float-infinity-p (|atanh| (1.0))), ERANGE);
+  check-errno (is (float-infinity-p (|atanh| (-1.0))), ERANGE);
+  check-errno (is (float-nan-p (|atanh| (double-float-positive-infinity))), EDOM);
+  check-errno (is (float-nan-p (|atanh| (1.1))), EDOM);
+  check-errno (is (float-nan-p (|atanh| (-1.1))), EDOM);
+  check-errno (is (float-nan-p (|atanh| (double-float-negative-infinity))), EDOM);
+  is (float-nan-p (|atanh| (double-float-nan)));
+  }#)
+
+(test test-math-cosh
+  #{
+  is.float-equal (|cosh| (2.3), (|exp| (2.3) + |exp| (-2.3)) / 2);
+  is.float-equal (|cosh| (-9), (|exp| (-9) + |exp| (- - 9)) / 2);
+  check-errno (is (|cosh| (1000.0) == double-float-positive-infinity), ERANGE);
+  // ; Specials
+  check-errno (is (|cosh| (0.0) == 1.0), nil);
+  check-errno (is (|cosh| (-0.0) == 1.0), nil);
+  check-errno (is (|cosh| (double-float-positive-infinity) == double-float-positive-infinity), nil);
+  check-errno (is (|cosh| (double-float-negative-infinity) == double-float-positive-infinity), nil);
+  check-errno (is (float-nan-p (|cosh| (double-float-nan))), nil);
+  }#)
+
+(test test-math-sinh
+  #{
+  is.float-equal (|sinh| (2.3), (|exp| (2.3) - |exp| (-2.3)) / 2);
+  is.float-equal (|sinh| (-9), (|exp| (-9) - |exp| (- - 9)) / 2);
+  check-errno (is (|sinh| (1000.0) == double-float-positive-infinity), ERANGE);
+  // ; Specials
+  check-errno (is (|sinh| (0.0) == 0.0), nil);
+  check-errno (is (|sinh| (-0.0) == -0.0), nil);
+  check-errno (is (|sinh| (double-float-positive-infinity) == double-float-positive-infinity), nil);
+  check-errno (is (|sinh| (double-float-negative-infinity) == double-float-negative-infinity), nil);
+  check-errno (is (float-nan-p (|sinh| (double-float-nan))), nil);
+  }#)
+
+(test test-math-tanh
+  #{
+  is.float-equal (|tanh| (2.3), (|exp| (2.3) - |exp| (-2.3)) / (|exp| (2.3) + |exp| (-2.3)));
+  is.float-equal (|tanh| (-9), (|exp| (-9) - |exp| (- - 9)) / (|exp| (-9) + |exp| (- - 9)));
+  // ; Specials
+  check-errno (is (|tanh| (0.0) == 0.0), nil);
+  check-errno (is (|tanh| (-0.0) == -0.0), nil);
+  check-errno (is (|tanh| (double-float-positive-infinity) == 1.0), nil);
+  check-errno (is (|tanh| (double-float-negative-infinity) == -1.0), nil);
+  check-errno (is (float-nan-p (|tanh| (double-float-nan))), nil);
+  }#)
+
 (test test-math-exp
   #{
   is (`(< 2.71828
@@ -582,85 +660,6 @@
 
 
 
-
-(test test-math-sinh
-  #{
-  is.float-equal (sinh (2.3), (exp (2.3) - exp (-2.3)) / 2);
-  is.float-equal (sinh (-9), (exp (-9) - exp (- - 9)) / 2);
-  signals (arithmetic-error, sinh (1000.0));
-  may-fail (sinh (1000.0) == double-float-positive-infinity);
-  // ; Specials
-  is (sinh (0.0) == 0.0);
-  is (sinh (-0.0) == -0.0);
-  is (sinh (double-float-positive-infinity) == double-float-positive-infinity);
-  is (sinh (double-float-negative-infinity) == double-float-negative-infinity);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-cosh
-  #{
-  is.float-equal (cosh (2.3), (exp (2.3) + exp (-2.3)) / 2);
-  is.float-equal (cosh (-9), (exp (-9) + exp (- - 9)) / 2);
-  signals (arithmetic-error, cosh (1000.0));
-  may-fail (cosh (1000.0) == double-float-positive-infinity);
-  // ; Specials
-  is (cosh (0.0) == 1.0);
-  is (cosh (-0.0) == 1.0);
-  is (cosh (double-float-positive-infinity) == double-float-positive-infinity);
-  is (cosh (double-float-negative-infinity) == double-float-positive-infinity);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-tanh
-  #{
-  is.float-equal (tanh (2.3), (exp (2.3) - exp (-2.3)) / (exp (2.3) + exp (-2.3)));
-  is.float-equal (tanh (-9), (exp (-9) - exp (- - 9)) / (exp (-9) + exp (- - 9)));
-  // ; Specials
-  is (tanh (0.0) == 0.0);
-  is (tanh (-0.0) == -0.0);
-  is (tanh (double-float-positive-infinity) == 1.0);
-  is (tanh (double-float-negative-infinity) == -1.0);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-asinh
-  #{
-  is.float-equal (asinh (sinh (10.0)), 10.0);
-  is.float-equal (asinh (sinh (-1.0)), -1.0);
-  // ; Specials
-  is (asinh (0.0) == 0.0);
-  is (asinh (-0.0) == -0.0);
-  is (asinh (double-float-positive-infinity) == double-float-positive-infinity);
-  is (asinh (double-float-negative-infinity) == double-float-negative-infinity);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-acosh
-  #{
-  is.float-equal (acosh (cosh (10.0)), 10.0);
-  is.float-equal (acosh (cosh (1.1)), 1.1);
-  // ; Specials
-  is.complexp (acosh (0.9));
-  is (acosh (1.0) == 0.0);
-  is (acosh (double-float-positive-infinity) == double-float-positive-infinity);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-atanh
-  #{
-  is.float-equal (atanh (tanh (.9)), .9);
-  is.float-equal (atanh (tanh (-.1)), -.1);
-  // ; Specials
-  is (atanh (0.0) == 0.0);
-  is (atanh (-0.0) == -0.0);
-  signals (arithmetic-error, atanh (1.0));
-  may-fail (atanh (1.0) == double-float-positive-infinity);
-  signals (arithmetic-error, atanh (-1.0));
-  may-fail (atanh (-1.0) == double-float-negative-infinity);
-  is.complexp (atanh (1.1));
-  is.complexp (atanh (-1.1));
-  // ; TODO: add NaN test.
-  }#)
 
 (test test-math-ceil
   #{
