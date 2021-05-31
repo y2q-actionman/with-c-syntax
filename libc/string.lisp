@@ -117,6 +117,14 @@ This function is used for emulating C string truncation with pointer movements."
   "Finds the position of the end of acceptable chars in STR.
 If no such chars, return NIL."
   (flet ((acceptable-p (c) (find c accept)))
+    #+allegro
+    ;; Curiously, Allegro CL 10.1 returns strange result for displaced arrays.
+    ;; This is a workaround..
+    (loop for c across str
+          for index from 0
+          unless (acceptable-p c)
+            return index)
+    #-allegro
     (position-if-not #'acceptable-p str)))
 
 (defun |strspn| (str accept)
@@ -127,6 +135,13 @@ If no such chars, return NIL."
   "Finds the position of the end of rejected chars in STR.
 If no such chars, return NIL."
   (flet ((rejected-p (c) (find c reject)))
+    #+allegro
+    ;; See `strspn*'.
+    (loop for c across str
+          for index from 0
+          when (rejected-p c)
+            return index)
+    #-allegro
     (position-if #'rejected-p str)))
 
 (defun |strcspn| (str reject)
