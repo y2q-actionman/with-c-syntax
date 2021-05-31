@@ -268,6 +268,18 @@
   is (|pow| (double-float-nan, double-float-nan) == double-float-nan);
   }#)
 
+(test test-math-sqrt
+  #{
+  is.float-equal (|sqrt| (100.0), 10.0);
+  // ; Specials
+  is (|sqrt| (0.0) == 0.0);
+  is (|sqrt| (-0.0) == -0.0);
+  check-errno (is (|sqrt| (double-float-positive-infinity) == double-float-positive-infinity),nil);
+  check-errno (is (float-nan-p (|sqrt| (-2.1))), EDOM);
+  check-errno (is (float-nan-p (|sqrt| (double-float-negative-infinity))), EDOM);
+  check-errno (is (float-nan-p (|sqrt| (double-float-nan))), nil);
+  }#)
+
 (test test-math-fmod
   #{
   is.float-equal (|fmod|(3.123, 2.0), 1.123);
@@ -442,17 +454,6 @@
 
 
 
-
-(test test-math-sqrt
-  #{
-  is.float-equal (sqrt (100.0), 10.0);
-  // ; Specials
-  is.complexp (sqrt (-2.1)); // FIXME: Common Lisp returns a complex.
-  is (sqrt (double-float-positive-infinity) == double-float-positive-infinity);
-  is (sqrt (0.0) == 0.0);
-  is (sqrt (-0.0) == -0.0);
-  // ; TODO: add NaN test.
-  }#)
 
 (test test-math-sin
   #{

@@ -213,7 +213,7 @@
                (wcs-raise-fe-exception FE_UNDERFLOW))
              (return-from |pow| 0d0))
            (handle-simple-error (condition)
-             "Allegro CL 10.0 on CL comes here -- (expt 0.0 -1)."
+             ;; Allegro CL 10.0 on MacOSX comes here -- (expt 0.0 -1).
              (cond ((and (zerop x) (minusp y))
                     (handle-div-0 condition))
                    (t condition))))
@@ -242,6 +242,23 @@
               ;; FIXME: I am suspicious about this routine.
               ;;   (Can I utilize `floating-point:relative-error' ?)
               realpart))))
+        (t ret)))))
+
+(defun |sqrt| (x)
+  (coercef x 'double-float)
+  (flet ((handle-simple-error (condition)
+           ;; Allegro CL 10.0 on MacOS comes here; (sqrt double-float-nan).
+           (cond ((float-nan-p x)
+                  (return-from |sqrt| x))
+                 (t condition))))
+    (let ((ret
+            (handler-bind
+                ((simple-error #'handle-simple-error))
+              (sqrt x))))
+      (cond
+        ((complexp ret)
+         (wcs-raise-fe-exception FE_INVALID)
+         double-float-nan)
         (t ret)))))
 
 (defmacro with-mod-family-parameter-check ((x y) &body body)
@@ -388,9 +405,6 @@
 
 ;;; TODO: 'fma'
 
-
-(defun |sqrt| (x)
-  (sqrt x))                             ; may raise EDOM, FE_INVALID
 
 (defun |sin| (x)
   (sin x))                              ; may raise EDOM, FE_INVALID
