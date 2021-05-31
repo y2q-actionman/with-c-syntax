@@ -916,72 +916,61 @@
   is (float-nan-p (|fmin|(double-float-nan, double-float-nan)));
   }#)
 
-
-
-
-
-
-
-
-
-
-
-
 (test test-isgreater
   #{
   is (|isgreater|(1.0, -1.0));
-  is (!|isgreater|(1.0, 1.0));
-  is (!|isgreater|(1.0, 9.0));
-  is (!|isgreater|(double-float-nan, 1.0));
-  is (!|isgreater|(1.0, double-float-nan));
-  is (!|isgreater|(double-float-nan, double-float-nan));
+  is (! |isgreater|(1.0, 1.0));
+  is (! |isgreater|(1.0, 9.0));
+  is (! |isgreater|(double-float-nan, 1.0));
+  is (! |isgreater|(1.0, double-float-nan));
+  is (! |isgreater|(double-float-nan, double-float-nan));
   }#)
 
 (test test-isgreaterequal
   #{
   is (|isgreaterequal|(1.0, -1.0));
   is (|isgreaterequal|(1.0, 1.0));
-  is (!|isgreaterequal|(1.0, 9.0));
-  is (!|isgreaterequal|(double-float-nan, 1.0));
-  is (!|isgreaterequal|(1.0, double-float-nan));
-  is (!|isgreaterequal|(double-float-nan, double-float-nan));
+  is (! |isgreaterequal|(1.0, 9.0));
+  is (! |isgreaterequal|(double-float-nan, 1.0));
+  is (! |isgreaterequal|(1.0, double-float-nan));
+  is (! |isgreaterequal|(double-float-nan, double-float-nan));
   }#)
 
 (test test-isless
   #{
-  is (!|isless|(1.0, -1.0));
-  is (!|isless|(1.0, 1.0));
+  is (! |isless|(1.0, -1.0));
+  is (! |isless|(1.0, 1.0));
   is (|isless|(1.0, 9.0));
-  is (!|isless|(double-float-nan, 1.0));
-  is (!|isless|(1.0, double-float-nan));
-  is (!|isless|(double-float-nan, double-float-nan));
+  is (! |isless|(double-float-nan, 1.0));
+  is (! |isless|(1.0, double-float-nan));
+  is (! |isless|(double-float-nan, double-float-nan));
   }#)
 
 (test test-islessequal
   #{
-  is (!|islessequal|(1.0, -1.0));
+  is (! |islessequal|(1.0, -1.0));
   is (|islessequal|(1.0, 1.0));
   is (|islessequal|(1.0, 9.0));
-  is (!|islessequal|(double-float-nan, 1.0));
-  is (!|islessequal|(1.0, double-float-nan));
-  is (!|islessequal|(double-float-nan, double-float-nan));
+  is (! |islessequal|(double-float-nan, 1.0));
+  is (! |islessequal|(1.0, double-float-nan));
+  is (! |islessequal|(double-float-nan, double-float-nan));
   }#)
 
 (test test-islessgreater
   #{
   is (|islessgreater|(1.0, -1.0));
-  is (!|islessgreater|(1.0, 1.0));
+  is (! |islessgreater|(1.0, 1.0));
   is (|islessgreater|(1.0, 9.0));
-  is (!|islessgreater|(double-float-nan, 1.0));
-  is (!|islessgreater|(1.0, double-float-nan));
-  is (!|islessgreater|(double-float-nan, double-float-nan));
+  is (! |islessgreater|(double-float-nan, 1.0));
+  is (! |islessgreater|(1.0, double-float-nan));
+  is (! |islessgreater|(double-float-nan, double-float-nan));
   }#)
 
 (test test-isunordered
   #{
-  is (!|isunordered|(1.0, -1.0));
-  is (!|isunordered|(1.0, 1.0));
-  is (!|isunordered|(1.0, 9.0));
+  is (! |isunordered|(1.0, -1.0));
+  is (! |isunordered|(1.0, 1.0));
+  is (! |isunordered|(1.0, 9.0));
   is (|isunordered|(double-float-nan, 1.0));
   is (|isunordered|(1.0, double-float-nan));
   is (|isunordered|(double-float-nan, double-float-nan));

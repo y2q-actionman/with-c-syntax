@@ -182,6 +182,8 @@
              (wcs-raise-fe-exception FE_OVERFLOW)
              HUGE_VAL)))))
 
+;;; Hyperbolic
+
 (defun |acosh| (x)
   (coercef x 'double-float)
   (cond ((float-nan-p x) x)
@@ -515,6 +517,8 @@
          double-float-nan)
         (t ret)))))
 
+;;; Error and gamma
+
 ;;; TODO: 'erf()', 'erfc()', 'tgamma()', 'lgamma()'
 
 ;;; Nearest Integer
@@ -573,6 +577,8 @@
   (with-nearest-int-error-handling (x)
     (ftruncate x)))
 
+;;; Remainder
+
 (defmacro with-mod-family-parameter-check ((x y) &body body)
   `(cond ((float-nan-p ,x) ,x)
          ((float-nan-p ,y) ,y)
@@ -581,8 +587,6 @@
           (wcs-raise-fe-exception FE_INVALID)
           double-float-nan)
          (t ,@body)))
-
-;;; Remainder
 
 (defun |fmod| (x y)
   (coercef x 'double-float)
@@ -629,7 +633,7 @@
                                   nan-bits)))
        (bits-double-float new-nan-bits)))))
 
-;;; nextafter (C99)
+;;; nextafter() (C99)
 
 (defun step-double-float-plus (x)
   (cond
@@ -728,14 +732,11 @@
   (with-fmax-fmin-parameter-check (x y)
     (min x y)))
 
-;;; TODO: 'fma'
+;;; Floating multiply-add
 
+;;; TODO: fma()
 
-
-
-
-
-
+;;; Comparison
 
 (defun |isgreater| (x y)        ; FIXME: In C99, this must be a macro.
   (if (|isunordered| x y)
@@ -770,11 +771,9 @@
        (declare #+sbcl (sb-ext:muffle-conditions sb-ext:code-deletion-note))
      (or (float-nan-p ,x) (float-nan-p ,y))))
 
+
 ;;; C++20
 ;;; I found it in https://cpprefjp.github.io/reference/cmath/lerp.html
 ;;; and Alexardia has it!
 (defun |lerp| (a b v)
   (alexandria:lerp v a b))
-
-;;; TODO:
-;;; MATH_ERRNO, MATH_ERREXCEPT, math_errhandling

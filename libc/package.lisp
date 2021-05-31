@@ -56,8 +56,7 @@
    #:|fmod| #:|remainder| #:REMQUO*
    #:|copysign| #:|nan| #:|nextafter|
    #:|fdim| #:|fmax| #:|fmin|
-   
-   #:|isgreater| #:|isgreaterequal| #:|isless| #:|islessequal| #:|islessgreater| #:|isunordered| ; C99
+   #:|isgreater| #:|isgreaterequal| #:|isless| #:|islessequal| #:|islessgreater| #:|isunordered|
    #:|lerp|                             ; C++20
    ;; stdarg
    #:|va_list|
