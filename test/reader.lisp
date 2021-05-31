@@ -39,6 +39,16 @@
     #0{
     return 1 ? 2 : 3 \;
     }#)
+  ;; '|'
+  (is.equal.wcs 100
+    #0{
+    return 100 ||unknown-symbol ||(error "Never comes here.") \;
+    }#)
+  (is.equal.wcs #x16
+    ;; The weird suffix below is for avoiding confusion of syntax highlighting of slime.
+    #0{
+    return #x12 | #x6 \; ; |
+    }#)
   ;; check default-level
   #.(setf *with-c-syntax-reader-level* 0)
   (is.equal.wcs 2
