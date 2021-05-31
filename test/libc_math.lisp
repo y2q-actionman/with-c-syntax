@@ -23,6 +23,14 @@
               (warn "caught unexpected error ~A; ~A"
                (type-of e) e))))))
 
+(defmacro may.float-equal (form expected)
+  (with-gensyms (ex_ actual_)
+    `(let ((,ex_ ,expected)
+           (,actual_ ,form))
+       (if (float-equal ,actual_ ,ex_)
+           (1am::passed)
+           (warn "Failed: ~A actual ~A expected ~A" ',form ,actual_ ,ex_)))))
+
 (defmacro may-fail (form)
   (let ((result (gensym)) (condition (gensym)))
     `(multiple-value-bind (,result ,condition)
@@ -31,6 +39,126 @@
            (if ,condition
                (warn "~A raised ~A" ',form ,condition)
                (warn "~A was evaluated to false" ',form))))))
+
+(test test-math-acos
+  #{
+  is.float-equal (|acos| (1.0), 0.0);
+  is.float-equal (|acos| (|sqrt| (3) / 2), PI / 6);
+  is.float-equal (|acos| (0.5), PI / 3);
+  is.float-equal (|acos| (0), PI / 2);
+  // ; Specials
+  check-errno (is (|acos| (1.0001) == double-float-nan), EDOM);
+  check-errno (is (|acos| (-1.00000001010) == double-float-nan), EDOM);
+  check-errno (is (|acos| (double-float-positive-infinity) == double-float-nan), EDOM);
+  check-errno (is (|acos| (double-float-negative-infinity) == double-float-nan), EDOM);
+  check-errno (is (float-nan-p (|acos| (double-float-nan))), nil);
+  }#)
+
+(test test-math-asin
+  #{
+  is.float-equal (|asin| (0.0), 0.0);
+  is.float-equal (|asin| (0.5), PI / 6);
+  is.float-equal (|asin| (- |sqrt| (3) / 2), -PI / 3);
+  is.float-equal (|asin| (1.0), PI / 2);
+  // ; Specials
+  is (|asin| (-0.0) == -0.0);
+  check-errno (is (|asin| (1.0001) == double-float-nan), EDOM);
+  check-errno (is (|asin| (-1.00000001010) == double-float-nan), EDOM);
+  check-errno (is (|asin| (double-float-positive-infinity) == double-float-nan), EDOM);
+  check-errno (is (|asin| (double-float-negative-infinity) == double-float-nan), EDOM);
+  check-errno (is (float-nan-p (|asin| (double-float-nan))), nil);
+  }#)
+
+(test test-math-atan
+  #{
+  is.float-equal (|atan| (0.0), 0.0);
+  is.float-equal (|atan| (1 / |sqrt| (3)), PI / 6);
+  is.float-equal (|atan| (- |sqrt| (3)), -PI / 3);
+  // ; Specials
+  check-errno (is (|atan| (-0.0) == -0.0), nil);
+  check-errno (is.float-equal (|atan| (double-float-positive-infinity), PI / 2), nil);
+  check-errno (is.float-equal (|atan| (double-float-negative-infinity), -PI / 2), nil);
+  check-errno (is (float-nan-p (|atan| (double-float-nan))), nil);
+  }#)
+
+(test test-math-atan2
+  #{
+  is.float-equal (|atan2| (0.0, 1), 0.0);
+  is.float-equal (|atan2| (1, |sqrt| (3)), PI / 6);
+  is.float-equal (|atan2| (-1, 1 / |sqrt| (3)), -PI / 3);
+  // ; Specials
+  if (eq (0.0d0, -0.0d0)) {
+    `(warn "Your Lisp does not distinguish -0.0d0 from 0.0d0.");
+  } else {
+    is (|atan2| (0.0, -0.0) == PI);
+    is (|atan2| (-0.0, -0.0) == -PI);
+  }
+  is (|atan2| (0.0, 0.0) == 0.0);
+  is (|atan2| (-0.0, 0.0) == -0.0);
+  check-errno (is (|atan2| (double-float-positive-infinity, 10) == PI / 2), nil);
+  check-errno (is (|atan2| (double-float-negative-infinity, -100) == -PI / 2), nil);
+  check-errno (is (|atan2| (double-float-positive-infinity, double-float-negative-infinity) == PI * 3 / 4), nil);
+  check-errno (is (|atan2| (double-float-negative-infinity, double-float-positive-infinity) == -PI / 4), nil);
+  check-errno (is (|atan2| (-9999, -0.0) == - PI / 2), nil);
+  check-errno (is (|atan2| (9999, -0.0) == PI / 2), nil);
+  check-errno (is (|atan2| (9999, double-float-negative-infinity) == PI), nil);
+  check-errno (is (|atan2| (-9999, double-float-negative-infinity) == - PI), nil);
+  check-errno (is (|atan2| (9999, double-float-positive-infinity) == 0.0), nil);
+  check-errno (is (|atan2| (-9999, double-float-positive-infinity) == -0.0), nil);
+  check-errno (is (float-nan-p (|atan2| (double-float-nan, 1))), nil);
+  check-errno (is (float-nan-p (|atan2| (1, double-float-nan))), nil);
+  }#)
+
+(test test-math-cos
+  #{
+  is.float-equal (|cos| (0.0), 1.0);
+  is.float-equal (|cos| (PI / 6),  |sqrt| (3) / 2);
+  is.float-equal (|cos| (-PI / 3), 0.5);
+  is.float-equal (|cos| (PI / 2), 0);
+  // ; Specials
+  is (|cos| (-0.0) == 1.0);
+  check-errno (is (float-nan-p (|cos| (double-float-positive-infinity))), EDOM);
+  check-errno (is (float-nan-p (|cos| (double-float-negative-infinity))), EDOM);
+  check-errno (is (float-nan-p (|cos| (double-float-nan))), nil);
+  }#)
+
+(test test-math-sin
+  #{
+  is.float-equal (|sin| (0.0), 0.0);
+  is.float-equal (|sin| (PI / 6), 0.5);
+  is.float-equal (|sin| (-PI / 3), - |sqrt| (3) / 2);
+  is.float-equal (|sin| (PI / 2), 1.0);
+  // ; Specials
+  is (|sin| (-0.0) == -0.0);
+  check-errno (is (float-nan-p (|sin| (double-float-positive-infinity))), EDOM);
+  check-errno (is (float-nan-p (|sin| (double-float-negative-infinity))), EDOM);
+  check-errno (is (float-nan-p (|sin| (double-float-nan))), nil);
+  }#)
+
+(test test-math-tan
+  #{
+  double d;
+  
+  is.float-equal (|tan| (0.0), 0.0);
+  may.float-equal (|tan| (PI / 6),  1 / |sqrt| (3));
+  may.float-equal (|tan| (-PI / 3), - |sqrt| (3));
+  
+  // ; Specials
+
+  // ; Allegro CL 10.0 fails this.
+  |errno| = nil;
+  d = |tan| (PI / 2);
+  if (float-infinity-p (d)) {
+    is (|errno| == ERANGE);
+  } else {
+    `(warn "Your Lisp returns a finite value ~A for tan(PI/2)." d);
+  }
+  
+  is (|tan| (-0.0) == -0.0);
+  check-errno (is (float-nan-p (|tan| (double-float-positive-infinity))), EDOM);
+  check-errno (is (float-nan-p (|tan| (double-float-negative-infinity))), EDOM);
+  check-errno (is (float-nan-p (|tan| (double-float-nan))), nil);
+  }#)
 
 (test test-math-exp
   #{
@@ -454,107 +582,6 @@
 
 
 
-
-(test test-math-sin
-  #{
-  is.float-equal (sin (0.0), 0.0);
-  is.float-equal (sin (PI / 6), 0.5);
-  is.float-equal (sin (-PI / 3), -sqrt (3) / 2);
-  is.float-equal (sin (PI / 2), 1.0);
-  // ; Specials
-  is (sin (-0.0) == -0.0);
-  is.float-nan-p (sin (double-float-positive-infinity));
-  is.float-nan-p (sin (double-float-negative-infinity));
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-cos
-  #{
-  is.float-equal (cos (0.0), 1.0);
-  is.float-equal (cos (PI / 6),  sqrt (3) / 2);
-  is.float-equal (cos (-PI / 3), 0.5);
-  is.float-equal (cos (PI / 2), 0);
-  // ; Specials
-  is (cos (-0.0) == 1.0);
-  is.float-nan-p (cos (double-float-positive-infinity));
-  is.float-nan-p (cos (double-float-negative-infinity));
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-tan
-  #{
-  is.float-equal (tan (0.0), 0.0);
-  is.float-equal (tan (PI / 6),  1 / sqrt (3));
-  is.float-equal (tan (-PI / 3), -sqrt (3));
-  may-fail (tan (PI / 2));
-  // ; Specials
-  is (tan (-0.0) == -0.0);
-  is.float-nan-p (tan (double-float-positive-infinity));
-  is.float-nan-p (tan (double-float-negative-infinity));
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-asin
-  #{
-  is.float-equal (asin (0.0), 0.0);
-  is.float-equal (asin (0.5), PI / 6);
-  is.float-equal (asin (-sqrt (3) / 2), -PI / 3);
-  is.float-equal (asin (1.0), PI / 2);
-  // ; Specials
-  is (asin (-0.0) == -0.0);
-  is.complexp (asin (1.001)); // FIXME: Common Lisp returns a complex.
-  signals (arithmetic-error, asin (double-float-negative-infinity)); // FIXME: Common Lisp returns a complex.
-  may-fail (complexp (asin (double-float-negative-infinity))); // FIXME: Common Lisp returns a complex.
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-acos
-  #{
-  is.float-equal (acos (1.0), 0.0);
-  is.float-equal (acos (sqrt (3) / 2), PI / 6);
-  is.float-equal (acos (0.5), PI / 3);
-  is.float-equal (acos (0), PI / 2);
-  // ; Specials
-  is.complexp (acos (1.0001));
-  signals(arithmetic-error, acos (double-float-negative-infinity));
-  may-fail (complexp (acos (double-float-negative-infinity)));
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-atan
-  #{
-  is.float-equal (atan (0.0), 0.0);
-  is.float-equal (atan (1 / sqrt (3)), PI / 6);
-  is.float-equal (atan (-sqrt (3)), -PI / 3);
-  // ; Specials
-  is (atan (-0.0) == -0.0);
-  is.float-equal (atan (double-float-positive-infinity), PI / 2);
-  is.float-equal (atan (double-float-negative-infinity), -PI / 2);
-  // ; TODO: add NaN test.
-  }#)
-
-(test test-math-atan2
-  #{
-  is.float-equal (atan2 (0.0, 1), 0.0);
-  is.float-equal (atan2 (1, sqrt (3)), PI / 6);
-  is.float-equal (atan2 (-1, 1 / sqrt (3)), -PI / 3);
-  // ; Specials
-  is (atan2 (0.0, -0.0) == PI);
-  is (atan2 (-0.0, -0.0) == -PI);
-  is (atan2 (0.0, 0.0) == 0.0);
-  is (atan2 (-0.0, 0.0) == -0.0);
-  is (atan2 (double-float-positive-infinity, 10) == PI / 2);
-  is (atan2 (double-float-negative-infinity, -100) == -PI / 2);
-  is (atan2 (double-float-positive-infinity, double-float-negative-infinity) == PI * 3 / 4);
-  is (atan2 (double-float-negative-infinity, double-float-positive-infinity) == -PI / 4);
-  is (atan2 (-9999, -0.0) == - PI / 2);
-  is (atan2 (9999, -0.0) == PI / 2);
-  is (atan2 (9999, double-float-negative-infinity) == PI);
-  is (atan2 (-9999, double-float-negative-infinity) == - PI);
-  is (atan2 (9999, double-float-positive-infinity) == 0.0);
-  is (atan2 (-9999, double-float-positive-infinity) == -0.0);
-  // ; TODO: add NaN test.
-  }#)
 
 (test test-math-sinh
   #{

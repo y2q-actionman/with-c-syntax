@@ -73,6 +73,64 @@
 
 ;;; Functions
 
+(defmacro with-acos-parameter-check ((x) &body body)
+  `(cond ((float-nan-p ,x) ,x)
+         ((not (<= -1 ,x 1))
+          (wcs-raise-fe-exception FE_INVALID)
+          double-float-nan)
+         (t ,@body)))
+
+(defun |acos| (x)
+  (coercef x 'double-float)
+  (with-acos-parameter-check (x)
+    (acos x)))
+
+(defun |asin| (x)
+  (coercef x 'double-float)
+  (with-acos-parameter-check (x)
+    (asin x)))
+
+(defun |atan| (x)
+  (coercef x 'double-float)
+  (cond ((float-nan-p x) x)
+        (t (atan x))))
+
+(defun |atan2| (x y)
+  (coercef x 'double-float)
+  (coercef y 'double-float)
+  (cond ((float-nan-p x) x)
+        ((float-nan-p y) y)
+        (t (atan x y))))
+
+(defmacro with-cos-parameter-check ((x) &body body)
+  `(cond ((float-nan-p ,x) ,x)
+         ((float-infinity-p ,x)
+          (wcs-raise-fe-exception FE_INVALID)
+          double-float-nan)
+         (t ,@body)))
+
+(defun |cos| (x)
+  (coercef x 'double-float)
+  (with-cos-parameter-check (x)
+    (cos x)))
+
+(defun |sin| (x)
+  (coercef x 'double-float)
+  (with-cos-parameter-check (x)
+    (sin x)))
+
+(defun |tan| (x)
+  (coercef x 'double-float)
+  (cond ((float-nan-p x) x)
+        ((float-infinity-p x)
+         (wcs-raise-fe-exception FE_INVALID)
+         double-float-nan)
+        (t
+         (handler-case (tan x)
+           (floating-point-overflow ()
+             (wcs-raise-fe-exception FE_OVERFLOW)
+             HUGE_VAL)))))
+
 (defmacro with-exp-family-error-handling ((x underflow-value) &body body)
   (once-only (underflow-value)
     `(cond ((float-nan-p ,x) ,x)
@@ -405,27 +463,6 @@
 
 ;;; TODO: 'fma'
 
-
-(defun |sin| (x)
-  (sin x))                              ; may raise EDOM, FE_INVALID
-
-(defun |cos| (x)
-  (cos x))                              ; may raise EDOM, FE_INVALID
-
-(defun |tan| (x)
-  (tan x))                   ; may raise EDOM, FE_INVALID, FE_OVERFLOW
-
-(defun |asin| (x)
-  (asin x))                             ; may raise EDOM, FE_INVALID
-
-(defun |acos| (x)
-  (acos x))                             ; may raise EDOM, FE_INVALID
-
-(defun |atan| (x)
-  (atan x))                             ; no error
-
-(defun |atan2| (x y)
-  (atan x y))                           ; no error
 
 (defun |sinh| (x)
   (sinh x))                             ; may raise ERANGE, FE_INVALID
