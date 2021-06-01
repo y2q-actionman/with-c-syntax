@@ -7,6 +7,11 @@
 ;;; * If I implement <tgmath.h>, I will  define 'f' and 'l' variants,
 ;;;   and write a compiler-macro to use them.
 ;;; 
+;;; * Implementation strategy:
+;;;   1. Call the function.
+;;;   2. Handle `arithmetic-error's.
+;;;   3. Sees the result; especially complex should be treated.
+;;; 
 ;;; * When using NaN, many mathematical functions of Common Lisp
 ;;; behave differently from C99. So I manually handle these
 ;;; situations..
@@ -21,12 +26,99 @@
   (setf |errno|
         (or errno
             (eswitch (fe-constant)
-              (FE_DIVBYZERO with-c-syntax.libc:ERANGE)
+              (FE_DIVBYZERO with-c-syntax.libc:EDOM)
               (FE_INVALID with-c-syntax.libc:EDOM)
               (FE_OVERFLOW with-c-syntax.libc:ERANGE)
               (FE_UNDERFLOW with-c-syntax.libc:ERANGE))))
   (|feraiseexcept| fe-constant))
 
+(defun call-with-wcs-math-error-handler
+    (function args
+     &key
+       (underflow-value 0d0)
+       &allow-other-keys)
+  (labels ((handle-div-0 (&optional _)
+             (declare (ignore _))
+             (wcs-raise-fe-exception FE_DIVBYZERO)
+             (throw 'return-from-with-wcs-math-error-handling
+               (values double-float-nan |errno|)))
+           (handle-invalid (&optional _)
+             (declare (ignore _))
+             (when (notany #'float-nan-p args)
+               (wcs-raise-fe-exception FE_INVALID))
+             (throw 'return-from-with-wcs-math-error-handling
+               (values double-float-nan |errno|)))
+           (handle-overflow (&optional _)
+             (declare (ignore _))
+             (when (notany #'float-infinity-p args)
+               (wcs-raise-fe-exception FE_OVERFLOW))
+             (throw 'return-from-with-wcs-math-error-handling
+               (values double-float-positive-infinity |errno|)))
+           (handle-underflow (&optional _)
+             (declare (ignore _))
+             (when (notany #'float-infinity-p args)
+               (wcs-raise-fe-exception FE_UNDERFLOW))
+             (throw 'return-from-with-wcs-math-error-handling
+               (values underflow-value |errno|))))
+    (declare (dynamic-extent (function handle-div-0)
+                             (function handle-invalid)
+                             (function handle-overflow)
+                             (function handle-underflow)))
+    (handler-bind
+        ((division-by-zero #'handle-div-0)
+         (floating-point-invalid-operation #'handle-invalid)
+         (floating-point-overflow #'handle-overflow)
+         (floating-point-underflow #'handle-underflow))
+      (apply function args))))
+
+(defun check-wcs-math-result (ret arg-list)
+  (cond ((complexp ret)
+         (when (notany #'float-nan-p arg-list)
+           (wcs-raise-fe-exception FE_INVALID))
+         (throw 'return-from-with-wcs-math-error-handling
+           (values double-float-nan |errno|)))
+        ((not (floatp ret)) ; For SBCL: `float-nan-p' requires a float, but `exp-1' may return -1.
+         ret)
+        ((float-nan-p ret)
+         (when (notany #'float-nan-p arg-list)
+           (wcs-raise-fe-exception FE_INVALID))
+         (throw 'return-from-with-wcs-math-error-handling
+           (values ret |errno|)))
+        ((float-infinity-p ret)
+         (when (notany #'float-infinity-p arg-list)
+           (wcs-raise-fe-exception FE_OVERFLOW))
+         (throw 'return-from-with-wcs-math-error-handling
+           (values ret |errno|)))
+        (t ret)))
+
+(defmacro with-wcs-math-error-handling
+    ((var-or-var-list
+      (function x &optional (y nil y-supplied-p))
+      &rest keyargs
+      &key underflow-value)
+     &body body)
+  (declare (ignorable underflow-value))
+  (let ((x_ (gensym)) (y_ (gensym)) (args_ (gensym))
+        (var-list (if (listp var-or-var-list)
+                      var-or-var-list
+                      `(,var-or-var-list))))
+    `(let* ((,x_ ,x)
+            (,y_ ,y)
+            (,args_ (list ,x_ ,@(if y-supplied-p `(,y_)))))
+       (declare (ignorable ,y_)
+                (type list ,args_)
+                (dynamic-extent ,args_))
+       (catch 'return-from-with-wcs-math-error-handling
+         (multiple-value-bind ,var-list
+             (call-with-wcs-math-error-handler ',function ,args_
+                                               ,@keyargs)
+           (flet ((check-wcs-math-result
+                      (&optional (ret ,(first var-list))
+                                 (arg-list ,args_))
+                    (check-wcs-math-result ret arg-list)))
+             ,@body))))))
+
+;;; <math.h> definitions begins here.
 ;;; TODO: libc symbols should be arranged by the order in C99 (ISO/IEC 9899).
 
 (locally
@@ -63,7 +155,8 @@
 ;;; TODO: FP_FAST_FMA (...in far future)
 
 (defconstant FP_ILOGB0                  ; C99
-  (|ilogb| 0)) ; CLHS says `decode-float' returns an integer even for 0. 
+  (1-                                   ; See `|ilogb|'.
+   (nth-value 1 (decode-float 0d0)))) ; CLHS says `decode-float' returns an integer even for 0. 
 
 (defconstant FP_ILOGBNAN                ; C99
   most-negative-fixnum
@@ -124,186 +217,143 @@
 
 ;;; Trigonometric
 
-(defmacro with-acos-parameter-check ((x) &body body)
-  `(cond ((float-nan-p ,x) ,x)
-         ((not (<= -1 ,x 1))
-          (wcs-raise-fe-exception FE_INVALID)
-          double-float-nan)
-         (t ,@body)))
-
 (defun |acos| (x)
   (coercef x 'double-float)
-  (with-acos-parameter-check (x)
-    (acos x)))
+  (with-wcs-math-error-handling (ret (acos x))
+    (check-wcs-math-result)))
 
 (defun |asin| (x)
   (coercef x 'double-float)
-  (with-acos-parameter-check (x)
-    (asin x)))
+  (with-wcs-math-error-handling (ret (asin x))
+    (check-wcs-math-result)))
 
 (defun |atan| (x)
   (coercef x 'double-float)
-  (cond ((float-nan-p x) x)
-        (t (atan x))))
+  (with-wcs-math-error-handling (ret (atan x))
+    (check-wcs-math-result)))
 
 (defun |atan2| (x y)
   (coercef x 'double-float)
   (coercef y 'double-float)
-  (cond ((float-nan-p x) x)
-        ((float-nan-p y) y)
-        (t (atan x y))))
-
-(defmacro with-cos-parameter-check ((x) &body body)
-  `(cond ((float-nan-p ,x) ,x)
-         ((float-infinity-p ,x)
-          (wcs-raise-fe-exception FE_INVALID)
-          double-float-nan)
-         (t ,@body)))
+  (with-wcs-math-error-handling (ret (atan x y))
+    (check-wcs-math-result)))
 
 (defun |cos| (x)
   (coercef x 'double-float)
-  (with-cos-parameter-check (x)
-    (cos x)))
+  (with-wcs-math-error-handling (ret (cos x))
+    (check-wcs-math-result)))
 
 (defun |sin| (x)
   (coercef x 'double-float)
-  (with-cos-parameter-check (x)
-    (sin x)))
+  (with-wcs-math-error-handling (ret (sin x))
+    (check-wcs-math-result)))
 
 (defun |tan| (x)
   (coercef x 'double-float)
-  (cond ((float-nan-p x) x)
-        ((float-infinity-p x)
-         (wcs-raise-fe-exception FE_INVALID)
-         double-float-nan)
-        (t
-         (handler-case (tan x)
-           (floating-point-overflow ()
-             (wcs-raise-fe-exception FE_OVERFLOW)
-             HUGE_VAL)))))
+  (with-wcs-math-error-handling (ret (tan x))
+    (check-wcs-math-result)))
 
 ;;; Hyperbolic
 
 (defun |acosh| (x)
   (coercef x 'double-float)
-  (cond ((float-nan-p x) x)
-        ((< x 1)
-         (wcs-raise-fe-exception FE_INVALID)
-         double-float-nan)
-        (t (acosh x))))
+  (with-wcs-math-error-handling (ret (acosh x))
+    (check-wcs-math-result)))
 
 (defun |asinh| (x)
   (coercef x 'double-float)
-  (asinh x))                            ; no error
+  (with-wcs-math-error-handling (ret (asinh x))
+    (check-wcs-math-result)))           ; no error
 
 (defun |atanh| (x)
   (coercef x 'double-float)
-  (let ((ret
-          (handler-case (atanh x)
-            (simple-error (e)  ; Allegro CL 10.1 on MacOSX comes here.
-              (cond ((or (= x 1.0d0)
-                         (= x -1.0d0))
-                     (wcs-raise-fe-exception FE_DIVBYZERO)
-                     (float-sign x double-float-positive-infinity))
-                    (t (error e)))))))
-    (cond
-      ((complexp ret)
-       (wcs-raise-fe-exception FE_INVALID)
-       double-float-nan)
-      (t ret))))
-
-(defun check-cosh-result (ret x)
   (cond
-    ((float-infinity-p ret)
-     (unless (float-infinity-p x)
-       (wcs-raise-fe-exception FE_OVERFLOW))
-     ret)
-    (t ret)))
+    ((float-nan-p x) x) ; For SBCL; This check is required before `cl:='.
+    ((or (= x 1.0d0)
+         (= x -1.0d0))
+     ;; If this check deleted, Allegro CL 10.1 on MacOSX throws `simple-error'.
+     (wcs-raise-fe-exception FE_DIVBYZERO :errno ERANGE) ; POSIX says it.
+     (float-sign x double-float-positive-infinity))
+    (t (with-wcs-math-error-handling (ret (atanh x))
+        (check-wcs-math-result)))))
 
 (defun |cosh| (x)
   (coercef x 'double-float)
-  (let ((ret (cosh x)))
-    (check-cosh-result ret x)
-    ret))
+  (with-wcs-math-error-handling (ret (cosh x))
+    (check-wcs-math-result)))
 
 (defun |sinh| (x)
   (coercef x 'double-float)
-  (let ((ret (sinh x)))
-    (check-cosh-result ret x)
-    ret))
+  (with-wcs-math-error-handling (ret (sinh x))
+    (check-wcs-math-result)))
 
 (defun |tanh| (x)
   (coercef x 'double-float)
-  (tanh x))                             ; no error
+  (with-wcs-math-error-handling (ret (tanh x))
+    (check-wcs-math-result)))           ; no error
 
 ;;; Exponential and logarithmic
 
-(defmacro with-exp-family-error-handling ((x underflow-value) &body body)
-  (once-only (underflow-value)
-    `(cond ((float-nan-p ,x) ,x)
-           ((float-infinity-p ,x)
-            (if (plusp ,x)
-                double-float-positive-infinity
-                ,underflow-value))
-           (t
-            ;; This is for Allegro.
-            ;; `with-float-traps-masked' may also be used.
-            (handler-case
-                (let ((ret (progn ,@body)))
-                  (cond ((float-infinity-p ret)
-                         (wcs-raise-fe-exception FE_OVERFLOW))
-                        ((= ret ,underflow-value)
-                         (wcs-raise-fe-exception FE_UNDERFLOW)))
-                  ret)
-              (floating-point-overflow ()
-                (wcs-raise-fe-exception FE_OVERFLOW)
-                HUGE_VAL)
-              (floating-point-underflow ()
-                (wcs-raise-fe-exception FE_UNDERFLOW)
-                ,underflow-value))))))
-
 (defun |exp| (x)
   (coercef x 'double-float)
-  (with-exp-family-error-handling (x (float 0 x))
-    (exp x)))
+  (with-wcs-math-error-handling (ret (exp x))
+    (check-wcs-math-result)))
 
 (defun |exp2| (x)                       ; C99
   (coercef x 'double-float)
-  (with-exp-family-error-handling (x (float 0 x))
-    (expt 2 x)))
+  (with-wcs-math-error-handling (ret (expt (float 2 x) x))
+    (check-wcs-math-result)
+    ;; Allegro 10.1 requires this...
+    #+ (or sbcl allegro)
+    (cond ((= ret 0d0)
+           (unless (float-infinity-p x)
+             (wcs-raise-fe-exception FE_UNDERFLOW))
+           ret)
+          (t
+           ret))
+    #-allegro
+    ret))
 
 (defun |expm1| (x)
   (coercef x 'double-float)
-  (with-exp-family-error-handling (x (float -1 x))
-    (float (exp-1 x) x)))
+  (with-wcs-math-error-handling (ret (exp-1 x)
+                                     :underflow-value (float -1 x))
+    (check-wcs-math-result)
+    #+sbcl
+    ;; For SBCL: It does not report `floating-point-underflow'
+    (cond
+      ((= ret -1d0)
+       (wcs-raise-fe-exception FE_UNDERFLOW)
+       (float ret x))
+      (t ret))
+    #-sbcl
+    ret))
 
 (defun frexp* (x)  ; FIXME: how to treat pointer? (cons as a storage?)
   (coercef x 'double-float)
   (assert (= 2 (float-radix x)))
-  (handler-bind
-      ((simple-error
-         (lambda (condition)
-           ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
-           (cond ((or (float-nan-p x)
-                      (float-infinity-p x))
-                  (return-from frexp* x))
-                 (t condition)))))
-    (multiple-value-bind (significant exponent sign)
-        (decode-float x)
-      (values (float-sign sign significant)
-              exponent))))
+  (cond
+    ;; If this check deleted, Allegro CL 10.1 on MacOSX throws `simple-error'.
+    ((or (float-nan-p x)
+         (float-infinity-p x))
+     x)
+    (t
+     (handler-case
+         (multiple-value-bind (significant exponent sign)
+             (decode-float x)
+           (values (float-sign sign significant)
+                   exponent))))))
 
 (defun |ilogb| (x)                      ; C99
   (coercef x 'double-float)
+  ;; For SBCL: requires it for avoiding `simple-error' and `floating-point-invalid-operation'.
+  ;; Allegro CL 10.0 on MacOS raises `simple-error' without it for Inf of NaN.
   (cond ((float-nan-p x)
          (wcs-raise-fe-exception FE_INVALID)
          FP_ILOGBNAN)
         ((float-infinity-p x)
          (wcs-raise-fe-exception FE_INVALID)
          INT_MAX)
-        ((zerop x)
-         (wcs-raise-fe-exception FE_INVALID)
-         FP_ILOGB0)
         (t
          (let ((expon (nth-value 1 (decode-float x))))
            ;; Common Lisp normalizes the significant to [1/radix ~ 1), see `decode-float'.
@@ -315,85 +365,120 @@
   (assert (= 2 (float-radix x)))
   (|scalbn| x exp))
 
-(defmacro with-log-family-parameter-check ((x pole) &body body)
-  (once-only (pole)
-    `(cond ((float-nan-p ,x) ,x)
-           ((= ,x ,pole)
-            (wcs-raise-fe-exception FE_DIVBYZERO)
-            (- HUGE_VAL))
-           ((< ,x ,pole)
-            (wcs-raise-fe-exception FE_INVALID)
-            double-float-nan)
-           ((float-infinity-p ,x) ,x)
-           (t ,@body))))
+(defmacro with-log-error-handling (() &body body)
+  `(handler-case
+      (progn ,@body)
+    #+allegro
+    ;; TODO: rewrite other `simple-error' handler to use arithmetic-error.
+    (arithmetic-error (e)
+      (let ((operands (arithmetic-error-operands e)))
+        (cond ((zerop (first operands))
+               (wcs-raise-fe-exception FE_DIVBYZERO :errno ERANGE)
+               (- HUGE_VAL))
+              (t
+               (error e)))))))
 
 (defun |log| (x)
   (coercef x 'double-float)
-  (with-log-family-parameter-check (x (float 0 x))
-    (log x)))
+  (with-log-error-handling ()
+    (with-wcs-math-error-handling (ret (log x))
+      (check-wcs-math-result))))
 
 (defun |log10| (x)
   (coercef x 'double-float)
-  (with-log-family-parameter-check (x (float 0 x))
-    (log x 10)))
+  (with-log-error-handling ()
+    (with-wcs-math-error-handling (ret (log x (float 10 x)))
+      (check-wcs-math-result))))
 
 (defun |log1p| (x)                      ; C99
   (coercef x 'double-float)
-  (with-log-family-parameter-check (x (float -1 x))
-    (log1+ x)))
+  ;; XXX: Workaround for `floating-point-contractions:log1+'.
+  ;; It returns NaN for +Inf.
+  (when (float-infinity-p x)
+    (return-from |log1p|
+      (cond ((plusp x)
+             double-float-positive-infinity)
+            (t
+             (wcs-raise-fe-exception FE_INVALID)
+             double-float-nan))))
+  (with-log-error-handling ()
+    (with-wcs-math-error-handling (ret (log1+ x))
+      (check-wcs-math-result))))
 
 (defun |log2| (x)                       ; C99
   (coercef x 'double-float)
-  (with-log-family-parameter-check (x (float 0 x))
-    (log x 2)))
+  (with-log-error-handling ()
+    (with-wcs-math-error-handling (ret (log x (float 2 x)))
+      (check-wcs-math-result))))
 
 (defun |logb| (x)                       ; C99
   (coercef x 'double-float)
-  (cond ((float-nan-p x) x)
-        ((float-infinity-p x) x)
-        ((zerop x)
-         (wcs-raise-fe-exception FE_DIVBYZERO :errno EDOM)
-         double-float-negative-infinity)
+  ;; For SBCL: requires it for avoiding `simple-error' and `floating-point-invalid-operation'.
+  ;; Allegro CL 10.0 on MacOS raises `simple-error' without it for Inf of NaN.
+  (cond ((or (float-nan-p x)
+             (float-infinity-p x))
+         x)
         (t
          (let ((expon (nth-value 1 (decode-float x))))
-           ;; See `|ilogb|'.
            (float (1- expon) x)))))
 
 (defun modf* (x)   ; FIXME: how to treat pointer? (cons as a storage?)
   (coercef x 'double-float)
-  (handler-bind
-      ((simple-error
-         (lambda (condition)
-           ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
-           (cond ((float-nan-p x)
-                  (return-from modf* (values x x)))
-                 ((float-infinity-p x)
-                  (return-from modf*
-                    (values (float-sign x 0d0) x)))
-                 (t condition)))))
-    (multiple-value-bind (quot rem) (ftruncate x)
-      (values rem quot))))
+  (handler-case
+      (with-wcs-math-error-handling ((quot rem) (ftruncate x))
+        (check-wcs-math-result)
+        (values rem quot))
+    #+allegro
+    (simple-error (e)
+      ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
+      (cond ((float-nan-p x)
+             (values x x))
+            ((float-infinity-p x)
+             (values (float-sign x 0d0) x))
+            (t (error e))))))
 
 (defun |scalbn| (x exp)                 ; C99
   (coercef x 'double-float)
-  (let ((ret
-          (handler-bind
-              ((simple-error
-                 (lambda (condition)
-                   ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
-                   (cond ((or (float-nan-p x)
-                              (float-infinity-p x))
-                          (return-from |scalbn| x))
-                         (t condition)))))
-            (scale-float x exp))))
-    (cond
-      ((and (float-infinity-p ret)
-            (not (float-infinity-p x)))
-       (wcs-raise-fe-exception FE_OVERFLOW))
-      ((and (zerop ret)
-            (not (zerop x)))
-       (wcs-raise-fe-exception FE_UNDERFLOW)))
-    ret))
+  (handler-case
+      (with-wcs-math-error-handling (ret (scale-float x exp))
+        (check-wcs-math-result)
+        (cond
+          ;; Allegro CL 10.0 on MacOSX does not cause underflow.
+          ;; These checks are required.
+          ((and (zerop ret)
+                (not (zerop x)))
+           (wcs-raise-fe-exception FE_UNDERFLOW)
+           ret)
+          (t ret)))
+    #+sbcl
+    (type-error (e)
+      ;; For SBCL: If overflow or underflow, SBCL raises `type-error'.
+      (cond ((or (float-nan-p x)
+                 (float-infinity-p x))
+             x)
+            ((not (typep exp '(UNSIGNED-BYTE 11)))
+             ;; This is not correct.. FIXME!
+             (let ((abs-x (abs x)))
+               (cond ((or (and (> abs-x 1) (plusp exp))
+                          (and (< abs-x 1) (minusp exp)))
+                      (wcs-raise-fe-exception FE_OVERFLOW)
+                      (float-sign x double-float-positive-infinity))
+                     ((or (and (< abs-x 1) (plusp exp))
+                          (and (> abs-x 1) (minusp exp)))
+                      (wcs-raise-fe-exception FE_UNDERFLOW)
+                      (float-sign x 0d0))
+                     ((minusp x)        ; == -1
+                      (if (evenp exp) 1 -1))
+                     (t 1))))
+            (t (error e))))
+    #+ (or allegro sbcl)
+    (simple-error (e)
+      ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
+      ;; For SBCL: It says: Can't decode NaN or infinity: #.SB-EXT:DOUBLE-FLOAT-POSITIVE-INFINITY.
+      (cond ((or (float-nan-p x)
+                 (float-infinity-p x))
+             x)
+            (t (error e))))))
 
 (defun |scalbln| (x exp)                ; C99
   (|scalbn| x exp))                     ; Because we have BigNum.
@@ -402,39 +487,36 @@
 
 (defun |cbrt| (x)                       ; C99
   (coercef x 'double-float)
-  (cond ((float-nan-p x) x)
-        ((float-infinity-p x) x)        ; For treating -Inf.
-        ((zerop x) x)                   ; For treating -0.0.
-        (t
-         (when (minusp x)
-           (warn "Current cbrt() implementation returns a principal complex value, defined in ANSI CL, for minus parameters."))
-         (expt x 1/3))))
+  (with-wcs-math-error-handling (ret (expt x 1/3))
+    (cond ((complexp ret)
+           (cond ((minusp x)
+                  (warn "Current cbrt() implementation returns a principal complex value, defined in ANSI CL, for minus parameters.")
+                  ret)
+                 (t
+                  (wcs-raise-fe-exception FE_INVALID)
+                  double-float-nan)))
+          (t ret))))
 
 (defun |fabs| (x)
   (coercef x 'double-float)
-  (abs x))                              ; no error
+  (with-wcs-math-error-handling (ret (abs x))
+    (check-wcs-math-result)))           ; no error
 
 (defun |hypot| (x y)
   (coercef x 'double-float)
   (coercef y 'double-float)
-  (cond ((or (float-infinity-p x)
-             (float-infinity-p y))
-         double-float-positive-infinity)
-        ((float-nan-p x) x)
-        ((float-nan-p y) y)
-        (t
-         (let ((ret
-                 (handler-case (hypot x y)
-                   (floating-point-overflow ()
-                     (wcs-raise-fe-exception FE_OVERFLOW)
-                     HUGE_VAL)
-                   (floating-point-underflow ()
-                     (wcs-raise-fe-exception FE_UNDERFLOW :errno nil)
-                     +0))))
-           (cond ((float-infinity-p ret)
-                  (wcs-raise-fe-exception FE_OVERFLOW)
-                  HUGE_VAL))
-           ret))))
+  (handler-case
+      (with-wcs-math-error-handling (ret (hypot x y))
+        (check-wcs-math-result))
+    #+allegro
+    (simple-error (e)
+      ;; Allegro CL 10.0 on MacOS comes here for NaN or Inf
+      (cond ((or (float-infinity-p x)
+                 (float-infinity-p y))
+             double-float-positive-infinity)
+            ((float-nan-p x) x)
+            ((float-nan-p y) y)
+            (t (error e))))))
 
 ;;; pow()
 
@@ -449,73 +531,64 @@
 (defun |pow| (x y)
   (coercef x 'double-float)
   (coercef y 'double-float)
-  (labels ((handle-div-0 (&optional _)
-             (declare (ignore _))
-             (wcs-raise-fe-exception FE_DIVBYZERO)
-             (return-from |pow|
-               double-float-positive-infinity))
-           (handle-invalid (&optional _)
-             (declare (ignore _))
-             (wcs-raise-fe-exception FE_INVALID)
-             (return-from |pow| double-float-nan))
-           (handle-overflow (&optional _ (ret double-float-positive-infinity))
-             (declare (ignore _))
-             (unless (float-infinity-p x)
-               (wcs-raise-fe-exception FE_OVERFLOW))
-             (return-from |pow| ret))
-           (handle-underflow (&optional _)
-             (declare (ignore _))
-             (unless (float-infinity-p x)
-               (wcs-raise-fe-exception FE_UNDERFLOW))
-             (return-from |pow| 0d0))
-           (handle-simple-error (condition)
-             ;; Allegro CL 10.0 on MacOSX comes here -- (expt 0.0 -1).
-             (cond ((and (zerop x) (minusp y))
-                    (handle-div-0 condition))
-                   (t condition))))
-    (let ((ret
-            (handler-bind
-                ((division-by-zero #'handle-div-0)
-                 (floating-point-invalid-operation #'handle-invalid)
-                 (floating-point-overflow #'handle-overflow)
-                 (floating-point-underflow #'handle-underflow)
-                 (simple-error #'handle-simple-error))
-              (expt x y))))
-      (cond
-        ((complexp ret)
-         (let ((realpart (realpart ret)))
-           (cond
-             ((float-nan-p realpart)
-              ;; (expt -1 double-float-negative-infinity) comes here, on Allegro CL 10.1 on MacOS X
-              (handle-invalid))
-             ((float-infinity-p realpart)
-              (handle-overflow nil realpart))
-             ((pow-result-significantly-complex-p ret x y)
-              (handle-invalid))
-             (t
-              ;; Allegro CL comes here, even if (plusp y).
-              ;;   (expt -1.1 2.0) -> #C(1.2100000000000002d0 -2.963645253936595d-16)
-              ;; FIXME: I am suspicious about this routine.
-              ;;   (Can I utilize `floating-point:relative-error' ?)
-              realpart))))
-        (t ret)))))
+  (handler-case
+      (with-wcs-math-error-handling (ret (expt x y))
+        (cond
+          ((complexp ret)
+           (let ((realpart (realpart ret)))
+             (cond
+               ((float-nan-p realpart)
+                ;; (expt -1 double-float-negative-infinity) comes here, on Allegro CL 10.1 on MacOS X
+                (wcs-raise-fe-exception FE_INVALID)
+                realpart)
+               ((float-infinity-p realpart)
+                (when (and (not (float-infinity-p x))
+                           (not (float-infinity-p y)))
+                  (wcs-raise-fe-exception FE_OVERFLOW))
+                realpart)
+               ((pow-result-significantly-complex-p ret x y)
+                (wcs-raise-fe-exception FE_INVALID)
+                double-float-nan)
+               (t
+                ;; Allegro CL comes here, even if (plusp y).
+                ;;   (expt -1.1 2.0) -> #C(1.2100000000000002d0 -2.963645253936595d-16)
+                ;; FIXME: I am suspicious about this routine.
+                ;;   (Can I utilize `floating-point:relative-error' ?)
+                realpart))))
+          ((float-nan-p ret) ; For SBCL; This check is required before `cl:='.
+           (cond ((or (float-nan-p x) (float-nan-p y))
+                  ret)
+                 ((and (= 1 (abs x)) (float-infinity-p y))
+                  ;; For SBCL: (expt 1 double-float-positive-infinity) will raise `floating-point-invalid-operation'.
+                  (float 1d0 x))
+                 (t ret)))
+          ;; For SBCL: (expt least-positive-double-float 810d0) does
+          ;; not signals `floating-point-underflow'
+          ((and (zerop ret)
+                (not (zerop x)))
+           (wcs-raise-fe-exception FE_UNDERFLOW)
+           ret)
+          (t
+           ret)))
+    #+allegro
+    (simple-error (e)
+      ;; Allegro CL 10.0 on MacOSX comes here -- (expt 0.0 -1).
+      (cond ((and (zerop x)
+                  (minusp y))
+             (wcs-raise-fe-exception FE_DIVBYZERO :errno ERANGE)
+             double-float-positive-infinity)
+            (t (error e))))))
 
 (defun |sqrt| (x)
   (coercef x 'double-float)
-  (flet ((handle-simple-error (condition)
-           ;; Allegro CL 10.0 on MacOS comes here; (sqrt double-float-nan).
-           (cond ((float-nan-p x)
-                  (return-from |sqrt| x))
-                 (t condition))))
-    (let ((ret
-            (handler-bind
-                ((simple-error #'handle-simple-error))
-              (sqrt x))))
-      (cond
-        ((complexp ret)
-         (wcs-raise-fe-exception FE_INVALID)
-         double-float-nan)
-        (t ret)))))
+  (handler-case
+      (with-wcs-math-error-handling (ret (sqrt x))
+        (check-wcs-math-result))
+    #+allegro
+    (simple-error (e)
+      ;; Allegro CL 10.0 on MacOS comes here; (sqrt double-float-nan).
+      (cond ((float-nan-p x) x)
+            (t (error e))))))
 
 ;;; Error and gamma
 
@@ -526,6 +599,11 @@
 (defmacro with-nearest-int-error-handling ((x) &body body)
   (with-gensyms (block-name)
     `(block ,block-name
+       ;; For SBCL: raises `floating-point-invalid-operation' for
+       ;; (fceiling DOUBLE-FLOAT-POSITIVE-INFINITY)
+       (when (or (float-nan-p ,x)
+                 (float-infinity-p ,x))
+         (return-from ,block-name ,x))
        (handler-bind
            ((simple-error
               (lambda (condition) 
@@ -539,12 +617,14 @@
 (defun |ceil| (x)
   (coercef x 'double-float)
   (with-nearest-int-error-handling (x)
-    (fceiling x)))
+    (with-wcs-math-error-handling (ret (fceiling x))
+      (check-wcs-math-result))))
 
 (defun |floor| (x)
   (coercef x 'double-float)
   (with-nearest-int-error-handling (x)
-    (ffloor x)))
+    (with-wcs-math-error-handling (ret (ffloor x))
+      (check-wcs-math-result))))
 
 ;;; TODO: 'nearbyint()'
 ;;; TODO: 'rint()', 'lrint()', 'llrint()'
@@ -552,10 +632,12 @@
 (defun |round| (x)                      ; C99
   (coercef x 'double-float)
   (with-nearest-int-error-handling (x)
-    (fround x)))
+    (with-wcs-math-error-handling (ret (fround x))
+      (check-wcs-math-result))))
 
 (defun |lround| (x)                     ; C99
   (coercef x 'double-float)
+  ;; FIXME
   (handler-bind
       ((simple-error
          (lambda (condition) 
@@ -575,39 +657,47 @@
 (defun |trunc| (x)                      ; C99
   (coercef x 'double-float)
   (with-nearest-int-error-handling (x)
-    (ftruncate x)))
+    (with-wcs-math-error-handling (ret (ftruncate x))
+      (check-wcs-math-result))))
 
 ;;; Remainder
 
-(defmacro with-mod-family-parameter-check ((x y) &body body)
-  `(cond ((float-nan-p ,x) ,x)
-         ((float-nan-p ,y) ,y)
-         ((or (float-infinity-p ,x)
-              (zerop ,y))
-          (wcs-raise-fe-exception FE_INVALID)
-          double-float-nan)
-         (t ,@body)))
+(defmacro with-mod-family-error-handling ((x y) &body body)
+  `(handler-case
+       (progn ,@body)
+     #+ (or sbcl allegro) 
+     (simple-error (e)
+       ;; Allegro CL 10.0 on MacOS comes here; (sqrt double-float-nan).
+       (cond ((float-nan-p ,x) ,x)
+             ((float-nan-p ,y) ,y)
+             ((or (float-infinity-p ,x)
+                  (zerop ,y))
+              (wcs-raise-fe-exception FE_INVALID)
+              double-float-nan)
+             (t (error e))))))
 
 (defun |fmod| (x y)
   (coercef x 'double-float)
   (coercef y 'double-float)
-  (with-mod-family-parameter-check (x y)
-    (if (zerop x)
-        x
-        (nth-value 1 (ftruncate x y)))))
+  (with-mod-family-error-handling (x y)
+    (with-wcs-math-error-handling ((quot rem) (ftruncate x y))
+      (check-wcs-math-result)
+      rem)))
 
 (defun |remainder| (x y)                ; C99
   (coercef x 'double-float)
   (coercef y 'double-float)
-  (with-mod-family-parameter-check (x y)
-    (nth-value 1 (fround x y))))
+  (with-mod-family-error-handling (x y)
+    (with-wcs-math-error-handling ((quot rem) (fround x y))
+      (check-wcs-math-result)
+      rem)))
 
 (defun remquo* (x y)                    ; C99
   (coercef x 'double-float)
   (coercef y 'double-float)
-  (with-mod-family-parameter-check (x y)
-    (multiple-value-bind (quotient remainder)
-        (round x y)
+  (with-mod-family-error-handling (x y)
+    (with-wcs-math-error-handling ((quotient remainder) (round x y))
+      (check-wcs-math-result)
       (values remainder quotient))))
 
 ;;; TODO: real 'remquo' -- support pointer passing..
@@ -711,23 +801,11 @@
 (defun |fdim| (x y)                     ; C99
   (coercef x 'double-float)
   (coercef y 'double-float)
-  (cond
-    ((float-nan-p x) x)
-    ((float-nan-p y) y)
-    ((<= x y) (float 0 x))
-    (t
-     (handler-case
-         (let ((diff (- x y)))
-           (cond ((and (not (|isfinite| diff))
-                       (not (float-infinity-p x))
-                       (not (float-infinity-p y)))
-                  (wcs-raise-fe-exception FE_OVERFLOW)
-                  HUGE_VAL)
-                 (t
-                  diff)))
-       (floating-point-overflow ()
-         (wcs-raise-fe-exception FE_OVERFLOW)
-         HUGE_VAL)))))
+  (with-wcs-math-error-handling (diff (- x y))
+    (check-wcs-math-result)
+    (if (minusp diff)
+        (float 0 x)
+        diff)))
 
 (defmacro with-fmax-fmin-parameter-check ((x y) &body body)
   `(cond
