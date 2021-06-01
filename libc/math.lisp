@@ -77,6 +77,8 @@
            (wcs-raise-fe-exception FE_INVALID))
          (throw 'return-from-with-wcs-math-error-handling
            (values double-float-nan |errno|)))
+        ((not (floatp ret)) ; For SBCL: `float-nan-p' requires a float, but `exp-1' may return -1.
+         ret)
         ((float-nan-p ret)
          (when (notany #'float-nan-p arg-list)
            (wcs-raise-fe-exception FE_INVALID))
@@ -265,16 +267,15 @@
 
 (defun |atanh| (x)
   (coercef x 'double-float)
-  (handler-case
-      (with-wcs-math-error-handling (ret (atanh x))
-        (check-wcs-math-result))
-    #+allegro
-    (simple-error (e)          ; Allegro CL 10.1 on MacOSX comes here.
-      (cond ((or (= x 1.0d0)
-                 (= x -1.0d0))
-             (wcs-raise-fe-exception FE_DIVBYZERO :errno ERANGE)
-             (float-sign x double-float-positive-infinity))
-            (t (error e))))))
+  (cond
+    ((float-nan-p x) x) ; For SBCL; This check is required before `cl:='.
+    ((or (= x 1.0d0)
+         (= x -1.0d0))
+     ;; If this check deleted, Allegro CL 10.1 on MacOSX throws `simple-error'.
+     (wcs-raise-fe-exception FE_DIVBYZERO :errno ERANGE) ; POSIX says it.
+     (float-sign x double-float-positive-infinity))
+    (t (with-wcs-math-error-handling (ret (atanh x))
+        (check-wcs-math-result)))))
 
 (defun |cosh| (x)
   (coercef x 'double-float)
@@ -300,10 +301,10 @@
 
 (defun |exp2| (x)                       ; C99
   (coercef x 'double-float)
-  (with-wcs-math-error-handling (ret (expt 2 x))
+  (with-wcs-math-error-handling (ret (expt (float 2 x) x))
     (check-wcs-math-result)
     ;; Allegro 10.1 requires this...
-    #+allegro
+    #+ (or sbcl allegro)
     (cond ((= ret 0d0)
            (unless (float-infinity-p x)
              (wcs-raise-fe-exception FE_UNDERFLOW))
@@ -316,42 +317,48 @@
 (defun |expm1| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (exp-1 x)
-                                 :underflow-value (float -1 x))
-    (check-wcs-math-result)))
+                                     :underflow-value (float -1 x))
+    (check-wcs-math-result)
+    #+sbcl
+    ;; For SBCL: It does not report `floating-point-underflow'
+    (cond
+      ((= ret -1d0)
+       (wcs-raise-fe-exception FE_UNDERFLOW)
+       (float ret x))
+      (t ret))
+    #-sbcl
+    ret))
 
 (defun frexp* (x)  ; FIXME: how to treat pointer? (cons as a storage?)
   (coercef x 'double-float)
   (assert (= 2 (float-radix x)))
-  (handler-case
-      (multiple-value-bind (significant exponent sign)
-          (decode-float x)
-        (values (float-sign sign significant)
-                exponent))
-    #+allegro
-    (simple-error (e)
-      ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
-      (cond ((or (float-nan-p x)
-                 (float-infinity-p x))
-             x)
-            (t (error e))))))
+  (cond
+    ;; If this check deleted, Allegro CL 10.1 on MacOSX throws `simple-error'.
+    ((or (float-nan-p x)
+         (float-infinity-p x))
+     x)
+    (t
+     (handler-case
+         (multiple-value-bind (significant exponent sign)
+             (decode-float x)
+           (values (float-sign sign significant)
+                   exponent))))))
 
 (defun |ilogb| (x)                      ; C99
   (coercef x 'double-float)
-  (handler-case
-      (let ((expon (nth-value 1 (decode-float x))))
-        ;; Common Lisp normalizes the significant to [1/radix ~ 1), see `decode-float'.
-        ;; C99 normalizes it to [1 ~ FLT_RADIX), see the description of logb() function,
-        (1- expon))
-    #+allegro
-    (simple-error (e)
-      ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
-      (cond ((float-nan-p x)
-             (wcs-raise-fe-exception FE_INVALID)
-             FP_ILOGBNAN)
-            ((float-infinity-p x)
-             (wcs-raise-fe-exception FE_INVALID)
-             INT_MAX)
-            (t (error e))))))
+  ;; For SBCL: requires it for avoiding `simple-error' and `floating-point-invalid-operation'.
+  ;; Allegro CL 10.0 on MacOS raises `simple-error' without it for Inf of NaN.
+  (cond ((float-nan-p x)
+         (wcs-raise-fe-exception FE_INVALID)
+         FP_ILOGBNAN)
+        ((float-infinity-p x)
+         (wcs-raise-fe-exception FE_INVALID)
+         INT_MAX)
+        (t
+         (let ((expon (nth-value 1 (decode-float x))))
+           ;; Common Lisp normalizes the significant to [1/radix ~ 1), see `decode-float'.
+           ;; C99 normalizes it to [1 ~ FLT_RADIX), see the description of logb() function,
+           (1- expon)))))
 
 (defun |ldexp| (x exp)
   (coercef x 'double-float)
@@ -380,7 +387,7 @@
 (defun |log10| (x)
   (coercef x 'double-float)
   (with-log-error-handling ()
-    (with-wcs-math-error-handling (ret (log x 10))
+    (with-wcs-math-error-handling (ret (log x (float 10 x)))
       (check-wcs-math-result))))
 
 (defun |log1p| (x)                      ; C99
@@ -401,21 +408,19 @@
 (defun |log2| (x)                       ; C99
   (coercef x 'double-float)
   (with-log-error-handling ()
-    (with-wcs-math-error-handling (ret (log x 2))
+    (with-wcs-math-error-handling (ret (log x (float 2 x)))
       (check-wcs-math-result))))
 
 (defun |logb| (x)                       ; C99
   (coercef x 'double-float)
-  (handler-case
-      (let ((expon (nth-value 1 (decode-float x))))
-        (float (1- expon) x))
-    #+allegro
-    (simple-error (e)
-      ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
-      (cond ((or (float-nan-p x)
-                 (float-infinity-p x))
-             x)
-            (t (error e))))))
+  ;; For SBCL: requires it for avoiding `simple-error' and `floating-point-invalid-operation'.
+  ;; Allegro CL 10.0 on MacOS raises `simple-error' without it for Inf of NaN.
+  (cond ((or (float-nan-p x)
+             (float-infinity-p x))
+         x)
+        (t
+         (let ((expon (nth-value 1 (decode-float x))))
+           (float (1- expon) x)))))
 
 (defun modf* (x)   ; FIXME: how to treat pointer? (cons as a storage?)
   (coercef x 'double-float)
@@ -445,9 +450,31 @@
            (wcs-raise-fe-exception FE_UNDERFLOW)
            ret)
           (t ret)))
-    #+allegro
+    #+sbcl
+    (type-error (e)
+      ;; For SBCL: If overflow or underflow, SBCL raises `type-error'.
+      (cond ((or (float-nan-p x)
+                 (float-infinity-p x))
+             x)
+            ((not (typep exp '(UNSIGNED-BYTE 11)))
+             ;; This is not correct.. FIXME!
+             (let ((abs-x (abs x)))
+               (cond ((or (and (> abs-x 1) (plusp exp))
+                          (and (< abs-x 1) (minusp exp)))
+                      (wcs-raise-fe-exception FE_OVERFLOW)
+                      (float-sign x double-float-positive-infinity))
+                     ((or (and (< abs-x 1) (plusp exp))
+                          (and (> abs-x 1) (minusp exp)))
+                      (wcs-raise-fe-exception FE_UNDERFLOW)
+                      (float-sign x 0d0))
+                     ((minusp x)        ; == -1
+                      (if (evenp exp) 1 -1))
+                     (t 1))))
+            (t (error e))))
+    #+ (or allegro sbcl)
     (simple-error (e)
       ;; Allegro CL 10.0 on MacOS comes here for Inf of NaN.
+      ;; For SBCL: It says: Can't decode NaN or infinity: #.SB-EXT:DOUBLE-FLOAT-POSITIVE-INFINITY.
       (cond ((or (float-nan-p x)
                  (float-infinity-p x))
              x)
@@ -528,7 +555,21 @@
                 ;; FIXME: I am suspicious about this routine.
                 ;;   (Can I utilize `floating-point:relative-error' ?)
                 realpart))))
-          (t ret)))
+          ((float-nan-p ret) ; For SBCL; This check is required before `cl:='.
+           (cond ((or (float-nan-p x) (float-nan-p y))
+                  ret)
+                 ((and (= 1 (abs x)) (float-infinity-p y))
+                  ;; For SBCL: (expt 1 double-float-positive-infinity) will raise `floating-point-invalid-operation'.
+                  (float 1d0 x))
+                 (t ret)))
+          ;; For SBCL: (expt least-positive-double-float 810d0) does
+          ;; not signals `floating-point-underflow'
+          ((and (zerop ret)
+                (not (zerop x)))
+           (wcs-raise-fe-exception FE_UNDERFLOW)
+           ret)
+          (t
+           ret)))
     #+allegro
     (simple-error (e)
       ;; Allegro CL 10.0 on MacOSX comes here -- (expt 0.0 -1).
@@ -558,6 +599,11 @@
 (defmacro with-nearest-int-error-handling ((x) &body body)
   (with-gensyms (block-name)
     `(block ,block-name
+       ;; For SBCL: raises `floating-point-invalid-operation' for
+       ;; (fceiling DOUBLE-FLOAT-POSITIVE-INFINITY)
+       (when (or (float-nan-p ,x)
+                 (float-infinity-p ,x))
+         (return-from ,block-name ,x))
        (handler-bind
            ((simple-error
               (lambda (condition) 
@@ -619,7 +665,7 @@
 (defmacro with-mod-family-error-handling ((x y) &body body)
   `(handler-case
        (progn ,@body)
-     #+allegro
+     #+ (or sbcl allegro) 
      (simple-error (e)
        ;; Allegro CL 10.0 on MacOS comes here; (sqrt double-float-nan).
        (cond ((float-nan-p ,x) ,x)
