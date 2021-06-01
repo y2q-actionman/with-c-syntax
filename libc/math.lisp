@@ -21,7 +21,7 @@
   (setf |errno|
         (or errno
             (eswitch (fe-constant)
-              (FE_DIVBYZERO with-c-syntax.libc:ERANGE)
+              (FE_DIVBYZERO with-c-syntax.libc:EDOM)
               (FE_INVALID with-c-syntax.libc:EDOM)
               (FE_OVERFLOW with-c-syntax.libc:ERANGE)
               (FE_UNDERFLOW with-c-syntax.libc:ERANGE))))
@@ -36,31 +36,25 @@
 (defun call-with-wcs-math-error-handler
     (function args
      &key
-       (division-by-zero-value double-float-nan)
-       (invalid-value double-float-nan)
-       (overflow-value double-float-positive-infinity)
        (underflow-value 0d0)
        &allow-other-keys)
-  (labels ((set-errno-and-exit (ret)
-             (setf |errno| (if (float-nan-p ret) EDOM ERANGE))
-             (throw 'return-from-with-wcs-math-error-handling
-               (values ret |errno|)))
-           (handle-div-0 (&optional _)
+  (labels ((handle-div-0 (&optional _)
              (declare (ignore _))
              (wcs-raise-fe-exception FE_DIVBYZERO)
-             (set-errno-and-exit division-by-zero-value))
+             (throw 'return-from-with-wcs-math-error-handling
+               (values double-float-nan |errno|)))
            (handle-invalid (&optional _)
              (declare (ignore _))
              (when (notany #'float-nan-p args)
                (wcs-raise-fe-exception FE_INVALID))
              (throw 'return-from-with-wcs-math-error-handling
-               (values invalid-value |errno|)))
+               (values double-float-nan |errno|)))
            (handle-overflow (&optional _)
              (declare (ignore _))
              (when (notany #'float-infinity-p args)
                (wcs-raise-fe-exception FE_OVERFLOW))
              (throw 'return-from-with-wcs-math-error-handling
-               (values overflow-value |errno|)))
+               (values double-float-positive-infinity |errno|)))
            (handle-underflow (&optional _)
              (declare (ignore _))
              (when (notany #'float-infinity-p args)
@@ -99,10 +93,10 @@
 (defmacro with-wcs-math-error-handling
     ((var-or-var-list (function x &optional (y nil y-supplied-p))
       &rest keyargs
-      &key division-by-zero-value invalid-value overflow-value underflow-value
+      &key underflow-value
         (use-check-wcs-math-result t))
      &body body)
-  (declare (ignorable division-by-zero-value invalid-value overflow-value underflow-value))
+  (declare (ignorable underflow-value))
   (let ((x_ (gensym)) (y_ (gensym)) (args_ (gensym))
         (var-list (if (listp var-or-var-list)
                       var-or-var-list
@@ -277,7 +271,7 @@
     (simple-error (e)          ; Allegro CL 10.1 on MacOSX comes here.
       (cond ((or (= x 1.0d0)
                  (= x -1.0d0))
-             (wcs-raise-fe-exception FE_DIVBYZERO)
+             (wcs-raise-fe-exception FE_DIVBYZERO :errno ERANGE)
              (float-sign x double-float-positive-infinity))
             (t (error e))))))
 
@@ -370,7 +364,7 @@
     (arithmetic-error (e)
       (let ((operands (arithmetic-error-operands e)))
         (cond ((zerop (first operands))
-               (wcs-raise-fe-exception FE_DIVBYZERO)
+               (wcs-raise-fe-exception FE_DIVBYZERO :errno ERANGE)
                (- HUGE_VAL))
               (t
                (error e)))))))
@@ -538,7 +532,7 @@
       ;; Allegro CL 10.0 on MacOSX comes here -- (expt 0.0 -1).
       (cond ((and (zerop x)
                   (minusp y))
-             (wcs-raise-fe-exception FE_DIVBYZERO)
+             (wcs-raise-fe-exception FE_DIVBYZERO :errno ERANGE)
              double-float-positive-infinity)
             (t (error e))))))
 
