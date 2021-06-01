@@ -95,7 +95,7 @@
   check-errno (is (|acos| (-1.00000001010) == double-float-nan), EDOM);
   check-errno (is (|acos| (double-float-positive-infinity) == double-float-nan), EDOM);
   check-errno (is (|acos| (double-float-negative-infinity) == double-float-nan), EDOM);
-  check-errno (is (float-nan-p (|acos| (double-float-nan))), nil, EDOM);
+  check-errno (is (float-nan-p (|acos| (double-float-nan))), nil);
   }#)
 
 (test test-math-asin
@@ -110,7 +110,7 @@
   check-errno (is (|asin| (-1.00000001010) == double-float-nan), EDOM);
   check-errno (is (|asin| (double-float-positive-infinity) == double-float-nan), EDOM);
   check-errno (is (|asin| (double-float-negative-infinity) == double-float-nan), EDOM);
-  check-errno (is (float-nan-p (|asin| (double-float-nan))), nil, EDOM);
+  check-errno (is (float-nan-p (|asin| (double-float-nan))), nil);
   }#)
 
 (test test-math-atan
@@ -163,7 +163,7 @@
   is (|cos| (-0.0) == 1.0);
   check-errno (is (float-nan-p (|cos| (double-float-positive-infinity))), EDOM);
   check-errno (is (float-nan-p (|cos| (double-float-negative-infinity))), EDOM);
-  check-errno (is (float-nan-p (|cos| (double-float-nan))), nil, EDOM);
+  check-errno (is (float-nan-p (|cos| (double-float-nan))), nil);
   }#)
 
 (test test-math-sin
@@ -176,7 +176,7 @@
   is (|sin| (-0.0) == -0.0);
   check-errno (is (float-nan-p (|sin| (double-float-positive-infinity))), EDOM);
   check-errno (is (float-nan-p (|sin| (double-float-negative-infinity))), EDOM);
-  check-errno (is (float-nan-p (|sin| (double-float-nan))), nil, EDOM);
+  check-errno (is (float-nan-p (|sin| (double-float-nan))), nil);
   }#)
 
 (test test-math-tan
@@ -211,7 +211,7 @@
   is (|tan| (-0.0) == -0.0);
   check-errno (is (float-nan-p (|tan| (double-float-positive-infinity))), EDOM);
   check-errno (is (float-nan-p (|tan| (double-float-negative-infinity))), EDOM);
-  check-errno (is (float-nan-p (|tan| (double-float-nan))), nil, EDOM);
+  check-errno (is (float-nan-p (|tan| (double-float-nan))), nil);
   }#)
 
 (test test-math-acosh
@@ -221,7 +221,7 @@
   // ; Specials
   check-errno (is (float-nan-p (|acosh| (double-float-negative-infinity))), EDOM);
   check-errno (is (float-nan-p (|acosh| (most-negative-double-float))), EDOM);
-  check-errno (is (float-nan-p (|acosh| (-3.1))), EDOM, ERANGE);
+  check-errno (is (float-nan-p (|acosh| (-3.1))), EDOM);
   check-errno (is (float-nan-p (|acosh| (0.9))), EDOM);
   check-errno (is (|acosh| (1.0) == 0.0), nil);
   check-errno (is (|acosh| (double-float-positive-infinity) == double-float-positive-infinity), nil);
@@ -303,8 +303,8 @@
   is.float-equal (|exp|(0.0d0), 1.0d0);
   check-errno (is(|exp|(most-positive-double-float) == HUGE_VAL), ERANGE);
   check-errno (is(|exp|(most-negative-double-float) == 0.0), ERANGE);
-  check-errno (is(|exp|(double-float-positive-infinity) == HUGE_VAL), nil, ERANGE);
-  check-errno (is(|exp|(double-float-negative-infinity) == 0.0), nil, ERANGE);
+  check-errno (is(|exp|(double-float-positive-infinity) == HUGE_VAL), nil);
+  check-errno (is(|exp|(double-float-negative-infinity) == 0.0), nil);
   check-errno (is (float-nan-p (|exp|(double-float-nan))), nil);
   }#)
 
@@ -314,8 +314,8 @@
   is (|exp2|(0.0) == 1.0);
   check-errno (is (|exp2|(most-positive-double-float) == HUGE_VAL), ERANGE);
   check-errno (is (|exp2|(most-negative-double-float) == 0.0), ERANGE);
-  check-errno (is (|exp2|(double-float-positive-infinity) == HUGE_VAL), nil, ERANGE);
-  check-errno (is (|exp2|(double-float-negative-infinity) == 0.0), nil, ERANGE);
+  check-errno (is (|exp2|(double-float-positive-infinity) == HUGE_VAL), nil);
+  check-errno (is (|exp2|(double-float-negative-infinity) == 0.0), nil);
   check-errno (is (float-nan-p (|exp2|(double-float-nan))), nil);
   }#)
 
@@ -328,8 +328,8 @@
   is.float-equal (|expm1|(double-float-negative-infinity), -1.0);
   check-errno (is (|expm1|(most-positive-double-float) == HUGE_VAL), ERANGE);
   check-errno (is (|expm1|(most-negative-double-float) == -1.0), ERANGE);
-  check-errno (is (|expm1|(double-float-positive-infinity) == HUGE_VAL), nil, ERANGE);
-  check-errno (is (|expm1|(double-float-negative-infinity) == -1.0), nil, ERANGE);
+  check-errno (is (|expm1|(double-float-positive-infinity) == HUGE_VAL), nil);
+  check-errno (is (|expm1|(double-float-negative-infinity) == -1.0), nil);
   check-errno (is (float-nan-p (|expm1|(double-float-nan))), nil);
   }#)
 
@@ -497,16 +497,17 @@
   
   is.float-equal (|cbrt| (1000.0), 10.0);
   
-  // ; FIXME: cbrt(-1.0) may return a complex. Under implementation...
-  check-errno (tmp = |cbrt| (-1.0), nil);
-  is (tmp == -1.0 \|\| complexp (tmp));
-  
   is (|cbrt| (0.0) == 0.0);
   is (|cbrt| (-0.0) == -0.0);
-  check-errno (is (|cbrt| (double-float-positive-infinity) == double-float-positive-infinity),
-                  nil);
-  is (|cbrt| (double-float-negative-infinity) == double-float-negative-infinity);
-  is (|cbrt| (double-float-nan) == double-float-nan);
+  check-errno (is (|cbrt| (double-float-positive-infinity) == double-float-positive-infinity), nil, ERANGE);
+  check-errno (is (|cbrt| (double-float-nan) == double-float-nan), nil);
+  
+  // ; FIXME: cbrt(-1.0) may return a complex. Under implementation...
+  check-errno (tmp = |cbrt| (-1.0), nil);
+  is (tmp == -1.0 || complexp (tmp));
+
+  check-errno (tmp = |cbrt| (double-float-negative-infinity), nil);
+  is (tmp == double-float-negative-infinity || complexp (tmp));
   }#)
 
 (test test-math-fabs
@@ -531,7 +532,7 @@
   is.float-equal (|hypot| (-0, -9928.123456), |fabs| (-9928.123456));
 
   check-errno (is (|hypot| (most-positive-double-float, most-positive-double-float)
-                         == double-float-positive-infinity),
+                           == double-float-positive-infinity),
                   ERANGE);
   is (|hypot| (least-positive-double-float, least-positive-double-float) > 0);
   
@@ -584,31 +585,28 @@
   // ; Linux man page says this is +1.0.
   |errno| = nil;
   d = |pow| (-1, double-float-positive-infinity);
-  is ((d == 1d0 && |errno| == nil)
-      \|\| (float-nan-p (d) && |errno| == EDOM));
+  is ((d == 1d0 && |errno| == nil) || (float-nan-p (d) && |errno| == EDOM));
   
   // ; Linux man page says this is +1.0.
   |errno| = nil;
   d = |pow| (-1, double-float-negative-infinity);
-  is ((d == 1d0 && |errno| == nil)
-      \|\| float-nan-p (d) && |errno| == EDOM);
+  is ((d == 1d0 && |errno| == nil) || float-nan-p (d) && |errno| == EDOM);
   
-  check-errno (is (|pow| (0.9999, double-float-negative-infinity) == double-float-positive-infinity), ERANGE);
+  check-errno (is (|pow| (0.9999, double-float-negative-infinity) == double-float-positive-infinity), nil, ERANGE);
   
   // ; Linux man page says this is +Inf.
   |errno| = nil;
   d = |pow| (-0.9999, double-float-negative-infinity);
-  is ((d == double-float-positive-infinity && |errno| == ERANGE)
-      \|\| float-nan-p (d) && |errno| == EDOM);
+  is ((d == double-float-positive-infinity && |errno| == ERANGE) || float-nan-p (d) && |errno| == EDOM);
   
   check-errno (is (|pow| (-0.0, double-float-negative-infinity) == double-float-positive-infinity),
                   ERANGE); // Linux man page says errno == 0.
   
-  check-errno (is (|pow| (1.0001, double-float-negative-infinity) == 0d0), ERANGE);
+  check-errno (is (|pow| (1.0001, double-float-negative-infinity) == 0d0), nil, ERANGE);
   
-  check-errno (is (|pow| (0.9999, double-float-positive-infinity) == 0d0), ERANGE);
+  check-errno (is (|pow| (0.9999, double-float-positive-infinity) == 0d0), nil, ERANGE);
   
-  check-errno (is (|pow| (1.0001, double-float-positive-infinity) == double-float-positive-infinity), ERANGE);
+  check-errno (is (|pow| (1.0001, double-float-positive-infinity) == double-float-positive-infinity), nil, ERANGE);
   
   check-errno (is (|pow| (double-float-negative-infinity, -3) == -0.0), nil);
   
@@ -616,18 +614,17 @@
   check-errno (is (|pow| (double-float-negative-infinity, -2.1) == 0.0), nil);
 
   // ; Linux man page says this is -Inf.
-  check-errno (is (|pow| (double-float-negative-infinity, 3) == double-float-negative-infinity), nil);
+  check-errno (is (|pow| (double-float-negative-infinity, 3) == double-float-negative-infinity), nil, ERANGE);
   
   check-errno (is (|pow| (double-float-negative-infinity, 2) == double-float-positive-infinity), nil);
   check-errno (is (|pow| (double-float-negative-infinity, 2.1) == double-float-positive-infinity), nil);
   // ; Linux man page says this is +Inf
   |errno| = nil;
   d = |pow| (double-float-negative-infinity, double-float-positive-infinity);
-  is ((d == double-float-positive-infinity && |errno| == nil)
-      \|\| (float-nan-p (d) && |errno| == EDOM));
+  is ((d == double-float-positive-infinity && |errno| == nil) || (float-nan-p (d) && |errno| == EDOM));
   
-  check-errno (is (|pow| (double-float-positive-infinity, -10) == 0.0), nil);
-  check-errno (is (|pow| (double-float-positive-infinity, double-float-negative-infinity) == 0.0), nil);
+  check-errno (is (|pow| (double-float-positive-infinity, -10) == 0.0), nil, ERANGE);
+  check-errno (is (|pow| (double-float-positive-infinity, double-float-negative-infinity) == 0.0), nil, ERANGE);
   
   check-errno (is (|pow| (double-float-positive-infinity, 10) == double-float-positive-infinity), nil);
   check-errno (is (|pow| (double-float-positive-infinity, double-float-positive-infinity) == double-float-positive-infinity), nil);
