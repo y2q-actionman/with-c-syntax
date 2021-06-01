@@ -7,6 +7,11 @@
 ;;; * If I implement <tgmath.h>, I will  define 'f' and 'l' variants,
 ;;;   and write a compiler-macro to use them.
 ;;; 
+;;; * Implementation strategy:
+;;;   1. Call the function.
+;;;   2. Handle `arithmetic-error's.
+;;;   3. Sees the result; especially complex should be treated.
+;;; 
 ;;; * When using NaN, many mathematical functions of Common Lisp
 ;;; behave differently from C99. So I manually handle these
 ;;; situations..
@@ -26,12 +31,6 @@
               (FE_OVERFLOW with-c-syntax.libc:ERANGE)
               (FE_UNDERFLOW with-c-syntax.libc:ERANGE))))
   (|feraiseexcept| fe-constant))
-
-;;; 実装方針
-;;; - まず呼ぶ
-;;; - arithmetic-error が上がったら対処
-;;; - complex が返ったら対処
-;;; - その他は適当に。
 
 (defun call-with-wcs-math-error-handler
     (function args
@@ -61,8 +60,7 @@
                (wcs-raise-fe-exception FE_UNDERFLOW))
              (throw 'return-from-with-wcs-math-error-handling
                (values underflow-value |errno|))))
-    (declare (dynamic-extent (function set-errno-and-exit)
-                             (function handle-div-0)
+    (declare (dynamic-extent (function handle-div-0)
                              (function handle-invalid)
                              (function handle-overflow)
                              (function handle-underflow)))
@@ -88,13 +86,14 @@
          (when (notany #'float-infinity-p arg-list)
            (wcs-raise-fe-exception FE_OVERFLOW))
          (throw 'return-from-with-wcs-math-error-handling
-           (values ret |errno|)))))
+           (values ret |errno|)))
+        (t ret)))
 
 (defmacro with-wcs-math-error-handling
-    ((var-or-var-list (function x &optional (y nil y-supplied-p))
+    ((var-or-var-list
+      (function x &optional (y nil y-supplied-p))
       &rest keyargs
-      &key underflow-value
-        (use-check-wcs-math-result t))
+      &key underflow-value)
      &body body)
   (declare (ignorable underflow-value))
   (let ((x_ (gensym)) (y_ (gensym)) (args_ (gensym))
@@ -111,9 +110,11 @@
          (multiple-value-bind ,var-list
              (call-with-wcs-math-error-handler ',function ,args_
                                                ,@keyargs)
-           (when ,use-check-wcs-math-result
-             (check-wcs-math-result ,(first var-list) ,args_)) ; FIXME
-           ,@body)))))
+           (flet ((check-wcs-math-result
+                      (&optional (ret ,(first var-list))
+                                 (arg-list ,args_))
+                    (check-wcs-math-result ret arg-list)))
+             ,@body))))))
 
 ;;; <math.h> definitions begins here.
 ;;; TODO: libc symbols should be arranged by the order in C99 (ISO/IEC 9899).
@@ -217,56 +218,56 @@
 (defun |acos| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (acos x))
-    ret))
+    (check-wcs-math-result)))
 
 (defun |asin| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (asin x))
-    ret))
+    (check-wcs-math-result)))
 
 (defun |atan| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (atan x))
-    ret))
+    (check-wcs-math-result)))
 
 (defun |atan2| (x y)
   (coercef x 'double-float)
   (coercef y 'double-float)
   (with-wcs-math-error-handling (ret (atan x y))
-    ret))
+    (check-wcs-math-result)))
 
 (defun |cos| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (cos x))
-    ret))
+    (check-wcs-math-result)))
 
 (defun |sin| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (sin x))
-    ret))
+    (check-wcs-math-result)))
 
 (defun |tan| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (tan x))
-    ret))
+    (check-wcs-math-result)))
 
 ;;; Hyperbolic
 
 (defun |acosh| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (acosh x))
-    ret))
+    (check-wcs-math-result)))
 
 (defun |asinh| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (asinh x))
-    ret))                               ; no error
+    (check-wcs-math-result)))           ; no error
 
 (defun |atanh| (x)
   (coercef x 'double-float)
   (handler-case
       (with-wcs-math-error-handling (ret (atanh x))
-        ret)
+        (check-wcs-math-result))
     #+allegro
     (simple-error (e)          ; Allegro CL 10.1 on MacOSX comes here.
       (cond ((or (= x 1.0d0)
@@ -278,28 +279,29 @@
 (defun |cosh| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (cosh x))
-    ret))
+    (check-wcs-math-result)))
 
 (defun |sinh| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (sinh x))
-    ret))
+    (check-wcs-math-result)))
 
 (defun |tanh| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (tanh x))
-    (tanh x)))                          ; no error
+    (check-wcs-math-result)))           ; no error
 
 ;;; Exponential and logarithmic
 
 (defun |exp| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (exp x))
-    ret))
+    (check-wcs-math-result)))
 
 (defun |exp2| (x)                       ; C99
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (expt 2 x))
+    (check-wcs-math-result)
     ;; Allegro 10.1 requires this...
     #+allegro
     (cond ((= ret 0d0)
@@ -315,7 +317,7 @@
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (exp-1 x)
                                  :underflow-value (float -1 x))
-    ret))
+    (check-wcs-math-result)))
 
 (defun frexp* (x)  ; FIXME: how to treat pointer? (cons as a storage?)
   (coercef x 'double-float)
@@ -373,13 +375,13 @@
   (coercef x 'double-float)
   (with-log-error-handling ()
     (with-wcs-math-error-handling (ret (log x))
-      ret)))
+      (check-wcs-math-result))))
 
 (defun |log10| (x)
   (coercef x 'double-float)
   (with-log-error-handling ()
     (with-wcs-math-error-handling (ret (log x 10))
-      ret)))
+      (check-wcs-math-result))))
 
 (defun |log1p| (x)                      ; C99
   (coercef x 'double-float)
@@ -394,13 +396,13 @@
              double-float-nan))))
   (with-log-error-handling ()
     (with-wcs-math-error-handling (ret (log1+ x))
-      ret)))
+      (check-wcs-math-result))))
 
 (defun |log2| (x)                       ; C99
   (coercef x 'double-float)
   (with-log-error-handling ()
     (with-wcs-math-error-handling (ret (log x 2))
-      ret)))
+      (check-wcs-math-result))))
 
 (defun |logb| (x)                       ; C99
   (coercef x 'double-float)
@@ -419,6 +421,7 @@
   (coercef x 'double-float)
   (handler-case
       (with-wcs-math-error-handling ((quot rem) (ftruncate x))
+        (check-wcs-math-result)
         (values rem quot))
     #+allegro
     (simple-error (e)
@@ -433,7 +436,7 @@
   (coercef x 'double-float)
   (handler-case
       (with-wcs-math-error-handling (ret (scale-float x exp))
-        ret
+        (check-wcs-math-result)
         (cond
           ;; Allegro CL 10.0 on MacOSX does not cause underflow.
           ;; These checks are required.
@@ -457,8 +460,7 @@
 
 (defun |cbrt| (x)                       ; C99
   (coercef x 'double-float)
-  (with-wcs-math-error-handling (ret (expt x 1/3) 
-                                     :use-check-wcs-math-result nil)
+  (with-wcs-math-error-handling (ret (expt x 1/3))
     (cond ((complexp ret)
            (cond ((minusp x)
                   (warn "Current cbrt() implementation returns a principal complex value, defined in ANSI CL, for minus parameters.")
@@ -471,14 +473,14 @@
 (defun |fabs| (x)
   (coercef x 'double-float)
   (with-wcs-math-error-handling (ret (abs x))
-    ret))                               ; no error
+    (check-wcs-math-result)))           ; no error
 
 (defun |hypot| (x y)
   (coercef x 'double-float)
   (coercef y 'double-float)
   (handler-case
       (with-wcs-math-error-handling (ret (hypot x y))
-        ret)
+        (check-wcs-math-result))
     #+allegro
     (simple-error (e)
       ;; Allegro CL 10.0 on MacOS comes here for NaN or Inf
@@ -503,7 +505,7 @@
   (coercef x 'double-float)
   (coercef y 'double-float)
   (handler-case
-      (with-wcs-math-error-handling (ret (expt x y) :use-check-wcs-math-result nil)
+      (with-wcs-math-error-handling (ret (expt x y))
         (cond
           ((complexp ret)
            (let ((realpart (realpart ret)))
@@ -540,7 +542,7 @@
   (coercef x 'double-float)
   (handler-case
       (with-wcs-math-error-handling (ret (sqrt x))
-        ret)
+        (check-wcs-math-result))
     #+allegro
     (simple-error (e)
       ;; Allegro CL 10.0 on MacOS comes here; (sqrt double-float-nan).
@@ -570,13 +572,13 @@
   (coercef x 'double-float)
   (with-nearest-int-error-handling (x)
     (with-wcs-math-error-handling (ret (fceiling x))
-      ret)))
+      (check-wcs-math-result))))
 
 (defun |floor| (x)
   (coercef x 'double-float)
   (with-nearest-int-error-handling (x)
     (with-wcs-math-error-handling (ret (ffloor x))
-      ret)))
+      (check-wcs-math-result))))
 
 ;;; TODO: 'nearbyint()'
 ;;; TODO: 'rint()', 'lrint()', 'llrint()'
@@ -585,7 +587,7 @@
   (coercef x 'double-float)
   (with-nearest-int-error-handling (x)
     (with-wcs-math-error-handling (ret (fround x))
-      ret)))
+      (check-wcs-math-result))))
 
 (defun |lround| (x)                     ; C99
   (coercef x 'double-float)
@@ -610,7 +612,7 @@
   (coercef x 'double-float)
   (with-nearest-int-error-handling (x)
     (with-wcs-math-error-handling (ret (ftruncate x))
-      ret)))
+      (check-wcs-math-result))))
 
 ;;; Remainder
 
@@ -633,6 +635,7 @@
   (coercef y 'double-float)
   (with-mod-family-error-handling (x y)
     (with-wcs-math-error-handling ((quot rem) (ftruncate x y))
+      (check-wcs-math-result)
       rem)))
 
 (defun |remainder| (x y)                ; C99
@@ -640,6 +643,7 @@
   (coercef y 'double-float)
   (with-mod-family-error-handling (x y)
     (with-wcs-math-error-handling ((quot rem) (fround x y))
+      (check-wcs-math-result)
       rem)))
 
 (defun remquo* (x y)                    ; C99
@@ -647,6 +651,7 @@
   (coercef y 'double-float)
   (with-mod-family-error-handling (x y)
     (with-wcs-math-error-handling ((quotient remainder) (round x y))
+      (check-wcs-math-result)
       (values remainder quotient))))
 
 ;;; TODO: real 'remquo' -- support pointer passing..
@@ -751,6 +756,7 @@
   (coercef x 'double-float)
   (coercef y 'double-float)
   (with-wcs-math-error-handling (diff (- x y))
+    (check-wcs-math-result)
     (if (minusp diff)
         (float 0 x)
         diff)))
