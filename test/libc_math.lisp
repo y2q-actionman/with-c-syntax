@@ -886,6 +886,24 @@
   check-errno (is (float-nan-p (|nextafter|(1.0, double-float-nan))), nil);
   }#)
 
+(test test-math-nexttoward
+  #{
+  is (|nexttoward|(1.5d0,  10d0) == `#2{ 0x1.8000000000001p+0; }#
+                 );
+  is (|nexttoward|(1.5d0, -10d0) == `#2{ 0x1.7ffffffffffffp+0; }#
+                 );
+  is (|nexttoward|(1.0d0,  10d0) == `#2{ 0x1.0000000000001p+0; }#
+                  );
+
+  if (least-positive-double-float != least-positive-long-float) {
+    is (|nexttoward|(least-positive-double-float, least-positive-long-float) == 0d0);
+  } else {
+    `(warn "Your Lisp's double-float may be same with long-float.");
+  }
+  
+  // ; Others are in nextafter() case.
+  }#)
+
 (test test-math-fdim
   #{
   is (|fdim|(2.0, 1.0) == 1.0);

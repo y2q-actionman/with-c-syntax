@@ -670,6 +670,14 @@
            (incf bits))
        (bits-double-float bits)))))
 
+(defun check-nextafter-result (ret x)
+  (cond ((and (float-infinity-p ret)
+              (not (float-infinity-p x)))
+         (wcs-raise-fe-exception FE_OVERFLOW))
+        ((or (zerop ret)
+             (float-subnormal-p ret))
+         (wcs-raise-fe-exception FE_UNDERFLOW))))
+
 (defun |nextafter| (x y)
   (coercef x 'double-float)
   (coercef y 'double-float)
@@ -681,15 +689,22 @@
      (let ((ret (if (< x y)
                     (step-double-float-plus x)
                     (step-double-float-minus x))))
-       (cond ((and (float-infinity-p ret)
-                   (not (float-infinity-p x)))
-              (wcs-raise-fe-exception FE_OVERFLOW))
-             ((or (zerop ret)
-                  (float-subnormal-p ret))
-              (wcs-raise-fe-exception FE_UNDERFLOW)))
+       (check-nextafter-result ret x)
        ret))))
 
-;;; TODO: nexttoward()
+(defun |nexttoward| (x y &aux (long-float-x (coerce x 'long-float)))
+  (coercef x 'double-float)
+  (coercef y 'long-float)
+  (cond
+    ((float-nan-p x) x)
+    ((float-nan-p y) y)
+    ((= long-float-x y) (float y x))
+    (t
+     (let ((ret (if (< long-float-x y)
+                    (step-double-float-plus x)
+                    (step-double-float-minus x))))
+       (check-nextafter-result ret x)
+       ret))))
 
 ;;; Maximum, minimum, and positive difference
 

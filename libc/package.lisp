@@ -54,7 +54,7 @@
    #:|cbrt| #:|fabs| #:|hypot| #:|pow| #:|sqrt|
    #:|ceil| #:|floor| #:|round| #:|lround| #:|llround| #:|trunc|
    #:|fmod| #:|remainder| #:REMQUO*
-   #:|copysign| #:|nan| #:|nextafter|
+   #:|copysign| #:|nan| #:|nextafter| #:|nexttoward|
    #:|fdim| #:|fmax| #:|fmin|
    #:|isgreater| #:|isgreaterequal| #:|isless| #:|islessequal| #:|islessgreater| #:|isunordered|
    #:|lerp|                             ; C++20
