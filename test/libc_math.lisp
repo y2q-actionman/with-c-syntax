@@ -5,7 +5,7 @@
 (in-readtable with-c-syntax-readtable)
 
 (defmacro check-errno (form expected-errno
-                       &optional (alternate-errno nil aeno-supplied-p))
+                       &key (alternate-errno nil aeno-supplied-p))
   `(let ((|errno| nil))
      (prog1 ,form
        ,@(if (not aeno-supplied-p)
@@ -377,7 +377,7 @@
   is (|ilogb| (4.0) == 2);
   
   // ; Specials
-  check-errno (is (|ilogb| (0.0) == FP_ILOGB0), EDOM, nil);
+  check-errno (is (|ilogb| (0.0) == FP_ILOGB0), EDOM, :alternate-errno, nil);
   check-errno (is (|ilogb| (double-float-positive-infinity) == INT_MAX), EDOM);
   check-errno (is (|ilogb| (double-float-negative-infinity) == INT_MAX), EDOM);
   check-errno (is (|ilogb| (double-float-nan) == FP_ILOGBNAN), EDOM);
@@ -435,7 +435,7 @@
   // ; Specials
   // ; TODO: FIXME: `float' is overwritten because it is a C keyword.
   // ; I think some workaround is needed here.
-  check-errno (is (|logb| (0.0) == `(float with-c-syntax.libc:FP_ILOGB0 0d0)), EDOM, nil);
+  check-errno (is (|logb| (0.0) == `(float with-c-syntax.libc:FP_ILOGB0 0d0)), EDOM, :alternate-errno, nil);
   check-errno (is (|logb| (double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|logb| (double-float-negative-infinity) == double-float-negative-infinity), nil);
   check-errno (float-nan-p (|logb| (double-float-nan)), nil);
@@ -499,7 +499,7 @@
   
   is (|cbrt| (0.0) == 0.0);
   is (|cbrt| (-0.0) == -0.0);
-  check-errno (is (|cbrt| (double-float-positive-infinity) == double-float-positive-infinity), nil, ERANGE);
+  check-errno (is (|cbrt| (double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|cbrt| (double-float-nan) == double-float-nan), nil);
   
   // ; FIXME: cbrt(-1.0) may return a complex. Under implementation...
@@ -592,7 +592,7 @@
   d = |pow| (-1, double-float-negative-infinity);
   is ((d == 1d0 && |errno| == nil) || float-nan-p (d) && |errno| == EDOM);
   
-  check-errno (is (|pow| (0.9999, double-float-negative-infinity) == double-float-positive-infinity), nil, ERANGE);
+  check-errno (is (|pow| (0.9999, double-float-negative-infinity) == double-float-positive-infinity), nil, :alternate-errno, ERANGE);
   
   // ; Linux man page says this is +Inf.
   |errno| = nil;
@@ -602,11 +602,11 @@
   check-errno (is (|pow| (-0.0, double-float-negative-infinity) == double-float-positive-infinity),
                   ERANGE); // Linux man page says errno == 0.
   
-  check-errno (is (|pow| (1.0001, double-float-negative-infinity) == 0d0), nil, ERANGE);
+  check-errno (is (|pow| (1.0001, double-float-negative-infinity) == 0d0), nil, :alternate-errno, ERANGE);
   
-  check-errno (is (|pow| (0.9999, double-float-positive-infinity) == 0d0), nil, ERANGE);
+  check-errno (is (|pow| (0.9999, double-float-positive-infinity) == 0d0), nil, :alternate-errno, ERANGE);
   
-  check-errno (is (|pow| (1.0001, double-float-positive-infinity) == double-float-positive-infinity), nil, ERANGE);
+  check-errno (is (|pow| (1.0001, double-float-positive-infinity) == double-float-positive-infinity), nil, :alternate-errno, ERANGE);
   
   check-errno (is (|pow| (double-float-negative-infinity, -3) == -0.0), nil);
   
@@ -614,7 +614,7 @@
   check-errno (is (|pow| (double-float-negative-infinity, -2.1) == 0.0), nil);
 
   // ; Linux man page says this is -Inf.
-  check-errno (is (|pow| (double-float-negative-infinity, 3) == double-float-negative-infinity), nil, ERANGE);
+  check-errno (is (|pow| (double-float-negative-infinity, 3) == double-float-negative-infinity), nil, :alternate-errno, ERANGE);
   
   check-errno (is (|pow| (double-float-negative-infinity, 2) == double-float-positive-infinity), nil);
   check-errno (is (|pow| (double-float-negative-infinity, 2.1) == double-float-positive-infinity), nil);
@@ -623,8 +623,8 @@
   d = |pow| (double-float-negative-infinity, double-float-positive-infinity);
   is ((d == double-float-positive-infinity && |errno| == nil) || (float-nan-p (d) && |errno| == EDOM));
   
-  check-errno (is (|pow| (double-float-positive-infinity, -10) == 0.0), nil, ERANGE);
-  check-errno (is (|pow| (double-float-positive-infinity, double-float-negative-infinity) == 0.0), nil, ERANGE);
+  check-errno (is (|pow| (double-float-positive-infinity, -10) == 0.0), nil, :alternate-errno, ERANGE);
+  check-errno (is (|pow| (double-float-positive-infinity, double-float-negative-infinity) == 0.0), nil, :alternate-errno, ERANGE);
   
   check-errno (is (|pow| (double-float-positive-infinity, 10) == double-float-positive-infinity), nil);
   check-errno (is (|pow| (double-float-positive-infinity, double-float-positive-infinity) == double-float-positive-infinity), nil);
