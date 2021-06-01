@@ -4,41 +4,20 @@
 ;;; if they are not free-standing.
 (in-readtable with-c-syntax-readtable)
 
-(defmacro check-errno (form expected-errno)
+(defmacro check-errno (form expected-errno
+                       &optional (alternate-errno nil aeno-supplied-p))
   `(let ((|errno| nil))
      (prog1 ,form
-       (is (eql |errno| ,expected-errno)))))
+       ,@(if (not aeno-supplied-p)
+             `((is (eql |errno| ,expected-errno)))
+             `((is (or (eql |errno| ,expected-errno)
+                       (eql |errno| ,alternate-errno)))
+               (unless (eql |errno| ,expected-errno)
+                 (warn "Form ~A; errno resulted to ~A, not ~A"
+                       ',form |errno| ,expected-errno)))))))
 
 (defmacro is.float-equal (x y)
   `(is (float-equal ,x ,y)))
-
-(defmacro is.complexp (x)
-  `(is (complexp ,x)))
-
-(defmacro is.float-nan-p (x &optional suppress-all-error)
-  `(handler-case (is (float-nan-p ,x))
-     (arithmetic-error () t)
-     ,@(if suppress-all-error
-           '((error (e)
-              (warn "caught unexpected error ~A; ~A"
-               (type-of e) e))))))
-
-(defmacro may.float-equal (form expected)
-  (with-gensyms (ex_ actual_)
-    `(let ((,ex_ ,expected)
-           (,actual_ ,form))
-       (if (float-equal ,actual_ ,ex_)
-           (1am::passed)
-           (warn "Failed: ~A actual ~A expected ~A" ',form ,actual_ ,ex_)))))
-
-(defmacro may-fail (form)
-  (let ((result (gensym)) (condition (gensym)))
-    `(multiple-value-bind (,result ,condition)
-         (ignore-errors ,form)
-       (or ,result
-           (if ,condition
-               (warn "~A raised ~A" ',form ,condition)
-               (warn "~A was evaluated to false" ',form))))))
 
 (test test-fpclassify
   #{
@@ -116,7 +95,7 @@
   check-errno (is (|acos| (-1.00000001010) == double-float-nan), EDOM);
   check-errno (is (|acos| (double-float-positive-infinity) == double-float-nan), EDOM);
   check-errno (is (|acos| (double-float-negative-infinity) == double-float-nan), EDOM);
-  check-errno (is (float-nan-p (|acos| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|acos| (double-float-nan))), nil, EDOM);
   }#)
 
 (test test-math-asin
@@ -131,7 +110,7 @@
   check-errno (is (|asin| (-1.00000001010) == double-float-nan), EDOM);
   check-errno (is (|asin| (double-float-positive-infinity) == double-float-nan), EDOM);
   check-errno (is (|asin| (double-float-negative-infinity) == double-float-nan), EDOM);
-  check-errno (is (float-nan-p (|asin| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|asin| (double-float-nan))), nil, EDOM);
   }#)
 
 (test test-math-atan
@@ -184,7 +163,7 @@
   is (|cos| (-0.0) == 1.0);
   check-errno (is (float-nan-p (|cos| (double-float-positive-infinity))), EDOM);
   check-errno (is (float-nan-p (|cos| (double-float-negative-infinity))), EDOM);
-  check-errno (is (float-nan-p (|cos| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|cos| (double-float-nan))), nil, EDOM);
   }#)
 
 (test test-math-sin
@@ -197,16 +176,26 @@
   is (|sin| (-0.0) == -0.0);
   check-errno (is (float-nan-p (|sin| (double-float-positive-infinity))), EDOM);
   check-errno (is (float-nan-p (|sin| (double-float-negative-infinity))), EDOM);
-  check-errno (is (float-nan-p (|sin| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|sin| (double-float-nan))), nil, EDOM);
   }#)
 
 (test test-math-tan
   #{
-  double d;
+  double d, expected;
   
   is.float-equal (|tan| (0.0), 0.0);
-  may.float-equal (|tan| (PI / 6),  1 / |sqrt| (3));
-  may.float-equal (|tan| (-PI / 3), - |sqrt| (3));
+  
+  d = |tan| (PI / 6);
+  expected = 1 / |sqrt| (3);
+  if (d != expected) {
+    `(warn "Failed: tan(PI/6) actual ~A expected ~A" d expected);
+  }
+
+  d = |tan| (-PI / 3);
+  expected = - |sqrt| (3);
+  if (d != expected) {
+    `(warn "Failed: tan(-PI/3) actual ~A expected ~A" d expected);
+  }
   
   // ; Specials
 
@@ -222,7 +211,7 @@
   is (|tan| (-0.0) == -0.0);
   check-errno (is (float-nan-p (|tan| (double-float-positive-infinity))), EDOM);
   check-errno (is (float-nan-p (|tan| (double-float-negative-infinity))), EDOM);
-  check-errno (is (float-nan-p (|tan| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|tan| (double-float-nan))), nil, EDOM);
   }#)
 
 (test test-math-acosh
@@ -231,6 +220,8 @@
   is.float-equal (|acosh| (|cosh| (1.1)), 1.1);
   // ; Specials
   check-errno (is (float-nan-p (|acosh| (double-float-negative-infinity))), EDOM);
+  check-errno (is (float-nan-p (|acosh| (most-negative-double-float))), EDOM);
+  check-errno (is (float-nan-p (|acosh| (-3.1))), EDOM, ERANGE);
   check-errno (is (float-nan-p (|acosh| (0.9))), EDOM);
   check-errno (is (|acosh| (1.0) == 0.0), nil);
   check-errno (is (|acosh| (double-float-positive-infinity) == double-float-positive-infinity), nil);
@@ -312,9 +303,9 @@
   is.float-equal (|exp|(0.0d0), 1.0d0);
   check-errno (is(|exp|(most-positive-double-float) == HUGE_VAL), ERANGE);
   check-errno (is(|exp|(most-negative-double-float) == 0.0), ERANGE);
-  check-errno (is(|exp|(double-float-positive-infinity) == HUGE_VAL), nil);
-  check-errno (is(|exp|(double-float-negative-infinity) == 0.0), nil);
-  is (float-nan-p (|exp|(double-float-nan)));
+  check-errno (is(|exp|(double-float-positive-infinity) == HUGE_VAL), nil, ERANGE);
+  check-errno (is(|exp|(double-float-negative-infinity) == 0.0), nil, ERANGE);
+  check-errno (is (float-nan-p (|exp|(double-float-nan))), nil);
   }#)
 
 (test test-math-exp2
@@ -323,9 +314,9 @@
   is (|exp2|(0.0) == 1.0);
   check-errno (is (|exp2|(most-positive-double-float) == HUGE_VAL), ERANGE);
   check-errno (is (|exp2|(most-negative-double-float) == 0.0), ERANGE);
-  check-errno (is (|exp2|(double-float-positive-infinity) == HUGE_VAL), nil);
-  check-errno (is (|exp2|(double-float-negative-infinity) == 0.0), nil);
-  is (float-nan-p (|exp2|(double-float-nan)));
+  check-errno (is (|exp2|(double-float-positive-infinity) == HUGE_VAL), nil, ERANGE);
+  check-errno (is (|exp2|(double-float-negative-infinity) == 0.0), nil, ERANGE);
+  check-errno (is (float-nan-p (|exp2|(double-float-nan))), nil);
   }#)
 
 (test test-math-expm1
@@ -337,9 +328,9 @@
   is.float-equal (|expm1|(double-float-negative-infinity), -1.0);
   check-errno (is (|expm1|(most-positive-double-float) == HUGE_VAL), ERANGE);
   check-errno (is (|expm1|(most-negative-double-float) == -1.0), ERANGE);
-  check-errno (is (|expm1|(double-float-positive-infinity) == HUGE_VAL), nil);
-  check-errno (is (|expm1|(double-float-negative-infinity) == -1.0), nil);
-  is (float-nan-p (|expm1|(double-float-nan)));
+  check-errno (is (|expm1|(double-float-positive-infinity) == HUGE_VAL), nil, ERANGE);
+  check-errno (is (|expm1|(double-float-negative-infinity) == -1.0), nil, ERANGE);
+  check-errno (is (float-nan-p (|expm1|(double-float-nan))), nil);
   }#)
 
 (test test-math-frexp*-and-ldexp
@@ -386,7 +377,7 @@
   is (|ilogb| (4.0) == 2);
   
   // ; Specials
-  check-errno (is (|ilogb| (0.0) == FP_ILOGB0), EDOM);
+  check-errno (is (|ilogb| (0.0) == FP_ILOGB0), EDOM, nil);
   check-errno (is (|ilogb| (double-float-positive-infinity) == INT_MAX), EDOM);
   check-errno (is (|ilogb| (double-float-negative-infinity) == INT_MAX), EDOM);
   check-errno (is (|ilogb| (double-float-nan) == FP_ILOGBNAN), EDOM);
@@ -442,7 +433,9 @@
   is.float-equal (|logb| (4.0), 2.0);
   
   // ; Specials
-  check-errno (is (|logb| (0.0) == double-float-negative-infinity), EDOM);
+  // ; TODO: FIXME: `float' is overwritten because it is a C keyword.
+  // ; I think some workaround is needed here.
+  check-errno (is (|logb| (0.0) == `(float with-c-syntax.libc:FP_ILOGB0 0d0)), EDOM, nil);
   check-errno (is (|logb| (double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|logb| (double-float-negative-infinity) == double-float-negative-infinity), nil);
   check-errno (float-nan-p (|logb| (double-float-nan)), nil);
@@ -798,7 +791,7 @@
 #+ ()
 (test test-math-nan
   #{
-  is.float-nan-p (|nan|(""));
+  is (float-nan-p (|nan|("")));
   }#)
 
 (test test-math-copysign
