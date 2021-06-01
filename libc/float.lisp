@@ -12,7 +12,7 @@
         (long-float-radix (float-radix 1l0)))
     (unless (= short-float-radix single-float-radix double-float-radix long-float-radix)
       (warn
-       "In this Lisp, the float radix is different for all types. (short ~A, single ~A, double ~A, long ~A"
+       "In this Lisp, the float radix is different for all types. (short ~A, single ~A, double ~A, long ~A)"
        short-float-radix single-float-radix double-float-radix long-float-radix))))
 
 (defconstant FLT_RADIX                ; I use double-float
@@ -133,11 +133,11 @@
 ;;   arguments in any manner consistent with associative (and possibly
 ;;   commutative) rearrangement.
 ;; 
-;; This implies 'FLT_EVAL_METHOD == -1' when I use 3 or more args for
-;; numeric operations.
+;; It seems this implies 'FLT_EVAL_METHOD == -1' when I use 3 or more
+;; args for numeric operations.
 ;; 
 ;; In today's with-c-syntax, any numeric operations are restricted to
 ;; binary. But I think someone may implement *optimizations*
 ;; destroying this assumption -- in the far and far future.
 (defconstant FLT_EVAL_METHOD
-  -1)
+  0)

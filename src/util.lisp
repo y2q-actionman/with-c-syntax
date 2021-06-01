@@ -132,13 +132,3 @@ Its dimension is '(2 2), and it is a displaced array aliasing from
 		:element-type (array-element-type array)
 		:displaced-to array
 		:displaced-index-offset new-array-start-rm-index)))
-
-(defun terminating-char-p (char &optional (readtable *readtable*))
-  "Returns t if char is terminating."
-  (case char
-    ((#\tab #\newline #\linefeed #\page #\return #\space)
-     t)
-    (otherwise
-     (multiple-value-bind (fn non-terminating-p)
-	 (get-macro-character char readtable)
-       (and fn (not non-terminating-p))))))

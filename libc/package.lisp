@@ -2,8 +2,6 @@
 
 (defpackage #:with-c-syntax.libc
   (:use)
-  (:import-from #:osicat-posix
-                #:EDOM #:EILSEQ #:ERANGE)
   (:export
    ;; assert
    #:|assert| #:NDEBUG
@@ -14,6 +12,11 @@
    #:|tolower| #:|toupper|
    ;; errno
    #:|errno| #:EDOM #:EILSEQ #:ERANGE
+   ;; fenv
+   #:|fexcept_t|
+   #:FE_DIVBYZERO #:FE_INVALID #:FE_OVERFLOW #:FE_UNDERFLOW #:FE_ALL_EXCEPT
+   #:|feclearexcept| #:|fegetexceptflag| #:|feraiseexcept| #:|fesetexceptflag| #:|fetestexcept|
+   #:|fegetround|
    ;; float
    #:FLT_RADIX
    #:FLT_MANT_DIG #:FLT_EPSILON #:FLT_DIG
@@ -39,20 +42,21 @@
    #:UCHAR_MAX #:UINT_MAX #:USHRT_MAX #:ULONG_MAX #:ULLONG_MAX
    #:MB_LEN_MAX
    ;; math
-   #:|fabs| #:|fmod| #:|remainder| #:REMQUO* #:|fmax| #:|fmin|
-   #:|exp| #:|exp2| #:|expm1| #:|log| #:|log10| #:|log2| #:|log1p|
-   #:|pow| #:|sqrt| #:|cbrt| #:|hypot|
-   #:|sin| #:|cos| #:|tan| #:|asin| #:|acos| #:|atan| #:|atan2|
-   #:|sinh| #:|cosh| #:|tanh| #:|asinh| #:|acosh| #:|atanh|
-   #:|ceil| #:|floor| #:|trunc| #:|round|
-   #:FREXP* #:|ldexp| #:MODF* #:|scalbn| #:|ilogb| #:|logb|
-   #:FP_ILOGB0
-   #:|copysign|
-   #:HUGE_VAL
-   #:HUGE_VALF #:HUGE_VALL #:INFINITY   ; C99
-   #:|isnan| #:|isinf| #:|isfinite| #:|isnormal| #:|fpclassify| ; C99
-   #:FP_NAN #:FP_INFINITE #:FP_ZERO #:FP_SUBNORMAL #:FP_NORMAL
-   #:|signbit|                          ; C99
+   #:|float_t| #:|double_t|
+   #:HUGE_VAL #:HUGE_VALF #:HUGE_VALL #:INFINITY #:NAN
+   #:FP_INFINITE #:FP_NAN #:FP_NORMAL #:FP_SUBNORMAL #:FP_ZERO
+   #:FP_ILOGB0 #:FP_ILOGBNAN
+   #:MATH_ERRNO #:MATH_ERREXCEPT #:|math_errhandling|
+   #:|fpclassify| #:|isfinite| #:|isinf| #:|isnan| #:|isnormal| #:|signbit|
+   #:|acos| #:|asin| #:|atan| #:|atan2| #:|cos| #:|sin| #:|tan|
+   #:|acosh| #:|asinh| #:|atanh| #:|cosh| #:|sinh| #:|tanh|
+   #:|exp| #:|exp2| #:|expm1| #:FREXP* #:|ilogb| #:|ldexp| #:|log| #:|log10| #:|log1p| #:|log2| #:|logb| #:MODF* #:|scalbn| #:|scalbln|
+   #:|cbrt| #:|fabs| #:|hypot| #:|pow| #:|sqrt|
+   #:|ceil| #:|floor| #:|round| #:|lround| #:|llround| #:|trunc|
+   #:|fmod| #:|remainder| #:REMQUO*
+   #:|copysign| #:|nan| #:|nextafter| #:|nexttoward|
+   #:|fdim| #:|fmax| #:|fmin|
+   #:|isgreater| #:|isgreaterequal| #:|isless| #:|islessequal| #:|islessgreater| #:|isunordered|
    #:|lerp|                             ; C++20
    ;; stdarg
    #:|va_list|

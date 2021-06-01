@@ -35,11 +35,15 @@
      (with-c-syntax () ,@Body)))
 
 (defmacro muffle-unused-code-warning (&body body)
+  "Muffles `sb-ext:code-deletion-note' of SBCL. For other
+implementation, this is just `progn'"
+  ;; I grepped Quicklisp codes with `sb-ext:code-deletion-note', but I
+  ;; cannot found this kind of macros. So... is this useless?
   #+sbcl
   `(locally
        (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
      ,@body)
-  #-(or sbcl)			; To be supported..
+  #-(or sbcl)
   `(progn ,@body))
 
 (defmacro with-testing-wcs-bind ((&rest symbols) &body body)
