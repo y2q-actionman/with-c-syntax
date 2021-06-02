@@ -126,6 +126,17 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
 
 (defun read-lonely-single-symbol (stream char)
   ;; I need this buffering to suppress calling `unread-char' too many times.
+  (let ((buf (make-string 1 :element-type 'character :initial-element char))
+        (next (peek-char nil stream t nil t)))
+    (if (terminating-char-p next)
+        (symbolicate buf)
+        ;; For supporting 'a| |b'
+        (with-input-from-string (buf-stream buf)
+          (with-open-stream (in (make-concatenated-stream buf-stream stream))
+            ;; TODO: restore old code which removes reader macro.
+            (let ((*readtable* *previous-syntax*))
+	      (read in t nil t))))))
+  #+ ()
   (let ((buf (make-array '(1) :element-type 'character
 			      :initial-contents `(,char)
 			      :adjustable t :fill-pointer t)))
