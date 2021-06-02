@@ -42,7 +42,7 @@ In level 1, these reader macros are installed.
 - '.' :: Reads a solely '.' as a symbol. The 'consing dot'
   functionality is lost.
 - '/' :: '//' means a line comment, '/* ... */' means a block
-  comment. '/' is still non-terminating, and has special meanings only
+  comment. '/' is still non-terminating and it has special meanings only
   if followed by '/' or '*'. (Ex: 'a/b/c' or '/+aaa+/' are still valid
   symbols.)
 - ''' :: The single-quote works as a character literal of C.  The
@@ -391,7 +391,7 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
        (values 10 (find-decimal-float-marker)))
       (otherwise       ; This is a bug of `read-preprocessing-number'.
        (error 'with-c-syntax-reader-error
-              :format-control "~A contains a prefix as a numeric constants."
+              :format-control "~A contains an unknown prefix as a numeric constant."
               :format-arguments (list pp-number-string))))))
 
 (defun number-prefix-length (radix)
