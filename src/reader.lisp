@@ -21,10 +21,6 @@ In level 0, these reader macros are installed.
          an invalid char outside the backquote syntax.)
 - ':' :: Reads a solely ':' as a symbol. Not a solely one (like
          `cl:cons') works as a normal package marker.
-- '|' :: If '||' appeared, it becomes a symbol. The 'empty symbol'
-  syntax is lost.  If '|' appeared followed by a terminating char, it
-  becomes a single character symbol.  For using whitespace chars ahead
-  of symbol, '\' can be used, like '\ abc'.
 
 Level 0 is almost comatible with the standard syntax. However, we need
 many escapes for using C operators.
@@ -34,6 +30,11 @@ many escapes for using C operators.
 
 In level 1, these reader macros are installed.
 
+- '|' :: If '||' appeared, it becomes a symbol. The 'empty symbol'
+  syntax is lost.  If '|' appeared followed by a terminating char, it
+  becomes a single character symbol. Because '|' becomes a macro character,
+  it cannot be used for a multiple escape inside a symbol notation.
+  (e.g. Use '|A B C|' instead of 'a| |b| |c').
 - '{', '}', '[', ']' :: These become a terminating character, and read
   as a symbol.
 - '`' :: '`' reads a next s-exp in `*previous-syntax*' readtable. This
@@ -127,29 +128,16 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
        (and fn (not non-terminating-p))))))
 
 (defun read-lonely-single-symbol (stream char)
-  ;; I need this buffering to suppress calling `unread-char' too many times.
-  (let ((buf (make-string 1 :element-type 'character :initial-element char))
-        (next (peek-char nil stream t nil t)))
+  (let ((buf ; I need this buffering to suppress calling `unread-char' too many times.
+          (make-string 1 :element-type 'character :initial-element char))
+        (next ; I see only one character to keep escapes and spaces (consider '|a b|').
+          (peek-char nil stream t nil t)))
     (if (terminating-char-p next)
         (symbolicate buf)
-        ;; For supporting 'a| |b'
         (with-input-from-string (buf-stream buf)
           (with-open-stream (in (make-concatenated-stream buf-stream stream))
-	    (let ((*readtable* (copy-readtable)))
-	      (set-syntax-from-char char char) ; Resets char to the standard syntax.
-	      (read in t nil t))))))
-  #+ ()
-  (let ((buf (make-array '(1) :element-type 'character
-			      :initial-contents `(,char)
-			      :adjustable t :fill-pointer t)))
-    (loop for c = (peek-char nil stream t nil t)
-          until (terminating-char-p c)
-          do (read-char stream t nil t)
-             (vector-push-extend c buf))
-    (if (length= 1 buf)
-        (symbolicate buf)
-        (let ((*readtable* *previous-syntax*))
-	  (read-from-string buf)))))
+            (let ((*readtable* (copy-readtable nil))) ; Use the standard syntax.
+              (read in t nil t)))))))
 
 (defun read-solely-bar (stream char)
   (let ((next (peek-char nil stream t nil t)))
@@ -526,10 +514,10 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
     ;; Comma is read as a symbol.
     (set-macro-character #\, #'read-single-character-symbol nil readtable)
     ;; Enables solely ':' as a symbol.
-    (set-macro-character #\: #'read-lonely-single-symbol t readtable)
-    ;; Reads '||' and solely '|' as a symbol.
-    (set-macro-character #\| #'read-solely-bar t readtable))
+    (set-macro-character #\: #'read-lonely-single-symbol t readtable))
   (when (>= level 1) 			; Aggressive
+    ;; Reads '||' and solely '|' as a symbol.
+    (set-macro-character #\| #'read-solely-bar t readtable)
     ;; brackets
     (set-macro-character #\{ #'read-single-character-symbol nil readtable)
     (set-macro-character #\} #'read-single-character-symbol nil readtable)

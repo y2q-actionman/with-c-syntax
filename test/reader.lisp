@@ -39,15 +39,9 @@
     #0{
     return 1 ? 2 : 3 \;
     }#)
-  ;; '|'
-  (is.equal.wcs 100
+  (is.equal.wcs :keyword
     #0{
-    return 100 ||unknown-symbol ||(error "Never comes here.") \;
-    }#)
-  (is.equal.wcs #x16
-    ;; The weird suffix below is for avoiding confusion of syntax highlighting of slime.
-    #0{
-    return #x12 | #x6 \; ; |
+    return NIL ? :never-comes-here : :keyword \;
     }#)
   ;; check default-level
   #.(setf *with-c-syntax-reader-level* 0)
@@ -57,6 +51,20 @@
     }#))
 
 (test test-reader-aggressive
+  ;; '|'
+  (is.equal.wcs 100
+    #1{
+    return 100 ||unknown-symbol ||`(error "Never comes here.") \;
+    }#)
+  (is.equal.wcs #x16
+    ;; The weird suffix below is for avoiding confusion of syntax highlighting of slime.
+    #1{
+    return #x12 | #x6 \; // ; |
+    }#)
+  (is.equal.wcs '|escaped symbol|
+    #1{
+    return NIL ? `(error "Never comes here.") : '|escaped symbol| \;
+    }#)
   ;; { and }
   (is.equal.wcs 99
     #1{{return 99 \;}}#)
