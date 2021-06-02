@@ -102,14 +102,14 @@
     #1{
     return 1 //+999999
     \;}#)
-  ;; single quote
-  (is.equal.wcs #\a
+  ;; single quote is kept.
+  (is.equal.wcs 'a
     #1{
-    return 'a'\;
+    return 'a \;
     }#)
-  (is.equal.wcs (code-char #xa0)
+  (is.equal.wcs '\u00A0
     #1{
-    return '\u00A0'\;
+    return '\u00A0 \;
     }#)
   ;; double quote
   (is.equal.wcs "abc"
@@ -153,7 +153,7 @@
   ;; parens
   (is.equal.wcs "a"
     #1{
-    return string('a');
+    return string(#\a);
     }#)
   ;; check default-level
   #.(setf *with-c-syntax-reader-level* 1)
@@ -163,33 +163,23 @@
     #{{1;2;return 3;}}#
     ))
 
-(test test-reader-aggressive-bad-char
+(test test-reader-bad-string-literal
   (signals.wcs.reader (end-of-file) "#1{ return \"; }#")
   (signals.wcs.reader (end-of-file) "#1{ return \"\\\"; }#")
   (signals.wcs.reader () "#1{ return \"
-\"; }#")
-  ;; 
-  (signals.wcs.reader (end-of-file) "#1{ return '")
-  (signals.wcs.reader () "#1{ return ''; }#")
-  (signals.wcs.reader () "#1{ return '
-'; }#")
-  (signals.wcs.reader () "#1{ return '; }#")
-  (signals.wcs.reader () "#1{ return '\\'; }#")
-  (signals.wcs.reader () "#1{ return '\\Y'; }#")
-  (signals.wcs.reader () "#1{ return '\\x; }#")
-  (signals.wcs.reader () "#1{ return '\\u; }#")
-  (signals.wcs.reader () "#1{ return '\\u12; }#")
-  (signals.wcs.reader () "#1{ return '\\U1234; }#")
-  (signals.wcs.reader () "#1{ return '\\u0060; }#")
-  (signals.wcs.reader () "#1{ return '\\U0000D800; }#")
-  (signals.wcs.reader () "#1{ return '\\uDFFF; }#")
-  (signals.wcs.reader () "#1{ return '\\99'; }#")
-  ;; Below will make a two-character integer constant (\022 and 3).
-  ;; See "6.4.4.4 Character constants" 14 Example 3.
-  (signals.wcs.reader () "#1{ return '\\0223; }#"))
+\"; }#"))
 
 (test test-reader-overkill
  (let ((x 2) (y 3)) 
+  ;; single quote
+  (is.equal.wcs #\a
+    #2{
+    return 'a'\;
+    }#)
+  (is.equal.wcs (code-char #xa0)
+    #2{
+    return '\u00A0'\;
+    }#)
   ;; comments
   (is.equal.wcs 6
     #2{
@@ -457,6 +447,26 @@
     }#)
   )
   
+(test test-reader-bad-char-literal
+  (signals.wcs.reader (end-of-file) "#2{ return '")
+  (signals.wcs.reader () "#2{ return ''; }#")
+  (signals.wcs.reader () "#2{ return '
+'; }#")
+  (signals.wcs.reader () "#2{ return '; }#")
+  (signals.wcs.reader () "#2{ return '\\'; }#")
+  (signals.wcs.reader () "#2{ return '\\Y'; }#")
+  (signals.wcs.reader () "#2{ return '\\x; }#")
+  (signals.wcs.reader () "#2{ return '\\u; }#")
+  (signals.wcs.reader () "#2{ return '\\u12; }#")
+  (signals.wcs.reader () "#2{ return '\\U1234; }#")
+  (signals.wcs.reader () "#2{ return '\\u0060; }#")
+  (signals.wcs.reader () "#2{ return '\\U0000D800; }#")
+  (signals.wcs.reader () "#2{ return '\\uDFFF; }#")
+  (signals.wcs.reader () "#2{ return '\\99'; }#")
+  ;; Below will make a two-character integer constant (\022 and 3).
+  ;; See "6.4.4.4 Character constants" 14 Example 3.
+  (signals.wcs.reader () "#2{ return '\\0223; }#"))
+
 (test test-reader-integer-bad-character
   (signals.wcs.reader () "#2{ return 1ff; }#")    
   (signals.wcs.reader () "#2{ return 08; }#")

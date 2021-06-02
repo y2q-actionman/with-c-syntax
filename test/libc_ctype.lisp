@@ -5,7 +5,7 @@
 (in-readtable with-c-syntax-readtable)
 
 (test test-ctype-isalnum
-  #{
+  #2{
   // control
   is(! isalnum('\x00'));
   is(! isalnum('\x08'));
@@ -51,7 +51,7 @@
   }#)
 
 (test test-ctype-isalpha
-  #{
+  #2{
   // control
   is(! isalpha('\x00'));
   is(! isalpha('\x08'));
@@ -97,7 +97,7 @@
   }#)
 
 (test test-ctype-islower
-  #{
+  #2{
   // control
   is(! islower('\x00'));
   is(! islower('\x08'));
@@ -143,7 +143,7 @@
   }#)
 
 (test test-ctype-isupper
-  #{
+  #2{
   // control
   is(! isupper('\x00'));
   is(! isupper('\x08'));
@@ -189,7 +189,7 @@
   }#)
 
 (test test-ctype-isdigit
-  #{
+  #2{
   // control
   is(! isdigit('\x00'));
   is(! isdigit('\x08'));
@@ -235,7 +235,7 @@
   }#)
 
 (test test-ctype-isxdigit
-  #{
+  #2{
   // control
   is(! isxdigit('\x00'));
   is(! isxdigit('\x08'));
@@ -281,7 +281,7 @@
   }#)
 
 (test test-ctype-iscntrl
-  #{
+  #2{
   // control
   is(iscntrl('\x00'));
   is(iscntrl('\x08'));
@@ -327,7 +327,7 @@
   }#)
 
 (test test-ctype-isgraph
-  #{
+  #2{
   // control
   is(! isgraph('\x00'));
   is(! isgraph('\x08'));
@@ -373,7 +373,7 @@
   }#)
 
 (test test-ctype-isspace
-  #{
+  #2{
   // control
   is(! isspace('\x00'));
   is(! isspace('\x08'));
@@ -419,7 +419,7 @@
   }#)
 
 (test test-ctype-isblank
-  #{
+  #2{
   // control
   is(! isblank('\x00'));
   is(! isblank('\x08'));
@@ -465,7 +465,7 @@
   }#)
 
 (test test-ctype-isprint
-  #{
+  #2{
   // control
   is(! isprint('\x00'));
   is(! isprint('\x08'));
@@ -511,7 +511,7 @@
   }#)
 
 (test test-ctype-ispunct
-  #{
+  #2{
   // control
   is(! ispunct('\x00'));
   is(! ispunct('\x08'));
@@ -558,32 +558,32 @@
 
 (test test-ctype-tolower
   #{
-  is(char=('a', tolower('A')));
-  is(char=('b', tolower('B')));
-  is(char=('c', tolower('C')));
-  is(char=('z', tolower('Z')));
-  is(char=('a', tolower('a')));
-  is(char=('b', tolower('b')));
-  is(char=('c', tolower('c')));
-  is(char=('z', tolower('z')));
-  is(char=('!', tolower('!')));
-  is(char=('?', tolower('?')));
-  is(char=(' ', tolower(' ')));
-  is(char=('\t', tolower('\t')));
+  is(char=(#\a, tolower(#\A)));
+  is(char=(#\b, tolower(#\B)));
+  is(char=(#\c, tolower(#\C)));
+  is(char=(#\z, tolower(#\Z)));
+  is(char=(#\a, tolower(#\a)));
+  is(char=(#\b, tolower(#\b)));
+  is(char=(#\c, tolower(#\c)));
+  is(char=(#\z, tolower(#\z)));
+  is(char=(#\!, tolower(#\!)));
+  is(char=(#\?, tolower(#\?)));
+  is(char=(#\ , tolower(#\ )));
+  is(char=(#\tab, tolower(#\tab)));
   }#)
 
 (test test-ctype-toupper
   #{
-  is(char=('A', toupper('A')));
-  is(char=('B', toupper('B')));
-  is(char=('C', toupper('C')));
-  is(char=('Z', toupper('Z')));
-  is(char=('A', toupper('a')));
-  is(char=('B', toupper('b')));
-  is(char=('C', toupper('c')));
-  is(char=('Z', toupper('z')));
-  is(char=('!', toupper('!')));
-  is(char=('?', toupper('?')));
-  is(char=(' ', toupper(' ')));
-  is(char=('\t', toupper('\t')));
+  is(char=(#\A, toupper(#\A)));
+  is(char=(#\B, toupper(#\B)));
+  is(char=(#\C, toupper(#\C)));
+  is(char=(#\Z, toupper(#\Z)));
+  is(char=(#\A, toupper(#\a)));
+  is(char=(#\B, toupper(#\b)));
+  is(char=(#\C, toupper(#\c)));
+  is(char=(#\Z, toupper(#\z)));
+  is(char=(#\!, toupper(#\!)));
+  is(char=(#\?, toupper(#\?)));
+  is(char=(#\ , toupper(#\ )));
+  is(char=(#\tab, toupper(#\tab)));
   }#)

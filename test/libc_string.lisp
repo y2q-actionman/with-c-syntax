@@ -134,7 +134,7 @@
   ;; from cppreference;  https://en.cppreference.com/w/c/string/byte/strchr
   #{
   const char * str = "Try not. Do, or do not. There is no try.";
-  char target = 'T';
+  char target = #\T;
   void * result = str;
   int output_count = 0;
   void * output;
@@ -171,7 +171,7 @@
   ;; https://en.cppreference.com/w/c/string/byte/strrchr
   #{
     char szSomeFileName [] = "foo/bar/foobar.txt";
-    char * pLastSlash = strrchr(szSomeFileName, '/');
+    char * pLastSlash = strrchr(szSomeFileName, #\/);
     // ; I use `subseq' instead of pointer calculation.
     char * pszBaseName = pLastSlash ? subseq (pLastSlash, 1) : szSomeFileName;
     is (string= (format(nil, "Base Name: ~A", pszBaseName), // ; TODO: use `printf'.

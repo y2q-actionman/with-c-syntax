@@ -45,8 +45,6 @@ In level 1, these reader macros are installed.
   comment. '/' is still non-terminating and it has special meanings only
   if followed by '/' or '*'. (Ex: 'a/b/c' or '/+aaa+/' are still valid
   symbols.)
-- ''' :: The single-quote works as a character literal of C.  The
-  `quote' functionality is lost.
 - '\"' :: The double-quote works as a string literal of C. Especially,
   escaping is treated as C. The original functionality is lost.
 - ';' :: ';' becomes a terminating character, and read as a
@@ -82,8 +80,12 @@ symbol listed below.
          means a block comment.
 - '.' :: '.' or a numeric literal of C language.
 
-And, digit characters (0,1,2,3,4,5,6,7,8,9) are read as a C numeric
-literals.
+And, these characters are changed:
+
+- Digit characters (0,1,2,3,4,5,6,7,8,9) are read as a C numeric
+  literals.
+- The single-quote (') works as a character literal of C. The `quote'
+  functionality is lost.
 
 In this level, there is no compatibilities between symbols of Common
 Lisp.  Especially, for denoting a symbol consists of terminating
@@ -539,12 +541,12 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
     (set-macro-character #\. #'read-lonely-single-symbol t readtable)
     ;; Destroying CL standard syntax -- overwrite standard macro chars.
     (set-macro-character #\/ #'read-slash-comment t readtable)
-    (set-macro-character #\' #'read-single-quote nil readtable)
     (set-macro-character #\" #'read-double-quote nil readtable)
     (set-macro-character #\; #'read-single-character-symbol nil readtable)
     (set-macro-character #\( #'read-single-character-symbol nil readtable)
     (set-macro-character #\) #'read-single-character-symbol nil readtable))
   (when (>= level 2)			; Overkill
+    (set-macro-character #\' #'read-single-quote nil readtable)
     ;; No compatibilities between CL symbols.
     (set-macro-character #\? #'read-single-character-symbol nil readtable)
     (set-macro-character #\~ #'read-single-character-symbol nil readtable)
