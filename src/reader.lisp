@@ -135,8 +135,8 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
         ;; For supporting 'a| |b'
         (with-input-from-string (buf-stream buf)
           (with-open-stream (in (make-concatenated-stream buf-stream stream))
-            ;; TODO: restore old code which removes reader macro.
-            (let ((*readtable* *previous-syntax*))
+	    (let ((*readtable* (copy-readtable)))
+	      (set-syntax-from-char char char) ; Resets char to the standard syntax.
 	      (read in t nil t))))))
   #+ ()
   (let ((buf (make-array '(1) :element-type 'character
