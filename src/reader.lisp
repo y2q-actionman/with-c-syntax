@@ -53,10 +53,11 @@ In level 1, these reader macros are installed.
 - '(' and ')' :: parenthesis become a terminating character, and read
   as a symbol.  The 'reading a list' functionality is lost.
 
-Level 1 overwrites macro characters in the standard syntax.  Only
-constituent characters are left unchanged.  Especially, '(' and ')'
-loses its functionalities. For constructing a list of Lisp, the '`'
-syntax must be used.
+Level 1 still mostly keeps the syntax of symbols, since many
+constituent characters are left unchanged.  But some major macro
+characters are overwritten.  Especially, '(' and ')' loses its
+functionalities. For constructing a list of Lisp, the '`' syntax must
+be used.
 
 
 * Level 2 (overkill)
@@ -109,7 +110,10 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
 
 
 (defun read-in-previous-syntax (stream char)
-  (declare (ignore char))
+  (when (eq *readtable* *previous-syntax*)
+    (error 'with-c-syntax-reader-error
+           :format-control "read-in-previous-syntax used recusively by char ~C"
+           :format-arguments (list char)))
   (let ((*readtable* *previous-syntax*))
     (read stream t nil t)))
 
@@ -127,17 +131,23 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
 	 (get-macro-character char readtable)
        (and fn (not non-terminating-p))))))
 
+(defun read-after-unread (unread-char stream &optional eof-error-p eof-value recursive-p)
+  ;; I need this buffering to suppress calling `unread-char' too many times.
+  (let ((buf (make-string 1 :element-type 'character :initial-element unread-char)))
+    (declare (dynamic-extent buf))
+    (with-input-from-string (buf-stream buf)
+      (with-open-stream (conc-stream (make-concatenated-stream buf-stream stream))
+        (read conc-stream eof-error-p eof-value recursive-p)))))
+
 (defun read-lonely-single-symbol (stream char)
-  (let ((buf ; I need this buffering to suppress calling `unread-char' too many times.
-          (make-string 1 :element-type 'character :initial-element char))
-        (next ; I see only one character to keep escapes and spaces (consider '|a b|').
-          (peek-char nil stream t nil t)))
+  "If the next character in STREAM is terminating, returns a symbol made of CHAR.
+If not, returns a next token by `cl:read' after unreading CHAR." 
+  ;; See only one character to keep escapes and spaces (consider '|a b|').
+  (let ((next (peek-char nil stream t nil t)))
     (if (terminating-char-p next)
-        (symbolicate buf)
-        (with-input-from-string (buf-stream buf)
-          (with-open-stream (in (make-concatenated-stream buf-stream stream))
-            (let ((*readtable* (copy-readtable nil))) ; Use the standard syntax.
-              (read in t nil t)))))))
+        (symbolicate char)
+        (let ((*readtable* (copy-readtable nil))) ; Use the standard syntax.
+          (read-after-unread char stream t nil t)))))
 
 (defun read-solely-bar (stream char)
   (let ((next (peek-char nil stream t nil t)))
