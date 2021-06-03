@@ -30,6 +30,10 @@ many escapes for using C operators.
 
 In level 1, these reader macros are installed.
 
+- '0' :: If followed by 'x' or 'X', hexadecimal integer (like
+  '0xdeadbeef') and hexadecimal floating number (like '0x1.ffp1')
+  syntax are enabled. Otherwise, it is treated as a normal token of
+  Common Lisp.
 - '|' :: If '||' appeared, it becomes a symbol. The 'empty symbol'
   syntax is lost.  If '|' appeared followed by a terminating char, it
   becomes a single character symbol. Because '|' becomes a macro character,
@@ -517,6 +521,15 @@ If not, returns a next token by `cl:read' after unreading CHAR."
             (16 (read-hexadecimal-floating-constant pp-number)))
           (read-integer-constant pp-number radix)))))
 
+(defun read-0x-numeric-literal (stream c0)
+  "Read hexadecimal numeric literal of C."
+  ;; TODO: merge with `read-lonely-single-symbol'
+  (let ((next (peek-char nil stream t nil t)))
+    (if (char-equal next #\x)
+        (read-numeric-literal stream c0)
+        (let ((*readtable* (copy-readtable nil))) ; Use the standard syntax.
+          (read-after-unread c0 stream t nil t)))))
+
 (defun install-c-reader (readtable level)
   "Inserts reader macros for C reader. Called by '#{' reader macro."
   (check-type level integer)
@@ -526,6 +539,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     ;; Enables solely ':' as a symbol.
     (set-macro-character #\: #'read-lonely-single-symbol t readtable))
   (when (>= level 1) 			; Aggressive
+    ;; Treats '0x' numeric literal specially.
+    (set-macro-character #\0 #'read-0x-numeric-literal t readtable)
     ;; Reads '||' and solely '|' as a symbol.
     (set-macro-character #\| #'read-solely-bar t readtable)
     ;; brackets

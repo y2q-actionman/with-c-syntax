@@ -51,6 +51,19 @@
     }#))
 
 (test test-reader-aggressive
+  ;; '0x'
+  (is.equal.wcs #xdEADbEEF
+    #1{
+    return 0xDeadBeef;
+    }#)
+  (is.equal.wcs (scale-float (float #x1ff 0d0) (+ -8 1))
+    #1{
+    return 0x1.ff0p+1;
+    }#)
+  (is.equal.wcs 124                     ; no octals.
+    #1{
+    return 00124;
+    }#)
   ;; '|'
   (is.equal.wcs 100
     #1{
