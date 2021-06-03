@@ -12,6 +12,8 @@ implementation of the C Preprocessor.)
 * News
 ** 2021-5-24
    - C Numeric Literals are added. (Inspired by [[https://github.com/akanouras][@akanouras]]. See [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
+     Hexadecimal floating number syntax may be a only practical
+     feature of this package. (Try =#{ 0x1.fffp+1; }#=)
    
 ** 2019-4-25
 - I added some special handlings around =++=, =*=, etc.
@@ -247,14 +249,16 @@ Please see these docstrings or comments:
 
 * Further Information
 What this macro does is only expanding a list of symbols to a Lisp form.
-If you want a "C to Common Lisp" compiler, you should see [[https://github.com/vsedach/Vacietis][Vacietis]].
 
 If you are still interested, please see:
 https://github.com/y2q-actionman/with-c-syntax/wiki
 
+[[https://github.com/vsedach/Vacietis][Vacietis]] is a similer project. It is a "C to Common Lisp" compiler,
+based on reader macros.
+
 * License
 
-Copyright (c) 2014,2019 YOKOTA Yuki <y2q.actionman@gmail.com>
+Copyright (c) 2014,2019,2021 YOKOTA Yuki <y2q.actionman@gmail.com>
 
 This program is free software. It comes without any warranty, to
 the extent permitted by applicable law. You can redistribute it
