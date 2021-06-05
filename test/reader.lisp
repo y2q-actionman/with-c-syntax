@@ -6,6 +6,10 @@
 #.(setf *with-c-syntax-reader-level* with-c-syntax.core::+with-c-syntax-default-reader-level+)
 #.(setf *with-c-syntax-reader-case* nil)
 
+(test test-empty
+  (is (null #{}#))
+  (is (null #{ }#)))
+
 (test test-nil-reading
   (let ((*standard-output* (make-broadcast-stream))) ; dispose output.
     (is (equal #{ format (t, "Hello World!"); }#
@@ -13,6 +17,13 @@
   ;; (2019-2-24) Added for testing NIL reader.
   (is (equal #{ format (nil, "Hello World!"); }#
 	     "Hello World!")))
+
+(test test-simple-previous-syntax
+  (is (= #{`4 \; }#
+         4))
+  (is (= #{`(+ 1 2) ;
+	 }#
+         3)))
 
 (test test-nested-use
   (is (= (let ((x 0))
@@ -419,6 +430,9 @@
     }#)
   ;; 
   )
+
+;;; TODO: add trigraph test
+;;; TODO: add backslash-newline test
 
 (test test-reader-integer
   (is.equal.wcs 0

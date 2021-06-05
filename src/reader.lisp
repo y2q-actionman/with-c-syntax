@@ -108,6 +108,14 @@ wrapping `with-c-syntax' form.
 When this is nil, the `readtable-case' of the current `*readtable*' at
 '#{' is used." )
 
+(defvar *with-c-syntax-reader-process-trigraph* :auto
+  "Determines whether #{ }# reader replaces C trigraphs.
+ Replacement occurs if this is T, or :auto and reader level >= 2.")
+
+(defvar *with-c-syntax-reader-process-backslash-newline* :auto
+  "Determines #{ }# reader deletes backslash-newline sequence.
+ Deletion occurs if this is T, or :auto and reader level >= 2.")
+
 (defvar *previous-syntax* (copy-readtable nil)
   "Holds the readtable used by #\` syntax.
 This is bound by '#{' read macro to the `*readtable*' at that time.")
@@ -597,14 +605,113 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   ;; - 'L' prefix of character literals.
   readtable)
 
-(defun read-2chars-delimited-list (c1 c2 &optional stream recursive-p)
-  "Used by `read-in-c-syntax' for reading '#{ ... }#' syntax."
-  (loop for lis = (read-delimited-list c1 stream recursive-p)
-     nconc lis
-     until (char= c2 (peek-char nil stream t nil recursive-p))
-     collect (symbolicate c1)	; assumes c1 is a kind of terminating.
-     finally
-       (assert (char= c2 (read-char stream t nil recursive-p))))) ; eat the peeked char.
+(defun find-trigraph-character-by-last-character (char)
+  (case char
+    (#\= #\#)
+    (#\( #\[)
+    (#\/ #\\)
+    (#\) #\])
+    (#\' #\^)
+    (#\< #\{)
+    (#\! #\|)
+    (#\> #\})
+    (#\- #\~)
+    (otherwise nil)))
+
+(defun read-physical-source (stream recursive-p process-trigraph process-backslash-newline)
+  "Do translation phase 1 and 2 to STREAM until EOF, '}#', or '`' found."
+  (let ((buffer (make-array 128 :element-type 'character :adjustable t :fill-pointer 0))
+        (status :unspeficied)
+        (newline-gap 0))
+    (with-output-to-string (out buffer)
+      (flet ((flush-newline-gap ()
+               (loop while (plusp newline-gap)
+                     do (write-char #\newline out)
+                        (decf newline-gap))))
+        (loop
+          for c0 = nil then (progn (when c0 (write-char c0 out))
+                                   c1) 
+          for c1 = (read-char stream nil nil recursive-p)
+          
+          when (null c1)                ; EOF
+            do (setf status :eof)
+               (loop-finish)
+          when (and (eql #\} c0)        ; '}#' sequence.
+                    (eql #\# c1))
+            do (setf status :|}#|
+                     c0 nil
+                     c1 nil)
+               (loop-finish)
+          when (eql #\` c1)      ; '`' -- Must be read with `cl:read'.
+            do (setf status :read-in-previous-syntax-requested
+                     c1 nil)
+               (loop-finish) 
+          
+          if (and process-trigraph ; Trigraph
+                  (eql #\? c0)
+                  (eql #\? c1))
+            do (when-let* ((c2 (peek-char nil stream nil nil recursive-p))
+                           (replaced-char
+                            (find-trigraph-character-by-last-character c2)))
+                 (read-char stream t :eof recursive-p) ; Eat c2
+                 (setf c0 nil
+                       c1 replaced-char))
+          if (and process-backslash-newline ; backslash + newline
+                  (eql #\newline c1))
+            do (cond
+                 ((eql #\\ c0)
+                  (setf c0 nil
+                        c1 nil)
+                  (incf newline-gap))
+                 (t       ; Write back newlines for keeping '__LINE__'
+                  (flush-newline-gap)))
+               ;;  TODO: process comment here.
+          finally
+             (when c0
+               (write-char c0 out))
+             (assert (null c1))
+             (flush-newline-gap))))
+    (values buffer status)))
+
+(defun tokenize-logical-source (stream recursive-p)
+  "Do translation phase 3 to STREAM, returns a list of tokens and a
+ readtable used for reading tokens."
+  (loop for i = (read stream nil :eof recursive-p)
+        until (eq i :eof) 
+        collect i))
+
+(defun tokenize-source (level stream recursive-p)
+  "Tokenize C source by doing translation phase 1, 2, and 3.
+ LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
+  (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
+         (*previous-syntax* *readtable*)
+         (*readtable* (copy-readtable))
+         (process-trigraph
+           (if (eq *with-c-syntax-reader-process-trigraph* :auto)
+               (>= level 2)
+               *with-c-syntax-reader-process-trigraph*))
+         (process-backslash-newline
+           (if (eq *with-c-syntax-reader-process-backslash-newline* :auto)
+               (>= level 2)
+               *with-c-syntax-reader-process-backslash-newline*)))
+    (install-c-reader *readtable* level)
+    (when *with-c-syntax-reader-case*
+      (setf (readtable-case *readtable*) *with-c-syntax-reader-case*))
+    (loop
+      for (logical-source status) = (multiple-value-list
+                                     (read-physical-source stream recursive-p
+                                                           process-trigraph
+                                                           process-backslash-newline))
+      nconc (with-input-from-string (in logical-source)
+              (tokenize-logical-source in recursive-p))
+        into token-list
+      if (eq status :read-in-previous-syntax-requested)
+        collect (read-in-previous-syntax stream #\`)
+          into token-list
+      else
+        do (loop-finish)
+      finally
+         (return (values token-list *readtable*)))))
 
 (defun read-in-c-syntax (stream char n)
   "Called by '#{' reader macro of `with-c-syntax-readtable'.
@@ -612,15 +719,13 @@ Inside '#{' and '}#', the reader uses completely different syntax, and
 the result is wrapped with `with-c-syntax'.
  See `*with-c-syntax-reader-level*' and `*with-c-syntax-reader-case*'."
   (assert (char= char #\{))
-  (let* ((*previous-syntax* *readtable*)
-         (*readtable* (copy-readtable))
-         (*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
-         (level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2)))
-    (when *with-c-syntax-reader-case*
-      (setf (readtable-case *readtable*) *with-c-syntax-reader-case*))
-    (install-c-reader *readtable* level)
-    `(with-c-syntax (:readtable-case ,(readtable-case *readtable*)) ; Capture the readtable-case used for reading inside '#{ ... }#'.
-       ,@(read-2chars-delimited-list #\} #\# stream t))))
+  (let ((level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2)))
+    (multiple-value-bind (tokens readtable)
+        (tokenize-source level stream t)
+      `(with-c-syntax (:readtable-case
+                       ;; Capture the readtable-case used for reading inside '#{ ... }#'.
+                       ,(readtable-case readtable))
+         ,@tokens))))
 
 (defreadtable with-c-syntax-readtable
   (:merge :standard)
