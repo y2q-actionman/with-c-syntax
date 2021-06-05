@@ -1,6 +1,23 @@
 (in-package #:with-c-syntax.core)
 
-;; These are referenced by the parser directly.
+(defmacro lambda-ignoring-_ (lambda-list &body body)
+  "Works like `cl:lambda' macro except automatically `declare's
+ `ignore' for required parameters beginning with '_' character."
+  (let ((ignored-parameters
+          (loop for i in lambda-list
+                when (and (symbolp i)
+                          (starts-with #\_ (symbol-name i)))
+                  collect i)))
+    (unless ignored-parameters
+      (warn "No ignored parameters in: ~A" lambda-list))
+    (multiple-value-bind (body decls doc)
+        (parse-body body :documentation t)
+      `(lambda ,lambda-list
+         ,@ (if doc `(,doc))
+         (declare (ignore ,@ignored-parameters))
+         ,@decls
+         ,@body))))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun add-to-tail (lis i)
     (append lis (list i))))

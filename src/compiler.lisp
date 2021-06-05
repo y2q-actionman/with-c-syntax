@@ -544,14 +544,12 @@ Returns (values var-init var-type)."
   (add-to-tail lis i))
 
 (defun lispify-unary (op)
-  #'(lambda (_ exp)
-      (declare (ignore _))
-      `(,op ,exp)))
+  (lambda-ignoring-_ (_ exp)
+    `(,op ,exp)))
 
 (defun lispify-binary (op)
-  #'(lambda (exp1 _ exp2)
-      (declare (ignore _))
-      `(,op ,exp1 ,exp2)))
+  (lambda-ignoring-_ (exp1 _ exp2)
+    `(,op ,exp1 ,exp2)))
 )
 
 (defun lispify-type-name (spec-qual abs)
@@ -1158,18 +1156,18 @@ This is not intended for calling directly. The `va_start' macro uses this."
   (wcs-entry-point
    (translation-unit
     ;; I require `lambda' for avoiding `eval-when' around `expand-translation-unit'
-    #'(lambda (us) (expand-translation-unit us)))
+    (lambda (us) (expand-translation-unit us)))
    (labeled-stat
-    #'(lambda (st) (expand-toplevel-stat st)))
+    (lambda (st) (expand-toplevel-stat st)))
    ;; exp-stat is not included, because it is grammatically ambiguous.
    (compound-stat
-    #'(lambda (st) (expand-toplevel-stat st)))
+    (lambda (st) (expand-toplevel-stat st)))
    (selection-stat
-    #'(lambda (st) (expand-toplevel-stat st)))
+    (lambda (st) (expand-toplevel-stat st)))
    (iteration-stat
-    #'(lambda (st) (expand-toplevel-stat st)))
+    (lambda (st) (expand-toplevel-stat st)))
    (jump-stat
-    #'(lambda (st) (expand-toplevel-stat st))))
+    (lambda (st) (expand-toplevel-stat st))))
 
 
   (translation-unit
@@ -1184,35 +1182,33 @@ This is not intended for calling directly. The `va_start' macro uses this."
 
   (function-definition
    (decl-specs declarator decl-list compound-stat
-    #'(lambda (ret name k&r-decls body)
-	(lispify-function-definition name body
-				     :return ret
-				     :K&R-decls k&r-decls)))
+    (lambda (ret name k&r-decls body)
+      (lispify-function-definition name body
+				   :return ret
+				   :K&R-decls k&r-decls)))
    (           declarator decl-list compound-stat
-    #'(lambda (name k&r-decls body)
-	(lispify-function-definition name body
-				     :K&R-decls k&r-decls)))
+    (lambda (name k&r-decls body)
+      (lispify-function-definition name body
+				   :K&R-decls k&r-decls)))
    (decl-specs declarator           compound-stat
-    #'(lambda (ret name body)
-	(lispify-function-definition name body
-				     :return ret)))
+    (lambda (ret name body)
+      (lispify-function-definition name body
+				   :return ret)))
    (           declarator           compound-stat
-    #'(lambda (name body)
-	(lispify-function-definition name body))))
+    (lambda (name body)
+      (lispify-function-definition name body))))
 
   (decl
    (decl-specs init-declarator-list \;
-               #'(lambda (dspecs inits _t)
-                   (declare (ignore _t))
-		   (finalize-decl-specs dspecs)
-		   `(,dspecs
-		     ,(mapcar #'(lambda (i) (finalize-init-declarator dspecs i))
-                              inits))))
+               (lambda-ignoring-_ (dspecs inits _t)
+                 (finalize-decl-specs dspecs)
+		 `(,dspecs
+		   ,(mapcar (lambda (i) (finalize-init-declarator dspecs i))
+                            inits))))
    (decl-specs \;
-               #'(lambda (dspecs _t)
-                   (declare (ignore _t))
-		   (finalize-decl-specs dspecs)
-		   `(,dspecs nil))))
+               (lambda-ignoring-_ (dspecs _t)
+		 (finalize-decl-specs dspecs)
+		 `(,dspecs nil))))
 
   (decl-list
    (decl
@@ -1223,26 +1219,26 @@ This is not intended for calling directly. The `va_start' macro uses this."
   ;; returns a 'decl-specs' structure
   (decl-specs
    (storage-class-spec decl-specs
-                       #'(lambda (cls dspecs)
-                           (push cls (decl-specs-storage-class dspecs))
-                           dspecs))
+                       (lambda (cls dspecs)
+                         (push cls (decl-specs-storage-class dspecs))
+                         dspecs))
    (storage-class-spec
-    #'(lambda (cls)
-	(make-decl-specs :storage-class `(,cls))))
+    (lambda (cls)
+      (make-decl-specs :storage-class `(,cls))))
    (type-spec decl-specs
-              #'(lambda (tp dspecs)
-                  (push tp (decl-specs-type-spec dspecs))
-                  dspecs))
+              (lambda (tp dspecs)
+                (push tp (decl-specs-type-spec dspecs))
+                dspecs))
    (type-spec
-    #'(lambda (tp)
-	(make-decl-specs :type-spec `(,tp))))
+    (lambda (tp)
+      (make-decl-specs :type-spec `(,tp))))
    (type-qualifier decl-specs
-                   #'(lambda (qlr dspecs)
-                       (push qlr (decl-specs-qualifier dspecs))
-                       dspecs))
+                   (lambda (qlr dspecs)
+                     (push qlr (decl-specs-qualifier dspecs))
+                     dspecs))
    (type-qualifier
-    #'(lambda (qlr)
-	(make-decl-specs :qualifier `(,qlr)))))
+    (lambda (qlr)
+      (make-decl-specs :qualifier `(,qlr)))))
 
   (storage-class-spec
    |auto| |register| |static| |extern| |typedef|) ; keywords
@@ -1262,19 +1258,17 @@ This is not intended for calling directly. The `va_start' macro uses this."
   ;; returns a struct-or-union-spec structure
   (struct-or-union-spec
    (struct-or-union id { struct-decl-list }
-                    #'(lambda (kwd id _l decl _r)
-                        (declare (ignore _l _r))
-			(make-struct-or-union-spec
-			 :type kwd :id id :struct-decl-list decl)))
+                    (lambda-ignoring-_ (kwd id _l decl _r)
+		      (make-struct-or-union-spec
+		       :type kwd :id id :struct-decl-list decl)))
    (struct-or-union    { struct-decl-list }
-                    #'(lambda (kwd _l decl _r)
-                        (declare (ignore _l _r))
-			(make-struct-or-union-spec
-			 :type kwd :struct-decl-list decl)))
+                    (lambda-ignoring-_ (kwd _l decl _r)
+		      (make-struct-or-union-spec
+		       :type kwd :struct-decl-list decl)))
    (struct-or-union id
-                    #'(lambda (kwd id)
-			(make-struct-or-union-spec
-			 :type kwd :id id))))
+                    (lambda (kwd id)
+		      (make-struct-or-union-spec
+		       :type kwd :id id))))
 
   (struct-or-union
    |struct| |union|)                        ; keywords
@@ -1294,37 +1288,35 @@ This is not intended for calling directly. The `va_start' macro uses this."
   ;; returns an init-declarator structure
   (init-declarator
    (declarator
-    #'(lambda (d)
-	(make-init-declarator :declarator d)))
+    (lambda (d)
+      (make-init-declarator :declarator d)))
    (declarator with-c-syntax.syntax:= initializer
-               #'(lambda (d _op i)
-                   (declare (ignore _op))
-		   (make-init-declarator :declarator d
-					 :initializer i))))
+               (lambda-ignoring-_ (d _op i)
+		 (make-init-declarator :declarator d
+				       :initializer i))))
 
   ;; returns (spec-qualifier-list . struct-declarator-list)
   (struct-decl
    (spec-qualifier-list struct-declarator-list \;
-                        #'(lambda (qls dcls _t)
-                            (declare (ignore _t))
-			    (cons qls dcls))))
+                        (lambda-ignoring-_ (qls dcls _t)
+			  (cons qls dcls))))
 
   ;; returns a spec-qualifier-list structure
   (spec-qualifier-list
    (type-spec spec-qualifier-list
-	      #'(lambda (tp lis)
-		  (push tp (spec-qualifier-list-type-spec lis))
-		  lis))
+	      (lambda (tp lis)
+		(push tp (spec-qualifier-list-type-spec lis))
+		lis))
    (type-spec
-    #'(lambda (tp)
-	(make-spec-qualifier-list :type-spec `(,tp))))
+    (lambda (tp)
+      (make-spec-qualifier-list :type-spec `(,tp))))
    (type-qualifier spec-qualifier-list
-		   #'(lambda (ql lis)
-		       (push ql (spec-qualifier-list-qualifier lis))
-		       lis))
+		   (lambda (ql lis)
+		     (push ql (spec-qualifier-list-qualifier lis))
+		     lis))
    (type-qualifier
-    #'(lambda (ql)
-	(make-spec-qualifier-list :qualifier `(,ql)))))
+    (lambda (ql)
+      (make-spec-qualifier-list :qualifier `(,ql)))))
 
   (struct-declarator-list
    (struct-declarator
@@ -1335,30 +1327,25 @@ This is not intended for calling directly. The `va_start' macro uses this."
   ;; returns a struct-declarator structure
   (struct-declarator
    (declarator
-    #'(lambda (d)
-	(make-struct-declarator :declarator d)))
+    (lambda (d)
+      (make-struct-declarator :declarator d)))
    (declarator \: const-exp
-	       #'(lambda (d _c bits)
-		   (declare (ignore _c))
-		   (make-struct-declarator :declarator d :bits bits)))
+	       (lambda-ignoring-_ (d _c bits)
+		 (make-struct-declarator :declarator d :bits bits)))
    (\: const-exp
-       #'(lambda (_c bits)
-	   (declare (ignore _c))
-	   (make-struct-declarator :bits bits))))
+       (lambda-ignoring-_ (_c bits)
+	 (make-struct-declarator :bits bits))))
 
   ;; returns an enum-spec structure
   (enum-spec
    (|enum| id { enumerator-list }
-         #'(lambda (_kwd id _l lis _r)
-             (declare (ignore _kwd _l _r))
+           (lambda-ignoring-_ (_kwd id _l lis _r)
 	     (make-enum-spec :id id :enumerator-list lis)))
    (|enum|    { enumerator-list }
-         #'(lambda (_kwd _l lis _r)
-             (declare (ignore _kwd _l _r))
+           (lambda-ignoring-_ (_kwd _l lis _r)
 	     (make-enum-spec :enumerator-list lis)))
    (|enum| id
-         #'(lambda (_kwd id)
-             (declare (ignore _kwd))
+           (lambda-ignoring-_ (_kwd id)
 	     (make-enum-spec :id id))))
 
   (enumerator-list
@@ -1370,69 +1357,58 @@ This is not intended for calling directly. The `va_start' macro uses this."
   ;; returns an enumerator structure
   (enumerator
    (id
-    #'(lambda (id)
-	(make-enumerator :declarator id)))
+    (lambda (id)
+      (make-enumerator :declarator id)))
    (id with-c-syntax.syntax:= const-exp
-       #'(lambda (id _op exp)
-           (declare (ignore _op))
-	   (make-enumerator :declarator id :initializer exp))))
+       (lambda-ignoring-_ (id _op exp)
+         (make-enumerator :declarator id :initializer exp))))
 
   ;; returns like:
   ;; (name (:aref nil) (:funcall nil) (:aref 5) (:funcall int))
   ;; processed in 'expand-init-declarator-init'
   (declarator
    (pointer direct-declarator
-    #'(lambda (ptr dcls)
-        (append dcls ptr)))
+            (lambda (ptr dcls)
+              (append dcls ptr)))
    direct-declarator)
 
   (direct-declarator
    (id
     #'list)
    (\( declarator \)
-    #'(lambda (_lp dcl _rp)
-	(declare (ignore _lp _rp))
-        dcl))
+    (lambda-ignoring-_ (_lp dcl _rp)
+      dcl))
    (direct-declarator [ const-exp ]
-    #'(lambda (dcl _lp params _rp)
-	(declare (ignore _lp _rp))
-        (add-to-tail dcl `(:aref ,params))))
+    (lambda-ignoring-_ (dcl _lp params _rp)
+      (add-to-tail dcl `(:aref ,params))))
    (direct-declarator [		  ]
-    #'(lambda (dcl _lp _rp)
-	(declare (ignore _lp _rp))
-        (add-to-tail dcl '(:aref nil))))
+    (lambda-ignoring-_ (dcl _lp _rp)
+      (add-to-tail dcl '(:aref nil))))
    (direct-declarator \( param-type-list \)
-    #'(lambda (dcl _lp params _rp)
-	(declare (ignore _lp _rp))
-        (add-to-tail dcl `(:funcall ,params))))
+    (lambda-ignoring-_ (dcl _lp params _rp)
+      (add-to-tail dcl `(:funcall ,params))))
    (direct-declarator \( id-list \)
-    #'(lambda (dcl _lp params _rp)
-	(declare (ignore _lp _rp))
-        (add-to-tail dcl `(:funcall
-                           ;; make as a list of (decl-spec (id))
-                           ,(mapcar #'(lambda (p) `(nil (,p))) params)))))
+    (lambda-ignoring-_ (dcl _lp params _rp)
+      (add-to-tail dcl `(:funcall
+                         ;; make as a list of (decl-spec (id))
+                         ,(mapcar (lambda (p) `(nil (,p))) params)))))
    (direct-declarator \(	 \)
-    #'(lambda (dcl _lp _rp)
-	(declare (ignore _lp _rp))
-        (add-to-tail dcl '(:funcall nil)))))
+    (lambda-ignoring-_ (dcl _lp _rp)
+      (add-to-tail dcl '(:funcall nil)))))
 
   (pointer
    (with-c-syntax.syntax:* type-qualifier-list
-    #'(lambda (_kwd qls)
-        (declare (ignore _kwd))
-        `((:pointer ,@qls))))
+    (lambda-ignoring-_ (_kwd qls)
+      `((:pointer ,@qls))))
    (with-c-syntax.syntax:*
-    #'(lambda (_kwd)
-        (declare (ignore _kwd))
-        '((:pointer))))
+    (lambda-ignoring-_ (_kwd)
+      '((:pointer))))
    (with-c-syntax.syntax:* type-qualifier-list pointer
-    #'(lambda (_kwd qls ptr)
-        (declare (ignore _kwd))
-        (add-to-tail ptr `(:pointer ,@qls))))
+    (lambda-ignoring-_ (_kwd qls ptr)
+      (add-to-tail ptr `(:pointer ,@qls))))
    (with-c-syntax.syntax:*			pointer
-    #'(lambda (_kwd ptr)
-        (declare (ignore _kwd))
-        (add-to-tail ptr '(:pointer)))))
+    (lambda-ignoring-_ (_kwd ptr)
+      (add-to-tail ptr '(:pointer)))))
 			  
 
   (type-qualifier-list
@@ -1469,13 +1445,11 @@ This is not intended for calling directly. The `va_start' macro uses this."
   (initializer
    assignment-exp
    ({ initializer-list }
-    #'(lambda (_lp inits _rp)
-	(declare (ignore _lp _rp))
-        inits))
+    (lambda-ignoring-_ (_lp inits _rp)
+      inits))
    ({ initializer-list \, }
-    #'(lambda (_lp inits _cm _rp)
-	(declare (ignore _lp _cm _rp))
-        inits)))
+    (lambda-ignoring-_ (_lp inits _cm _rp)
+      inits)))
 
   (initializer-list
    (initializer
@@ -1486,62 +1460,53 @@ This is not intended for calling directly. The `va_start' macro uses this."
   ;; see 'decl'
   (type-name
    (spec-qualifier-list abstract-declarator
-			#'(lambda (spec-qual abs)
-			    (lispify-type-name spec-qual abs)))
+			(lambda (spec-qual abs)
+			  (lispify-type-name spec-qual abs)))
    (spec-qualifier-list
-    #'(lambda (spec-qual)
-	(lispify-type-name spec-qual nil))))
+    (lambda (spec-qual)
+      (lispify-type-name spec-qual nil))))
 
   ;; inserts 'nil' as a name
   (abstract-declarator
    (pointer
-    #'(lambda (ptr)
-	`(nil ,@ptr)))
+    (lambda (ptr)
+      `(nil ,@ptr)))
    (pointer direct-abstract-declarator
-    #'(lambda (ptr dcls)
-	`(nil ,@dcls ,@ptr)))
+    (lambda (ptr dcls)
+      `(nil ,@dcls ,@ptr)))
    (direct-abstract-declarator
-    #'(lambda (adecl)
-	`(nil ,@adecl))))
+    (lambda (adecl)
+      `(nil ,@adecl))))
 
   ;; see 'direct-declarator'
   (direct-abstract-declarator
    (\( abstract-declarator \)
-    #'(lambda (_lp dcl _rp)
-	(declare (ignore _lp _rp))
-        dcl))
+    (lambda-ignoring-_ (_lp dcl _rp)
+      dcl))
    (direct-abstract-declarator [ const-exp ]
-    #'(lambda (dcls _lp params _rp)
-	(declare (ignore _lp _rp))
-        (add-to-tail dcls `(:aref ,params))))
+    (lambda-ignoring-_ (dcls _lp params _rp)
+      (add-to-tail dcls `(:aref ,params))))
    (			       [ const-exp ]
-    #'(lambda (_lp params _rp)
-	(declare (ignore _lp _rp))
-        `((:aref ,params))))
+    (lambda-ignoring-_ (_lp params _rp)
+      `((:aref ,params))))
    (direct-abstract-declarator [	   ]
-    #'(lambda (dcls _lp _rp)
-	(declare (ignore _lp _rp))
-        (add-to-tail dcls `(:aref nil))))
+    (lambda-ignoring-_ (dcls _lp _rp)
+      (add-to-tail dcls `(:aref nil))))
    (			       [	   ]
-    #'(lambda (_lp _rp)
-	(declare (ignore _lp _rp))
-        '((:aref nil))))
+    (lambda-ignoring-_ (_lp _rp)
+      '((:aref nil))))
    (direct-abstract-declarator \( param-type-list \)
-    #'(lambda (dcls _lp params _rp)
-	(declare (ignore _lp _rp))
-        (add-to-tail dcls `(:funcall ,params))))
+    (lambda-ignoring-_ (dcls _lp params _rp)
+      (add-to-tail dcls `(:funcall ,params))))
    (			       \( param-type-list \)
-    #'(lambda (_lp params _rp)
-	(declare (ignore _lp _rp))
-        `((:funcall ,params))))
+    (lambda-ignoring-_ (_lp params _rp)
+      `((:funcall ,params))))
    (direct-abstract-declarator \(		  \)
-    #'(lambda (dcls _lp _rp)
-	(declare (ignore _lp _rp))
-        (add-to-tail dcls '(:funcall nil))))
+    (lambda-ignoring-_ (dcls _lp _rp)
+      (add-to-tail dcls '(:funcall nil))))
    (			       \(		  \)
-    #'(lambda (_lp _rp)
-	(declare (ignore _lp _rp))
-        '((:funcall nil)))))
+    (lambda-ignoring-_ (_lp _rp)
+      '((:funcall nil)))))
 
   (typedef-name
    typedef-id)
@@ -1558,135 +1523,108 @@ This is not intended for calling directly. The `va_start' macro uses this."
 
   (labeled-stat
    (id \: stat
-       #'(lambda (id _c stat)
-	   (declare (ignore _c))
-	   (push id (stat-code stat))
-	   stat))
+       (lambda-ignoring-_ (id _c stat)
+	 (push id (stat-code stat))
+	 stat))
    (|case| const-exp \: stat
-       #'(lambda (_k  exp _c stat)
-	   (declare (ignore _k _c))
-	   (push-case-label exp stat)
-	   stat))
+       (lambda-ignoring-_ (_k  exp _c stat)
+	 (push-case-label exp stat)
+	 stat))
    (|default| \: stat
-       #'(lambda (_k _c stat)
-	   (declare (ignore _k _c))
-	   (push-case-label '|default| stat)
-	   stat)))
+       (lambda-ignoring-_ (_k _c stat)
+	 (push-case-label '|default| stat)
+	 stat)))
 
   (exp-stat
    (exp \;
-	#'(lambda (exp _term)
-	    (declare (ignore _term))
-	    (make-stat :code (list exp))))
+	(lambda-ignoring-_ (exp _term)
+	  (make-stat :code (list exp))))
    (\;
-    #'(lambda (_term)
-	(declare (ignore _term))
-	(make-stat))))
+    (lambda-ignoring-_ (_term)
+      (make-stat))))
 
   (compound-stat
    ({ decl-list stat-list }
-      #'(lambda (_lb dcls stat _rb)
-          (declare (ignore _lb _rb))
-	  (setf (stat-declarations stat)
-		(append dcls (stat-declarations stat)))
-	  stat))
+      (lambda-ignoring-_ (_lb dcls stat _rb)
+	(setf (stat-declarations stat)
+	      (append dcls (stat-declarations stat)))
+	stat))
    ({ stat-list }
-      #'(lambda (_lb stat _rb)
-	  (declare (ignore _lb _rb))
-	  stat))
+      (lambda-ignoring-_ (_lb stat _rb)
+	stat))
    ({ decl-list	}
-      #'(lambda (_lb dcls _rb)
-	  (declare (ignore _lb _rb))
-	  (make-stat :declarations dcls)))
+      (lambda-ignoring-_ (_lb dcls _rb)
+	(make-stat :declarations dcls)))
    ({ }
-      #'(lambda (_lb _rb)
-	  (declare (ignore _lb _rb))
-	  (make-stat))))
+      (lambda-ignoring-_ (_lb _rb)
+	(make-stat))))
 
   (stat-list
    stat
    (stat-list stat
-    #'(lambda (st1 st2)
-	(merge-stat st1 st2))))
+    (lambda (st1 st2)
+      (merge-stat st1 st2))))
 
   (selection-stat
    (|if| \( exp \) stat
-       #'(lambda (_op _lp exp _rp stat)
-	   (declare (ignore _op _lp _rp))
+         (lambda-ignoring-_ (_op _lp exp _rp stat)
 	   (expand-if-statement exp stat)))
    (|if| \( exp \) stat |else| stat
-       #'(lambda (_op _lp exp _rp stat1 _el stat2)
-	   (declare (ignore _op _lp _rp _el))
+         (lambda-ignoring-_ (_op _lp exp _rp stat1 _el stat2)
 	   (expand-if-statement exp stat1 stat2)))
    (|switch| \( exp \) stat
-	   #'(lambda (_k _lp exp _rp stat)
-	       (declare (ignore _k _lp _rp))
+	     (lambda-ignoring-_ (_k _lp exp _rp stat)
 	       (expand-switch exp stat))))
 
   (iteration-stat
    (|while| \( exp \) stat
-	  #'(lambda (_k _lp cond _rp body)
-	      (declare (ignore _k _lp _rp))
+	    (lambda-ignoring-_ (_k _lp cond _rp body)
 	      (expand-loop body :cond cond)))
    (|do| stat |while| \( exp \) \;
-     #'(lambda (_k1 body _k2 _lp cond _rp _t)
-	 (declare (ignore _k1 _k2 _lp _rp _t))
-	 (expand-loop body :cond cond :post-test-p t)))
+         (lambda-ignoring-_ (_k1 body _k2 _lp cond _rp _t)
+	   (expand-loop body :cond cond :post-test-p t)))
    (|for| \( exp \; exp \; exp \) stat
-	#'(lambda (_k _lp init _t1 cond _t2 step _rp body)
-	    (declare (ignore _k _lp _t1 _t2 _rp))
+	  (lambda-ignoring-_ (_k _lp init _t1 cond _t2 step _rp body)
 	    (expand-loop body :init init :cond cond :step step)))
    (|for| \( exp \; exp \;     \) stat
-	#'(lambda (_k _lp init _t1 cond _t2      _rp body)
-	    (declare (ignore _k _lp _t1 _t2 _rp))
+	  (lambda-ignoring-_ (_k _lp init _t1 cond _t2      _rp body)
 	    (expand-loop body :init init :cond cond)))
    (|for| \( exp \;     \; exp \) stat
-	#'(lambda (_k _lp init _t1      _t2 step _rp body)
-	    (declare (ignore _k _lp _t1 _t2 _rp))
+	  (lambda-ignoring-_ (_k _lp init _t1      _t2 step _rp body)
 	    (expand-loop body :init init :step step)))
    (|for| \( exp \;     \;     \) stat
-	#'(lambda (_k _lp init _t1      _t2      _rp body)
-	    (declare (ignore _k _lp _t1 _t2 _rp))
+	  (lambda-ignoring-_ (_k _lp init _t1      _t2      _rp body)
 	    (expand-loop body :init init)))
    (|for| \(     \; exp \; exp \) stat
-	#'(lambda (_k _lp      _t1 cond _t2 step _rp body)
-	    (declare (ignore _k _lp _t1 _t2 _rp))
+	  (lambda-ignoring-_ (_k _lp      _t1 cond _t2 step _rp body)
 	    (expand-loop body :cond cond :step step)))
    (|for| \(     \; exp \;     \) stat
-	#'(lambda (_k _lp      _t1 cond _t2      _rp body)
-	    (declare (ignore _k _lp _t1 _t2 _rp))
+	  (lambda-ignoring-_ (_k _lp      _t1 cond _t2      _rp body)
 	    (expand-loop body :cond cond)))
    (|for| \(     \;     \; exp \) stat
-	#'(lambda (_k _lp      _t1      _t2 step _rp body)
-	    (declare (ignore _k _lp _t1 _t2 _rp))
+	  (lambda-ignoring-_ (_k _lp      _t1      _t2 step _rp body)
 	    (expand-loop body :step step)))
    (|for| \(     \;     \;     \) stat
-	#'(lambda (_k _lp      _t1      _t2      _rp body)
-	    (declare (ignore _k _lp _t1 _t2 _rp))
+	  (lambda-ignoring-_ (_k _lp      _t1      _t2      _rp body)
 	    (expand-loop body))))
 
   (jump-stat
    (|goto| id \;
-	 #'(lambda (_k id _t)
-	     (declare (ignore _k _t))
+	   (lambda-ignoring-_ (_k id _t)
 	     (make-stat :code (list `(go ,id)))))
    (|continue| \;
-	     #'(lambda (_k _t)
-		 (declare (ignore _k _t))
+	       (lambda-ignoring-_ (_k _t)
 		 (make-stat-unresolved-continue)))
    (|break| \;
-	  #'(lambda (_k _t)
-	      (declare (ignore _k _t))
+	    (lambda-ignoring-_ (_k _t)
 	      (make-stat-unresolved-break)))
    (|return| exp \;
-	   #'(lambda (_k exp _t)
-	       (declare (ignore _k _t))
-	       ;; use the block of PROG
+	     (lambda-ignoring-_ (_k exp _t)
+	       ;; use the block of `PROG'
 	       (make-stat :code (list `(return ,exp)))))
    (|return| \;
-	   #'(lambda (_k _t)
-	       (declare (ignore _k _t))
-	       ;; use the block of PROG
+	     (lambda-ignoring-_ (_k _t)
+	       ;; use the block of `PROG'
 	       (make-stat :code (list `(return (values)))))))
 
 
@@ -1725,9 +1663,8 @@ This is not intended for calling directly. The `va_start' macro uses this."
   (conditional-exp
    logical-or-exp
    (logical-or-exp ? exp \: conditional-exp
-		   #'(lambda (cnd _op1 then-exp _op2 else-exp)
-		       (declare (ignore _op1 _op2))
-		       `(if ,cnd ,then-exp ,else-exp))))
+		   (lambda-ignoring-_ (cnd _op1 then-exp _op2 else-exp)
+		     `(if ,cnd ,then-exp ,else-exp))))
 
   (const-exp
    conditional-exp)
@@ -1801,9 +1738,8 @@ This is not intended for calling directly. The `va_start' macro uses this."
   (cast-exp
    unary-exp
    (\( type-name \) cast-exp
-       #'(lambda (_lp type _rp exp)
-	   (declare (ignore _lp _rp))
-           (lispify-cast type exp))))
+       (lambda-ignoring-_ (_lp type _rp exp)
+         (lispify-cast type exp))))
 
   ;; 'unary-operator' is included here
   (unary-exp
@@ -1813,9 +1749,8 @@ This is not intended for calling directly. The `va_start' macro uses this."
    (-- unary-exp
        (lispify-unary 'decf))
    (& cast-exp
-      #'(lambda (_op exp)
-          (declare (ignore _op))
-	  (lispify-address-of exp)))
+      (lambda-ignoring-_ (_op exp)
+	(lispify-address-of exp)))
    (with-c-syntax.syntax:* cast-exp
       (lispify-unary 'pseudo-pointer-dereference))
    (with-c-syntax.syntax:+ cast-exp
@@ -1827,15 +1762,13 @@ This is not intended for calling directly. The `va_start' macro uses this."
    (~ cast-exp
       (lispify-unary 'lognot))
    (|sizeof| unary-exp
-	   #'(lambda (_op exp)
-	       (declare (ignore _op))
+	     (lambda-ignoring-_ (_op exp)
 	       ;; calculate runtime
 	       `(if (arrayp ,exp)
 		    (array-total-size ,exp)
 		    1)))
    (|sizeof| \( type-name \)
-	   #'(lambda (_op _lp tp _rp)
-	       (declare (ignore _op _lp _rp))
+	     (lambda-ignoring-_ (_op _lp tp _rp)
 	       ;; calculate compile-time
 	       (if (subtypep tp 'array)
                    (let ((array-dim (and (listp tp) (third tp))))
@@ -1850,49 +1783,40 @@ This is not intended for calling directly. The `va_start' macro uses this."
   (postfix-exp
    primary-exp
    (postfix-exp [ exp ]
-		#'(lambda (exp _lb idx _rb)
-		    (declare (ignore _lb _rb))
-                    (if (starts-with 'lisp-subscript exp)
-			(add-to-tail exp idx)
-                        `(lisp-subscript ,exp ,idx))))
+		(lambda-ignoring-_ (exp _lb idx _rb)
+                  (if (starts-with 'lisp-subscript exp)
+		      (add-to-tail exp idx)
+                      `(lisp-subscript ,exp ,idx))))
    (postfix-exp \( argument-exp-list \)
-		#'(lambda (exp _lp args _rp)
-		    (declare (ignore _lp _rp))
-                    (lispify-funcall exp args)))
+		(lambda-ignoring-_ (exp _lp args _rp)
+                  (lispify-funcall exp args)))
    (postfix-exp \( \)
-		#'(lambda (exp _lp _rp)
-		    (declare (ignore _lp _rp))
-                    (lispify-funcall exp nil)))
+		(lambda-ignoring-_ (exp _lp _rp)
+                  (lispify-funcall exp nil)))
    (postfix-exp \. id
-		#'(lambda (exp _op id)
-		    (declare (ignore _op))
-		    `(struct-member ,exp ',id)))
+		(lambda-ignoring-_ (exp _op id)
+		  `(struct-member ,exp ',id)))
    (postfix-exp -> id
-		#'(lambda (exp _op id)
-		    (declare (ignore _op))
-		    `(struct-member (pseudo-pointer-dereference ,exp) ',id)))
+		(lambda-ignoring-_ (exp _op id)
+		  `(struct-member (pseudo-pointer-dereference ,exp) ',id)))
    (postfix-exp with-c-syntax.syntax:++
-		#'(lambda (exp _op)
-		    (declare (ignore _op))
-		    `(post-incf ,exp 1)))
+		(lambda-ignoring-_ (exp _op)
+		  `(post-incf ,exp 1)))
    (postfix-exp --
-		#'(lambda (exp _op)
-		    (declare (ignore _op))
-		    `(post-incf ,exp -1))))
+		(lambda-ignoring-_ (exp _op)
+		  `(post-incf ,exp -1))))
 
   (primary-exp
    id
    const
    string
    (\( exp \)
-       #'(lambda  (_1 x _3)
-	   (declare (ignore _1 _3))
-	   x))
+       (lambda-ignoring-_  (_1 x _3)
+	 x))
    lisp-expression			; added
-   (|__offsetof| \( decl-specs \, id \)   ; added
-                 #'(lambda (_op _lp dspecs _cm id _rp)
-                     (declare (ignore _op _lp _cm _rp))
-                     (lispify-offsetof dspecs id))))
+   (|__offsetof| \( decl-specs \, id \) ; added
+                 (lambda-ignoring-_ (_op _lp dspecs _cm id _rp)
+                   (lispify-offsetof dspecs id))))
 
 
   (argument-exp-list
@@ -1905,5 +1829,5 @@ This is not intended for calling directly. The `va_start' macro uses this."
    int-const
    char-const
    float-const
-   #+ignore enumeration-const)		; currently unused
+   #+ () enumeration-const)		; currently unused
   )
