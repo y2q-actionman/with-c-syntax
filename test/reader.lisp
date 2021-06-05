@@ -50,6 +50,9 @@
     return 1 ? 2 : 3 \;
     }#))
 
+(define-symbol-macro unknown-symbol
+    '(error "This symbol should not be referenced."))
+
 (test test-reader-aggressive
   ;; '0x'
   (is.equal.wcs #xdEADbEEF
