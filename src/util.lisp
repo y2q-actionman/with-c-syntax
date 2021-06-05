@@ -20,7 +20,8 @@
   "Calls nreconc with reversed order args. A helper for `nreconcf'."
   (nreconc list tail))
 
-;; modify macros
+;;; Modify macros
+
 (define-modify-macro push-right (i)
   add-to-tail)
 
@@ -55,7 +56,8 @@
   logior)
 
 (defmacro post-incf (form &optional (delta 1) &environment env)
-  "A post increment version of ~incf~."
+  "A post increment version of `incf'."
+  ;; TODO: use `serapeum:define-post-modify-macro' of in serapeum.
   (multiple-value-bind (dummies vals newval setter getter)
       (get-setf-expansion form env)
     (with-gensyms (ret delta-tmp)
@@ -65,7 +67,8 @@
 	      (,(car newval) (+ ,ret ,delta-tmp)))
 	 (prog1 ,ret
 	   ,setter)))))
-;;; TODO: use define-post-modify-macro of in serapeum.
+ 
+;;; Array dimensions
 
 (defun make-dimension-list (dims &optional default)
   "Constructs a nested list like `make-array'."
