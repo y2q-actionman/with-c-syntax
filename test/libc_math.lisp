@@ -435,7 +435,7 @@
   // ; Specials
   // ; TODO: FIXME: `float' is overwritten because it is a C keyword.
   // ; I think some workaround is needed here.
-  check-errno (is (|logb| (0.0) == `(float with-c-syntax.libc:FP_ILOGB0 0d0)), EDOM, :alternate-errno, nil);
+  check-errno (is (|logb| (0.0) == `(float FP_ILOGB0 0d0)), EDOM, :alternate-errno, nil);
   check-errno (is (|logb| (double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|logb| (double-float-negative-infinity) == double-float-negative-infinity), nil);
   check-errno (float-nan-p (|logb| (double-float-nan)), nil);
@@ -552,10 +552,10 @@
   is (float-equal (|pow| (-1.1, 2), 1.21));
   is (float-equal (|pow| (-1.1, -2), `(/ 1.21)));
 
-  is (pow (0.0, 1) == 0.0);
-  is (pow (-0.0, 1) == -0.0);
-  is (pow (0.0, 2) == 0.0);
-  is (pow (-0.0, 2.5) == 0.0);
+  is (|pow| (0.0, 1) == 0.0);
+  is (|pow| (-0.0, 1) == -0.0);
+  is (|pow| (0.0, 2) == 0.0);
+  is (|pow| (-0.0, 2.5) == 0.0);
   
   // ; Errors and specials
   check-errno (is (float-nan-p (|pow| (-2.1, 0.3))), EDOM);

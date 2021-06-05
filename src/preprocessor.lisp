@@ -18,31 +18,6 @@ NAME. If not found, returns `nil'."
   (gethash name *cache-for-find-c-terminal-upcase*))
 
 
-(defun build-interning-cache (package)
-  "Build hash-tables used by `intern-c-terminal' and `intern-libc-symbol'."
-  (loop with tab = (make-hash-table :test #'equal)
-     with ci-tab = (make-hash-table :test #'equalp)
-     for sym being the external-symbol of package
-     as name = (symbol-name sym)
-     do (setf (gethash name tab) sym)
-     do (setf (gethash name ci-tab) sym)
-     finally (return (values tab ci-tab))))
-
-(let (libc-symbol-table ci-libc-symbol-table)
-  (defun build-libc-symbol-cache (&optional (package (find-package '#:with-c-syntax.libc)))
-    "Build a cache used by `intern-libc-symbol'"
-    (setf (values libc-symbol-table ci-libc-symbol-table)
-	  (build-interning-cache package)))
-  (defun intern-libc-symbol (name case-sensitive)
-    "Finds a symbol in the libc package having a same name as NAME
-based on CASE-SPEC. If not found, returns `nil'."
-    (unless (and libc-symbol-table ci-libc-symbol-table)
-      (build-libc-symbol-cache))
-    (gethash name (if case-sensitive
-                      libc-symbol-table
-                      ci-libc-symbol-table))))
-
-
 (defconstant +preprocessor-macro+
   '+preprocessor-macro+
   "A symbol used as an indicator of `symbol-plist' holding the preprocessor function.
@@ -290,14 +265,6 @@ calls the function like:
 	        (setf typedef-hack nil)
 	        (revappendf ret '(|void| \;))))
 	 (go processed!)) ; I assume all no proprocessor macros defined.
-       ;; interning libc keywords.
-       (when-let ((lib-op (intern-libc-symbol (symbol-name token)
-                                              (ecase readtable-case ; FIXME
-                                                ((:upcase :downcase) nil)
-                                                ((:preserve :invert) t)))))
-	 (setf token lib-op)
-         ;; Fallthough. Libc macro shall be expended.
-         )
        ;; preprocessor macro
        (when-let ((pp-macro (find-preprocessor-macro token)))
 	 (cond ((functionp pp-macro)	; preprocessor funcion

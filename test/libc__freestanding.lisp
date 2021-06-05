@@ -163,28 +163,28 @@
 (test test-libc-stddef
   (is.equal.wcs nil
     return NULL \;)
-  (is.equal.wcs t
-    return NULL \( NULL \) \;)		; Combination of `cl:null' and C's NULL.
+  (is.equal.wcs t             ; Combination of `cl:null' and C's NULL.
+    return NULL \( NULL \) \;)
   (is.equal.wcs 1
     {
-    ptrdiff_t x = 1 \;
+    |ptrdiff_t| x = 1 \;
     return x \;
     })
   (is.equal.wcs 2
     {
-    size_t x = 2 \;
+    |size_t| x = 2 \;
     return x \;
     })
   (is.equal.wcs 3
     {
-    wchar_t x = 3 \;
+    |wchar_t| x = 3 \;
     return x \;
     })
 
   (signals.macroexpand.wcs ()
-    return offsetof \( int \, i \) \;)
+    return |offsetof| \( int \, i \) \;)
   (signals.macroexpand.wcs ()
-    return offsetof \( struct s \, i \) \;)
+    return |offsetof| \( struct s \, i \) \;)
 
   (is.equal.wcs t
     {
@@ -198,10 +198,10 @@
     struct s dummy \;
     \( void \) dummy \;
 
-    return offsetof \( struct s \, i \) >= 0
-     && offsetof \( struct s \, c \) >= offsetof \( struct s \, i \)
-     && offsetof \( struct s \, d \) >= offsetof \( struct s \, c \)
-     && offsetof \( struct s \, a \) >= offsetof \( struct s \, d \) \;
+    return |offsetof| \( struct s \, i \) >= 0
+     && |offsetof| \( struct s \, c \) >= |offsetof| \( struct s \, i \)
+     && |offsetof| \( struct s \, d \) >= |offsetof| \( struct s \, c \)
+     && |offsetof| \( struct s \, a \) >= |offsetof| \( struct s \, d \) \;
     }))
 
 ;;; <stdarg.h>

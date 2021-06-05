@@ -127,21 +127,21 @@
 (declaim (ftype function sumn))
 (test test-trans-fdefinition-varargs
   (signals.wcs ()
-    va_list ap \;
-    va_start \( ap \, cnt \) \;)
+    |va_list| ap \;
+    |va_start| \( ap \, cnt \) \;)
   (with-testing-wcs-bind (sumn)
     (with-c-syntax ()
       int sumn \( int cnt \, |...| \) {
          int i \, ret = 0 \;
-         va_list ap \;
+         |va_list| ap \;
 
-         va_start \( ap \, cnt \) \;
+         |va_start| \( ap \, cnt \) \;
 
          for \( i = 0 \; i < cnt \; i ++ \) {
-           ret += va_arg \( ap \, int \) \;
+           ret += |va_arg| \( ap \, int \) \;
          }
 
-         va_end \( ap \) \;
+         |va_end| \( ap \) \;
 
          return ret \;
       })

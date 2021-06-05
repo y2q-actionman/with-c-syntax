@@ -8,7 +8,8 @@
 
 (defun NULL (object)
   "An alias for `CL:NULL'.
-This is for using 'NULL' as C constant and Lisp function both."
+This is for convenience using 'NULL' as C constant and Lisp function
+both when `intern' the libc package."
   (cl:null object))
 
 (add-typedef '|ptrdiff_t| 'fixnum)

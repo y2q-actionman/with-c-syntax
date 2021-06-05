@@ -5,6 +5,6 @@
         #:alexandria
         #:1am
         #:float-features #:floating-point #:floating-point-contractions)
-  (:import-from #:with-c-syntax.libc
-                #:|errno| #:EDOM #:ERANGE #:EILSEQ)
+  (:shadowing-import-from #:with-c-syntax.libc #:NULL)
+  (:use #:with-c-syntax.libc)
   (:documentation "with-c-syntax test package."))
