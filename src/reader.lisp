@@ -632,23 +632,33 @@ If not, returns a next token by `cl:read' after unreading CHAR."
            (unread-char c stream)
            (return c)))
 
-(defun read-preprocessing-token (cp-stream)
+(defun read-preprocessing-token (stream c-readtable)
   "Reads a token from STREAM until EOF or '}#' found. Newline is read
  as `+newline-marker+'."
-  (let ((first-char (skip-c-whitespace cp-stream)))
+  (let ((first-char (skip-c-whitespace stream)))
     (cond
       ((eql first-char #\newline)  ; Preserve newline to preprocessor.
-       (read-char cp-stream)
+       (read-char stream)
        +newline-marker+)
+      ;; This path is required for SBCL.
+      ;; On Allegro, it is not needed. '}' reader macro (`read-right-curly-bracket') works good.
+      ((eql first-char #\})
+       (read-char stream)
+       (cond ((eql (peek-char nil stream t) #\#)
+              (read-char stream)
+              +wcs-end-marker+)
+             (t
+              '})))
       (t
-       (read cp-stream t :eof t)))))
+       (let ((*readtable* c-readtable))
+         (read stream t :eof t))))))
 
 (defun tokenize-source (level stream)
   "Tokenize C source by doing translation phase 1, 2, and 3.
  LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
          (*previous-syntax* *readtable*)
-         (*readtable* (copy-readtable))
+         (c-readtable (copy-readtable nil))
          (process-trigraph
            (if (eq *with-c-syntax-reader-process-trigraph* :auto)
                (>= level 2)
@@ -657,21 +667,21 @@ If not, returns a next token by `cl:read' after unreading CHAR."
            (if (eq *with-c-syntax-reader-process-backslash-newline* :auto)
                (>= level 2)
                *with-c-syntax-reader-process-backslash-newline*)))
-    (install-c-reader *readtable* level)
+    (install-c-reader c-readtable level)
     (when *with-c-syntax-reader-case*
-      (setf (readtable-case *readtable*) *with-c-syntax-reader-case*))
+      (setf (readtable-case c-readtable) *with-c-syntax-reader-case*))
     (loop
       with cp-stream = (make-instance 'physical-source-input-stream
-                                      :stream stream :target-readtable *readtable*
+                                      :stream stream :target-readtable c-readtable
                                       :phase-1 process-trigraph
                                       :phase-2 process-backslash-newline)
-      for token = (read-preprocessing-token cp-stream)
+      for token = (read-preprocessing-token cp-stream c-readtable)
       if (eq token +wcs-end-marker+)
         do (loop-finish)
       unless (eq token +newline-marker+) ; TODO: FIXME: Brings this newlines to preprocessor.
         collect token into token-list
       finally
-         (return (values token-list *readtable*)))))
+         (return (values token-list c-readtable)))))
 
 (defun read-in-c-syntax (stream char n)
   "Called by '#{' reader macro of `with-c-syntax-readtable'.
