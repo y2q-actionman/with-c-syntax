@@ -3,7 +3,7 @@
   :license "WTFPL"
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
   :depends-on (#:alexandria #:yacc #:named-readtables
-                            #:cl-ppcre
+                            #:cl-ppcre #:trivial-gray-streams
                             ;; for libc implementation (TODO: split libc defsystem from core?)
                             #:osicat #:float-features #:floating-point-contractions)
   :serial t
@@ -21,7 +21,8 @@
                  (:file "compiler"
 		  :depends-on ("struct" "typedef" "pseudo-pointer" "preprocessor"))
                  (:file "with-c-syntax" :depends-on ("compiler"))
-                 (:file "reader" :depends-on ("with-c-syntax"))))
+                 (:file "physical-source" :depends-on ("package"))
+                 (:file "reader" :depends-on ("with-c-syntax" "physical-source"))))
                (:module "libc"
 		:serial nil	
                 :components

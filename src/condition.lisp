@@ -3,13 +3,7 @@
 (define-condition with-c-syntax-error (simple-error)
   ()
   (:documentation
-   "* Class Precedence List
-with-c-syntax-error, simple-error, ...
-
-* Description
-The type ~with-c-syntax-error~ consists of all errors in with-c-syntax
-system.
-"))
+   "The root class of all errors in with-c-syntax system."))
 
 (define-condition with-c-syntax-reader-error (with-c-syntax-error reader-error)
   ()

@@ -37,7 +37,6 @@
 	   }#)
 	 12)))
 
-#.(setf *with-c-syntax-reader-level* 0)
 (test test-reader-conservative
   ;; comma
   (is.equal.wcs 2

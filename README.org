@@ -212,20 +212,21 @@ This library is quicklisp-ready.
 ** or, Loading manually
 
 *** Libraries depending on
-- cl-yacc
+- cl-yacc :: As a parser for C syntax
 - alexandria
-- named-readtables
-- cl-ppcre  
+- named-readtables :: For exporting '#{' reader syntax.
+- cl-ppcre :: For parsing numeric constants.
+- trivial-gray-streams :: For implementing translation phase 1 and 2 correctly.
 
 **** by libc
 - osicat
-- float-features
-- floating-point-contractions
+- float-features :: For math.h, dealing NaN and Infinities.
+- floating-point-contractions :: For math.h, to implement some functions.
 
 **** by test codes
-- 1am
-- trivial-cltl2
-- floating-point
+- 1am :: As a testing framework.
+- trivial-cltl2 :: For using =compiler-let= to test =NDEBUG=.
+- floating-point :: For comparing mathmatical function results.
 
 *** Load with ASDF
 #+BEGIN_SRC lisp
