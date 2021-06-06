@@ -177,8 +177,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
      (values))
     (#\*
      (read-char stream t nil t)
-     (loop (peek-char #\* stream t nil t) ; skips until '*' char.
-	(read-char stream t nil t)	  ; and eats the '*'
+     (loop (peek-char #\* stream t nil t)  ; skips until '*' char.
+	(read-char stream t nil t)      ; and eats the '*'
 	(when (char= #\/ (read-char stream t nil t)) ; checks whether the next is '/' ?
 	  (return)))
      (values))
@@ -547,6 +547,10 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     ;; Enables solely ':' as a symbol.
     (set-macro-character #\: #'read-lonely-single-symbol t readtable))
   (when (>= level 1) 			; Aggressive
+    ;; Newline is left for `__LINE__'
+    (set-syntax-from-char #\newline #\@ readtable)
+    ;; Vertical tab is a whitespace in C.
+    (set-syntax-from-char #.(code-char #x0b) #\space readtable)
     ;; Treats '0x' numeric literal specially.
     (set-macro-character #\0 #'read-0x-numeric-literal t readtable)
     ;; Reads '||' and solely '|' as a symbol.
@@ -605,6 +609,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   ;; - 'L' prefix of character literals.
   readtable)
 
+;;; Our own reader -- for translation phase 1, phase 2
+
 (defun find-trigraph-character-by-last-character (char)
   (case char
     (#\= #\#)
@@ -618,69 +624,136 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     (#\- #\~)
     (otherwise nil)))
 
-(defun read-physical-source (stream recursive-p process-trigraph process-backslash-newline)
-  "Do translation phase 1 and 2 to STREAM until EOF, '}#', or '`' found."
-  (let ((buffer (make-array 128 :element-type 'character :adjustable t :fill-pointer 0))
-        (status :unspeficied)
-        (newline-gap 0))
-    (with-output-to-string (out buffer)
-      (flet ((flush-newline-gap ()
-               (loop while (plusp newline-gap)
-                     do (write-char #\newline out)
-                        (decf newline-gap))))
-        (loop
-          for c0 = nil then (progn (when c0 (write-char c0 out))
-                                   c1) 
-          for c1 = (read-char stream nil nil recursive-p)
-          
-          when (null c1)                ; EOF
-            do (setf status :eof)
-               (loop-finish)
-          when (and (eql #\} c0)        ; '}#' sequence.
-                    (eql #\# c1))
-            do (setf status :|}#|
-                     c0 nil
-                     c1 nil)
-               (loop-finish)
-          when (eql #\` c1)      ; '`' -- Must be read with `cl:read'.
-            do (setf status :read-in-previous-syntax-requested
-                     c1 nil)
-               (loop-finish) 
-          
-          if (and process-trigraph ; Trigraph
-                  (eql #\? c0)
-                  (eql #\? c1))
-            do (when-let* ((c2 (peek-char nil stream nil nil recursive-p))
-                           (replaced-char
-                            (find-trigraph-character-by-last-character c2)))
-                 (read-char stream t :eof recursive-p) ; Eat c2
-                 (setf c0 nil
-                       c1 replaced-char))
-          if (and process-backslash-newline ; backslash + newline
-                  (eql #\newline c1))
-            do (cond
-                 ((eql #\\ c0)
-                  (setf c0 nil
-                        c1 nil)
-                  (incf newline-gap))
-                 (t       ; Write back newlines for keeping '__LINE__'
-                  (flush-newline-gap)))
-               ;;  TODO: process comment here.
-          finally
-             (when c0
-               (write-char c0 out))
-             (assert (null c1))
-             (flush-newline-gap))))
-    (values buffer status)))
+(defun c-whitespace-p (char)
+  (case char
+    ((#\space #\page #\newline #\return #\tab ; These are whitespace in Lisp and C both.
+	      #\linefeed  ; Only for Lisp. (Maybe same with #\newline)
+	      #. (code-char #x0b))	; Vertical tab -- only for C.
+     t)
+    (otherwise nil)))
 
-(defun tokenize-logical-source (stream recursive-p)
-  "Do translation phase 3 to STREAM, returns a list of tokens and a
- readtable used for reading tokens."
-  (loop for i = (read stream nil :eof recursive-p)
-        until (eq i :eof) 
-        collect i))
+(defun translation-early-phase (buffer stream
+                                process-trigraph process-backslash-newline)
+  "Called by `read-preprocessing-token'"
+  (let ((newline-gap 0)
+        (in-comment nil))
+    (do ((prev-c nil c)
+         (c (read-char stream nil :eof t) (read-char stream nil :eof t)))
+        ((eql c :eof)
+         (when in-comment
+           (warn "Comment reached to end-of-file")))
+      (pprint c)
+      ;; Translation Phase 1 -- Trigraph
+      (when (and process-trigraph
+                 (eql #\? c)
+                 (eql #\? prev-c))
+        (when-let* ((next (peek-char nil stream nil nil t))
+                    (replaced-char
+                     (find-trigraph-character-by-last-character next)))
+          (read-char stream t :eof t)   ; Eat next from stream
+          (vector-pop buffer)           ; Remove last #\?.
+          (setf c replaced-char
+                prev-c :deleted)))
+      ;; Translation Phase 2 -- backslash + newline
+      (when (and process-backslash-newline 
+                 (eql #\\ c)
+                 (eql #\newline (peek-char nil stream nil nil t)))
+        (read-char stream t :eof t)     ; Eat the newline from stream.
+        (incf newline-gap)
+        (go :continue))
+      ;; Translation Phase 3 -- Remove comments and tokenize.
+      (when in-comment
+        (cond ((and (eql in-comment :block)
+                    (eql #\* c)
+                    (eql #\/ (peek-char nil stream nil nil t)))
+               (read-char stream t :eof t) ; eat #\/
+               (return))
+              ((and (eql in-comment :line)
+                    (eql #\newline c))
+               (return))
+              (t
+               (go :continue))))
+      (when (and (eql #\} c)            ; '}#'
+                 (eql #\# (peek-char nil stream nil nil t)))
+        (read-char stream t :eof t)     ; eat #\#
+        (return))
+      (when (c-whitespace-p c)
+        (when (eql c #\newline)
+          (unread-char c stream))
+        (return))
+      (when (terminating-char-p c)
+        (unread-char c stream)
+        (return))
+      (when (eql #\\ c)                 ; Lisp's single escape
+        (vector-push-extend c buffer)
+        (vector-push-extend (read-char stream t nil t) buffer)
+        (go :continue))
+      (when (eql #\/ c)                 ; comment start
+        (case (peek-char nil stream nil nil t)
+          (#\*
+           (setf in-comment :block)
+           (go :continue))
+          (#\/
+           (setf in-comment :line)
+           (go :continue))))
+      ;; inside token
+      (vector-push-extend c buffer)
+     :continue)
+    (values buffer newline-gap)))
 
-(defun tokenize-source (level stream recursive-p)
+(defconstant +newline-marker+
+  '+newline-marker+
+  "Used for saving newline chars from reader to preprocessor")
+
+(defun read-from-early-phase-buffer (buffer)
+  (multiple-value-bind (token pos)
+      (read-from-string buffer)
+    (loop for i from pos below (length buffer)
+          for j from 0
+          do (setf (aref buffer j) (aref buffer i)))
+    (decf (fill-pointer buffer) pos)
+    token))
+
+(defun read-preprocessing-token (buffer newline-gap stream
+                                 process-trigraph process-backslash-newline)
+  "Do translation phase 1, 2, and 3 to STREAM until EOF, '}#', or '`' found."
+  (cond
+    ((not (length= 0 buffer))
+     (values (read-from-preprocessing-token-buffer buffer) newline-gap))
+    ((plusp newline-gap)
+     (values +newline-marker+ (1- newline-gap)))
+    (t
+     (let ((first-char (peek-char t stream t :eof t))) ; Skips whitespaces at beginning.
+       (cond
+         ((eql first-char #\newline)
+          ;; Preserve newline to preprocessor.
+          (read-char stream nil :eof t)
+          (values +newline-marker+ newline-gap))
+         ((get-macro-character first-char)
+          ;; Do not touch next char because its syntax is different.
+          (values (read stream t :eof t)
+                  newline-gap))
+         (t
+          (multiple-value-bind (buffer newline-gap)
+              (translation-early-phase buffer stream
+                                       process-trigraph process-backslash-newline)
+            (values (read-from-early-phase-buffer buffer)
+                    newline-gap))))))))
+
+(defun make-preprocessing-tokenizer (stream process-trigraph process-backslash-newline)
+  (if (or process-trigraph process-backslash-newline)
+      (let ((buffer (make-array 16 :element-type 'character :adjustable t :fill-pointer 0))
+            (newline-gap 0))
+        (lambda ()
+          (multiple-value-bind (token gap)
+              (read-preprocessing-token buffer newline-gap stream
+                                        process-trigraph process-backslash-newline)
+            (setf newline-gap gap)
+            token)))
+      (lambda ()
+        (read stream t nil t))))
+
+(defun tokenize-source (level stream)
   "Tokenize C source by doing translation phase 1, 2, and 3.
  LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
@@ -693,23 +766,20 @@ If not, returns a next token by `cl:read' after unreading CHAR."
          (process-backslash-newline
            (if (eq *with-c-syntax-reader-process-backslash-newline* :auto)
                (>= level 2)
-               *with-c-syntax-reader-process-backslash-newline*)))
+               *with-c-syntax-reader-process-backslash-newline*))
+         (*with-c-syntax-reader-process-trigraph* nil) ; supress recursive expansion
+         (*with-c-syntax-reader-process-backslash-newline* nil))
     (install-c-reader *readtable* level)
     (when *with-c-syntax-reader-case*
       (setf (readtable-case *readtable*) *with-c-syntax-reader-case*))
     (loop
-      for (logical-source status) = (multiple-value-list
-                                     (read-physical-source stream recursive-p
-                                                           process-trigraph
-                                                           process-backslash-newline))
-      nconc (with-input-from-string (in logical-source)
-              (tokenize-logical-source in recursive-p))
-        into token-list
-      if (eq status :read-in-previous-syntax-requested)
-        collect (read-in-previous-syntax stream #\`)
-          into token-list
-      else
-        do (loop-finish)
+      with tokenizer = (make-preprocessing-tokenizer stream process-trigraph
+                                                     process-backslash-newline )
+      for token = (handler-case (funcall tokenizer)
+                    (end-of-file ()
+                      (loop-finish)))
+      while token
+      collect token into token-list
       finally
          (return (values token-list *readtable*)))))
 
@@ -721,7 +791,7 @@ the result is wrapped with `with-c-syntax'.
   (assert (char= char #\{))
   (let ((level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2)))
     (multiple-value-bind (tokens readtable)
-        (tokenize-source level stream t)
+        (tokenize-source level stream)
       `(with-c-syntax (:readtable-case
                        ;; Capture the readtable-case used for reading inside '#{ ... }#'.
                        ,(readtable-case readtable))

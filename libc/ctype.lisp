@@ -37,6 +37,7 @@
       t)
     (otherwise nil)))
 
+;;; TODO: reuse reader's one.
 (defun |isblank| (char)			; assumes 'C' locale.
   (case char
     ((#\space #\tab) t)
