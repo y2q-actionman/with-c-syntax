@@ -2,6 +2,153 @@
 
 (in-readtable with-c-syntax-readtable)
 
+;;; Translation phase 1 ~ 3
+
+(test test-reader-trigraph
+  (is.equal.wcs "#[\\]^{|}~"
+    #2{
+    return "??=??(??/??/??)??'??<??!??>??-";
+    }#)
+  (is.equal.wcs "Eh?
+"
+    ;; from 5.2.1.1 example
+    #2{
+    return "Eh???/n";
+    }#)
+  (is.equal.wcs (logand (lognot (logior (logxor 1 3) 4)) #xFFFF)
+    #2{
+    int array??(??)=??<1,3??>;
+    int x = 0;
+    x=array??(0??)??'array??(1??); // x = array[0] ^ array[1];
+    x??!=0x4; // x |= 0x4;
+    x=??-x; // x ~= x;
+    x&=0xFFFF;
+    return x;
+    }#)
+  (is.equal.wcs 99
+    ;; '#{' can be closed with trigraph.
+    ;; (This feature is not intentional at first, but I thought it should be work at last.)
+    #2{ return 99; ??>??=
+    ))
+
+(test test-reader-backslash-newline
+  ;; Inside keywords, integer constants, strings.
+  (is.equal.wcs (format nil "116abcde~C" #\tab) 
+    #2{
+    // ; int foo = 100;
+    i\
+nt foo = 1\
+0\
+0;
+    // ; const char bar[] = "abcde\t";
+    const ch\
+ar b\
+ar[] = "ab\
+cd\
+e\\
+t";
+
+    // ; foo += 0x010;
+    fo\
+o +\
+= 0\
+x10\
+;	
+
+    // ; return format (nil, "~D~A", foo, bar);
+    ret\
+urn form\
+at (n\
+i\
+l, "~\
+D~A", foo\
+, ba\
+r);
+    }#)
+  ;; backslash-newline and comment syntax.
+  (is.equal.wcs t
+    #2{
+    // ; This Line is comment \
+    also, this line is a comment!!!
+    return t;
+    }#)
+  (is.equal.wcs t
+    #2{
+    /\
+/ This Line is comment 
+    return t;
+    }#)
+  (is.equal.wcs t
+    #2{
+    /\
+* This block is comment.
+    == comment == \
+    return 114514;
+    *\
+/
+    return t;
+    }#)
+  ;; trigraph can generate '\'
+  (is.equal.wcs "abcde"
+    #2{
+    return "abc??/
+de";
+    }#)
+  ;; Trigraph and backslash-newline and comment
+  (is.equal.wcs "many comments.."
+    #2{
+    /??/
+* This is a comment *??/
+/
+    // This is also comment ??/
+    This line is also comment.
+    return "many comments..";
+    }#)
+  ;; It works between '}#'.
+  (is.equal.wcs 0
+    #2{
+    return 0;
+    }\
+#  ))
+
+(test test-reader-comments-and-backquote
+  (is (block nil
+        #2{
+        // `(return nil) }# ; In C comment, '`' and '}#' does not works. 
+        return t;
+        }#))
+  (is #2{
+      return
+      `(progn
+         ;; `(,(error "???")) }#  In Lisp comment, }# does not works.
+         t);
+      }#)
+  (is (= 10
+       (block nil
+         #2{
+         // `(return nil) ; not works.
+         `(progn
+            ;; }# does not works.
+            #2{
+            // `(return nil) ; not works.
+            return
+            `(progn
+               (+
+                #| }# still not works. |#
+                1
+                #{ return `2; }#
+                #2{ return 3 // + 810
+                + /* `(return 114514) */ 4;
+                }#
+                ));
+            // }# `(return 'broken!)
+            }# #| }|#;# `(return 'broken!)
+            );
+         // `(return nil) ; not works.
+         }#))))
+
+;;; Tokenization
+
 (test test-reader-overkill
  (let ((x 2) (y 3))
   ;; single quote
@@ -226,104 +373,9 @@
     #2{
     int x=96+1428/357;
     return x==3+69258/714;
-    }#)
-  ;;
-  )
+    }#))
 
-(test test-reader-trigraph
-  (is.equal.wcs "#[\\]^{|}~"
-    #2{
-    return "??=??(??/??/??)??'??<??!??>??-";
-    }#)
-  (is.equal.wcs "Eh?
-"
-    ;; from 5.2.1.1 example
-    #2{
-    return "Eh???/n";
-    }#)
-  (is.equal.wcs (logand (lognot (logior (logxor 1 3) 4)) #xFFFF)
-    #2{
-    int array??(??)=??<1,3??>;
-    int x = 0;
-    x=array??(0??)??'array??(1??); // x = array[0] ^ array[1];
-    x??!=0x4; // x |= 0x4;
-    x=??-x; // x ~= x;
-    x&=0xFFFF;
-    return x;
-    }#)
-  (is.equal.wcs 99
-    ;; '#{' can be closed with trigraph.
-    ;; (This feature is not intentional at first, but I thought it should be work at last.)
-    #2{ return 99; ??>??=
-    ))
-
-(test test-reader-backslash-newline
-  ;; Inside keywords, integer constants, strings.
-  (is.equal.wcs (format nil "116abcde~C" #\tab) 
-    #2{
-    // ; int foo = 100;
-    i\
-nt foo = 1\
-0\
-0;
-    // ; const char bar[] = "abcde\t";
-    const ch\
-ar b\
-ar[] = "ab\
-cd\
-e\\
-t";
-
-    // ; foo += 0x010;
-    fo\
-o +\
-= 0\
-x10\
-;	
-
-    // ; return format (nil, "~D~A", foo, bar);
-    ret\
-urn form\
-at (n\
-i\
-l, "~\
-D~A", foo\
-, ba\
-r);
-    }#)
-  ;; backslash-newline and comment syntax.
-  (is.equal.wcs t
-    #2{
-    // ; This Line is comment \
-    also, this line is a comment!!!
-    return t;
-    }#)
-  (is.equal.wcs t
-    #2{
-    /\
-/ This Line is comment 
-    return t;
-    }#)
-  (is.equal.wcs t
-    #2{
-    /\
-* This block is comment.
-    == comment == \
-    return 114514;
-    *\
-/
-    return t;
-    }#)
-  ;; It works between '}#'.
-  (is.equal.wcs 0
-    #2{
-    return 0;
-    }\
-#  ))
-
-;; comments
-;; - Trigraph '??/' + newline, and comments.
-;; - suppressed in '`' escape.
+;;; Constants
 
 (test test-reader-integer
   (is.equal.wcs 0
@@ -373,8 +425,7 @@ r);
   (is.equal.wcs #b10
     #2{
     return 0b10;
-    }#)
-  )
+    }#))
 
 (test test-reader-bad-char-literal
   (signals.wcs.reader (end-of-file) "#2{ return '")
@@ -400,8 +451,7 @@ r);
   (signals.wcs.reader () "#2{ return 1ff; }#")
   (signals.wcs.reader () "#2{ return 08; }#")
   (signals.wcs.reader () "#2{ return 0xgg; }#")
-  (signals.wcs.reader () "#2{ return 0b22; }#")
-  )
+  (signals.wcs.reader () "#2{ return 0b22; }#"))
 
 (test test-reader-integer-suffix
   (is.equal.wcs 0
@@ -482,8 +532,7 @@ r);
   (is.equal.wcs #o42
     #2{
     return 042uLL;
-    }#)
-  )
+    }#))
 
 (test test-reader-integer-bad-suffix
   (signals.wcs.reader () "#2{ return 0uu; }#")
@@ -492,9 +541,7 @@ r);
   (signals.wcs.reader () "#2{ return 0lL; }#")
   (signals.wcs.reader () "#2{ return 0Ll; }#")
   (signals.wcs.reader () "#2{ return 0Lul; }#")
-  (signals.wcs.reader () "#2{ return 0uuL; }#")
-  ;;
-  )
+  (signals.wcs.reader () "#2{ return 0uuL; }#"))
 
 (test test-reader-decimal-float
   (is.equal.wcs 1d0
@@ -589,8 +636,7 @@ r);
        int e;
     } f = {42};
     return f.e+0.e+1+.1e-1f+.1f+1;
-    }#)
-  )
+    }#))
 
 (test test-reader-hexadecimal-float
   (signals.wcs.reader () "#2{ 0x0.0; }#")
@@ -703,8 +749,7 @@ r);
        int p;
     } f = {42};
     return f.p+0x0.p+1+0x.1p-1f+0x.1p0f+1;
-    }#)
-  )
+    }#))
 
 (test test-reader-minus-number
   ;; minus operator (Prefix '-' is not a part of C numeric literal.)
