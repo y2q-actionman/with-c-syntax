@@ -173,6 +173,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 
 (defun read-slash-comment (stream char
                            &optional (next-function #'read-lonely-single-symbol))
+  ;; TODO: Counts ate newlines into the stream, which is `physical-source-input-stream'.
   (case (peek-char nil stream t nil t)
     (#\/
      (read-line stream t nil t)

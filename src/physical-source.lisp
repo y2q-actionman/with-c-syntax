@@ -6,6 +6,10 @@
   "Determines whether #{ }# reader replaces C trigraphs.
  Replacement occurs if this is T, or :auto and reader level >= 2.")
 
+;;; You know characters covered by trigraphs are also included in the
+;;; Standard Characters of Common Lisp. (see CLHS 2.1.3)
+;;; Yes, it is very good, yes.
+
 (defvar *with-c-syntax-reader-process-backslash-newline* :auto
   "Determines #{ }# reader deletes backslash-newline sequence.
  Deletion occurs if this is T, or :auto and reader level >= 2.")

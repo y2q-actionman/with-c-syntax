@@ -257,12 +257,73 @@
     #2{ return 99; ??>??=
     ))
 
-;; backslash-newline test
+(test test-reader-backslash-newline
+  ;; Inside keywords, integer constants, strings.
+  (is.equal.wcs (format nil "116abcde~C" #\tab) 
+    #2{
+    // ; int foo = 100;
+    i\
+nt foo = 1\
+0\
+0;
+    // ; const char bar[] = "abcde\t";
+    const ch\
+ar b\
+ar[] = "ab\
+cd\
+e\\
+t";
 
-;;  comments
+    // ; foo += 0x010;
+    fo\
+o +\
+= 0\
+x10\
+;	
 
-;; Trigraph '??/' + newline, and comments.
-;; These are suppressed in '`' escape.
+    // ; return format (nil, "~D~A", foo, bar);
+    ret\
+urn form\
+at (n\
+i\
+l, "~\
+D~A", foo\
+, ba\
+r);
+    }#)
+  ;; backslash-newline and comment syntax.
+  (is.equal.wcs t
+    #2{
+    // ; This Line is comment \
+    also, this line is a comment!!!
+    return t;
+    }#)
+  (is.equal.wcs t
+    #2{
+    /\
+/ This Line is comment 
+    return t;
+    }#)
+  (is.equal.wcs t
+    #2{
+    /\
+* This block is comment.
+    == comment == \
+    return 114514;
+    *\
+/
+    return t;
+    }#)
+  ;; It works between '}#'.
+  (is.equal.wcs 0
+    #2{
+    return 0;
+    }\
+#  ))
+
+;; comments
+;; - Trigraph '??/' + newline, and comments.
+;; - suppressed in '`' escape.
 
 (test test-reader-integer
   (is.equal.wcs 0
