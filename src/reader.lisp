@@ -635,7 +635,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 (defun read-preprocessing-token (stream c-readtable)
   "Reads a token from STREAM until EOF or '}#' found. Newline is read
  as `+newline-marker+'."
-  (let ((first-char (skip-c-whitespace stream)))
+  (let* ((*readtable* c-readtable)
+         (first-char (skip-c-whitespace stream)))
     (cond
       ((eql first-char #\newline)  ; Preserve newline to preprocessor.
        (read-char stream)
@@ -650,8 +651,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
              (t
               '})))
       (t
-       (let ((*readtable* c-readtable))
-         (read stream t :eof t))))))
+       (read stream t :eof t)))))
 
 (defun tokenize-source (level stream)
   "Tokenize C source by doing translation phase 1, 2, and 3.

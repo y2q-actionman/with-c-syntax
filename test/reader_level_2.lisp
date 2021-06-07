@@ -230,8 +230,39 @@
   ;;
   )
 
-;;; TODO: add trigraph test
-;;; TODO: add backslash-newline test
+(test test-reader-trigraph
+  (is.equal.wcs "#[\\]^{|}~"
+    #2{
+    return "??=??(??/??/??)??'??<??!??>??-";
+    }#)
+  (is.equal.wcs "Eh?
+"
+    ;; from 5.2.1.1 example
+    #2{
+    return "Eh???/n";
+    }#)
+  (is.equal.wcs (logand (lognot (logior (logxor 1 3) 4)) #xFFFF)
+    #2{
+    int array??(??)=??<1,3??>;
+    int x = 0;
+    x=array??(0??)??'array??(1??); // x = array[0] ^ array[1];
+    x??!=0x4; // x |= 0x4;
+    x=??-x; // x ~= x;
+    x&=0xFFFF;
+    return x;
+    }#)
+  (is.equal.wcs 99
+    ;; '#{' can be closed with trigraph.
+    ;; (This feature is not intentional at first, but I thought it should be work at last.)
+    #2{ return 99; ??>??=
+    ))
+
+;; backslash-newline test
+
+;;  comments
+
+;; Trigraph '??/' + newline, and comments.
+;; These are suppressed in '`' escape.
 
 (test test-reader-integer
   (is.equal.wcs 0
