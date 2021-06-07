@@ -2,209 +2,8 @@
 
 (in-readtable with-c-syntax-readtable)
 
-;;; These reader variables should be evaluated in read-time.
-#.(setf *with-c-syntax-reader-level* with-c-syntax.core::+with-c-syntax-default-reader-level+)
-#.(setf *with-c-syntax-reader-case* nil)
-
-(test test-empty
-  (is (null #{}#))
-  (is (null #{ }#)))
-
-(test test-nil-reading
-  (let ((*standard-output* (make-broadcast-stream))) ; dispose output.
-    (is (equal #{ format (t, "Hello World!"); }#
-	       nil)))
-  ;; (2019-2-24) Added for testing NIL reader.
-  (is (equal #{ format (nil, "Hello World!"); }#
-	     "Hello World!")))
-
-(test test-simple-previous-syntax
-  (is (= #{`4 \; }#
-         4))
-  (is (= #{`(+ 1 2) ;
-	 }#
-         3)))
-
-(test test-nested-use
-  (is (= (let ((x 0))
-	   #{
-	   int y = x + 1;
-	   return `(let ((z (1+ y)))
-    		     #{
-    		     int ret = z + 10;
-    		     return ret;
-    		     }#);
-	   }#)
-	 12)))
-
-(test test-reader-conservative
-  ;; comma
-  (is.equal.wcs 2
-    #0{
-    int hoge-array [ ] = { 0,1,2 } \;
-    return hoge-array [ 2 ] \;
-    }#)
-  ;; ':'
-  (is.equal.wcs 2
-    #0{
-    return 1 ? 2 : 3 \;
-    }#)
-  (is.equal.wcs :keyword
-    #0{
-    return NIL ? :never-comes-here : :keyword \;
-    }#)
-  ;; check default-level
-  #.(setf *with-c-syntax-reader-level* 0)
-  (is.equal.wcs 2
-    #{
-    return 1 ? 2 : 3 \;
-    }#))
-
-(define-symbol-macro unknown-symbol
-    '(error "This symbol should not be referenced."))
-
-(test test-reader-aggressive
-  ;; '0x'
-  (is.equal.wcs #xdEADbEEF
-    #1{
-    return 0xDeadBeef;
-    }#)
-  (is.equal.wcs (scale-float (float #x1ff 0d0) (+ -8 1))
-    #1{
-    return 0x1.ff0p+1;
-    }#)
-  (is.equal.wcs 124                     ; no octals.
-    #1{
-    return 00124;
-    }#)
-  ;; '|'
-  (is.equal.wcs 100
-    #1{
-    return 100 ||unknown-symbol ||`(error "Never comes here.") \;
-    }#)
-  (is.equal.wcs #x16
-    ;; The weird suffix below is for avoiding confusion of syntax highlighting of slime.
-    #1{
-    return #x12 | #x6 \; // ; |
-    }#)
-  (is.equal.wcs '|escaped symbol|
-    #1{
-    return NIL ? `(error "Never comes here.") : '|escaped symbol| \;
-    }#)
-  ;; { and }
-  (is.equal.wcs 99
-    #1{{return 99 \;}}#)
-  ;; [ and ]
-  (is.equal.wcs 2
-    #1{
-    int hoge-array[]={0,1,2}\;
-    return hoge-array[2]\;
-    }#)
-  ;; `
-  (is.equal.wcs 7
-    #1{
-    return `(+ 4 3);
-    }#)
-  ;; '.'
-  (is.equal.wcs 3
-    #1{
-    struct{int x;}hoge ={3}\;
-    return hoge . x;
-    }#)
-  (is.equal.wcs (cons 1 2)
-    #1{
-    return `'(1 . 2);
-    }#)
-  ;; semicolon
-  (is.equal.wcs 3
-    #1{{1;2;return 3;}}#
-    )
-  ;; comments
-  (is.equal.wcs 6
-    #1{
-    return 1 // + 8000
-      + 2 /* + 9999 */
-      + 3;
-      }#)
-  (is.equal.wcs 3
-    #1{
-    int a/b/c = 1 \;
-    int /!abc!/ = 2 \;
-    return a/b/c + /!abc!/ \;
-    }#)
-  (is.equal.wcs 1
-    #1{
-    return 1 //+999999
-    \;}#)
-  ;; single quote is kept.
-  (is.equal.wcs 'a
-    #1{
-    return 'a \;
-    }#)
-  (is.equal.wcs '\u00A0
-    #1{
-    return '\u00A0 \;
-    }#)
-  ;; double quote
-  (is.equal.wcs "abc"
-    #1{
-    return "abc";
-    }#)
-  (is.equal.wcs ""
-    #1{
-    return "";
-    }#)
-  (is.equal.wcs (coerce '(#\Backspace #\Page #\Newline
-			#\Tab #\\ #\' #\" #\?)
-		      'string)
-    #1{
-    return "\b\f\n\t\\\'\"\?";
-    }#)
-  ;; depends ASCII
-  (is.equal.wcs (coerce (list (code-char #x07) (code-char #x0d)
-			     (code-char #x0b))
-		      'string)
-    #1{
-    return "\a\r\v";
-    }#)
-  (is.equal.wcs (string (code-char #o77))
-    #1{
-    return "\77";
-    }#)
-  (is.equal.wcs (coerce '(#.(code-char #o123) #\4)
-			'string)
-    #1{
-    return "\1234";
-    }#)
-  (is.equal.wcs (string (code-char #x99))
-    #1{
-    return "\x99";
-    }#)
-  (is.equal.wcs "$@`"
-    #1{
-    return "\u0024\u0040\u0060";
-    }#)
-  ;; parens
-  (is.equal.wcs "a"
-    #1{
-    return string(#\a);
-    }#)
-  ;; check default-level
-  #.(setf *with-c-syntax-reader-level* 1)
-  (is.equal.wcs 99
-    #{{return 99 \;}}#)
-  (is.equal.wcs 3
-    #{{1;2;return 3;}}#
-    ))
-
-(test test-reader-bad-string-literal
-  (signals.wcs.reader (end-of-file) "#1{ return \"; }#")
-  (signals.wcs.reader (end-of-file) "#1{ return \"\\\"; }#")
-  (signals.wcs.reader () "#1{ return \"
-\"; }#"))
-
 (test test-reader-overkill
- (let ((x 2) (y 3)) 
+ (let ((x 2) (y 3))
   ;; single quote
   (is.equal.wcs #\a
     #2{
@@ -403,16 +202,17 @@
     #2{
     struct{int x;}hoge={3};
     return (&hoge)->x;
-    }#)
+    }#)))
 
-  ;; check default-level
+(test test-reader-overkill-default-level
   #.(setf *with-c-syntax-reader-level* 2)
   (is.equal.wcs 6
     #{
     return 1 // + 8000
       + 2 /* + 9999 */
       + 3;
-    }#)))
+    }#)
+  #.(setf *with-c-syntax-reader-level* with-c-syntax.core::+with-c-syntax-default-reader-level+))
 
 (test test-reader-overkill-2
   ;; Some numeric operator combinations.
@@ -427,7 +227,7 @@
     int x=96+1428/357;
     return x==3+69258/714;
     }#)
-  ;; 
+  ;;
   )
 
 ;;; TODO: add trigraph test
@@ -483,7 +283,7 @@
     return 0b10;
     }#)
   )
-  
+
 (test test-reader-bad-char-literal
   (signals.wcs.reader (end-of-file) "#2{ return '")
   (signals.wcs.reader () "#2{ return ''; }#")
@@ -505,7 +305,7 @@
   (signals.wcs.reader () "#2{ return '\\0223; }#"))
 
 (test test-reader-integer-bad-character
-  (signals.wcs.reader () "#2{ return 1ff; }#")    
+  (signals.wcs.reader () "#2{ return 1ff; }#")
   (signals.wcs.reader () "#2{ return 08; }#")
   (signals.wcs.reader () "#2{ return 0xgg; }#")
   (signals.wcs.reader () "#2{ return 0b22; }#")
@@ -582,7 +382,7 @@
     #2{
     return 15LLU;
     }#)
-  
+
   (is.equal.wcs #xABC
     #2{
     return 0xabcULL;
@@ -594,14 +394,14 @@
   )
 
 (test test-reader-integer-bad-suffix
-  (signals.wcs.reader () "#2{ return 0uu; }#")    
+  (signals.wcs.reader () "#2{ return 0uu; }#")
   (signals.wcs.reader () "#2{ return 0lll; }#")
   (signals.wcs.reader () "#2{ return 1xx; }#")
   (signals.wcs.reader () "#2{ return 0lL; }#")
   (signals.wcs.reader () "#2{ return 0Ll; }#")
   (signals.wcs.reader () "#2{ return 0Lul; }#")
   (signals.wcs.reader () "#2{ return 0uuL; }#")
-  ;; 
+  ;;
   )
 
 (test test-reader-decimal-float
@@ -637,8 +437,8 @@
     #2{
     return 070.;
     }#)
-  (signals.wcs.reader () "#2{ 0..0; }#")    
-  (signals.wcs.reader () "#2{ 0.0.0; }#")    
+  (signals.wcs.reader () "#2{ 0..0; }#")
+  (signals.wcs.reader () "#2{ 0.0.0; }#")
   (is.equal.wcs 1.3d0
     #2{
     return 1.3e0;
@@ -673,7 +473,7 @@
     long double e0FL = 1e+1l;
     return e0FL;
     }#)
-  
+
   ;; Dot operator and identifier
   (is.equal.wcs (+ 42d1 2f0)
     #2{
@@ -682,7 +482,7 @@
     } xxx;
     xxx.e1 = 42.e1;
     return xxx.e1 + 2.f;
-    }#)    
+    }#)
   (is.equal.wcs (- 3L-3 3)
     #2{
     struct hoge {
@@ -690,14 +490,14 @@
     } xxx;
     xxx.E3 = 3E-3L-3L;
     return xxx.E3;
-    }#)    
+    }#)
   (is.equal.wcs (+ 42 0d1 0.1f-1 0.1f0 1)
     #2{
     struct hoge {
        int e;
     } f = {42};
     return f.e+0.e+1+.1e-1f+.1f+1;
-    }#)    
+    }#)
   )
 
 (test test-reader-hexadecimal-float
@@ -737,8 +537,8 @@
     #2{
     return 0x.0p0;
     }#)
-  (signals.wcs.reader () "#2{ 0x..p0; }#")    
-  (signals.wcs.reader () "#2{ 0x.0.p0; }#")    
+  (signals.wcs.reader () "#2{ 0x..p0; }#")
+  (signals.wcs.reader () "#2{ 0x.0.p0; }#")
   (signals.wcs.reader () "#2{ 0x1.3e0; }#")
   (is.equal.wcs 1.1875d0
     #2{
@@ -773,7 +573,7 @@
     #2{
     return 0x0e0f;
     }#)
-  
+
   ;; Identifiers consists of hexadecimal float chars.
   (is.equal.wcs (float #x100 0d0)
     #2{
@@ -785,7 +585,7 @@
     long double p0FL = 0x1p+1l;
     return p0FL;
     }#)
-  
+
   ;; Dot operator and identifier
   (is.equal.wcs (* (float #x42 0d0) (expt 2 1))
     #2{
@@ -794,7 +594,7 @@
     } xxx;
     xxx.p1 = 0x42.p1;
     return xxx.p1;
-    }#)    
+    }#)
   (signals.wcs.reader () "#2{ 0x3E-3L; }#")
   (signals.wcs.reader () "#2{ 0x3E- 3L; }#")
   (is.equal.wcs (- #x3E 3 (* (float #x3 0d0) (expt 2 -3)))
@@ -804,14 +604,14 @@
     } xxx;
     xxx.P3 = 0x3E -3L-0x3.P-3L;
     return xxx.P3;
-    }#)    
+    }#)
   (is.equal.wcs (+ 42 0d1 (* 0.0625f0 (expt 2 -1)) 0.0625f0 1)
     #2{
     struct hoge {
        int p;
     } f = {42};
     return f.p+0x0.p+1+0x.1p-1f+0x.1p0f+1;
-    }#)    
+    }#)
   )
 
 (test test-reader-minus-number
@@ -855,50 +655,8 @@
     return -1e-1L;
     }#)
   (signals.wcs.reader () "#2{ return -1e -1L; }#")
-  (is.equal.wcs (* -1d0 (expt 2 -1)) 
+  (is.equal.wcs (* -1d0 (expt 2 -1))
     #2{
     return -0x1p-1L;
     }#)
   (signals.wcs.reader () "#2{ return -0x1p -1L; }#"))
-
-#.(setf *with-c-syntax-reader-level* 2)
-#0{
-int test-reader-toplevel-conservative \( \) {
-  return t \;
-}
-}#
-
-#.(setf *with-c-syntax-reader-level* 0)
-#1{
-int test-reader-toplevel-aggressive(){
-  int hoge-array[]={0,1,2};
-  return hoge-array[2]== 2;
-}
-}#
-
-#2{
-int test\-reader\-toplevel\-overkill(){
-  assert (1+2*3-4 == `(+ 1 (* 2 3) (- 4)));
-  return t;
-}
-}#
-
-(test test-toplevel-reader
-  (is (test-reader-toplevel-conservative))
-  (is (test-reader-toplevel-aggressive))
-  (is (test-reader-toplevel-overkill)))
-
-#.(setf *with-c-syntax-reader-level* with-c-syntax.core::+with-c-syntax-default-reader-level+)
-#.(setf *with-c-syntax-reader-case* :preserve)
-(test test-reader-case-sensitivity
-  (is.equal.wcs nil
-    #{
-    int x \, X \;
-    x = 1 \;
-    X = 2 \;
-    return x == X \;
-    }#))
-
-;;; Agh, I need file-local variable..
-#.(setf *with-c-syntax-reader-level* with-c-syntax.core::+with-c-syntax-default-reader-level+)
-#.(setf *with-c-syntax-reader-case* nil)
