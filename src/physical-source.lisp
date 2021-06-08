@@ -13,7 +13,7 @@
 
 (defvar *with-c-syntax-reader-process-backslash-newline* :auto
   "Determines #{ }# reader deletes backslash-newline sequence.
- Deletion occurs if this is T, or :auto and reader level >= 2.")
+ Deletion occurs if this is T, or :auto and reader level >= 1.")
 
 (defclass physical-source-input-stream
     (trivial-gray-streams:fundamental-character-input-stream)

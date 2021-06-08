@@ -661,9 +661,9 @@ If not, returns a next token by `cl:read' after unreading CHAR."
          (*previous-syntax* *readtable*)
          (c-readtable (copy-readtable nil))
          (process-backslash-newline
-           (if (eq *with-c-syntax-reader-process-backslash-newline* :auto)
-               (>= level 2)
-               *with-c-syntax-reader-process-backslash-newline*)))
+           (case *with-c-syntax-reader-process-backslash-newline*
+             (:auto (>= level +with-c-syntax-default-reader-level+))
+             (otherwise *with-c-syntax-reader-process-backslash-newline*))))
     (install-c-reader c-readtable level)
     (when *with-c-syntax-reader-case*
       (setf (readtable-case c-readtable) *with-c-syntax-reader-case*))
