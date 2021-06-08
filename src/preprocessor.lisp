@@ -1,13 +1,34 @@
 (in-package #:with-c-syntax.core)
 
+;;; C punctuators.
+
+(defun find-punctuator (name)
+  (find-symbol name '#:with-c-syntax.punctuator))
+
+(defun find-digraph-replacement (punctuator)
+  (case punctuator
+    (with-c-syntax.punctuator:|<:| 'with-c-syntax.syntax:[)
+    (with-c-syntax.punctuator:|:>| 'with-c-syntax.syntax:])
+    (with-c-syntax.punctuator:|<%| 'with-c-syntax.syntax:{)
+    (with-c-syntax.punctuator:|%>| 'with-c-syntax.syntax:})
+    (with-c-syntax.punctuator:|%:| 'with-c-syntax.punctuator:|#|)
+    (with-c-syntax.punctuator:|%:%:| 'with-c-syntax.punctuator:|##|)))
+
+(defvar *with-c-syntax-preprocessor-process-digraph* nil
+  "Determines whether preprocessor replaces digraphs.
+ If this is true, replacement occurs but `with-c-syntax-style-warning' is signalled.
+ If this is `:no-warn', replacement occurs and the style-warning is not signalled.")
+
+;;; C syntax words
+
 (defun find-c-terminal (name)
   "Find a symbol in `with-c-syntax.syntax' package having a same
 NAME. If not found, returns `nil'."
-  (find-symbol name :with-c-syntax.syntax))
+  (find-symbol name '#:with-c-syntax.syntax))
 
 (defvar *cache-for-find-c-terminal-upcase*
   (loop with cache = (make-hash-table :test #'equal)
-        for sym being the external-symbol of (find-package :with-c-syntax.syntax)
+        for sym being the external-symbol of (find-package '#:with-c-syntax.syntax)
         as upcase-name = (string-upcase (symbol-name sym))
         do (setf (gethash upcase-name cache) sym)
         finally (return cache)))
@@ -17,6 +38,7 @@ NAME. If not found, returns `nil'."
  upcased NAME. If not found, returns `nil'."
   (gethash name *cache-for-find-c-terminal-upcase*))
 
+;;; Preprocessor macro.
 
 (defconstant +preprocessor-macro+
   '+preprocessor-macro+
@@ -204,7 +226,8 @@ returns NIL."
     (t
      (values nil symbol))))
 
-(defun preprocessor (token-list readtable-case)
+(defun preprocessor (token-list readtable-case
+                     &key (process-digraph *with-c-syntax-preprocessor-process-digraph*))
   "This function preprocesses TOKEN-LIST before parsing.
 
 Current workings are below:
@@ -250,41 +273,53 @@ calls the function like:
 	     (type boolean typedef-hack))
     (typecase token
       (symbol
-       (let (pp-macro c-op)
-         (cond
-           ;; Part of translation Phase 4 -- preprocessor macro
-           ((setf pp-macro (find-preprocessor-macro token))
+       (cond
+         ;; Part of translation Phase 4 -- preprocessor macro
+         ((when-let (pp-macro (find-preprocessor-macro token))
             (cond ((functionp pp-macro)	; preprocessor funcion
 	           (multiple-value-bind (macro-arg new-lis)
 		       (collect-preprocessor-macro-arguments token-list)
 		     (push (apply pp-macro macro-arg) result-list)
 		     (setf token-list new-lis)))
 	          (t			; symbol expansion
-                   (push pp-macro result-list))))
-           ;; interning C keywords.
-           ((setf c-op (ecase readtable-case ; FIXME: cleanup here.
-                         ((:upcase :invert)
-                          (find-c-terminal-by-upcased-name (symbol-name token)))
-                         ((:downcase :preserve)
-                          (find-c-terminal (symbol-name token)))))
-            (push c-op result-list)
+                   (push pp-macro result-list)))))
+         ;; with-c-syntax specific --- interning puctuators.
+         ((when-let (pp-punc (find-punctuator (symbol-name token)))
+            (when-let ((replace (find-digraph-replacement pp-punc))) ; Check digraph 
+              (unless (eq process-digraph :no-warn)
+                (warn 'with-c-syntax-style-warning
+                      :message (format nil "Digraph sequence '~A' (means ~A) found."
+                                       pp-punc replace)))
+              (when process-digraph
+                (setf pp-punc replace)))
+            (push pp-punc result-list)
             ;; typedef hack -- adds "void ;" after each typedef.
-            (cond ((eq c-op '|typedef|)
-	           (setf typedef-hack t))
-	          ((and typedef-hack
-		        (eq c-op '\;))
-	           (setf typedef-hack nil)
-	           (revappendf result-list '(|void| \;)))))
-           (t
-            ;; Try split
-            (unless (or (boundp token)
-                        (fboundp token))
-              (multiple-value-bind (splited-p results) (preprocessor-try-split token)
-	        (when splited-p
-	          (setf token-list (nconc results token-list))
-	          (go :continue))))
-            ;; otherwise..
-            (push token result-list)))))
+            (when (and typedef-hack
+		       (eq pp-punc '\;))
+              (setf typedef-hack nil)
+	      (revappendf result-list '(|void| \;)))
+            t))
+         ;; with-c-syntax specific: interning C keywords.
+         ((when-let (c-op (ecase readtable-case ; FIXME: cleanup here.
+                            ((:upcase :invert)
+                             (find-c-terminal-by-upcased-name (symbol-name token)))
+                            ((:downcase :preserve)
+                             (find-c-terminal (symbol-name token)))))
+            (push c-op result-list)
+            (when (eq c-op '|typedef|)
+              (setf typedef-hack t))   ; enables 'typedef hack'.
+            t))
+         (t
+          ;; with-c-syntax specific: Try to split the token.
+          ;; FIXME: I think this should be only for reader level 1.
+          (unless (or (boundp token)
+                      (fboundp token))
+            (multiple-value-bind (splited-p results) (preprocessor-try-split token)
+	      (when splited-p
+	        (setf token-list (nconc results token-list))
+	        (go :continue))))
+          ;; otherwise..
+          (push token result-list))))
       (string
        ;; Translation Phase 6 -- string concatenation.
        (let* ((following-strings

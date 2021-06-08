@@ -40,6 +40,20 @@
   (:documentation
    "Holds symbols denoting C operators and keywords."))
 
+(defpackage #:with-c-syntax.punctuator
+  (:use #:with-c-syntax.syntax)
+  (:export
+   #:[ #:] #:\( #:\) #:{ #:} #:\. #:->
+   #:++ #:-- #:& #:* #:+ #:- #:~ #:!
+   #:/ #:% #:<< #:>> #:< #:> #:<= #:>= #:== #:!= #:^ #:\| #:&& #:\|\|
+   #:? #:\: #:\; #:|...|
+   #:= #:*= #:/= #:%= #:+= #:-= #:<<= #:>>= #:&= #:^= #:\|=
+   #:\,
+   ;; For preprocessor
+   #:|#| #:|##|
+   #:|<:| #:|:>| #:<% #:%> #:|%:| #:|%:%:|)
+  (:documentation "C punctuators. Some symbols are from `with-c-syntax.syntax' package."))
+
 (defpackage #:with-c-syntax.core
   (:use #:cl #:with-c-syntax #:with-c-syntax.syntax)
   (:shadowing-import-from
