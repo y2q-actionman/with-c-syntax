@@ -3,9 +3,9 @@
 ;;; Our own input stream -- for translation phase 1, phase 2
 
 (defvar *with-c-syntax-reader-process-trigraph* nil
-  "Determines whether #{ }# reader replaces C trigraphs.  Replacement
- occurs if this is true. If this is `:no-warn', `style-warning' is
- also suppressed.")
+  "Determines whether #{ }# reader replaces C trigraphs.
+ If this is trie, replacement occurs but `with-c-syntax-style-warning' is signalled.
+ If this is `:no-warn', replacement occurs and the style-warning is not signalled.")
 
 ;;; You know characters covered by trigraphs are also included in the
 ;;; Standard Characters of Common Lisp. (see CLHS 2.1.3)
@@ -21,12 +21,14 @@
            :type input-stream
            :documentation "The parental stream.")
    ;; Internal buffers
+   ;; - I think the buffer for `unread-char' should be separated from
+   ;;   trigraphs. It means unreading '?' before '?=' does not make '#'.
    (unread-char :type (or null character)
                 :initform nil
                 :documentation "Used when `cl:unread-char' called.")
    (trigraph-keep-char :type (or null character)
                        :initform nil
-                       :documentation "A buffer for treating consective trigraphs, like '???='. See `translation-early-phase'.")
+                       :documentation "A buffer for treating consective trigraphs. See `translation-early-phase'.")
    (newline-gap :type integer
                 :initform 0
                 :documentation "Counts deleted newlines for __LINE__ .")
@@ -58,42 +60,33 @@
 
 (defmethod translation-early-phase ((cp-stream physical-source-input-stream))
   "Do translation phase 1 and 2, returns a character."
-  (with-slots (stream trigraph-keep-char newline-gap
+  (with-slots (stream trigraph-keep-char newline-gap ; Never touch 'unread-char' slot.
                process-phase-1 process-phase-2)
       cp-stream
-    (let ((c (read-char stream nil :eof)))
+    (let ((c (if trigraph-keep-char
+                 (shiftf trigraph-keep-char nil)
+                 (read-char stream nil :eof))))
       ;; Translation Phase 1 -- Trigraph
-      (cond ((eql #\? c)
-             (when (and (null trigraph-keep-char)
-                        (eql #\? (peek-char nil stream nil))) ; '??' appeared.
-               (read-char stream)
-               (shiftf trigraph-keep-char c #\?)) ; makes trigraph-keep-char == c == #\?
-             (when (eql #\? trigraph-keep-char)
-               (let* ((next (peek-char nil stream nil))
-                      (replaced-char
-                        (if next
-                            (find-trigraph-character-by-last-character next))))
-                 (cond
-                   ((and replaced-char process-phase-1)
-                    (unless (eq process-phase-1 :no-warn)
-                      (warn 'with-c-syntax-style-warning
-                            :message (format nil "Trigraph sequence '~C~C~C' is replaced to '~C'."
-                                             trigraph-keep-char c next replaced-char)))
-                    (read-char stream)
-                    (setf c replaced-char ; Brings the replaced char to phase-2
-                          trigraph-keep-char nil))
-                   (t
-                    (when (and replaced-char
-                               (not (eq process-phase-1 :no-warn)))
-                      (warn 'with-c-syntax-style-warning
-                            :message (format nil "Trigraph sequence '~C~C~C' (means ~C) appeared, but ignored."
-                                             trigraph-keep-char c next replaced-char)))
-                    ;; For treating '???='. Second '?' is kept into trigraph-keep-char.
-                    (assert (eql trigraph-keep-char #\?))
-                    (return-from translation-early-phase #\?))))))
-            (trigraph-keep-char
-             (unread-char c stream)
-             (shiftf c trigraph-keep-char nil)))
+      (when (and (eql #\? c)
+                 (eql #\? (peek-char nil stream nil))) ; '??' appeared.
+        (shiftf trigraph-keep-char c (read-char stream)) ; will make trigraph-keep-char == c == '?'.
+        (let* ((next (peek-char nil stream nil))
+               (replaced-char
+                 (if next
+                     (find-trigraph-character-by-last-character next))))
+          (unless replaced-char
+            ;; For treating '???='. '?' is kept in trigraph-keep-char.
+            (return-from translation-early-phase #\?))
+          (unless (eq process-phase-1 :no-warn)
+            (warn 'with-c-syntax-style-warning
+                  :message (format nil "Trigraph sequence '~C~C~C' (means ~C) found."
+                                   trigraph-keep-char c next replaced-char)))
+          (cond (process-phase-1
+                 (read-char stream)
+                 (setf c replaced-char ; Brings the replaced char to phase-2
+                       trigraph-keep-char nil))
+                (t
+                 (return-from translation-early-phase #\?)))))
       ;; Translation Phase 2 -- Backslash newline
       (when (and process-phase-2
                  (eql #\\ c)
@@ -104,13 +97,13 @@
         (return-from translation-early-phase
           (translation-early-phase cp-stream)))
       ;; with-c-syntax specific. Adjusting new line gaps here.
-      (cond ((and (plusp newline-gap)
-                  (member c '(:eof #\newline)))
-             (when (characterp c)
-               (unread-char c stream))
-             (decf newline-gap)
-             (setf c #\newline)))
-      c)))                              ; done
+      (when (and (plusp newline-gap)
+                 (member c '(:eof #\newline)))
+        (when (characterp c)
+          (unread-char c stream))
+        (decf newline-gap)
+        (return-from translation-early-phase #\newline))
+      c)))                              ; Done.
 
 (defmethod trivial-gray-streams:stream-read-char ((cp-stream physical-source-input-stream))
   (with-slots (stream unread-char target-readtable
@@ -138,8 +131,7 @@
       (unread-char
        unread-char)
       ((not (eq *readtable* target-readtable))
-       (if trigraph-keep-char
-           trigraph-keep-char
+       (or trigraph-keep-char
            (peek-char nil stream nil :eof)))
       (t
        (setf unread-char
