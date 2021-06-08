@@ -4,7 +4,12 @@
 
 ;;; Translation phase 1 ~ 3
 
+(test test-reader-trigraph-warn
+  (signals with-c-syntax-style-warning
+    (read-from-string "#2{ return '??='; }#")))
+
 (test test-reader-trigraph
+  #.(setf with-c-syntax.core::*with-c-syntax-reader-process-trigraph* :no-warn)
   (is.equal.wcs "#[\\]^{|}~"
     #2{
     return "??=??(??/??/??)??'??<??!??>??-";
@@ -29,9 +34,11 @@
     ;; '#{' can be closed with trigraph.
     ;; (This feature is not intentional at first, but I thought it should be work at last.)
     #2{ return 99; ??>??=
-    ))
+    )
+  #.(setf with-c-syntax.core::*with-c-syntax-reader-process-trigraph* nil))
 
 (test test-reader-backslash-newline
+  #.(setf with-c-syntax.core::*with-c-syntax-reader-process-trigraph* :no-warn)
   ;; Inside keywords, integer constants, strings.
   (is.equal.wcs (format nil "116abcde~C" #\tab) 
     #2{
@@ -104,12 +111,19 @@ de";
     This line is also comment.
     return "many comments..";
     }#)
+  ;; backslash-newline cannot concatenate trigraphs.
+  (is.equal.wcs "abc??="
+    #2{
+    return "abc??\
+=";
+    }#)
   ;; It works between '}#'.
   (is.equal.wcs 0
     #2{
     return 0;
     }\
-#  ))
+#  )
+  #.(setf with-c-syntax.core::*with-c-syntax-reader-process-trigraph* nil))
 
 (test test-reader-comments-and-backquote
   (is (block nil

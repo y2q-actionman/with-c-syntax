@@ -2,9 +2,10 @@
 
 ;;; Our own input stream -- for translation phase 1, phase 2
 
-(defvar *with-c-syntax-reader-process-trigraph* :auto
-  "Determines whether #{ }# reader replaces C trigraphs.
- Replacement occurs if this is T, or :auto and reader level >= 2.")
+(defvar *with-c-syntax-reader-process-trigraph* nil
+  "Determines whether #{ }# reader replaces C trigraphs.  Replacement
+ occurs if this is true. If this is `:no-warn', `style-warning' is
+ also suppressed.")
 
 ;;; You know characters covered by trigraphs are also included in the
 ;;; Standard Characters of Common Lisp. (see CLHS 2.1.3)
@@ -33,9 +34,11 @@
    (target-readtable :type readtable
                      :initarg :target-readtable)
    (process-phase-1 :type boolean
-                    :initarg :phase-1 :initform t)
+                    :initarg :phase-1 :initform nil)
    (process-phase-2 :type boolean
                     :initarg :phase-2 :initform t))
+  (:default-initargs
+   :phase-1 *with-c-syntax-reader-process-trigraph*)
   (:documentation "An input stream for doing translation phase 1
   (replacing trigraph) and translation phase 2 (deleting
   backslash-newline sequence)."))
@@ -60,25 +63,34 @@
       cp-stream
     (let ((c (read-char stream nil :eof)))
       ;; Translation Phase 1 -- Trigraph
-      (cond ((and process-phase-1
-                  (eql #\? c))
+      (cond ((eql #\? c)
              (when (and (null trigraph-keep-char)
                         (eql #\? (peek-char nil stream nil))) ; '??' appeared.
                (read-char stream)
-               (shiftf trigraph-keep-char c #\?)) ; trigraph-keep-char == c == #\?
+               (shiftf trigraph-keep-char c #\?)) ; makes trigraph-keep-char == c == #\?
              (when (eql #\? trigraph-keep-char)
                (let* ((next (peek-char nil stream nil))
                       (replaced-char
                         (if next
                             (find-trigraph-character-by-last-character next))))
-                 (cond (replaced-char
-                        (read-char stream)
-                        (setf c replaced-char ; Brings the replaced char to phase-2
-                              trigraph-keep-char nil))
-                       (t
-                        ;; Like '??a' or '???='. For treating the latter, '?' is kept.
-                        (assert (eql trigraph-keep-char #\?))
-                        (return-from translation-early-phase #\?))))))
+                 (cond
+                   ((and replaced-char process-phase-1)
+                    (unless (eq process-phase-1 :no-warn)
+                      (warn 'with-c-syntax-style-warning
+                            :message (format nil "Trigraph sequence '~C~C~C' is replaced to '~C'."
+                                             trigraph-keep-char c next replaced-char)))
+                    (read-char stream)
+                    (setf c replaced-char ; Brings the replaced char to phase-2
+                          trigraph-keep-char nil))
+                   (t
+                    (when (and replaced-char
+                               (not (eq process-phase-1 :no-warn)))
+                      (warn 'with-c-syntax-style-warning
+                            :message (format nil "Trigraph sequence '~C~C~C' (means ~C) appeared, but ignored."
+                                             trigraph-keep-char c next replaced-char)))
+                    ;; For treating '???='. Second '?' is kept into trigraph-keep-char.
+                    (assert (eql trigraph-keep-char #\?))
+                    (return-from translation-early-phase #\?))))))
             (trigraph-keep-char
              (unread-char c stream)
              (shiftf c trigraph-keep-char nil)))

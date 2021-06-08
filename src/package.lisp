@@ -56,6 +56,7 @@
    ;; condition.lisp
    #:with-c-syntax-error
    #:with-c-syntax-warning
+   #:with-c-syntax-style-warning
    ;; preprocessor.lisp
    #:find-preprocessor-macro
    #:add-preprocessor-macro

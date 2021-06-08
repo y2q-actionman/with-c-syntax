@@ -660,10 +660,6 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
          (*previous-syntax* *readtable*)
          (c-readtable (copy-readtable nil))
-         (process-trigraph
-           (if (eq *with-c-syntax-reader-process-trigraph* :auto)
-               (>= level 2)
-               *with-c-syntax-reader-process-trigraph*))
          (process-backslash-newline
            (if (eq *with-c-syntax-reader-process-backslash-newline* :auto)
                (>= level 2)
@@ -674,7 +670,6 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     (loop
       with cp-stream = (make-instance 'physical-source-input-stream
                                       :stream stream :target-readtable c-readtable
-                                      :phase-1 process-trigraph
                                       :phase-2 process-backslash-newline)
       for token = (read-preprocessing-token cp-stream c-readtable)
       if (eq token +wcs-end-marker+)
