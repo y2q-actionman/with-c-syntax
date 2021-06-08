@@ -5,8 +5,8 @@
 ;;; Translation phase 1 ~ 3
 
 (test test-reader-trigraph-warn
-  (signals with-c-syntax-style-warning
-    (read-from-string "#2{ return '??='; }#")))
+  (signals.wcs.reader (with-c-syntax-style-warning)
+                      "#2{ return '??='; }#"))
 
 (test test-reader-trigraph
   #.(setf with-c-syntax.core::*with-c-syntax-reader-process-trigraph* :no-warn)
