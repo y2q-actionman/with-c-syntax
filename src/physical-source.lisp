@@ -4,7 +4,7 @@
 
 (defvar *with-c-syntax-reader-process-trigraph* nil
   "Determines whether #{ }# reader replaces C trigraphs.
- If this is trie, replacement occurs but `with-c-syntax-style-warning' is signalled.
+ If this is true, replacement occurs but `with-c-syntax-style-warning' is signalled.
  If this is `:no-warn', replacement occurs and the style-warning is not signalled.")
 
 ;;; You know characters covered by trigraphs are also included in the

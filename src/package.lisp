@@ -107,10 +107,3 @@
    #:with-c-syntax)
   (:documentation
    "with-c-syntax core package."))
-
-(in-package #:with-c-syntax.core)
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun find-syntax-package ()
-    "Returns the `WITH-C-SYNTAX.SYNTAX' package."
-    (find-package '#:with-c-syntax.syntax)))

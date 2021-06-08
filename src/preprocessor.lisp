@@ -28,7 +28,7 @@ NAME. If not found, returns `nil'."
 
 (defvar *cache-for-find-c-terminal-upcase*
   (loop with cache = (make-hash-table :test #'equal)
-        for sym being the external-symbol of (find-package '#:with-c-syntax.syntax)
+        for sym being the external-symbol of '#:with-c-syntax.syntax
         as upcase-name = (string-upcase (symbol-name sym))
         do (setf (gethash upcase-name cache) sym)
         finally (return cache)))

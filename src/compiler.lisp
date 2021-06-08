@@ -70,7 +70,7 @@ on its ~return~ argument.
   "`with-c-syntax' bind this to `&environment' argument.")
 
 ;;; Lexer
-(defun list-lexer (list &aux (syntax-package (find-syntax-package)))
+(defun list-lexer (list &aux (syntax-package (find-package '#:with-c-syntax.syntax)))
   #'(lambda ()
       (let ((value (pop list)))
         (typecase value
@@ -1144,7 +1144,7 @@ This is not intended for calling directly. The `va_start' macro uses this."
   (:muffle-conflicts t)         ; for 'dangling else'.
   ;; http://www.cs.man.ac.uk/~pjj/bnf/c_syntax.bnf
   (:terminals
-   #.(append (loop for i being the external-symbol of (find-syntax-package)
+   #.(append (loop for i being the external-symbol of '#:with-c-syntax.syntax
 		  collect i)
 	     '(id typedef-id
 	       int-const char-const float-const
