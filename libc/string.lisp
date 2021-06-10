@@ -38,7 +38,7 @@ This function is used for emulating C string truncation with NUL char."
   ;; zero-filling of 'strncpy'.
   (let ((src-len (length src)))
     (when (> count src-len)
-      (fill dst (code-char 0) :start src-len)))
+      (fill dst +nul-character+ :start src-len)))
   dst)
 
 (defun |strcat| (dst src)
@@ -103,7 +103,7 @@ This function is used for emulating C string truncation with pointer movements."
   (let ((pos (position ch str :from-end from-end)))
     (cond (pos
 	   (make-trimed-vector str pos))
-	  ((eql ch (code-char 0))
+	  ((eql ch +nul-character+)
 	   "")	; C string has NUL in its end.
 	  (t nil))))
 

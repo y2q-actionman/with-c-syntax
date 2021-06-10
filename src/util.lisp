@@ -37,6 +37,37 @@
   "Calls nreconc with reversed order args. A helper for `nreconcf'."
   (nreconc list tail))
 
+;;; Characters
+;;; these definitions are used by '#{ }#' reader and libc (<ctype.h>).
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defconstant +nul-character+
+    (or (name-char "nul") (code-char 0)))
+
+  (defconstant +vertical-tab-character+
+    (or (name-char "vt") (code-char #x0b)))
+
+  (defconstant +bel-character+
+    (or (name-char "bel") (code-char #x07))))
+
+(defun c-whitespace-p (char)
+  (case char
+    ((#\space #\page #\newline #\return #\tab ; These are whitespace in Lisp and C both.
+	      #\linefeed  ; Only for Lisp. (Maybe same with #\newline)
+	      #. +vertical-tab-character+) ; Only for C.
+     t)
+    (otherwise nil)))
+
+(defun terminating-char-p (char &optional (readtable *readtable*))
+  "Returns T if CHAR is a terminating character in READTABLE."
+  (case char
+    ((#\tab #\newline #\linefeed #\page #\return #\space)
+     t)
+    (otherwise
+     (multiple-value-bind (fn non-terminating-p)
+	 (get-macro-character char readtable)
+       (and fn (not non-terminating-p))))))
+
 ;;; Modify macros
 
 (define-modify-macro push-right (i)

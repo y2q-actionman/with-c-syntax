@@ -125,16 +125,6 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
   (declare (ignore stream))
   (symbolicate char))
 
-(defun terminating-char-p (char &optional (readtable *readtable*))
-  "Returns T if char is terminating."
-  (case char
-    ((#\tab #\newline #\linefeed #\page #\return #\space)
-     t)
-    (otherwise
-     (multiple-value-bind (fn non-terminating-p)
-	 (get-macro-character char readtable)
-       (and fn (not non-terminating-p))))))
-
 (defun read-after-unread (unread-char stream &optional eof-error-p eof-value recursive-p)
   ;; I need this buffering to suppress calling `unread-char' too many times.
   (let ((buf (make-string 1 :element-type 'character :initial-element unread-char)))
@@ -209,10 +199,15 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       (error 'with-c-syntax-reader-error
              :format-control "Universal character name '~A' is not usable."
              :format-arguments (list hexadecimals)))
+    ;; FIXME: This code assumes `code-char' uses unicode code point,
+    ;; but it is not standard.  I must use a kind of Unicode library,
+    ;; for *correct* implementation.
     (code-char code)))
 
 (defun read-numeric-escape (stream radix &key (limit most-positive-fixnum))
   "Used by `read-escaped-char'."
+  ;; C standard says '\xxx' works on execution code set.
+  ;; See "6.4.4.4 Character constants", in ISO/IEC 9899:1999, page 61.
   (loop with tmp = 0
         for count from 0 below limit   ; Octal escape is limited for 3 characters.
 	for c = (peek-char nil stream t nil t)
@@ -226,13 +221,13 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (let ((c0 (read-char stream t nil t)))
     (case c0
       ;; FIXME: This code assumes ASCII is used for char-code..
-      (#\a #.(code-char #x07))          ; alarm
+      (#\a +bel-character+)             ; alarm
       (#\b #\Backspace)
       (#\f #\Page)
       (#\n #\Newline)
       (#\r #\Return)
       (#\t #\Tab)
-      (#\v #.(code-char #x0b))          ; vertical tab
+      (#\v +vertical-tab-character+)    ; vertical tab
       (#\\ #\\)
       (#\' #\')
       (#\" #\")
@@ -552,7 +547,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     (set-macro-character #\: #'read-lonely-single-symbol t readtable))
   (when (>= level 1) 			; Aggressive
     ;; Vertical tab is a whitespace in C.
-    (set-syntax-from-char #.(code-char #x0b) #\space readtable)
+    (set-syntax-from-char +vertical-tab-character+ #\space readtable)
     ;; Treats '0x' numeric literal specially.
     (set-macro-character #\0 #'read-0x-numeric-literal t readtable)
     ;; Reads '||' and solely '|' as a symbol.
@@ -615,14 +610,6 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 (defconstant +newline-marker+
   '+newline-marker+
   "Used for saving newline chars from reader to preprocessor")
-
-(defun c-whitespace-p (char)
-  (case char
-    ((#\space #\page #\newline #\return #\tab ; These are whitespace in Lisp and C both.
-	      #\linefeed  ; Only for Lisp. (Maybe same with #\newline)
-	      #. (code-char #x0b))	; Vertical tab -- only for C.
-     t)
-    (otherwise nil)))
 
 (defun skip-c-whitespace (stream)
   "Skips C whitespaces except newline."

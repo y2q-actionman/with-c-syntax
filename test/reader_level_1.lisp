@@ -134,8 +134,8 @@
     return "\b\f\n\t\\\'\"\?";
     }#)
   ;; depends ASCII
-  (is.equal.wcs (coerce (list (code-char #x07) (code-char #x0d)
-			     (code-char #x0b))
+  (is.equal.wcs (coerce (list +bel-character+ #\return
+			      +vertical-tab-character+)
 		      'string)
     #1{
     return "\a\r\v";

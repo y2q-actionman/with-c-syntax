@@ -67,6 +67,11 @@
   (:import-from #:named-readtables
         	#:defreadtable)
   (:export
+   ;; util.lisp
+   #:+nul-character+
+   #:+vertical-tab-character+
+   #:+bel-character+
+   #:c-whitespace-p
    ;; condition.lisp
    #:with-c-syntax-error
    #:with-c-syntax-warning

@@ -42,7 +42,7 @@
 
   dst = |strncpy| (make-string (7), src, 7);
   is (string= (dst, src, :end1, 5, :end2, 5));
-  is (char= (code-char (0), dst [5], dst [6]));
+  is (char= (+nul-character+, dst [5], dst [6]));
   }#)
 
 (test test-string-strcat

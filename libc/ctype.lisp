@@ -30,14 +30,8 @@
        (graphic-char-p char)))
 
 (defun |isspace| (char)			; assumes 'C' locale.
-  (case char
-    ((#\space #\page #\newline #\return #\tab ; These are whitespace in Lisp and C both.
-	      #\linefeed		; Only for Lisp.
-	      #. (code-char #x0b))	; Vertical tab -- only for C.
-      t)
-    (otherwise nil)))
+  (with-c-syntax.core:c-whitespace-p char))
 
-;;; TODO: reuse reader's one.
 (defun |isblank| (char)			; assumes 'C' locale.
   (case char
     ((#\space #\tab) t)
