@@ -60,13 +60,17 @@
 
 (defun terminating-char-p (char &optional (readtable *readtable*))
   "Returns T if CHAR is a terminating character in READTABLE."
-  (case char
-    ((#\tab #\newline #\linefeed #\page #\return #\space)
-     t)
-    (otherwise
-     (multiple-value-bind (fn non-terminating-p)
-	 (get-macro-character char readtable)
-       (and fn (not non-terminating-p))))))
+  ;; If a whitespace became a non-terminating macro char, this function returns nil.
+  ;; (I think this behavior is correct for its name.)
+  ;; Since their constituent trait is invalid, it will raise `reader-error' when read.
+  (multiple-value-bind (fn non-terminating-p)
+      (get-macro-character char readtable)
+    (or (and fn (not non-terminating-p))
+        (case char
+          ((#\tab #\newline #\linefeed #\page #\return #\space)
+           t)
+          (otherwise
+           nil)))))
 
 ;;; Modify macros
 
