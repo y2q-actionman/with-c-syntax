@@ -31,7 +31,8 @@
                        :documentation "A buffer for treating consective trigraphs. See `translation-early-phase'.")
    (newline-gap :type integer
                 :initform 0
-                :documentation "Counts deleted newlines for __LINE__ .")
+                :accessor physical-source-input-stream-newline-gap
+                :documentation "Counts deleted newlines, for __LINE__ .")
    ;; switches
    (target-readtable :type readtable
                      :initarg :target-readtable)
@@ -146,6 +147,13 @@
              :format-arguments (list unread-char character)))
     (setf unread-char character))
   nil)
+
+(defgeneric adjust-newline-gap (stream newline-count)
+  (:method (stream newline-count)
+    nil))
+
+(defmethod adjust-newline-gap ((cp-stream physical-source-input-stream) newline-count)
+  (incf (physical-source-input-stream-newline-gap cp-stream) newline-count))
 
 ;;; These are required for compiling our test codes in Allegro CL 10.1
 

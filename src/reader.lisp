@@ -163,18 +163,29 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 
 (defun read-slash-comment (stream char
                            &optional (next-function #'read-lonely-single-symbol))
-  ;; TODO: Counts ate newlines into the stream, which is `physical-source-input-stream'.
+  ;; We count skipped newlines into the stream
+  ;; (`physical-source-input-stream'), for __LINE__.
   (case (peek-char nil stream t nil t)
     (#\/
      (read-line stream t nil t)
-     (values))
+     +newline-marker+)
     (#\*
      (read-char stream t nil t)
-     (loop (peek-char #\* stream t nil t)  ; skips until '*' char.
-	(read-char stream t nil t)      ; and eats the '*'
-	(when (char= #\/ (read-char stream t nil t)) ; checks whether the next is '/' ?
-	  (return)))
-     (values))
+     (loop
+       for c = (read-char stream t nil t)
+       if (and (eql c #\*)
+               (char= #\/ (peek-char nil stream t nil t)))
+         do (read-char stream t nil t)
+            (loop-finish)
+       if (eql c #\newline)
+         count it into newlines
+       finally
+          (return
+            (cond ((zerop newlines)
+                   (values))
+                  (t
+                   (adjust-newline-gap stream (1- newlines))
+                   +newline-marker+)))))
     (otherwise
      (funcall next-function stream char))))
 
@@ -220,7 +231,6 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 (defun read-escaped-char (stream)
   (let ((c0 (read-char stream t nil t)))
     (case c0
-      ;; FIXME: This code assumes ASCII is used for char-code..
       (#\a +bel-character+)             ; alarm
       (#\b #\Backspace)
       (#\f #\Page)
