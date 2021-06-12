@@ -299,9 +299,20 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       else if (eql c #\newline)
              do (error 'with-c-syntax-reader-error
                        :stream stream
-	          :format-control "String literal cannot contain a newline directly.")
+	               :format-control "String literal cannot contain a newline directly.")
       else
         do (write-char c out))))
+
+(defun read-L (stream &optional (char #\L))
+  (case (peek-char nil stream nil nil t)
+    (#\'
+     (read-single-quote stream (read-char stream t nil t)))
+    (#\"
+     (read-double-quote stream (read-char stream t nil t)))
+    (otherwise
+     (let ((*readtable* (copy-readtable)))
+       (set-syntax-from-char #\L #\L)   ; Remove #\L reader macro temporarily.
+       (read-after-unread char stream t nil t)))))
 
 (defun read-dot (stream char)
   "Dot may be an '.' operator, '...', or a prefix of floating numbers."
@@ -667,6 +678,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     ;; Character constant, overwrites `quote'.
     ;; (The overwriting prevents Lisp syntax extremely, so enables only in level 2).
     (set-macro-character #\' #'read-single-quote nil readtable)
+    ;; 'L' prefix for character and string.
+    (set-macro-character #\L #'read-L t readtable)
     ;; C punctuators.
     ;;   Already in Level 0 -- ,
     ;;   Already in Level 1 -- [ ] { } ( ) ;
@@ -687,7 +700,6 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     (set-macro-character #\? #'read-single-character-symbol nil readtable) ; ?
     (set-macro-character #\: #'read-colon nil readtable) ; : :>
     (set-macro-character #\# #'read-sharp nil readtable) ; # ##
-    ;; TODO: 'L' prefix for character and string.
     ;; Numeric litrals.
     (set-macro-character #\0 #'read-numeric-literal t readtable)
     (set-macro-character #\1 #'read-numeric-literal t readtable)
@@ -702,7 +714,6 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   ;; TODO: C99 support?
   ;; - An identifier begins with '\u' (universal character)
   ;;   How to be '\' treated?
-  ;; - 'L' prefix of character literals.
   readtable)
 
 
