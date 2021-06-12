@@ -71,7 +71,7 @@ symbol listed below.
 
 - '?' :: '?'
 - '~' :: '~'
-- ':' :: ':'
+- ':' :: ':' or a (digraph ':>')
 - '=' :: '=' or '=='
 - '*' :: '*' or '*='
 - '^' :: '^' or '^='
@@ -80,11 +80,12 @@ symbol listed below.
 - '|' :: '|', '||', or '|='
 - '+' :: '+', '++', or '+='
 - '-' :: '-', '--', '-=', or '->'
-- '>' :: '>', '>>', or '>>='
-- '<' :: '<', '<<', or '<<='
+- '>' :: '>', '>>', '>=', or '>>='
+- '<' :: '<', '<<', '<=', '<<=', or digraphs ('<:', '<%')
 - '/' :: '/', or '/='. '//' means a line comment, and '/* ... */'
          means a block comment.
-- '.' :: '.' or a numeric literal of C language.
+- '.' :: '.', '...', or a numeric literal of C language.
+- '%' :: '%', '%=', or digraphs ('%>', '%:', '%:%:')
 
 And, these characters are changed:
 
@@ -116,6 +117,7 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
 (defun read-in-previous-syntax (stream char)
   (when (eq *readtable* *previous-syntax*)
     (error 'with-c-syntax-reader-error
+           :stream stream
            :format-control "read-in-previous-syntax used recursively by char ~C"
            :format-arguments (list char)))
   (let ((*readtable* *previous-syntax*))
@@ -137,15 +139,16 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
   "If the next character in STREAM is terminating, returns a symbol made of CHAR.
 If not, returns a next token by `cl:read' after unreading CHAR." 
   ;; See only one character to keep escapes and spaces (consider '|a b|').
-  (let ((next (peek-char nil stream t nil t)))
-    (if (terminating-char-p next)
+  (let ((next (peek-char nil stream nil nil t)))
+    (if (or (null next)
+            (terminating-char-p next))
         (symbolicate char)
         (let ((*readtable* (copy-readtable nil))) ; Use the standard syntax.
           (read-after-unread char stream t nil t)))))
 
 (defun read-solely-bar (stream char)
-  (let ((next (peek-char nil stream t nil t)))
-    (cond ((char= char next)            ; '||'
+  (let ((next (peek-char nil stream nil nil t)))
+    (cond ((eql char next)              ; '||'
            (read-char stream t nil t)
            (symbolicate char next))
           (t
@@ -154,8 +157,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 (defconstant +wcs-end-marker+ '}#)
 
 (defun read-right-curly-bracket (stream char)
-  (let ((next (peek-char nil stream t nil t)))
-    (cond ((char= next #\#)             ; ''
+  (let ((next (peek-char nil stream nil nil t)))
+    (cond ((eql next #\#)             ; ''
            (read-char stream t nil t)
            +wcs-end-marker+)
           (t
@@ -165,7 +168,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                            &optional (next-function #'read-lonely-single-symbol))
   ;; We count skipped newlines into the stream
   ;; (`physical-source-input-stream'), for __LINE__.
-  (case (peek-char nil stream t nil t)
+  (case (peek-char nil stream nil nil t)
     (#\/
      (read-line stream t nil t)
      +newline-marker+)
@@ -199,6 +202,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                for char = (read-char stream t nil t)
                unless (digit-char-p char 16)
                  do (error 'with-c-syntax-reader-error
+                           :stream stream
                            :format-control "Character '~C' is not a hexadecimal for universal character names."
                            :format-arguments (list char))
                do (write-char char out))))
@@ -208,6 +212,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                    (not (member code '(#x0024 #x0040 #x0060)))) ; $, @, `
               (<= #xD8000 code #xDFFF))
       (error 'with-c-syntax-reader-error
+             :stream stream
              :format-control "Universal character name '~A' is not usable."
              :format-arguments (list hexadecimals)))
     ;; FIXME: This code assumes `code-char' uses unicode code point,
@@ -221,8 +226,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   ;; See "6.4.4.4 Character constants", in ISO/IEC 9899:1999, page 61.
   (loop with tmp = 0
         for count from 0 below limit   ; Octal escape is limited for 3 characters.
-	for c = (peek-char nil stream t nil t)
-	as weight = (digit-char-p c radix)
+	for c = (peek-char nil stream nil nil t)
+	as weight = (and c (digit-char-p c radix))
 	while weight
 	do (read-char stream t nil t)
 	   (setf tmp (+ (* tmp radix) weight))
@@ -253,6 +258,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
        (read-universal-character-name stream 8))
       (otherwise
        (error 'with-c-syntax-reader-error
+              :stream stream
               :format-control "Bad escaped char: ~C."
               :format-arguments (list c0))))))
 
@@ -262,15 +268,18 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     (case c1
       (#\'
        (error 'with-c-syntax-reader-error
+              :stream stream
 	      :format-control "Empty char constant."))
       (#\newline
        (error 'with-c-syntax-reader-error
+              :stream stream
 	      :format-control "Char constant cannot contain a newline directly."))
       (#\\
        (setf c1 (read-escaped-char stream))))
     (let ((c2 (read-char stream t nil t)))
       (unless (char= c2 #\')
 	(error 'with-c-syntax-reader-error
+               :stream stream
                :format-control "Too many chars appeared between '' :~C, ~C, ..."
                :format-arguments (list c1 c2))))
     c1))
@@ -284,61 +293,129 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       if (eql c #\\)
         do (write-char (read-escaped-char stream) out)
       else if (eql c #\newline)
-        do (error 'with-c-syntax-reader-error
+             do (error 'with-c-syntax-reader-error
+                       :stream stream
 	          :format-control "String literal cannot contain a newline directly.")
       else
         do (write-char c out))))
 
 (defun read-dot (stream char)
-  "Dot may be an operator or a prefix of floating numbers."
-  (let ((next (peek-char nil stream t nil t)))
-    (if (digit-char-p next 10)
-        (read-numeric-literal stream char)
-        (read-single-character-symbol stream char))))
+  "Dot may be an '.' operator, '...', or a prefix of floating numbers."
+  (assert (char= char #\.))
+  (let ((next (peek-char nil stream nil nil t)))
+    (cond ((and next
+                (digit-char-p next 10))
+           (read-numeric-literal stream char))
+          ((eql next #\.)
+           (read-char stream t nil t)
+           (cond ((eql #\. (peek-char nil stream nil nil t))
+                  (read-char stream)
+                  (intern "..."))
+                 (t
+                  ;; FIXME: To corrent implementation, I must read them to '.', '.', 'foo'.
+                  ;; But I require unread two chars for implementing it.
+                  (error 'with-c-syntax-reader-error
+                         :stream stream
+                         :format-arguments "Two consective dots are not syntactic."))))
+          (t
+           (read-single-character-symbol stream char)))))
 
 (defun read-single-or-compound-assign (stream char)
-  (let ((next (peek-char nil stream t nil t)))
-    (case next
-      (#\=
-       (read-char stream t nil t)
-       (symbolicate char next))
-      (otherwise
-       (read-single-character-symbol stream char)))))
+  (case (peek-char nil stream nil nil t)
+    (#\=
+     (read-char stream t nil t)
+     (symbolicate char #\=))
+    (otherwise
+     (read-single-character-symbol stream char))))
 
-(defun read-single-or-equal-or-self-symbol (stream char)
+(defun read-plus-like-symbol (stream char)
   "For '+', '&', '|'. They may be '+', '++', or '+='"
-  (let ((next (peek-char nil stream t nil t)))
-    (cond ((char= next char)
+  (let ((next (peek-char nil stream nil nil t)))
+    (cond ((eql next char)
 	   (read-char stream t nil t)
 	   (symbolicate char next))
 	  (t
 	   (read-single-or-compound-assign stream char)))))
 
 (defun read-minus (stream char)
-  (let ((next (peek-char nil stream t nil t)))
-    (cond ((char= next #\>)
-	   (read-char stream t nil t)
-	   (symbolicate char next))
-	  (t
-	   (read-single-or-equal-or-self-symbol stream char)))))
+  (assert (char= char #\-))
+  (case (peek-char nil stream nil nil t)
+    (#\>
+     (read-char stream t nil t)
+     (intern "->"))
+    (t
+     (read-plus-like-symbol stream char))))
 
 (defun read-shift (stream char)
-  (let ((next (peek-char nil stream t nil t)))
-    (cond ((char= next char)	; shift op
+  "For '<', '>'. They may be '>', '>>', and '>=', '>>='."
+  (let ((next (peek-char nil stream nil nil t)))
+    (cond ((eql next char)            ; shift op
 	   (read-char stream t nil t)
-	   (let ((next2 (peek-char nil stream t nil t)))
-	     (case next2
-	       (#\=
-		(read-char stream t nil t)
-		(symbolicate char next next2))
-	       (otherwise
-		(symbolicate char next)))))
+           (case (peek-char nil stream nil nil t)
+             (#\=
+	      (read-char stream t nil t)
+	      (symbolicate char next #\=))
+	     (otherwise
+	      (symbolicate char next))))
 	  (t
 	   (read-single-or-compound-assign stream char)))))
+
+(defun read-< (stream char)
+  (assert (char= char #\<))
+  (let ((next (peek-char nil stream nil nil t)))
+    (case next
+      ((#\: #\%)                        ; digraph '<:' or '<%'
+       (read-char stream t nil t)
+       (symbolicate char next))
+      (t
+       (read-shift stream char)))))
 
 (defun read-slash (stream char)
   (read-slash-comment stream char
                       #'read-single-or-compound-assign))
+
+(defun read-% (stream char)
+  (assert (char= char #\%))
+  (case (peek-char nil stream nil nil t)
+    (#\>                                ; digraph '%>'
+     (read-char stream t nil t)
+     (intern "%>"))
+    (#\:                                ; digraph '%:' or '%:%:'
+     (read-char stream t nil t)
+     (cond
+       ((eql #\% (peek-char nil stream nil nil t))
+        (read-char stream t nil t)
+        (cond
+          ((eql #\: (peek-char nil stream nil nil t))
+           (read-char stream t nil t)
+           (intern "%:%:"))
+          (t
+           ;; FIXME: See `read-dot' comment.
+           (error 'with-c-syntax-reader-error
+                  :stream stream
+                  :format-arguments "Current with-c-syntax does not accept '%:%' sequence except '%:%:'."))))
+       (t
+        (intern "%:"))))
+    (t
+     (read-single-or-compound-assign stream char))))
+
+(defun read-colon (stream char)
+  (assert (char= char #\:))
+  (case (peek-char nil stream nil nil t)
+    (#\>
+     (read-char stream t nil t)
+     (intern ":>"))                     ; digraph ':>'
+    (t
+     (read-single-character-symbol stream char))))
+
+(defun read-sharp (stream char)
+  (assert (char= char #\#))
+  (case (peek-char nil stream nil nil t)
+    (#\#
+     (read-char stream t nil t)
+     (intern "##"))
+    (t
+     (read-single-character-symbol stream char))))
 
 (defun read-preprocessing-number (stream c0)
   "Reads a preprocessing number token, defined in
@@ -378,6 +455,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                       (write-char (read-universal-character-name stream 8) out))
                      (otherwise
                       (error 'with-c-syntax-reader-error
+                             :stream stream
                              :format-control "Bad escaped character in number: ~C."
                              :format-arguments (list esc)))))
           else
@@ -411,6 +489,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
        (values 10 (find-decimal-float-marker)))
       (otherwise       ; This is a bug of `read-preprocessing-number'.
        (error 'with-c-syntax-reader-error
+              ; FIXME: :stream stream
               :format-control "~A contains an unknown prefix as a numeric constant."
               :format-arguments (list pp-number-string))))))
 
@@ -437,6 +516,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                   (loop-finish))
                  (t
                   (error 'with-c-syntax-reader-error
+                         ; FIXME: :stream stream
                          :format-control "Integer constant '~A' contains invalid char '~C' (radix ~D)."
                          :format-arguments (list pp-number-string c radix))))))
     (let ((integer-type (list '|int|)))
@@ -459,6 +539,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
              (setf integer-type
                    (suffix-to-numeric-type l-suffix (not (length= 0 u-suffix)))))
            (error 'with-c-syntax-reader-error
+                  ; FIXME: :stream stream
                   :format-control "Integer constant '~A' contains invalid suffix '~A' (radix ~D)."
                   :format-arguments (list pp-number-string (subseq pp-number-string index))))))
       (values
@@ -498,6 +579,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
           pp-number-string :sharedp t)
        (read-decimal-float fractional exponent suffix))
      (error 'with-c-syntax-reader-error
+            ; FIXME: :stream stream
             :format-control "Decimal floating constant '~A' cannot be read."
             :format-arguments (list pp-number-string)))))
 
@@ -523,6 +605,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
           pp-number-string :sharedp t)
        (read-hex-float int-part "" exponent suffix))
      (error 'with-c-syntax-reader-error
+            ; FIXME: :stream stream
             :format-control "Hexadecimal floating constant '~A' cannot be read."
             :format-arguments (list pp-number-string)))))
 
@@ -540,27 +623,30 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 (defun read-0x-numeric-literal (stream c0)
   "Read hexadecimal numeric literal of C."
   ;; TODO: merge with `read-lonely-single-symbol'
-  (let ((next (peek-char nil stream t nil t)))
-    (if (char-equal next #\x)
+  (let ((next (peek-char nil stream nil nil t)))
+    (if (and next
+             (char-equal next #\x))
         (read-numeric-literal stream c0)
         (let ((*readtable* (copy-readtable nil))) ; Use the standard syntax.
           (read-after-unread c0 stream t nil t)))))
 
 (defun install-c-reader (readtable level)
-  "Inserts reader macros for C reader. Called by '#{' reader macro."
+  "Inserts reader macros for C reader. Called by '#{' reader macro.
+ See `*with-c-syntax-reader-level*'."
   (check-type level integer)
-  (when (>= level 0)			; Conservative
+  (when (>= level 0)
     (set-macro-character #\} #'read-right-curly-bracket t readtable)
+    ;; Vertical tab is a whitespace in C. (Allegro CL 10.0 is already so).
+    (set-syntax-from-char +vertical-tab-character+ #\space readtable)
     ;; Comma is read as a symbol.
     (set-macro-character #\, #'read-single-character-symbol nil readtable)
     ;; Enables solely ':' as a symbol.
     (set-macro-character #\: #'read-lonely-single-symbol t readtable))
-  (when (>= level 1) 			; Aggressive
-    ;; Vertical tab is a whitespace in C.
-    (set-syntax-from-char +vertical-tab-character+ #\space readtable)
+  (when (>= level 1)
     ;; Treats '0x' numeric literal specially.
     (set-macro-character #\0 #'read-0x-numeric-literal t readtable)
     ;; Reads '||' and solely '|' as a symbol.
+    ;; FIXME: Should I use Lisp escape for a symbol like '|assert|'?
     (set-macro-character #\| #'read-solely-bar t readtable)
     ;; brackets
     (set-macro-character #\{ #'read-single-character-symbol nil readtable)
@@ -571,32 +657,39 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     (set-macro-character #\` #'read-in-previous-syntax nil readtable)
     ;; Disables 'consing dots', with replacement of ()
     (set-macro-character #\. #'read-lonely-single-symbol t readtable)
-    ;; Destroying CL standard syntax -- overwrite standard macro chars.
+    ;; Enable C comments.
     (set-macro-character #\/ #'read-slash-comment t readtable)
+    ;; Destroying CL standard syntax -- overwrite standard macro chars.
     (set-macro-character #\" #'read-double-quote nil readtable)
     (set-macro-character #\; #'read-single-character-symbol nil readtable)
     (set-macro-character #\( #'read-single-character-symbol nil readtable)
     (set-macro-character #\) #'read-single-character-symbol nil readtable))
-  (when (>= level 2)			; Overkill
+  (when (>= level 2)
+    ;; Character constant, overwrites `quote'.
+    ;; (The overwriting prevents Lisp syntax extremely, so enables only in level 2).
     (set-macro-character #\' #'read-single-quote nil readtable)
-    ;; No compatibilities between CL symbols.
-    (set-macro-character #\? #'read-single-character-symbol nil readtable)
-    (set-macro-character #\~ #'read-single-character-symbol nil readtable)
-    (set-macro-character #\: #'read-single-character-symbol nil readtable)
-    (set-macro-character #\. #'read-dot nil readtable)
-    (set-macro-character #\= #'read-single-or-compound-assign nil readtable)
-    (set-macro-character #\* #'read-single-or-compound-assign nil readtable)
-    (set-macro-character #\% #'read-single-or-compound-assign nil readtable)
-    (set-macro-character #\^ #'read-single-or-compound-assign nil readtable)
-    (set-macro-character #\! #'read-single-or-compound-assign nil readtable)
-    (set-macro-character #\& #'read-single-or-equal-or-self-symbol nil readtable)
-    (set-macro-character #\| #'read-single-or-equal-or-self-symbol nil readtable) ; TODO: Should I use Lisp escape for a symbol like '|assert|'?
-    (set-macro-character #\+ #'read-single-or-equal-or-self-symbol nil readtable)
-    (set-macro-character #\- #'read-minus nil readtable)
-    (set-macro-character #\< #'read-shift nil readtable)
-    (set-macro-character #\> #'read-shift nil readtable)
-    (set-macro-character #\/ #'read-slash nil readtable)
-    ;; Numeric litrals
+    ;; C punctuators.
+    ;;   Already in Level 0 -- ,
+    ;;   Already in Level 1 -- [ ] { } ( ) ;
+    (set-macro-character #\. #'read-dot nil readtable) ; . ...
+    (set-macro-character #\- #'read-minus nil readtable) ; -> -- - -=
+    (set-macro-character #\+ #'read-plus-like-symbol nil readtable) ; ++ + +=
+    (set-macro-character #\& #'read-plus-like-symbol nil readtable) ; & && &=
+    (set-macro-character #\* #'read-single-or-compound-assign nil readtable) ; * *=
+    (set-macro-character #\~ #'read-single-character-symbol nil readtable) ; ~
+    (set-macro-character #\! #'read-single-or-compound-assign nil readtable) ; ! !=
+    (set-macro-character #\/ #'read-slash nil readtable) ; / /= and comments.
+    (set-macro-character #\% #'read-% nil readtable) ; % %= %> %: %:%:
+    (set-macro-character #\< #'read-< nil readtable) ; << < <= <<= <: <%
+    (set-macro-character #\> #'read-shift nil readtable) ; >> > >= >>=
+    (set-macro-character #\= #'read-single-or-compound-assign nil readtable) ; == =
+    (set-macro-character #\^ #'read-single-or-compound-assign nil readtable) ; ^ ^=
+    (set-macro-character #\| #'read-plus-like-symbol nil readtable) ; | || |=
+    (set-macro-character #\? #'read-single-character-symbol nil readtable) ; ?
+    (set-macro-character #\: #'read-colon nil readtable) ; : :>
+    (set-macro-character #\# #'read-sharp nil readtable) ; # ##
+    ;; TODO: 'L' prefix for character and string.
+    ;; Numeric litrals.
     (set-macro-character #\0 #'read-numeric-literal t readtable)
     (set-macro-character #\1 #'read-numeric-literal t readtable)
     (set-macro-character #\2 #'read-numeric-literal t readtable)
@@ -607,9 +700,6 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     (set-macro-character #\7 #'read-numeric-literal t readtable)
     (set-macro-character #\8 #'read-numeric-literal t readtable)
     (set-macro-character #\9 #'read-numeric-literal t readtable))
-  ;; TODO: If I support trigraphs or digraphs, I'll add them here.
-  ;; (But I think these are not needed because the Standard characters include
-  ;; the replaced characters/)
   ;; TODO: C99 support?
   ;; - An identifier begins with '\u' (universal character)
   ;;   How to be '\' treated?

@@ -143,6 +143,7 @@
   (with-slots (unread-char) cp-stream
     (when unread-char
       (error 'with-c-syntax-reader-error
+             :stream cp-stream
              :format-control "Unreading too many chars. (stored ~C, unreaded ~C)"
              :format-arguments (list unread-char character)))
     (setf unread-char character))
