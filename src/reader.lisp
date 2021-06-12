@@ -113,6 +113,10 @@ When this is nil, the `readtable-case' of the current `*readtable*' at
   "Holds the readtable used by #\` syntax.
 This is bound by '#{' read macro to the `*readtable*' at that time.")
 
+(defvar *second-unread-char* nil
+  "Holds a character wanted to `unread-char' secondarily. This is used
+ for implementing '...' and '%:%:'.")
+
 
 (defun read-in-previous-syntax (stream char)
   (when (eq *readtable* *previous-syntax*)
@@ -312,11 +316,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                   (read-char stream)
                   (intern "..."))
                  (t
-                  ;; FIXME: To corrent implementation, I must read them to '.', '.', 'foo'.
-                  ;; But I require unread two chars for implementing it.
-                  (error 'with-c-syntax-reader-error
-                         :stream stream
-                         :format-arguments "Two consective dots are not syntactic."))))
+                  (setf *second-unread-char* #\.) ; We can't use `unread-char' because `peek-char' was used above.
+                  (intern "."))))
           (t
            (read-single-character-symbol stream char)))))
 
@@ -390,10 +391,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
            (read-char stream t nil t)
            (intern "%:%:"))
           (t
-           ;; FIXME: See `read-dot' comment.
-           (error 'with-c-syntax-reader-error
-                  :stream stream
-                  :format-arguments "Current with-c-syntax does not accept '%:%' sequence except '%:%:'."))))
+           (setf *second-unread-char* #\%) ; We can't use `unread-char' because `peek-char' was used above.
+           (intern "%:"))))
        (t
         (intern "%:"))))
     (t
@@ -724,7 +723,9 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   "Reads a token from STREAM until EOF or '}#' found. Newline is read
  as `+newline-marker+'."
   (let* ((*readtable* c-readtable)
-         (first-char (skip-c-whitespace stream)))
+         (first-char (if *second-unread-char*
+                         (shiftf *second-unread-char* nil)
+                         (skip-c-whitespace stream))))
     (cond
       ((eql first-char #\newline)  ; Preserve newline to preprocessor.
        (read-char stream)
@@ -746,6 +747,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
  LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
          (*previous-syntax* *readtable*)
+         (*second-unread-char* nil)
          (c-readtable (copy-readtable nil))
          (process-backslash-newline
            (case *with-c-syntax-reader-process-backslash-newline*
