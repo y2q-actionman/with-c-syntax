@@ -4,27 +4,20 @@
   (when (fboundp 'trivial-cltl2:compiler-let)
     (pushnew :with-c-syntax-test-use-compiler-let *features*)))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun pick-eql-name (symbol)
-    (let* ((op-name (symbol-name symbol))
-	   (eq-op-begin (1+ (position #\. op-name)))
-	   (eq-op-end (position #\. op-name :start eq-op-begin)))
-      (or (find-symbol (subseq op-name eq-op-begin eq-op-end))
-	  (error "operator ~A does not contain expected equality function" symbol)))))
-
-(defmacro define-is.*.wcs (operator)
-  (let ((eql-op (pick-eql-name operator))
-	(use-option (search "OPTION" (symbol-name operator))))
-    `(defmacro ,operator (,@ (if use-option '(option) nil)
-			  val &body body)
-       `(is (,',eql-op
-		,val
-		(with-c-syntax (,@,(if use-option 'option nil))
-		  ,@body))))))
+(defmacro define-is.*.wcs (name eql-operator-name &key (use-option nil))
+  `(defmacro ,name (,@ (if use-option '(option) nil)
+		       val &body body)
+     `(is (,',eql-operator-name
+	   ,val
+	   (with-c-syntax (,@,(if use-option 'option nil))
+	     ,@body)))))
 			  
-(define-is.*.wcs is.equal.wcs)
-(define-is.*.wcs is.equalp.wcs)
-(define-is.*.wcs is.equal.wcs.option)
+(define-is.*.wcs is.equal.wcs
+  equal)
+(define-is.*.wcs is.equalp.wcs
+  equalp)
+(define-is.*.wcs is.equal.wcs.option
+  equal :use-option t)
 
 (defmacro signals.macroexpand.wcs ((&optional (condition 'with-c-syntax-error)) &body body)
   `(signals ,condition
@@ -33,6 +26,20 @@
 (defmacro signals.wcs ((&optional (condition 'with-c-syntax-error)) &body body)
   `(signals ,condition
      (with-c-syntax () ,@Body)))
+
+(defmacro is.wcs.reader (forms-in-wcs string)
+  (with-gensyms (op options body)
+    `(destructuring-bind (,op ,options &body ,body)
+         (let ((*readtable* (find-readtable 'with-c-syntax:with-c-syntax-readtable)))
+           (read-from-string ,string))
+       (declare (ignore ,options))
+       (assert (eq ,op 'with-c-syntax))
+       (is (equal ,forms-in-wcs ,body)))))
+
+(defmacro signals.wcs.reader ((&optional (condition 'with-c-syntax-error)) string)
+  `(signals ,condition
+     (let ((*readtable* (find-readtable 'with-c-syntax:with-c-syntax-readtable)))
+       (read-from-string ,string))))
 
 (defmacro muffle-unused-code-warning (&body body)
   "Muffles `sb-ext:code-deletion-note' of SBCL. For other
@@ -59,8 +66,3 @@ implementation, this is just `progn'"
      (unwind-protect (progn ,@body)
        (mapcar #'makunbound ',symbols)
        (mapcar #'fmakunbound ',symbols))))
-
-(defmacro signals.wcs.reader ((&optional (condition 'with-c-syntax-error)) string)
-  `(let ((*readtable* (copy-named-readtable 'with-c-syntax:with-c-syntax-readtable)))
-     (signals ,condition
-       (read-from-string ,string))))

@@ -161,12 +161,12 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 (defconstant +wcs-end-marker+ '}#)
 
 (defun read-right-curly-bracket (stream char)
-  (let ((next (peek-char nil stream nil nil t)))
-    (cond ((eql next #\#)             ; ''
-           (read-char stream t nil t)
-           +wcs-end-marker+)
-          (t
-           (read-single-character-symbol stream char)))))
+  (case (peek-char nil stream nil nil t)
+    (#\#                                ; '}#'
+     (read-char stream t nil t)
+     +wcs-end-marker+)
+    (t
+     (read-single-character-symbol stream char))))
 
 (defun read-slash-comment (stream char
                            &optional (next-function #'read-lonely-single-symbol))
@@ -733,25 +733,27 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 (defun read-preprocessing-token (stream c-readtable)
   "Reads a token from STREAM until EOF or '}#' found. Newline is read
  as `+newline-marker+'."
-  (let* ((*readtable* c-readtable)
-         (first-char (if *second-unread-char*
-                         (shiftf *second-unread-char* nil)
-                         (skip-c-whitespace stream))))
+  (let ((*readtable* c-readtable))
     (cond
-      ((eql first-char #\newline)  ; Preserve newline to preprocessor.
-       (read-char stream)
-       +newline-marker+)
-      ;; This path is required for SBCL.
-      ;; On Allegro, it is not needed. '}' reader macro (`read-right-curly-bracket') works good.
-      ((eql first-char #\})
-       (read-char stream)
-       (cond ((eql (peek-char nil stream t) #\#)
-              (read-char stream)
-              +wcs-end-marker+)
-             (t
-              '})))
+      (*second-unread-char*
+       (assert (not (c-whitespace-p *second-unread-char*)))
+       (read-after-unread (shiftf *second-unread-char* nil) stream t nil t))
       (t
-       (read stream t :eof t)))))
+       (case (skip-c-whitespace stream)
+         (#\newline                ; Preserve newline to preprocessor.
+          (read-char stream)
+          +newline-marker+)
+         (#\}
+          ;; This path is required for SBCL.
+          ;; On Allegro, it is not needed. '}' reader macro (`read-right-curly-bracket') works good.
+          (read-char stream)
+          (cond ((eql (peek-char nil stream t) #\#)
+                 (read-char stream)
+                 +wcs-end-marker+)
+                (t
+                 (intern "}")))) ; Intern it into the current `*package*'.
+         (t
+          (read stream t :eof t)))))))
 
 (defun tokenize-source (level stream)
   "Tokenize C source by doing translation phase 1, 2, and 3.
