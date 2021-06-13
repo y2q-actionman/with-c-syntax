@@ -426,6 +426,30 @@ de";
   (is.wcs.reader (read-in-current-package '(<% \. \. |%:| % \. \. |%:| \. \. %>))
                  "#2{<%..%:%..%:..%>}#"))
 
+(test test-reader-L-prefix
+  (is.equal.wcs #\L
+    #2{
+    return L'L';
+    }#)
+  (is.equal.wcs (code-char #x80)
+    #2{
+    return L'\x80';
+    }#)
+  (is.equal.wcs "L-prefixed"
+    #2{
+    int L = 999;
+    return L && L"L-prefixed";
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return l"not-l-prefixed";
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return L "not-l-prefixed";
+    }#)
+  )
+
 ;;; Constants
 
 (test test-reader-integer
