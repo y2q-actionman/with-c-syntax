@@ -762,6 +762,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
          (*previous-syntax* *readtable*)
          (*second-unread-char* nil)
          (c-readtable (copy-readtable nil))
+         (remove-newline-marker (< level 1))   ; TODO: document this parameter.
          (process-backslash-newline
            (case *with-c-syntax-reader-process-backslash-newline*
              (:auto (>= level +with-c-syntax-default-reader-level+))
@@ -776,7 +777,10 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       for token = (read-preprocessing-token cp-stream c-readtable)
       if (eq token +wcs-end-marker+)
         do (loop-finish)
-      unless (eq token +newline-marker+) ; TODO: FIXME: Brings this newlines to preprocessor.
+      else if (and (eq token +newline-marker+)
+                   remove-newline-marker)
+             do (progn)
+      else
         collect token into token-list
       finally
          (return (values token-list c-readtable)))))
@@ -787,12 +791,14 @@ Inside '#{' and '}#', the reader uses completely different syntax, and
 the result is wrapped with `with-c-syntax'.
  See `*with-c-syntax-reader-level*' and `*with-c-syntax-reader-case*'."
   (assert (char= char #\{))
-  (let ((level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2)))
+  (let ((level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2))
+        (input-file-pathname (ignore-errors (namestring stream))))
     (multiple-value-bind (tokens readtable)
         (tokenize-source level stream)
       `(with-c-syntax (:readtable-case
                        ;; Capture the readtable-case used for reading inside '#{ ... }#'.
-                       ,(readtable-case readtable))
+                       ,(readtable-case readtable)
+                       :input-file-pathname ,input-file-pathname)
          ,@tokens))))
 
 (defreadtable with-c-syntax-readtable

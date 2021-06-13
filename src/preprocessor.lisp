@@ -226,7 +226,9 @@ returns NIL."
     (t
      (values nil symbol))))
 
-(defun preprocessor (token-list readtable-case
+;;; Main loop
+
+(defun preprocessor (token-list readtable-case input-file-pathname
                      &key (process-digraph *with-c-syntax-preprocessor-process-digraph*))
   "This function preprocesses TOKEN-LIST before parsing.
 
@@ -265,6 +267,12 @@ calls the function like:
   (funcall #'a-func-of-MAC '(a) '(b b) '(c c c))"
   (do (result-list
        typedef-hack
+       (line-number 0 (if (eq token +newline-marker+)
+                          (1+ line-number)
+                          line-number))
+       (tokens-in-line 0 (if (eq token +newline-marker+)
+                             0
+                             (1+ tokens-in-line)))
        (token (pop token-list) (pop token-list)))
       ((and (null token-list) ; I must check 'token-list' here to get all symbols, including NIL.
 	    (null token))
@@ -274,6 +282,8 @@ calls the function like:
     (typecase token
       (symbol
        (cond
+         ((eq token +newline-marker+)
+          (progn))
          ;; Part of translation Phase 4 -- preprocessor macro
          ((when-let (pp-macro (find-preprocessor-macro token))
             (cond ((functionp pp-macro)	; preprocessor funcion

@@ -37,6 +37,7 @@ Establishes variable bindings for a new compilation.
 
 (defmacro with-c-syntax ((&rest options
 			  &key (readtable-case (readtable-case *readtable*))
+                            (input-file-pathname nil)
                             (return :auto)
 			    (try-add-{} t))
 			 &environment *wcs-expanding-environment*
@@ -69,7 +70,7 @@ tries to parse again."
        (declare (ignore op_))
        `(with-c-syntax (,@options ,@options2) ,@body2)))
     (t
-     (expand-c-syntax (preprocessor body readtable-case)
+     (expand-c-syntax (preprocessor body readtable-case input-file-pathname)
 		      try-add-{}
 		      (if (eq return :auto) nil return)
 		      (eq return :auto)))))
