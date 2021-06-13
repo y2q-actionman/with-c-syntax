@@ -389,27 +389,42 @@ de";
     return x==3+69258/714;
     }#))
 
+(defun read-in-current-package (symbol-list)
+  (loop for sym in symbol-list
+        collect (intern (symbol-name sym))))
+
 (test test-reader-punctuators
+  ;; This test is affected by `*package*' of the caller.
   (is.wcs.reader
-   '(x [ ] \( \) { } \. ->
-     ++ -- & * + - ~ !
-     / % << >> < > <= >= == != ^ \| && \|\|
-     ? \: \; |...|
-     = *= /= %= += -= <<= >>= &= ^= \|=
-     \,
-     |##| \#
-     |<:| |:>| <% %> |%:%:| |%:|
-     )
+   (read-in-current-package
+    '(x [ ] \( \) { } \. ->
+      ++ -- & * + - ~ !
+      / % << >> < > <= >= == != ^ \| && \|\|
+      ? \: \; |...|
+      = *= /= %= += -= <<= >>= &= ^= \|=
+      \,
+      |##| \#
+      |<:| |:>| <% %> |%:%:| |%:|
+      ))
    "#2{x[](){}.->++--&*+-~!/%<<>><><=>===!=^|&&||?:;...=*=/=%=+=-=<<=>>=&=^=|=,###<::><%%>%:%:%:}#")
-  (is.wcs.reader '(} } } }) "#2{}}}}}#")
-  (is.wcs.reader '(++ +) "#2{+++}#")
-  (is.wcs.reader '(x ++ +=) "#2{x+++=}#")
-  (is.wcs.reader '(x ++ ++ =) "#2{x++++=}#")
-  (is.wcs.reader '(\# define) "#2{#define}#")
-  (is.wcs.reader '(|<:| |:| |:>|) "#2{<:::>}#")
-  (is.wcs.reader '(<% %= |%:%:| |%:| % |%:| %>) "#2{<%%=%:%:%:%%:%>}#")
-  (is.wcs.reader '(a \. b \. \. c |...| d |...| \. e |...| \. \. f) "#2{a.b..c...d....e.....f}#")
-  (is.wcs.reader '(<% \. \. |%:| % \. \. |%:| \. \. %>) "#2{<%..%:%..%:..%>}#"))
+  (is.wcs.reader (read-in-current-package '(} } } }))
+                 "#2{}}}}}#")
+  (is.wcs.reader (read-in-current-package '(++ +))
+                 "#2{+++}#")
+  (is.wcs.reader (read-in-current-package '(x ++ +=))
+                 "#2{x+++=}#")
+  (is.wcs.reader (read-in-current-package '(x ++ ++ =))
+                 "#2{x++++=}#")
+  (is.wcs.reader (read-in-current-package '(\# define))
+                 "#2{#define}#")
+  (is.wcs.reader (read-in-current-package '(|<:| |:| |:>|))
+                 "#2{<:::>}#")
+  (is.wcs.reader (read-in-current-package '(<% %= |%:%:| |%:| % |%:| %>))
+                 "#2{<%%=%:%:%:%%:%>}#")
+  (is.wcs.reader (read-in-current-package '(a \. b \. \. c |...| d |...| \. e |...| \. \. f))
+                 "#2{a.b..c...d....e.....f}#")
+  (is.wcs.reader (read-in-current-package '(<% \. \. |%:| % \. \. |%:| \. \. %>))
+                 "#2{<%..%:%..%:..%>}#"))
 
 ;;; Constants
 
