@@ -249,6 +249,33 @@ returns NIL."
                        (process-digraph? (pp-state-process-digraph? ,state)))
        ,@body)))
 
+(defun preprocessor-loop-try-directives (state token)
+  "Process preprocessor directives. This is tranlation phase 4."
+  (with-preprocessor-state-slots (state)
+    (when (and (zerop tokens-in-line)
+               (or (string= token "#")
+                   (and process-digraph? (string= token "%:"))))
+      (let* ((directive-tokens
+               (loop for i = (pop token-list)
+                     while token-list
+                     until (eq i +newline-marker+)
+                     collect i))
+             (directive-name (first directive-tokens)))
+        (cond
+          ((null directive-tokens)      ; Null directive
+           (progn))
+          ;; TODO:
+          ;; Conditionals (if, ifdef, ifndef, elif, else, endif)
+          ;; #include
+          ;; #define
+          ;; #undef
+          ;; #line
+          ;; #error
+          ;; #pragma
+          )
+        )
+      t)))
+
 (defun preprocessor-loop-try-intern-punctuators (state token)
   "Intern puctuators. this is with-c-syntax specific preprocessing path."
   (with-preprocessor-state-slots (state)
@@ -310,6 +337,9 @@ returns NIL."
          (cond
            ((eq token +newline-marker+)
             (progn))
+           ;; Translation Phase 4
+           ((preprocessor-loop-try-directives state token)
+            t)
            ;; Part of translation Phase 4 -- preprocessor macro
            ((when-let (pp-macro (find-preprocessor-macro token))
               (cond ((functionp pp-macro) ; preprocessor funcion
