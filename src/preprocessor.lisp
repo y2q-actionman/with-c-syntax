@@ -226,7 +226,7 @@ returns NIL."
     (t
      (values nil symbol))))
 
-;;; Preprocessor state runs in the main loop.
+;;; preprocessor-state object held in the main loop.
 
 (defstruct (preprocessor-state (:conc-name pp-state-)) 
   (token-list nil :type list)
@@ -249,7 +249,39 @@ returns NIL."
                        (process-digraph? (pp-state-process-digraph? ,state)))
        ,@body)))
 
-(defun preprocessor-concatenate-string (state token)
+(defun preprocessor-loop-try-intern-punctuators (state token)
+  "Intern puctuators. this is with-c-syntax specific preprocessing path."
+  (with-preprocessor-state-slots (state)
+    (when-let (punctuator (find-punctuator (symbol-name token)))
+      (when-let ((replace (find-digraph-replacement punctuator))) ; Check digraph 
+        (unless (eq process-digraph? :no-warn)
+          (warn 'with-c-syntax-style-warning
+                :message (format nil "Digraph sequence '~A' (means ~A) found."
+                                 punctuator replace)))
+        (when process-digraph?
+          (setf punctuator replace)))
+      (push punctuator result-list)
+      ;; typedef hack -- adds "void ;" after each typedef.
+      (when (and typedef-hack?
+	         (eq punctuator '\;))
+        (setf typedef-hack? nil)
+        (revappendf result-list '(|void| \;)))
+      t)))
+
+(defun preprocessor-loop-try-intern-keywords (state token)
+  "Intern C keywords. this is with-c-syntax specific preprocessing path."
+  (with-preprocessor-state-slots (state)
+    (when-let (c-op (ecase readtable-case ; FIXME: cleanup here.
+                      ((:upcase :invert)
+                       (find-c-terminal-by-upcased-name (symbol-name token)))
+                      ((:downcase :preserve)
+                       (find-c-terminal (symbol-name token)))))
+      (push c-op result-list)
+      (when (eq c-op '|typedef|)
+        (setf typedef-hack? t)) ; enables 'typedef hack'.
+      t)))
+  
+(defun preprocessor-loop-concatenate-string (state token)
   "Do the translation phase 6 -- string concatenation."
   (with-preprocessor-state-slots (state)
     (let* ((following-strings
@@ -287,44 +319,23 @@ returns NIL."
 		       (setf token-list new-lis)))
 	            (t			; symbol expansion
                      (push pp-macro result-list)))))
-           ;; with-c-syntax specific --- interning puctuators.
-           ((when-let (pp-punc (find-punctuator (symbol-name token)))
-              (when-let ((replace (find-digraph-replacement pp-punc))) ; Check digraph 
-                (unless (eq process-digraph? :no-warn)
-                  (warn 'with-c-syntax-style-warning
-                        :message (format nil "Digraph sequence '~A' (means ~A) found."
-                                         pp-punc replace)))
-                (when process-digraph?
-                  (setf pp-punc replace)))
-              (push pp-punc result-list)
-              ;; typedef hack -- adds "void ;" after each typedef.
-              (when (and typedef-hack?
-		         (eq pp-punc '\;))
-                (setf typedef-hack? nil)
-	        (revappendf result-list '(|void| \;)))
-              t))
-           ;; with-c-syntax specific: interning C keywords.
-           ((when-let (c-op (ecase readtable-case ; FIXME: cleanup here.
-                              ((:upcase :invert)
-                               (find-c-terminal-by-upcased-name (symbol-name token)))
-                              ((:downcase :preserve)
-                               (find-c-terminal (symbol-name token)))))
-              (push c-op result-list)
-              (when (eq c-op '|typedef|)
-                (setf typedef-hack? t)) ; enables 'typedef hack'.
-              t))
+           ;; with-c-syntax specifics.
+           ((preprocessor-loop-try-intern-punctuators state token)
+            t)
+           ((preprocessor-loop-try-intern-keywords state token)
+            t)
            ;; with-c-syntax specific: Try to split the token.
            ;; FIXME: I think this should be only for reader level 1.
            ((unless (or (boundp token)
                         (fboundp token))
               (multiple-value-bind (splited-p results) (preprocessor-try-split token)
-	        (when splited-p
-	          (setf token-list (nconc results token-list))))))
+	        (if splited-p
+	            (setf token-list (nconc results token-list))
+                    nil))))             ; fallthrough
            (t
-            ;; otherwise..
             (push token result-list))))
         (string
-         (preprocessor-concatenate-string state token))
+         (preprocessor-loop-concatenate-string state token))
         (t
          (push token result-list)))
       (cond ((eq token +newline-marker+)
