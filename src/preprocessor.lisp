@@ -1,16 +1,43 @@
 (in-package #:with-c-syntax.core)
 
-(defmacro define-pp-upcased-package (name original-package)
+(defmacro define-case-aware-find-symbol
+    (finder-function-name package-name
+     &key (upcased-package-name (format nil "~A.~A" (string package-name) '#:UPCASED))
+       (docstring nil))
   `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (defpackage ,name
+     (defpackage ,upcased-package-name
        (:use)
        (:intern
-        ,@(loop for sym being the external-symbol of original-package
+        ,@(loop for sym being the external-symbol of package-name
                 collect (string-upcase (symbol-name sym)))))
-     ,@(loop for sym being the external-symbol of original-package
+     ,@(loop for sym being the external-symbol of package-name
              for upcased = (string-upcase (symbol-name sym))
-             collect `(setf (symbol-value (find-symbol ,upcased ',name))
-                            ',sym))))
+             collect `(setf (symbol-value (find-symbol ,upcased ',upcased-package-name))
+                            ',sym))
+     (defun ,finder-function-name (name readtable-case)
+       ,@(if docstring `(,docstring))
+       (ecase readtable-case
+         ((:upcase :invert)
+          (if-let ((up-sym (find-symbol name ',upcased-package-name)))
+            (symbol-value up-sym)))
+         ((:downcase :preserve)
+          (find-symbol name ',package-name))))))
+
+;;; C syntax words
+
+(define-case-aware-find-symbol find-c-terminal
+  #:with-c-syntax.syntax
+  :docstring
+  "Find a symbol in `with-c-syntax.syntax' package having a same
+NAME. If not found, returns `nil'.")
+
+;;; CPP directives
+
+(define-case-aware-find-symbol find-preprocessor-directive
+  #:with-c-syntax.preprocessor-directive
+  :docstring
+  "Find a symbol in `with-c-syntax.preprocessor-directive' package
+having a same NAME. If not found, returns `nil'.")
 
 ;;; C punctuators.
 
@@ -30,22 +57,6 @@
   "Determines whether preprocessor replaces digraphs.
  If this is true, replacement occurs but `with-c-syntax-style-warning' is signalled.
  If this is `:no-warn', replacement occurs and the style-warning is not signalled.")
-
-;;; C syntax words
-
-(defun find-c-terminal (name)
-  "Find a symbol in `with-c-syntax.syntax' package having a same
-NAME. If not found, returns `nil'."
-  (find-symbol name '#:with-c-syntax.syntax))
-
-(define-pp-upcased-package #:with-c-syntax.syntax.upcased
-  #:with-c-syntax.syntax)
-
-(defun find-c-terminal-by-upcased-name (name)
-  "Find a symbol in `with-c-syntax.syntax' package having a same
- upcased NAME. If not found, returns `nil'."
-  (if-let ((up-sym (find-symbol name '#:with-c-syntax.syntax.upcased)))
-    (symbol-value up-sym)))
 
 ;;; Preprocessor macro.
 
@@ -310,11 +321,7 @@ returns NIL."
 (defun preprocessor-loop-try-intern-keywords (state token)
   "Intern C keywords. this is with-c-syntax specific preprocessing path."
   (with-preprocessor-state-slots (state)
-    (when-let (c-op (ecase readtable-case ; FIXME: cleanup here.
-                      ((:upcase :invert)
-                       (find-c-terminal-by-upcased-name (symbol-name token)))
-                      ((:downcase :preserve)
-                       (find-c-terminal (symbol-name token)))))
+    (when-let (c-op (find-c-terminal (symbol-name token) readtable-case))
       (push c-op result-list)
       (when (eq c-op '|typedef|)
         (setf typedef-hack? t)) ; enables 'typedef hack'.
