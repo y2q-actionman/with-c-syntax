@@ -36,7 +36,8 @@ Establishes variable bindings for a new compilation.
 		   :yacc-error condition))))))
 
 (defmacro with-c-syntax ((&rest options
-			  &key (readtable-case (readtable-case *readtable*))
+			  &key (preprocess t)
+                            (readtable-case (readtable-case *readtable*))
                             (input-file-pathname nil)
                             (return :auto)
 			    (try-add-{} t))
@@ -69,8 +70,11 @@ tries to parse again."
 	 (first body)
        (declare (ignore op_))
        `(with-c-syntax (,@options ,@options2) ,@body2)))
+    (preprocess
+     `(with-c-syntax (:preprocess nil :return ,return :try-add-{} ,try-add-{})
+        ,@(preprocessor body readtable-case input-file-pathname)))
     (t
-     (expand-c-syntax (preprocessor body readtable-case input-file-pathname)
+     (expand-c-syntax body
 		      try-add-{}
 		      (if (eq return :auto) nil return)
 		      (eq return :auto)))))
