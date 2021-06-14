@@ -187,12 +187,9 @@ If not, returns a next token by `cl:read' after unreading CHAR."
        if (eql c #\newline)
          count it into newlines
        finally
-          (return
-            (cond ((zerop newlines)
-                   (values))
-                  (t
-                   (adjust-newline-gap stream (1- newlines))
-                   +newline-marker+)))))
+          (unread-char #\space stream)
+          (adjust-newline-gap stream newlines)
+          (return (values))))
     (otherwise
      (funcall next-function stream char))))
 
@@ -719,18 +716,23 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 
 (defconstant +newline-marker+
   '+newline-marker+
-  "Used for saving newline chars from reader to preprocessor")
+  "Used for saving newline chars from reader to preprocessor.")
+
+(defconstant +whitespace-marker+
+  '+whitespace-marker+
+  "Used for saving whitespace chars from reader to preprocessor, for preprocessor directives.")
 
 (defun skip-c-whitespace (stream)
   "Skips C whitespaces except newline."
   (loop for c = (read-char stream)
         while (and (not (eql #\newline c))
                    (c-whitespace-p c))
+        count c into cnt
         finally
            (unread-char c stream)
-           (return c)))
+           (return (values c cnt))))
 
-(defun read-preprocessing-token (stream c-readtable)
+(defun read-preprocessing-token (stream c-readtable keep-whitespace)
   "Reads a token from STREAM until EOF or '}#' found. Newline is read
  as `+newline-marker+'."
   (let ((*readtable* c-readtable))
@@ -739,21 +741,28 @@ If not, returns a next token by `cl:read' after unreading CHAR."
        (assert (not (c-whitespace-p *second-unread-char*)))
        (read-after-unread (shiftf *second-unread-char* nil) stream t nil t))
       (t
-       (case (skip-c-whitespace stream)
-         (#\newline                ; Preserve newline to preprocessor.
-          (read-char stream)
-          +newline-marker+)
-         (#\}
-          ;; This path is required for SBCL.
-          ;; On Allegro, it is not needed. '}' reader macro (`read-right-curly-bracket') works good.
-          (read-char stream)
-          (cond ((eql (peek-char nil stream t) #\#)
-                 (read-char stream)
-                 +wcs-end-marker+)
-                (t
-                 (intern "}")))) ; Intern it into the current `*package*'.
-         (t
-          (read stream t :eof t)))))))
+       (multiple-value-bind (first-char whitespaces)
+           (skip-c-whitespace stream)
+         (cond
+           ((and keep-whitespace (plusp whitespaces))
+            +whitespace-marker+)
+           ((eql first-char #\newline)
+            ;; Preserve newline to preprocessor.
+            (read-char stream)
+            +newline-marker+)
+           ((eql first-char #\})
+            ;; This path is required for SBCL.
+            ;; On Allegro, it is not needed. '}' reader macro (`read-right-curly-bracket') works good.
+            (read-char stream)
+            (cond ((eql (peek-char nil stream t) #\#)
+                   (read-char stream)
+                   +wcs-end-marker+)
+                  (t
+                   (intern "}")))) ; Intern it into the current `*package*'.
+           (t
+            (if keep-whitespace
+                (read-preserving-whitespace stream t :eof t)
+                (read stream t :eof t)))))))))
 
 (defun tokenize-source (level stream)
   "Tokenize C source by doing translation phase 1, 2, and 3.
@@ -762,7 +771,6 @@ If not, returns a next token by `cl:read' after unreading CHAR."
          (*previous-syntax* *readtable*)
          (*second-unread-char* nil)
          (c-readtable (copy-readtable nil))
-         (remove-newline-marker (< level 1))   ; TODO: document this parameter.
          (process-backslash-newline
            (case *with-c-syntax-reader-process-backslash-newline*
              (:auto (>= level +with-c-syntax-default-reader-level+))
@@ -774,14 +782,18 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       with cp-stream = (make-instance 'physical-source-input-stream
                                       :stream stream :target-readtable c-readtable
                                       :phase-2 process-backslash-newline)
-      for token = (read-preprocessing-token cp-stream c-readtable)
-      if (eq token +wcs-end-marker+)
-        do (loop-finish)
-      else if (and (eq token +newline-marker+)
-                   remove-newline-marker)
-             do (progn)
-      else
-        collect token into token-list
+      with keep-whitespace = nil
+      
+      for token = (read-preprocessing-token cp-stream c-readtable keep-whitespace)
+      do (cond
+           ((eq token +wcs-end-marker+)
+            (loop-finish))
+           ((and (symbolp token)
+                 (or (string= token "#") (string= token "%:")))
+            (setf keep-whitespace t))
+           ((eq token +newline-marker+)
+            (setf keep-whitespace nil)))
+      collect token into token-list
       finally
          (return (values token-list c-readtable)))))
 

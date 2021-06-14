@@ -337,6 +337,8 @@ returns NIL."
          (cond
            ((eq token +newline-marker+)
             (progn))
+           ((eq token +whitespace-marker+)
+            (progn))
            ;; Translation Phase 4
            ((preprocessor-loop-try-directives state token)
             t)
