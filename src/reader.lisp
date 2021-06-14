@@ -637,82 +637,91 @@ If not, returns a next token by `cl:read' after unreading CHAR."
         (let ((*readtable* (copy-readtable nil))) ; Use the standard syntax.
           (read-after-unread c0 stream t nil t)))))
 
-(defun install-c-reader (readtable level)
-  "Inserts reader macros for C reader. Called by '#{' reader macro.
- See `*with-c-syntax-reader-level*'."
-  (check-type level integer)
-  (when (>= level 0)
-    (set-macro-character #\} #'read-right-curly-bracket t readtable)
-    ;; Vertical tab is a whitespace in C. (Allegro CL 10.0 is already so).
-    (set-syntax-from-char +vertical-tab-character+ #\space readtable)
-    ;; Comma is read as a symbol.
-    (set-macro-character #\, #'read-single-character-symbol nil readtable)
-    ;; Enables solely ':' as a symbol.
-    (set-macro-character #\: #'read-lonely-single-symbol t readtable))
-  (when (>= level 1)
-    ;; Treats '0x' numeric literal specially.
-    (set-macro-character #\0 #'read-0x-numeric-literal t readtable)
-    ;; Reads '||' and solely '|' as a symbol.
-    ;; FIXME: Should I use Lisp escape for a symbol like '|assert|'?
-    (set-macro-character #\| #'read-solely-bar t readtable)
-    ;; brackets
-    (set-macro-character #\{ #'read-single-character-symbol nil readtable)
-    (set-macro-character #\} #'read-right-curly-bracket nil readtable)
-    (set-macro-character #\[ #'read-single-character-symbol nil readtable)
-    (set-macro-character #\] #'read-single-character-symbol nil readtable)
-    ;; for accessing normal syntax.
-    (set-macro-character #\` #'read-in-previous-syntax nil readtable)
-    ;; Disables 'consing dots', with replacement of ()
-    (set-macro-character #\. #'read-lonely-single-symbol t readtable)
-    ;; Enable C comments.
-    (set-macro-character #\/ #'read-slash-comment t readtable)
-    ;; Destroying CL standard syntax -- overwrite standard macro chars.
-    (set-macro-character #\" #'read-double-quote nil readtable)
-    (set-macro-character #\; #'read-single-character-symbol nil readtable)
-    (set-macro-character #\( #'read-single-character-symbol nil readtable)
-    (set-macro-character #\) #'read-single-character-symbol nil readtable))
-  (when (>= level 2)
-    ;; Character constant, overwrites `quote'.
-    ;; (The overwriting prevents Lisp syntax extremely, so enables only in level 2).
-    (set-macro-character #\' #'read-single-quote nil readtable)
-    ;; 'L' prefix for character and string.
-    (set-macro-character #\L #'read-L t readtable)
-    ;; C punctuators.
-    ;;   Already in Level 0 -- ,
-    ;;   Already in Level 1 -- [ ] { } ( ) ;
-    (set-macro-character #\. #'read-dot nil readtable) ; . ...
-    (set-macro-character #\- #'read-minus nil readtable) ; -> -- - -=
-    (set-macro-character #\+ #'read-plus-like-symbol nil readtable) ; ++ + +=
-    (set-macro-character #\& #'read-plus-like-symbol nil readtable) ; & && &=
-    (set-macro-character #\* #'read-single-or-compound-assign nil readtable) ; * *=
-    (set-macro-character #\~ #'read-single-character-symbol nil readtable) ; ~
-    (set-macro-character #\! #'read-single-or-compound-assign nil readtable) ; ! !=
-    (set-macro-character #\/ #'read-slash nil readtable) ; / /= and comments.
-    (set-macro-character #\% #'read-% nil readtable) ; % %= %> %: %:%:
-    (set-macro-character #\< #'read-< nil readtable) ; << < <= <<= <: <%
-    (set-macro-character #\> #'read-shift nil readtable) ; >> > >= >>=
-    (set-macro-character #\= #'read-single-or-compound-assign nil readtable) ; == =
-    (set-macro-character #\^ #'read-single-or-compound-assign nil readtable) ; ^ ^=
-    (set-macro-character #\| #'read-plus-like-symbol nil readtable) ; | || |=
-    (set-macro-character #\? #'read-single-character-symbol nil readtable) ; ?
-    (set-macro-character #\: #'read-colon nil readtable) ; : :>
-    (set-macro-character #\# #'read-sharp nil readtable) ; # ##
-    ;; Numeric litrals.
-    (set-macro-character #\0 #'read-numeric-literal t readtable)
-    (set-macro-character #\1 #'read-numeric-literal t readtable)
-    (set-macro-character #\2 #'read-numeric-literal t readtable)
-    (set-macro-character #\3 #'read-numeric-literal t readtable)
-    (set-macro-character #\4 #'read-numeric-literal t readtable)
-    (set-macro-character #\5 #'read-numeric-literal t readtable)
-    (set-macro-character #\6 #'read-numeric-literal t readtable)
-    (set-macro-character #\7 #'read-numeric-literal t readtable)
-    (set-macro-character #\8 #'read-numeric-literal t readtable)
-    (set-macro-character #\9 #'read-numeric-literal t readtable))
+(defreadtable c-reader-level-0
+  (:merge :standard)
+  (:macro-char #\} #'read-right-curly-bracket t)
+  ;; Vertical tab is a whitespace in C. (Allegro CL 10.0 is already so).
+  (:syntax-from :standard #\space +vertical-tab-character+)
+  ;; Comma is read as a symbol.
+  (:macro-char #\, #'read-single-character-symbol)
+  ;; Enables solely ':' as a symbol.
+  (:macro-char #\: #'read-lonely-single-symbol t))
+
+(defreadtable c-reader-level-1
+  (:merge c-reader-level-0)
+  ;; Treats '0x' numeric literal specially.
+  (:macro-char #\0 #'read-0x-numeric-literal t)
+  ;; Reads '||' and solely '|' as a symbol.
+  ;; FIXME: Should I use Lisp escape for a symbol like '|assert|'?
+  (:macro-char #\| #'read-solely-bar t)
+  ;; brackets
+  (:macro-char #\{ #'read-single-character-symbol)
+  (:macro-char #\} #'read-right-curly-bracket)
+  (:macro-char #\[ #'read-single-character-symbol)
+  (:macro-char #\] #'read-single-character-symbol)
+  ;; for accessing normal syntax.
+  (:macro-char #\` #'read-in-previous-syntax)
+  ;; Disables 'consing dots', with replacement of ()
+  (:macro-char #\. #'read-lonely-single-symbol t)
+  ;; Enable C comments.
+  (:macro-char #\/ #'read-slash-comment t)
+  ;; Destroying CL standard syntax -- overwrite standard macro chars.
+  (:macro-char #\" #'read-double-quote)
+  (:macro-char #\; #'read-single-character-symbol)
+  (:macro-char #\( #'read-single-character-symbol)
+  (:macro-char #\) #'read-single-character-symbol))
+
+(defreadtable c-reader-level-2
+  (:fuse c-reader-level-1)
+  ;; Character constant, overwrites `quote'.
+  ;; (The overwriting prevents Lisp syntax extremely, so enables only in level 2).
+  (:macro-char #\' #'read-single-quote)
+  ;; 'L' prefix for character and string.
+  (:macro-char #\L #'read-L t)
+  ;; C punctuators.
+  ;;   Already in Level 0 -- ,
+  ;;   Already in Level 1 -- [ ] { } ( ) ;
+  (:macro-char #\. #'read-dot)                       ; . ...
+  (:macro-char #\- #'read-minus)                     ; -> -- - -=
+  (:macro-char #\+ #'read-plus-like-symbol)          ; ++ + +=
+  (:macro-char #\& #'read-plus-like-symbol)          ; & && &=
+  (:macro-char #\* #'read-single-or-compound-assign) ; * *=
+  (:macro-char #\~ #'read-single-character-symbol)   ; ~
+  (:macro-char #\! #'read-single-or-compound-assign) ; ! !=
+  (:macro-char #\/ #'read-slash)        ; / /= and comments.
+  (:macro-char #\% #'read-%)            ; % %= %> %: %:%:
+  (:macro-char #\< #'read-<)            ; << < <= <<= <: <%
+  (:macro-char #\> #'read-shift)        ; >> > >= >>=
+  (:macro-char #\= #'read-single-or-compound-assign) ; == =
+  (:macro-char #\^ #'read-single-or-compound-assign) ; ^ ^=
+  (:macro-char #\| #'read-plus-like-symbol)          ; | || |=
+  (:macro-char #\? #'read-single-character-symbol)   ; ?
+  (:macro-char #\: #'read-colon)                     ; : :>
+  (:macro-char #\# #'read-sharp)                     ; # ##
+  ;; Numeric litrals.
+  (:macro-char #\0 #'read-numeric-literal t)
+  (:macro-char #\1 #'read-numeric-literal t)
+  (:macro-char #\2 #'read-numeric-literal t)
+  (:macro-char #\3 #'read-numeric-literal t)
+  (:macro-char #\4 #'read-numeric-literal t)
+  (:macro-char #\5 #'read-numeric-literal t)
+  (:macro-char #\6 #'read-numeric-literal t)
+  (:macro-char #\7 #'read-numeric-literal t)
+  (:macro-char #\8 #'read-numeric-literal t)
+  (:macro-char #\9 #'read-numeric-literal t)
   ;; TODO: C99 support?
   ;; - An identifier begins with '\u' (universal character)
   ;;   How to be '\' treated?
-  readtable)
+  )
 
+(defun install-c-reader (readtable level)
+  "Inserts reader macros for C reader into READTABLE.
+ See `*with-c-syntax-reader-level*'."
+  (handler-bind ((named-readtables:reader-macro-conflict #'continue))
+    (case level
+      (0 (merge-readtables-into readtable 'c-reader-level-0))
+      (1 (merge-readtables-into readtable 'c-reader-level-1))
+      (2 (merge-readtables-into readtable 'c-reader-level-2)))))
 
 (defconstant +newline-marker+
   '+newline-marker+
