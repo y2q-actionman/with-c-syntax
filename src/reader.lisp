@@ -677,6 +677,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (:macro-char #\; #'read-single-character-symbol)
   (:macro-char #\( #'read-single-character-symbol)
   (:macro-char #\) #'read-single-character-symbol))
+;;; TODO: Add #d(efine), #e(rror|lif|lse|ndif), #i(nclude|f|fdef|fndef), #l(ine), #u(ndef)
+;;;    #p(ragma) is conflict with the pathname syntax.
 
 (defreadtable c-reader-level-2
   (:fuse c-reader-level-1)
