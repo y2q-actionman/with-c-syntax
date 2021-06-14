@@ -1,5 +1,17 @@
 (in-package #:with-c-syntax.core)
 
+(defmacro define-pp-upcased-package (name original-package)
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     (defpackage ,name
+       (:use)
+       (:intern
+        ,@(loop for sym being the external-symbol of original-package
+                collect (string-upcase (symbol-name sym)))))
+     ,@(loop for sym being the external-symbol of original-package
+             for upcased = (string-upcase (symbol-name sym))
+             collect `(setf (symbol-value (find-symbol ,upcased ',name))
+                            ',sym))))
+
 ;;; C punctuators.
 
 (defun find-punctuator (name)
@@ -26,17 +38,14 @@
 NAME. If not found, returns `nil'."
   (find-symbol name '#:with-c-syntax.syntax))
 
-(defvar *cache-for-find-c-terminal-upcase*
-  (loop with cache = (make-hash-table :test #'equal)
-        for sym being the external-symbol of '#:with-c-syntax.syntax
-        as upcase-name = (string-upcase (symbol-name sym))
-        do (setf (gethash upcase-name cache) sym)
-        finally (return cache)))
+(define-pp-upcased-package #:with-c-syntax.syntax.upcased
+  #:with-c-syntax.syntax)
 
 (defun find-c-terminal-by-upcased-name (name)
   "Find a symbol in `with-c-syntax.syntax' package having a same
  upcased NAME. If not found, returns `nil'."
-  (gethash name *cache-for-find-c-terminal-upcase*))
+  (if-let ((up-sym (find-symbol name '#:with-c-syntax.syntax.upcased)))
+    (symbol-value up-sym)))
 
 ;;; Preprocessor macro.
 
