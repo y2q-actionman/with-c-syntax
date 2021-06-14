@@ -269,35 +269,46 @@ returns NIL."
                        (process-digraph? (pp-state-process-digraph? ,state)))
        ,@body)))
 
+(defun draw-preprocessor-directive-line-tokens (state)
+  (with-preprocessor-state-slots (state)
+    (loop for i = (pop token-list)
+          while token-list
+          until (eq i +newline-marker+)
+          collect i)))
+
+(defmacro pop-preprocessor-directive-token (token-list)
+  "Pops the next token in TOKEN-LIST ignoring `+whitespace-marker+'"
+  (with-gensyms (head_)
+    `(let ((,head_ (pop ,token-list)))
+       (if (eq +whitespace-marker+ ,head_)
+           (pop ,token-list)
+           ,head_))))
+
 (defun preprocessor-loop-try-directives (state token)
   "Process preprocessor directives. This is tranlation phase 4."
   (with-preprocessor-state-slots (state)
-    (when (and (zerop tokens-in-line)
-               (or (string= token "#")
-                   (and process-digraph? (string= token "%:"))))
-      (let* ((directive-tokens
-               (loop for i = (pop token-list)
-                     while token-list
-                     until (eq i +newline-marker+)
-                     collect i))
-             (token-1 (pop directive-tokens))
-             (directive-name (if (eq +whitespace-marker+ token-1)
-                                 (pop directive-tokens)
-                                 token-1)))
-        (cond
-          ((null directive-name)        ; Null directive
-           (progn))
-          ;; TODO:
-          ;; Conditionals (if, ifdef, ifndef, elif, else, endif)
-          ;; #include
-          ;; #define
-          ;; #undef
-          ;; #line
-          ;; #error
-          ;; #pragma
-          )
+    (unless (and (zerop tokens-in-line)
+                 (or (string= token "#")
+                     (and process-digraph? (string= token "%:"))))
+      (return-from preprocessor-loop-try-directives nil))
+    (let* ((directive-tokens
+             (draw-preprocessor-directive-line-tokens state))
+           (directive-name
+             (pop-preprocessor-directive-token directive-tokens)))
+      (cond
+        ((null directive-name)          ; Null directive
+         (progn))
+        ;; TODO:
+        ;; Conditionals (if, ifdef, ifndef, elif, else, endif)
+        ;; #include
+        ;; #define
+        ;; #undef
+        ;; #line
+        ;; #error
+        ;; #pragma
         )
-      t)))
+      ))
+  t)
 
 (defun preprocessor-loop-try-intern-punctuators (state token)
   "Intern puctuators. this is with-c-syntax specific preprocessing path."
