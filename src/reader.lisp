@@ -171,7 +171,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 (defun read-slash-comment (stream char
                            &optional (next-function #'read-lonely-single-symbol))
   ;; We count skipped newlines into the stream
-  ;; (`physical-source-input-stream'), for __LINE__.
+  ;; (`physical-source-input-stream')  or return it, for __LINE__.
   (case (peek-char nil stream nil nil t)
     (#\/
      (read-line stream t nil t)
@@ -187,9 +187,16 @@ If not, returns a next token by `cl:read' after unreading CHAR."
        if (eql c #\newline)
          count it into newlines
        finally
-          (unread-char #\space stream)
-          (adjust-newline-gap stream newlines)
-          (return (values))))
+          (return
+            (cond
+              ((plusp newlines)
+               (adjust-newline-gap stream (1- newlines))
+               +newline-marker+)
+              ((eql #\newline (skip-c-whitespace stream))
+               (read-char stream t nil t)
+               +newline-marker+)
+              (t
+               (values))))))
     (otherwise
      (funcall next-function stream char))))
 

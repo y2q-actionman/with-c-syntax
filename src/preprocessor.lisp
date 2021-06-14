@@ -260,9 +260,12 @@ returns NIL."
                      while token-list
                      until (eq i +newline-marker+)
                      collect i))
-             (directive-name (first directive-tokens)))
+             (token-1 (pop directive-tokens))
+             (directive-name (if (eq +whitespace-marker+ token-1)
+                                 (pop directive-tokens)
+                                 token-1)))
         (cond
-          ((null directive-tokens)      ; Null directive
+          ((null directive-name)        ; Null directive
            (progn))
           ;; TODO:
           ;; Conditionals (if, ifdef, ifndef, elif, else, endif)

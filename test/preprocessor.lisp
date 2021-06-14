@@ -1,5 +1,35 @@
 (in-package #:with-c-syntax.test)
 
+(in-readtable with-c-syntax-readtable)
+
+(test test-null-directive
+  (is.equal.wcs #1="# and newline immediately after."
+    #2{
+    #
+    return `#1# \;
+    }#)
+  (is.equal.wcs #2="#, spaces and newline."
+    #2{
+    #  
+    return `#2# \;
+    }#)
+  (is.equal.wcs #3="#, line comment, and newline."
+    #2{
+    # // comment
+    return `#3# \;
+    }#)
+  (is.equal.wcs #4="#, block comment, and newline."
+    #2{
+    # /* comment */   
+    return `#4# \;
+    }#)
+  (is.equal.wcs #5="#, long block comment, and newline."
+    #2{
+    # /* comment
+    */   
+    return `#5# \;
+    }#))
+
 (test test-collect-preprocessor-macro-arguments
   (flet ((cpma (x)
 	   (with-c-syntax.core::collect-preprocessor-macro-arguments x)))
