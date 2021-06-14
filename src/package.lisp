@@ -49,10 +49,16 @@
    #:? #:\: #:\; #:|...|
    #:= #:*= #:/= #:%= #:+= #:-= #:<<= #:>>= #:&= #:^= #:\|=
    #:\,
-   ;; For preprocessor
+   ;; For preprocessor (their home package is just this package.)
    #:|#| #:|##|
    #:|<:| #:|:>| #:<% #:%> #:|%:| #:|%:%:|)
   (:documentation "C punctuators. Some symbols are from `with-c-syntax.syntax' package."))
+
+(defpackage #:with-c-syntax.preprocessor-directive
+  (:use)
+  (:export
+   #:|if| #:|ifdef| #:|ifndef| #:|elif| #:|else| #:|endif| #:|include|
+   #:|define| #:|undef| #:|line| #:|error| #:|pragma|))
 
 (defpackage #:with-c-syntax.core
   (:use #:cl #:with-c-syntax #:with-c-syntax.syntax)
