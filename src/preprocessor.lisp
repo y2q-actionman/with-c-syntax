@@ -253,7 +253,7 @@ returns NIL."
   (readtable-case :upcase :type keyword :read-only t)
   (result-list nil :type list)
   (file-pathname nil :type t)
-  (line-number 0 :type integer)
+  (line-number 1 :type integer)
   (tokens-in-line 0 :type integer)
   (typedef-hack? nil :type boolean)
   (process-digraph? nil :type boolean :read-only t))
@@ -263,6 +263,7 @@ returns NIL."
     `(symbol-macrolet ((token-list (pp-state-token-list ,state))
                        (readtable-case (pp-state-readtable-case ,state))
                        (result-list (pp-state-result-list ,state))
+                       (file-pathname (pp-state-file-pathname ,state))
                        (line-number (pp-state-line-number ,state))
                        (tokens-in-line (pp-state-tokens-in-line ,state))
                        (typedef-hack? (pp-state-typedef-hack? ,state))
@@ -284,6 +285,28 @@ returns NIL."
            (pop ,token-list)
            ,head_))))
 
+(defgeneric process-preprocessing-directive (directive-symbol token-list state))
+
+;; TODO:
+;; Conditionals (if, ifdef, ifndef, elif, else, endif)
+;; #include
+;; #define
+;; #undef
+;; #line
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|error|))
+                                            token-list state)
+  (let ((token-list-for-print (delete +whitespace-marker+ token-list)))
+    (with-preprocessor-state-slots (state)
+      (error 'preprocess-error
+             :format-control "[File ~A: Line ~D] #error: ~{~A~^ ~}"
+             :format-arguments (list (if file-pathname (enough-namestring file-pathname)) 
+                                     line-number
+                                     token-list-for-print)))))
+
+;;; TODO: #pragma
+
 (defun preprocessor-loop-try-directives (state token)
   "Process preprocessor directives. This is tranlation phase 4."
   (with-preprocessor-state-slots (state)
@@ -295,19 +318,21 @@ returns NIL."
              (draw-preprocessor-directive-line-tokens state))
            (directive-name
              (pop-preprocessor-directive-token directive-tokens)))
-      (cond
-        ((null directive-name)          ; Null directive
+      (typecase directive-name
+        (null                           ; Null directive
+         (assert (null directive-tokens))
          (progn))
-        ;; TODO:
-        ;; Conditionals (if, ifdef, ifndef, elif, else, endif)
-        ;; #include
-        ;; #define
-        ;; #undef
-        ;; #line
-        ;; #error
-        ;; #pragma
-        )
-      ))
+        (symbol
+         (if-let ((directive-symbol (find-preprocessor-directive (symbol-name directive-name)
+                                                                 readtable-case)))
+           (process-preprocessing-directive directive-symbol directive-tokens state)
+           (error 'preprocess-error
+                  :format-control "Unknown preprocessing directive ~A"
+                  :format-arguments (list directive-name))))
+        (t
+         (error 'preprocess-error
+                :format-control "'~A' cannot be uses as preprocessing directive name"
+                :format-arguments (list directive-name))))))
   t)
 
 (defun preprocessor-loop-try-intern-punctuators (state token)

@@ -2,6 +2,25 @@
 
 (in-readtable with-c-syntax-readtable)
 
+(test test-error-directive
+  (signals.macroexpand.wcs (with-c-syntax.core::preprocess-error)
+    #2{
+    #error Test
+    }#)
+  (signals.macroexpand.wcs (with-c-syntax.core::preprocess-error)
+    #2{
+    #error 100 200 0xff.0p1
+    }#)
+  (signals.macroexpand.wcs (with-c-syntax.core::preprocess-error)
+    #2{
+    #error 
+    }#)
+  (signals.macroexpand.wcs (with-c-syntax.core::preprocess-error)
+    #2{
+    # error
+    }#)
+  )
+
 (test test-null-directive
   (is.equal.wcs #1="# and newline immediately after."
     #2{
