@@ -81,17 +81,13 @@ indicated by `+preprocessor-macro+'."
   "Removes a preprocessor macro named SYMBOL."
   (remprop symbol +preprocessor-macro+))
 
-(defmacro define-preprocessor-constant (name value &environment env)
+(defmacro define-preprocessor-constant (name value &optional documentation)
   "Defines a new preprocessor symbol macro, named by NAME and its value is VALUE."
-  (if (constantp value env)
-      `(progn (defconstant ,name ,value)
-	      (add-preprocessor-macro ',name ,value))
-      (let ((eval (gensym)))
-	`(eval-when (:compile-toplevel :load-toplevel :execute)
-	   (let ((,eval ,value))
-	     (defconstant ,name ,eval)
-	     (eval-when (:load-toplevel :execute)
-	       (add-preprocessor-macro ',name ,eval)))))))
+  `(progn
+     (define-constant ,name ,value
+       :test 'equal
+       :documentation ,documentation)
+     (add-preprocessor-macro ',name ,value)))
 
 (defmacro define-preprocessor-function (name lambda-list &body body)
   "Defined a new preprocessor function, named by NAME."
@@ -290,7 +286,20 @@ returns NIL."
 ;; TODO:
 ;; Conditionals (if, ifdef, ifndef, elif, else, endif)
 ;; #include
-;; #define
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|define|))
+                                            token-list state)
+  (let* ((identifier
+           (pop-preprocessor-directive-token token-list))
+         (object-like-p (eql (first token-list) +whitespace-marker+)))
+    (cond
+      (object-like-p
+       (assert (eql (pop token-list) +whitespace-marker+))
+       (add-preprocessor-macro identifier token-list))
+      (t
+       (error "TODO: function-like macro")))))
+
 ;; #undef
 ;; #line
 
@@ -405,7 +414,8 @@ returns NIL."
 		       (push (apply pp-macro macro-arg) result-list)
 		       (setf token-list new-lis)))
 	            (t			; symbol expansion
-                     (push pp-macro result-list)))))
+                     (setf token-list
+                           (append pp-macro token-list))))))
            ;; with-c-syntax specifics.
            ((preprocessor-loop-try-intern-punctuators state token)
             t)
