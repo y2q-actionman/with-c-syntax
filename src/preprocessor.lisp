@@ -65,6 +65,9 @@ having a same NAME. If not found, returns `nil'.")
   "A symbol used as an indicator of `symbol-plist' holding the preprocessor function.
 See `add-preprocessor-macro'.")
 
+(defun preprocessor-macro-exists-p (symbol)
+  (get-properties (symbol-plist symbol) `(,+preprocessor-macro+)))
+
 (defun find-preprocessor-macro (symbol)
   "Finds and returns a preprocessor macro definition named SYMBOL,
 added by `add-preprocessor-macro'."
@@ -315,7 +318,8 @@ returns NIL."
 (defmethod cl:initialize-instance ((obj if-section) &rest args
                                    &key init-condition init-result
                                    &allow-other-keys)
-  (let ((obj (apply 'call-next-method obj args)))
+  (declare (ignorable args))
+  (let ((obj (call-next-method)))
     (if-section-push-condition-result obj init-condition init-result)
     obj))
 
@@ -337,7 +341,7 @@ returns NIL."
                         `(defined ,identifier))
                       (with-c-syntax.preprocessor-directive:|ifndef|
                         `(not (defined ,identifier)))))
-         (defined-p (find-preprocessor-macro identifier))
+         (defined-p (preprocessor-macro-exists-p identifier))
          (result (ecase directive-symbol
                    (with-c-syntax.preprocessor-directive:|ifdef|
                      defined-p)
@@ -400,16 +404,15 @@ returns NIL."
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|define|))
                                             token-list state)
+  ;; TODO: Add local macro scope for preprocessor macros.
   (let* ((identifier
            (pop-preprocessor-directive-token token-list))
-         (object-like-p (eql (first token-list) +whitespace-marker+)))
+         (function-like-p (eql (first token-list) 'with-c-syntax.punctuator:|(|)))
     (cond
-      (object-like-p
-       (assert (eql (pop token-list) +whitespace-marker+))
-       ;; TODO: Add local macro scope for preprocessor macros.
-       (add-preprocessor-macro identifier token-list))
+      (function-like-p
+       (error "TODO: function-like macro"))
       (t
-       (error "TODO: function-like macro")))))
+       (add-preprocessor-macro identifier token-list)))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|undef|))
@@ -476,7 +479,7 @@ returns NIL."
                      :format-control "Unknown preprocessing directive ~A"
                      :format-arguments (list directive-name)))
              ((and if-section-skip-reason
-                   (not (preprocessing-conditional-directive-p directive-name)))
+                   (not (preprocessing-conditional-directive-p directive-symbol)))
               (return-from preprocessor-loop-try-directives nil))
              (t
               (process-preprocessing-directive directive-symbol directive-tokens state)
@@ -553,7 +556,8 @@ returns NIL."
            (symbol
             (cond
               ;; Part of translation Phase 4 -- preprocessor macro
-              ((when-let (pp-macro (find-preprocessor-macro token))
+              ((preprocessor-macro-exists-p token)
+               (let ((pp-macro (find-preprocessor-macro token)))
                  (cond ((functionp pp-macro) ; preprocessor funcion
 	                (multiple-value-bind (macro-arg new-lis)
 		            (collect-preprocessor-macro-arguments token-list)

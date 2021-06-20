@@ -67,6 +67,52 @@
     (is (equal (cpma '(|(| |)|))
 	       '()))))
 
+(test test-pp-ifdef
+  (is.equal.wcs "ifdef-side"
+    #2{
+    #define HOGE
+    #ifdef HOGE
+    char* x = "ifdef-side";
+    #else
+    char* x = "else-side";
+    #endif
+    return x;
+    #undef HOGE
+    }#)
+  (is.equal.wcs "else-side"
+    #2{
+    #undef HOGE
+    #ifdef HOGE
+    char *x = "ifdef-side";
+    #else
+    char *x = "else-side";
+    #endif
+    return x;
+    }#))
+
+(test test-pp-ifndef
+  (is.equal.wcs "else-side"
+    #2{
+    #define HOGE
+    #ifndef HOGE
+    char* x = "ifndef-side";
+    #else
+    char* x = "else-side";
+    #endif
+    return x;
+    #undef HOGE
+    }#)
+  (is.equal.wcs "ifndef-side"
+    #2{
+    #undef HOGE
+    #ifndef HOGE
+    char *x = "ifndef-side";
+    #else
+    char *x = "else-side";
+    #endif
+    return x;
+    }#))
+
 (test test-pp-object-like-macro
   (is.equal.wcs 3
     #2{
