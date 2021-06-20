@@ -244,27 +244,41 @@ returns NIL."
 
 ;;; preprocessor-state object held in the main loop.
 
-(defstruct (preprocessor-state (:conc-name pp-state-)) 
-  (token-list nil :type list)
-  (readtable-case :upcase :type keyword :read-only t)
-  (result-list nil :type list)
-  (file-pathname nil :type t)
-  (line-number 1 :type integer)
-  (tokens-in-line 0 :type integer)
-  (typedef-hack? nil :type boolean)
-  (process-digraph? nil :type boolean :read-only t))
+(defclass preprocessor-state () 
+  ((readtable-case :initarg :readtable-case :initform :upcase :type keyword
+                   :reader pp-state-readtable-case)
+   (process-digraph? :initarg :process-digraph? :initform nil :type boolean
+                     :reader pp-state-process-digraph?)
+   (file-pathname :initarg :file-pathname :initform nil
+                  :accessor pp-state-file-pathname)
+   (token-list :initarg :token-list :type list
+               :accessor pp-state-token-list)
+   (result-list :initform nil :type list
+                :accessor pp-state-result-list)
+   (line-number :initform 1 :type integer
+                :accessor pp-state-line-number)
+   (tokens-in-line :initform 0 :type integer
+                   :accessor pp-state-tokens-in-line)
+   (if-section-stack :initform nil :type list
+                     :accessor pp-state-if-section-stack)
+   (if-section-skip-reason :initform nil
+                           :accessor pp-state-if-section-skip-reason)
+   (typedef-hack? :initform nil :type boolean
+                  :accessor pp-state-typedef-hack?)))
 
 (defmacro with-preprocessor-state-slots ((state) &body body)
-  (once-only (state)
-    `(symbol-macrolet ((token-list (pp-state-token-list ,state))
-                       (readtable-case (pp-state-readtable-case ,state))
-                       (result-list (pp-state-result-list ,state))
-                       (file-pathname (pp-state-file-pathname ,state))
-                       (line-number (pp-state-line-number ,state))
-                       (tokens-in-line (pp-state-tokens-in-line ,state))
-                       (typedef-hack? (pp-state-typedef-hack? ,state))
-                       (process-digraph? (pp-state-process-digraph? ,state)))
-       ,@body)))
+  `(with-accessors ((token-list pp-state-token-list)
+                    (readtable-case pp-state-readtable-case)
+                    (result-list pp-state-result-list)
+                    (file-pathname pp-state-file-pathname)
+                    (line-number pp-state-line-number)
+                    (tokens-in-line pp-state-tokens-in-line)
+                    (typedef-hack? pp-state-typedef-hack?)
+                    (if-section-stack pp-state-if-section-stack)
+                    (if-section-skip-reason pp-state-if-section-skip-reason)
+                    (process-digraph? pp-state-process-digraph?))
+       ,state
+     ,@body))
 
 (defun draw-preprocessor-directive-line-tokens (state)
   (with-preprocessor-state-slots (state)
@@ -281,11 +295,107 @@ returns NIL."
            (pop ,token-list)
            ,head_))))
 
+(defun check-no-preprocessoro-token (token-list directive-name)
+  "Checks no preprocessing token is left in TOKEN-LIST."
+  (when-let (bad-token (pop-preprocessor-directive-token token-list))
+    (error 'preprocess-error
+           :format-control "Extra tokens are found after #~A target: ~A"
+           :format-arguments (list (string directive-name)
+                                   bad-token))))
+
 (defgeneric process-preprocessing-directive (directive-symbol token-list state))
 
 ;; TODO:
-;; Conditionals (if, ifdef, ifndef, elif, else, endif)
-;; #include
+;; Conditionals (if, elif)
+
+(defclass if-section ()
+  ((condition-results :initform (make-array 1 :fill-pointer 0 :adjustable t)
+                      :type vector)))
+
+(defmethod cl:initialize-instance ((obj if-section) &rest args
+                                   &key init-condition init-result
+                                   &allow-other-keys)
+  (let ((obj (apply 'call-next-method obj args)))
+    (if-section-push-condition-result obj init-condition init-result)
+    obj))
+
+(defmethod if-section-push-condition-result (if-section form result)
+  (with-slots (condition-results) if-section
+    (vector-push-extend (cons form result) condition-results)))
+
+(defmethod if-section-processed-p (if-section)
+  (with-slots (condition-results) if-section
+    (loop for (nil . result) across condition-results
+            thereis result)))
+
+(defun process-ifn?def (directive-symbol token-list state)
+  (let* ((identifier
+           (prog1 (pop-preprocessor-directive-token token-list)
+             (check-no-preprocessoro-token token-list directive-symbol)))
+         (condition (ecase directive-symbol
+                      (with-c-syntax.preprocessor-directive:|ifdef|
+                        `(defined ,identifier))
+                      (with-c-syntax.preprocessor-directive:|ifndef|
+                        `(not (defined ,identifier)))))
+         (defined-p (find-preprocessor-macro identifier))
+         (result (ecase directive-symbol
+                   (with-c-syntax.preprocessor-directive:|ifdef|
+                     defined-p)
+                   (with-c-syntax.preprocessor-directive:|ifndef|
+                     (not defined-p))))
+         (if-section-obj
+           (make-instance 'if-section :init-condition condition
+                                      :init-result result)))
+    (with-preprocessor-state-slots (state)
+      (push if-section-obj if-section-stack)
+      (unless result
+        (setf if-section-skip-reason if-section-obj)))))
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|ifdef|))
+                                            token-list state)
+  (process-ifn?def directive-symbol token-list state))
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|ifndef|))
+                                            token-list state)
+  (process-ifn?def directive-symbol token-list state))
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|else|))
+                                            token-list state)
+  (check-no-preprocessoro-token token-list directive-symbol)
+  (with-preprocessor-state-slots (state)
+    (unless if-section-stack
+      (error 'preprocess-error
+             :format-control "#else appeared outside of #if section."))
+    (let* ((current-if-section (first if-section-stack))
+           (else-result
+             (if (if-section-processed-p current-if-section)
+                 nil
+                 t)))
+      (if-section-push-condition-result current-if-section '(else) else-result)
+      (cond
+        ((null if-section-skip-reason)
+         (assert (not else-result)
+                 () "It must be NIL because (null if-section-skip-reason) means previous if-group was T.")
+         (setf if-section-skip-reason current-if-section))
+        ((eq if-section-skip-reason current-if-section)
+         (setf if-section-skip-reason nil))))))
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|endif|))
+                                            token-list state)
+  (check-no-preprocessoro-token token-list directive-symbol)
+  (with-preprocessor-state-slots (state)
+    (unless if-section-stack
+      (error 'preprocess-error
+             :format-control "#endif appeared outside of #if section."))
+    (let ((removed-if-section (pop if-section-stack)))
+      (when (eq if-section-skip-reason removed-if-section)
+        (setf if-section-skip-reason nil)))))
+
+;; TODO: #include
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|define|))
@@ -304,15 +414,12 @@ returns NIL."
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|undef|))
                                             token-list state)
-  (let* ((identifier
-           (pop-preprocessor-directive-token token-list)))
-    (when-let (bad-token (pop-preprocessor-directive-token token-list))
-      (error 'preprocess-error
-             :format-control "Extra tokens are found after #undef target: ~A"
-             :format-arguments (list bad-token)))
+  (let ((identifier
+          (pop-preprocessor-directive-token token-list)))
+    (check-no-preprocessoro-token token-list directive-symbol)
     (remove-preprocessor-macro identifier)))
 
-;; #line
+;; TODO: #line
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|error|))
@@ -327,10 +434,28 @@ returns NIL."
 
 ;;; TODO: #pragma
 
+(defun preprocessing-conditional-directive-p (directive-symbol)
+  (ecase directive-symbol
+    ((with-c-syntax.preprocessor-directive:|if|
+       with-c-syntax.preprocessor-directive:|ifdef|
+       with-c-syntax.preprocessor-directive:|ifndef|
+       with-c-syntax.preprocessor-directive:|elif|
+       with-c-syntax.preprocessor-directive:|else|
+       with-c-syntax.preprocessor-directive:|endif|)
+     t)
+    ((with-c-syntax.preprocessor-directive:|include|
+       with-c-syntax.preprocessor-directive:|define|
+       with-c-syntax.preprocessor-directive:|undef|
+       with-c-syntax.preprocessor-directive:|line|
+       with-c-syntax.preprocessor-directive:|error|
+       with-c-syntax.preprocessor-directive:|pragma|)
+     nil)))
+
 (defun preprocessor-loop-try-directives (state token)
   "Process preprocessor directives. This is tranlation phase 4."
   (with-preprocessor-state-slots (state)
-    (unless (and (zerop tokens-in-line)
+    (unless (and (symbolp token)
+                 (zerop tokens-in-line)
                  (or (string= token "#")
                      (and process-digraph? (string= token "%:"))))
       (return-from preprocessor-loop-try-directives nil))
@@ -341,19 +466,25 @@ returns NIL."
       (typecase directive-name
         (null                           ; Null directive
          (assert (null directive-tokens))
-         (progn))
+         t)
         (symbol
-         (if-let ((directive-symbol (find-preprocessor-directive (symbol-name directive-name)
-                                                                 readtable-case)))
-           (process-preprocessing-directive directive-symbol directive-tokens state)
-           (error 'preprocess-error
-                  :format-control "Unknown preprocessing directive ~A"
-                  :format-arguments (list directive-name))))
+         (let ((directive-symbol
+                 (find-preprocessor-directive (symbol-name directive-name) readtable-case)))
+           (cond
+             ((null directive-symbol)
+              (error 'preprocess-error
+                     :format-control "Unknown preprocessing directive ~A"
+                     :format-arguments (list directive-name)))
+             ((and if-section-skip-reason
+                   (not (preprocessing-conditional-directive-p directive-name)))
+              (return-from preprocessor-loop-try-directives nil))
+             (t
+              (process-preprocessing-directive directive-symbol directive-tokens state)
+              t))))
         (t
          (error 'preprocess-error
                 :format-control "'~A' cannot be uses as preprocessing directive name"
-                :format-arguments (list directive-name))))))
-  t)
+                :format-arguments (list directive-name)))))))
 
 (defun preprocessor-loop-try-intern-punctuators (state token)
   "Intern puctuators. this is with-c-syntax specific preprocessing path."
@@ -407,50 +538,50 @@ returns NIL."
         ((and (null token-list) ; I must check 'token-list' here to get all symbols, including NIL.
 	      (null token))
          state)
-      (typecase token
-        (symbol
-         (cond
-           ((eq token +newline-marker+)
-            (progn))
-           ((eq token +whitespace-marker+)
-            (progn))
-           ;; Translation Phase 4
-           ((preprocessor-loop-try-directives state token)
-            t)
-           ;; Part of translation Phase 4 -- preprocessor macro
-           ((when-let (pp-macro (find-preprocessor-macro token))
-              (cond ((functionp pp-macro) ; preprocessor funcion
-	             (multiple-value-bind (macro-arg new-lis)
-		         (collect-preprocessor-macro-arguments token-list)
-		       (push (apply pp-macro macro-arg) result-list)
-		       (setf token-list new-lis)))
-	            (t			; symbol expansion
-                     (setf token-list
-                           (append pp-macro token-list))))))
-           ;; with-c-syntax specifics.
-           ((preprocessor-loop-try-intern-punctuators state token)
-            t)
-           ((preprocessor-loop-try-intern-keywords state token)
-            t)
-           ;; with-c-syntax specific: Try to split the token.
-           ;; FIXME: I think this should be only for reader level 1.
-           ((unless (or (boundp token)
-                        (fboundp token))
-              (multiple-value-bind (splited-p results) (preprocessor-try-split token)
-	        (if splited-p
-	            (setf token-list (nconc results token-list))
-                    nil))))             ; fallthrough
-           (t
-            (push token result-list))))
-        (string
-         (preprocessor-loop-concatenate-string state token))
+      (cond
+        ((eq token +whitespace-marker+)
+         (progn))
+        ((eq token +newline-marker+)
+         (incf line-number)
+         (setf tokens-in-line 0))
+        ((preprocessor-loop-try-directives state token) ; Check directives before #if skips.
+         t)
+        (if-section-skip-reason         ; #if-section skips it.
+         (progn))
         (t
-         (push token result-list)))
-      (cond ((eq token +newline-marker+)
-             (incf line-number)
-             (setf tokens-in-line 0))
-            (t
-             (incf tokens-in-line))))))
+         (typecase token
+           (symbol
+            (cond
+              ;; Part of translation Phase 4 -- preprocessor macro
+              ((when-let (pp-macro (find-preprocessor-macro token))
+                 (cond ((functionp pp-macro) ; preprocessor funcion
+	                (multiple-value-bind (macro-arg new-lis)
+		            (collect-preprocessor-macro-arguments token-list)
+		          (push (apply pp-macro macro-arg) result-list)
+		          (setf token-list new-lis)))
+	               (t               ; symbol expansion
+                        (setf token-list
+                              (append pp-macro token-list))))))
+              ;; with-c-syntax specifics.
+              ((preprocessor-loop-try-intern-punctuators state token)
+               t)
+              ((preprocessor-loop-try-intern-keywords state token)
+               t)
+              ;; with-c-syntax specific: Try to split the token.
+              ;; FIXME: I think this should be only for reader level 1.
+              ((unless (or (boundp token)
+                           (fboundp token))
+                 (multiple-value-bind (splited-p results) (preprocessor-try-split token)
+	           (if splited-p
+	               (setf token-list (nconc results token-list))
+                       nil))))          ; fallthrough
+              (t
+               (push token result-list))))
+           (string
+            (preprocessor-loop-concatenate-string state token))
+           (t
+            (push token result-list)))
+         (incf tokens-in-line))))))
 
 (defun preprocessor (token-list readtable-case input-file-pathname
                      &key (process-digraph *with-c-syntax-preprocessor-process-digraph*))
@@ -490,11 +621,11 @@ this sequence
 calls the function like:
   (funcall #'a-func-of-MAC '(a) '(b b) '(c c c))"
   (let* ((pp-state
-           (make-preprocessor-state
-            :token-list token-list
-            :readtable-case readtable-case
-            :file-pathname input-file-pathname 
-            :process-digraph? process-digraph))
+           (make-instance 'preprocessor-state
+                          :token-list token-list
+                          :readtable-case readtable-case
+                          :file-pathname input-file-pathname 
+                          :process-digraph? process-digraph))
          (pp-state
            (preprocessor-loop pp-state)))
     (nreverse (pp-state-result-list pp-state))))
