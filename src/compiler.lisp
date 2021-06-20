@@ -1128,6 +1128,9 @@ This is not intended for calling directly. The `va_start' macro uses this."
 		     nil
 		     `(,ex-code))))
 
+(defun expand-toplevel-const-exp (exp)
+  (expand-toplevel :statement nil nil `(,exp)))
+
 (defun expand-translation-unit (units)
   (loop for u in units
      if (function-definition-p u)
@@ -1167,7 +1170,9 @@ This is not intended for calling directly. The `va_start' macro uses this."
    (iteration-stat
     (lambda (st) (expand-toplevel-stat st)))
    (jump-stat
-    (lambda (st) (expand-toplevel-stat st))))
+    (lambda (st) (expand-toplevel-stat st)))
+   (const-exp                           ; For preprocessor.
+    (lambda (exp) (expand-toplevel-const-exp exp))))
 
 
   (translation-unit

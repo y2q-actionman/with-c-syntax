@@ -472,11 +472,9 @@
   (is.equal.wcs nil
     { int x \( int hoge \, short \, void * \) \; })
   (signals.macroexpand.wcs ()
-    (is.equal.wcs nil
-      { int x \( hoge \, int \, int piyo \) \; }))
+    { int x \( hoge \, int \, int piyo \) \; })
   (signals.macroexpand.wcs ()
-    (is.equal.wcs nil
-      { int x \( int \, fuga \, int piyo \) \; })))
+    { int x \( int \, fuga \, int piyo \) \; }))
 
 (test test-initializer-simple
   ;; uses init-declarator
