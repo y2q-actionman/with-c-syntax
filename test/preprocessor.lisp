@@ -74,6 +74,7 @@
     int x = 1;
     int y = 2;
     return HOGE \;
+    #undef HOGE // ; TODO: Remove this if a kind of local-macros are implemented.
     }#))
 
 (test test-pp-strcat

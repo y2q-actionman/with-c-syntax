@@ -296,11 +296,22 @@ returns NIL."
     (cond
       (object-like-p
        (assert (eql (pop token-list) +whitespace-marker+))
+       ;; TODO: Add local macro scope for preprocessor macros.
        (add-preprocessor-macro identifier token-list))
       (t
        (error "TODO: function-like macro")))))
 
-;; #undef
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|undef|))
+                                            token-list state)
+  (let* ((identifier
+           (pop-preprocessor-directive-token token-list)))
+    (when-let (bad-token (pop-preprocessor-directive-token token-list))
+      (error 'preprocess-error
+             :format-control "Extra tokens are found after #undef target: ~A"
+             :format-arguments (list bad-token)))
+    (remove-preprocessor-macro identifier)))
+
 ;; #line
 
 (defmethod process-preprocessing-directive ((directive-symbol
