@@ -125,7 +125,7 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
            :format-control "read-in-previous-syntax used recursively by char ~C"
            :format-arguments (list char)))
   (let ((*readtable* *previous-syntax*))
-    (read stream t nil t)))
+    (read-preserving-whitespace stream t nil t)))
 
 (defun read-single-character-symbol (stream char)
   (declare (ignore stream))
@@ -137,7 +137,7 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
     (declare (dynamic-extent buf))
     (with-input-from-string (buf-stream buf)
       (with-open-stream (conc-stream (make-concatenated-stream buf-stream stream))
-        (read conc-stream eof-error-p eof-value recursive-p)))))
+        (read-preserving-whitespace conc-stream eof-error-p eof-value recursive-p)))))
 
 (defun read-lonely-single-symbol (stream char)
   "If the next character in STREAM is terminating, returns a symbol made of CHAR.
@@ -187,11 +187,9 @@ If not, returns a next token by `cl:read' after unreading CHAR."
        if (eql c #\newline)
          count it into newlines
        finally
+          (adjust-newline-gap stream newlines)
           (return
             (cond
-              ((plusp newlines)
-               (adjust-newline-gap stream (1- newlines))
-               +newline-marker+)
               ((eql #\newline (skip-c-whitespace stream))
                (read-char stream t nil t)
                +newline-marker+)
@@ -778,9 +776,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                   (t
                    (intern "}")))) ; Intern it into the current `*package*'.
            (t
-            (if keep-whitespace
-                (read-preserving-whitespace stream t :eof t)
-                (read stream t :eof t)))))))))
+            (read-preserving-whitespace stream t :eof t))))))))
 
 (defun tokenize-source (level stream)
   "Tokenize C source by doing translation phase 1, 2, and 3.

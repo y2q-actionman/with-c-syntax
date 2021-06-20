@@ -159,7 +159,43 @@ de";
             }# #| }|#;# `(return 'broken!)
             );
          // `(return nil) ; not works.
-         }#))))
+         }#)))
+  ;; https://gcc.gnu.org/onlinedocs/gcc-11.1.0/cpp/Initial-processing.html#Initial-processing
+  (is.wcs.reader
+   '(text outside comment)
+   "#2{/* this is /* one comment */ text outside comment }#")
+  (is.wcs.reader
+   '(+newline-marker+ text outside comment)
+   "#2{// this is // one comment
+text outside comment }#")
+  (is.wcs.reader
+   '(outside comment)
+   ;; XXX:
+   ;; This case has subtle problems. Newlines are gone away because no
+   ;; newlines until '}#' appears. This behavior affects __LINE__
+   ;; macro.
+   "#2{/* block comment
+   // contains line comment
+   yet more comment
+ */ outside comment}#")
+  (is.wcs.reader
+   '(+newline-marker+)
+   "#2{// line comment /* contains block comment */
+}#")
+  (is.wcs.reader
+   '(+newline-marker+ oops ! this isn’t a comment anymore * /)
+   "#2{ // l.c.  /* block comment begins
+    oops! this isn’t a comment anymore */}#")
+  (is.wcs.reader
+   '(\# +whitespace-marker+ define +whitespace-marker+ FOO +whitespace-marker+ 1020)
+   "#2{/\\
+*
+*/ # /*
+*/ defi\\
+ne FO\\
+O 10\\
+20}#")
+  t)
 
 ;;; Tokenization
 
@@ -389,41 +425,35 @@ de";
     return x==3+69258/714;
     }#))
 
-(defun read-in-current-package (symbol-list)
-  (loop for sym in symbol-list
-        collect (intern (symbol-name sym))))
-
 (test test-reader-punctuators
   ;; This test is affected by `*package*' of the caller.
   (is.wcs.reader
-   (read-in-current-package
-    '(x [ ] \( \) { } \. ->
-      ++ -- & * + - ~ !
-      / % << >> < > <= >= == != ^ \| && \|\|
-      ? \: \; |...|
-      = *= /= %= += -= <<= >>= &= ^= \|=
-      \,
-      |##| \#
-      |<:| |:>| <% %> |%:%:| |%:|
-      ))
+   '(x [ ] \( \) { } \. ->
+     ++ -- & * + - ~ !
+     / % << >> < > <= >= == != ^ \| && \|\|
+     ? \: \; |...|
+     = *= /= %= += -= <<= >>= &= ^= \|=
+     \,
+     |##| \#
+     |<:| |:>| <% %> |%:%:| |%:|)
    "#2{x[](){}.->++--&*+-~!/%<<>><><=>===!=^|&&||?:;...=*=/=%=+=-=<<=>>=&=^=|=,###<::><%%>%:%:%:}#")
-  (is.wcs.reader (read-in-current-package '(} } } }))
+  (is.wcs.reader '(} } } })
                  "#2{}}}}}#")
-  (is.wcs.reader (read-in-current-package '(++ +))
+  (is.wcs.reader '(++ +)
                  "#2{+++}#")
-  (is.wcs.reader (read-in-current-package '(x ++ +=))
+  (is.wcs.reader '(x ++ +=)
                  "#2{x+++=}#")
-  (is.wcs.reader (read-in-current-package '(x ++ ++ =))
+  (is.wcs.reader '(x ++ ++ =)
                  "#2{x++++=}#")
-  (is.wcs.reader (read-in-current-package '(\# define))
+  (is.wcs.reader '(\# define)
                  "#2{#define}#")
-  (is.wcs.reader (read-in-current-package '(|<:| |:| |:>|))
+  (is.wcs.reader '(|<:| |:| |:>|)
                  "#2{<:::>}#")
-  (is.wcs.reader (read-in-current-package '(<% %= |%:%:| |%:| % |%:| %>))
+  (is.wcs.reader '(<% %= |%:%:| |%:| % |%:| %>)
                  "#2{<%%=%:%:%:%%:%>}#")
-  (is.wcs.reader (read-in-current-package '(a \. b \. \. c |...| d |...| \. e |...| \. \. f))
+  (is.wcs.reader '(a \. b \. \. c |...| d |...| \. e |...| \. \. f)
                  "#2{a.b..c...d....e.....f}#")
-  (is.wcs.reader (read-in-current-package '(<% \. \. |%:| % \. \. |%:| \. \. %>))
+  (is.wcs.reader '(<% \. \. |%:| % \. \. |%:| \. \. %>)
                  "#2{<%..%:%..%:..%>}#"))
 
 (test test-reader-L-prefix

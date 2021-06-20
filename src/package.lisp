@@ -98,6 +98,8 @@
    #:pseudo-pointer-dereference
    #:pseudo-pointer-invalidate
    ;; reader.lisp
+   #:+newline-marker+                   ; for test code.
+   #:+whitespace-marker+                ; for test code.
    #:with-c-syntax-readtable
    #:*with-c-syntax-reader-level*
    #:*with-c-syntax-reader-case*
