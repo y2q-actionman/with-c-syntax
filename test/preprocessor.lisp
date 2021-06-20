@@ -67,7 +67,16 @@
     (is (equal (cpma '(|(| |)|))
 	       '()))))
 
-(test test-strcat
+(test test-pp-object-like-macro
+  (is.equal.wcs 3
+    #2{
+    #define HOGE (x + y)
+    int x = 1;
+    int y = 2;
+    return HOGE \;
+    }#))
+
+(test test-pp-strcat
   (is.equal.wcs "abc"
     return "a" "b" "c" \; ))
 
