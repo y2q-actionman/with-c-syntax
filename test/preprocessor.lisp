@@ -47,6 +47,12 @@
     # /* comment
     */   
     return `#5# \;
+    }#)
+  (is.equal.wcs #6="#, long block comment, line comment, and newline."
+    #2{
+    # /* comment
+    */// extra comment
+    `#6#
     }#))
 
 (test test-collect-preprocessor-macro-arguments
