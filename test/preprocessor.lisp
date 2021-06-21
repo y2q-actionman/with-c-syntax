@@ -90,6 +90,13 @@
     #else extra-token
     #endif
     }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #ifdef X
+    #else
+    #else
+    #endif
+    }#)
   
   (signals.macroexpand.wcs ()
     #2{ #endif }#)

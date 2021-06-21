@@ -337,11 +337,6 @@ returns NIL."
   (with-slots (condition-results) if-section
     (vector-push-extend (cons form result) condition-results)))
 
-(defmethod if-section-processed-p (if-section)
-  (with-slots (condition-results) if-section
-    (loop for (nil . result) across condition-results
-            thereis result)))
-
 (defun begin-if-section (state condition-form eval-result)
   (let ((if-section-obj (make-instance 'if-section)))
     (if-section-push-condition-result if-section-obj condition-form eval-result)
@@ -369,6 +364,17 @@ returns NIL."
          (result (not (preprocessor-macro-exists-p identifier))))
     (begin-if-section state condition result)))
 
+(defmethod if-section-processed-p (if-section)
+  (with-slots (condition-results) if-section
+    (loop with processed? = nil
+          for (condition . eval-result) across condition-results
+          when (eq condition 'with-c-syntax.preprocessor-directive:|else|)
+            do (error 'preprocess-error
+                      :format-control "#else appeared twice.")
+          when eval-result
+            do (setf processed? t)
+          finally (return processed?))))
+
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|else|))
                                             token-list state)
@@ -378,13 +384,13 @@ returns NIL."
       (error 'preprocess-error
              :format-control "#else appeared outside of #if section."))
     (let* ((current-if-section (first if-section-stack))
-           (else-result
-             (if (if-section-processed-p current-if-section) nil t)))
-      (if-section-push-condition-result current-if-section '(else) else-result)
+           (else-result (not (if-section-processed-p current-if-section))))
+      (if-section-push-condition-result current-if-section
+                                        'with-c-syntax.preprocessor-directive:|else| else-result)
       (cond
         ((null if-section-skip-reason)
          (assert (not else-result)
-                 () "It must be NIL because (null if-section-skip-reason) means previous if-group was T.")
+                 () "It must be NIL because (null if-section-skip-reason) means the previous if-group was T.")
          (setf if-section-skip-reason current-if-section))
         ((eq if-section-skip-reason current-if-section)
          (setf if-section-skip-reason nil))))))
