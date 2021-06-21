@@ -317,6 +317,13 @@ returns NIL."
            :format-control "Extra tokens are found after #~A"
            :format-arguments (list (string directive-name)))))
 
+(defmacro pop-last-preprocessor-directive-token (token-list directive-name)
+  "For #ifdef, #ifndef, and #undef"
+  (with-gensyms (dsym_)
+    `(let ((,dsym_ ,directive-name))
+       (prog1 (pop-preprocessor-directive-token ,token-list ,dsym_)
+         (check-no-preprocessor-token ,token-list ,dsym_)))))
+
 (defgeneric process-preprocessing-directive (directive-symbol token-list state))
 
 ;; TODO:
@@ -343,24 +350,10 @@ returns NIL."
     (loop for (nil . result) across condition-results
             thereis result)))
 
-(defun process-ifn?def (directive-symbol token-list state)
-  (let* ((identifier
-           (prog1 (pop-preprocessor-directive-token token-list directive-symbol)
-             (check-no-preprocessor-token token-list directive-symbol)))
-         (condition (ecase directive-symbol
-                      (with-c-syntax.preprocessor-directive:|ifdef|
-                        `(defined ,identifier))
-                      (with-c-syntax.preprocessor-directive:|ifndef|
-                        `(not (defined ,identifier)))))
-         (defined-p (preprocessor-macro-exists-p identifier))
-         (result (ecase directive-symbol
-                   (with-c-syntax.preprocessor-directive:|ifdef|
-                     defined-p)
-                   (with-c-syntax.preprocessor-directive:|ifndef|
-                     (not defined-p))))
-         (if-section-obj
-           (make-instance 'if-section :init-condition condition
-                                      :init-result result)))
+(defun begin-if-section (state condition result)
+  (let ((if-section-obj
+          (make-instance 'if-section :init-condition condition
+                                     :init-result result)))
     (with-preprocessor-state-slots (state)
       (push if-section-obj if-section-stack)
       (when (and (null if-section-skip-reason)
@@ -370,12 +363,20 @@ returns NIL."
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|ifdef|))
                                             token-list state)
-  (process-ifn?def directive-symbol token-list state))
+  (let* ((identifier
+           (pop-last-preprocessor-directive-token token-list directive-symbol))
+         (condition `(,directive-symbol ,identifier))
+         (result (preprocessor-macro-exists-p identifier)))
+    (begin-if-section state condition result)))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|ifndef|))
                                             token-list state)
-  (process-ifn?def directive-symbol token-list state))
+  (let* ((identifier
+           (pop-last-preprocessor-directive-token token-list directive-symbol))
+         (condition `(,directive-symbol ,identifier))
+         (result (not (preprocessor-macro-exists-p identifier))))
+    (begin-if-section state condition result)))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|else|))
@@ -387,9 +388,7 @@ returns NIL."
              :format-control "#else appeared outside of #if section."))
     (let* ((current-if-section (first if-section-stack))
            (else-result
-             (if (if-section-processed-p current-if-section)
-                 nil
-                 t)))
+             (if (if-section-processed-p current-if-section) nil t)))
       (if-section-push-condition-result current-if-section '(else) else-result)
       (cond
         ((null if-section-skip-reason)
@@ -430,8 +429,7 @@ returns NIL."
                                              (eql 'with-c-syntax.preprocessor-directive:|undef|))
                                             token-list state)
   (let ((identifier
-          (pop-preprocessor-directive-token token-list directive-symbol)))
-    (check-no-preprocessor-token token-list directive-symbol)
+          (pop-last-preprocessor-directive-token token-list directive-symbol)))
     (remove-preprocessor-macro identifier)))
 
 ;; TODO: #line
