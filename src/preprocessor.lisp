@@ -361,7 +361,8 @@ returns NIL."
                                       :init-result result)))
     (with-preprocessor-state-slots (state)
       (push if-section-obj if-section-stack)
-      (unless result
+      (when (and (null if-section-skip-reason)
+                 (not result))
         (setf if-section-skip-reason if-section-obj)))))
 
 (defmethod process-preprocessing-directive ((directive-symbol

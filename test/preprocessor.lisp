@@ -145,6 +145,102 @@
     return x;
     }#))
 
+(test test-pp-ifdef-simple-nest
+  (is.equal.wcs "ifdef HOGE and FUGA"
+    #2{
+    #define HOGE
+    #define FUGA
+    
+    #ifdef HOGE
+    #ifdef FUGA
+    char* x = "ifdef HOGE and FUGA";
+    #else
+    char* x = "ifdef HOGE";
+    #endif
+    #else
+    #ifdef FUGA
+    char* x = "ifdef FUGA";
+    #else
+    char* x = "no defintiion";
+    #endif
+    #endif
+    
+    return x;
+    
+    #undef HOGE
+    #undef FUGA
+    }#)
+
+  (is.equal.wcs "ifdef HOGE"
+    #2{
+    #define HOGE
+    #undef FUGA
+    
+    #ifdef HOGE
+    #ifdef FUGA
+    char* x = "ifdef HOGE and FUGA";
+    #else
+    char* x = "ifdef HOGE";
+    #endif
+    #else
+    #ifdef FUGA
+    char* x = "ifdef FUGA";
+    #else
+    char* x = "no defintiion";
+    #endif
+    #endif
+    
+    return x;
+    
+    #undef HOGE
+    }#)
+
+  (is.equal.wcs "ifdef FUGA"
+    #2{
+    #undef HOGE
+    #define FUGA
+    
+    #ifdef HOGE
+    #ifdef FUGA
+    char* x = "ifdef HOGE and FUGA";
+    #else
+    char* x = "ifdef HOGE";
+    #endif
+    #else
+    #ifdef FUGA
+    char* x = "ifdef FUGA";
+    #else
+    char* x = "no defintiion";
+    #endif
+    #endif
+    
+    return x;
+    
+    #undef FUGA
+    }#)
+
+  (is.equal.wcs "no definition"
+    #2{
+    #undef HOGE
+    #undef FUGA
+    
+    #ifdef HOGE
+    #ifdef FUGA
+    char* x = "ifdef HOGE and FUGA";
+    #else
+    char* x = "ifdef HOGE";
+    #endif
+    #else
+    #ifdef FUGA
+    char* x = "ifdef FUGA";
+    #else
+    char* x = "no defintiion";
+    #endif
+    #endif
+    
+    return x;
+    }#))
+
 (test test-pp-object-like-macro
   (is.equal.wcs 3
     #2{
