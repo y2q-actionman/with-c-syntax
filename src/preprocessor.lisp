@@ -290,27 +290,29 @@ returns NIL."
           until (eq i +newline-marker+)
           collect i)))
 
-(defun check-preprocessor-token-non-null (token directive-name)
-  (unless token
-    (error 'preprocess-error
-           :format-control "No token after #~A"
-           :format-arguments (list directive-name))))
+(defun error-no-preprocessor-token (directive-name)
+  (error 'preprocess-error
+         :format-control "No token after #~A"
+         :format-arguments (list directive-name)))
 
-(defmacro pop-preprocessor-directive-token (token-list
-                                            &key (check-non-null t) (directive-name "directive"))
+(defmacro pop-preprocessor-directive-token (token-list directive-name)
   "Pops the next token in TOKEN-LIST ignoring `+whitespace-marker+'"
-  (with-gensyms (head_ ret_)
-    `(let* ((,head_ (pop ,token-list))
-            (,ret_ (if (eq +whitespace-marker+ ,head_)
-                       (pop ,token-list)
-                       ,head_)))
-       ,(when check-non-null
-          `(check-preprocessor-token-non-null ,ret_ ,directive-name))
-       ,ret_)))
+  (with-gensyms (head_)
+    `(macrolet ((check-and-pop ()
+                  `(if (null ,',token-list)
+                       (error-no-preprocessor-token ,',directive-name)
+                       (pop ,',token-list))))
+       (let ((,head_ (check-and-pop)))
+         (if (eq +whitespace-marker+ ,head_)
+             (check-and-pop)
+             ,head_)))))
+
+(defun preprocessor-token-exists-p (token-list)
+  (find +whitespace-marker+ token-list :test-not 'eql))
 
 (defun check-no-preprocessor-token (token-list directive-name)
   "Checks no preprocessing token is left in TOKEN-LIST."
-  (when (find +whitespace-marker+ token-list :test-not 'eql)
+  (when (preprocessor-token-exists-p token-list)
     (error 'preprocess-error
            :format-control "Extra tokens are found after #~A"
            :format-arguments (list (string directive-name)))))
@@ -343,7 +345,7 @@ returns NIL."
 
 (defun process-ifn?def (directive-symbol token-list state)
   (let* ((identifier
-           (prog1 (pop-preprocessor-directive-token token-list :directive-name directive-symbol)
+           (prog1 (pop-preprocessor-directive-token token-list directive-symbol)
              (check-no-preprocessor-token token-list directive-symbol)))
          (condition (ecase directive-symbol
                       (with-c-syntax.preprocessor-directive:|ifdef|
@@ -416,7 +418,7 @@ returns NIL."
                                             token-list state)
   ;; TODO: Add local macro scope for preprocessor macros.
   (let* ((identifier
-           (pop-preprocessor-directive-token token-list :directive-name directive-symbol))
+           (pop-preprocessor-directive-token token-list directive-symbol))
          (function-like-p (eql (first token-list) 'with-c-syntax.punctuator:|(|)))
     (cond
       (function-like-p
@@ -428,7 +430,7 @@ returns NIL."
                                              (eql 'with-c-syntax.preprocessor-directive:|undef|))
                                             token-list state)
   (let ((identifier
-          (pop-preprocessor-directive-token token-list :directive-name directive-symbol)))
+          (pop-preprocessor-directive-token token-list directive-symbol)))
     (check-no-preprocessor-token token-list directive-symbol)
     (remove-preprocessor-macro identifier)))
 
@@ -464,40 +466,34 @@ returns NIL."
        with-c-syntax.preprocessor-directive:|pragma|)
      nil)))
 
-(defun preprocessor-loop-try-directives (state token)
+(defun preprocessor-loop-at-directive-p (state token)
+  (with-preprocessor-state-slots (state)
+    (and (symbolp token)
+         (zerop tokens-in-line)
+         (or (string= token "#")
+             (and process-digraph? (string= token "%:"))))))
+
+(defun preprocessor-loop-do-directives (state)
   "Process preprocessor directives. This is tranlation phase 4."
   (with-preprocessor-state-slots (state)
-    (unless (and (symbolp token)
-                 (zerop tokens-in-line)
-                 (or (string= token "#")
-                     (and process-digraph? (string= token "%:"))))
-      (return-from preprocessor-loop-try-directives nil))
-    (let* ((directive-tokens
-             (draw-preprocessor-directive-line-tokens state))
-           (directive-name
-             (pop-preprocessor-directive-token directive-tokens :check-non-null nil)))
-      (typecase directive-name
-        (null                           ; Null directive
-         (assert (null directive-tokens))
-         t)
-        (symbol
-         (let ((directive-symbol
-                 (find-preprocessor-directive (symbol-name directive-name) readtable-case)))
-           (cond
-             ((null directive-symbol)
-              (error 'preprocess-error
-                     :format-control "Unknown preprocessing directive ~A"
-                     :format-arguments (list directive-name)))
-             ((and if-section-skip-reason
-                   (not (preprocessing-conditional-directive-p directive-symbol)))
-              (return-from preprocessor-loop-try-directives nil))
-             (t
-              (process-preprocessing-directive directive-symbol directive-tokens state)
-              t))))
-        (t
-         (error 'preprocess-error
-                :format-control "'~A' cannot be uses as preprocessing directive name"
-                :format-arguments (list directive-name)))))))
+    (let ((token-list
+            (draw-preprocessor-directive-line-tokens state)))
+      (unless (preprocessor-token-exists-p token-list) ; Null directive
+        (return-from preprocessor-loop-do-directives t))
+      (let ((directive-token
+              (pop-preprocessor-directive-token token-list "")))
+        (unless (symbolp directive-token)
+          (error 'preprocess-error
+                 :format-control "'~A' cannot be uses as preprocessing directive name"
+                 :format-arguments (list directive-token)))
+        (if-let ((directive-symbol
+                  (find-preprocessor-directive (symbol-name directive-token) readtable-case)))
+          (when (or (preprocessing-conditional-directive-p directive-symbol)
+                    (not if-section-skip-reason))
+            (process-preprocessing-directive directive-symbol token-list state))
+          (error 'preprocess-error
+                 :format-control "Unknown preprocessing directive ~A"
+                 :format-arguments (list directive-token)))))))
 
 (defun preprocessor-loop-try-intern-punctuators (state token)
   "Intern puctuators. this is with-c-syntax specific preprocessing path."
@@ -557,8 +553,8 @@ returns NIL."
         ((eq token +newline-marker+)
          (incf line-number)
          (setf tokens-in-line 0))
-        ((preprocessor-loop-try-directives state token) ; Check directives before #if skips.
-         t)
+        ((preprocessor-loop-at-directive-p state token) ; Check directives before #if skips.
+         (preprocessor-loop-do-directives state))
         (if-section-skip-reason         ; #if-section skips it.
          (progn))
         (t
