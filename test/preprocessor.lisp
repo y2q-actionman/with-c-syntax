@@ -67,6 +67,38 @@
     (is (equal (cpma '(|(| |)|))
 	       '()))))
 
+(test test-pp-if-syntax-errors
+  ;; TODO: #if
+  
+  (signals.macroexpand.wcs ()
+    #2{ #ifdef }#)
+  (signals.macroexpand.wcs ()
+    #2{ #ifdef X Y }#)
+  
+  (signals.macroexpand.wcs ()
+    #2{ #ifndef }#)
+  (signals.macroexpand.wcs ()
+    #2{ #ifndef X Y }#)
+  
+  ;; TODO: #elif
+  
+  (signals.macroexpand.wcs ()
+    #2{ #else }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #ifdef X
+    #else extra-token
+    #endif
+    }#)
+  
+  (signals.macroexpand.wcs ()
+    #2{ #endif }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #ifdef X
+    #endif extra-token
+    }#))
+
 (test test-pp-ifdef
   (is.equal.wcs "ifdef-side"
     #2{
@@ -123,6 +155,14 @@
     #undef HOGE // ; TODO: Remove this if a kind of local-macros are implemented.
     }#))
 
+(test test-pp-undef-syntax-errors
+  (signals.macroexpand.wcs ()
+    #2{ #undef }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #undef X extra-token
+    }#))
+  
 (test test-pp-strcat
   (is.equal.wcs "abc"
     return "a" "b" "c" \; ))

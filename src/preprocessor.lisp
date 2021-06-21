@@ -290,21 +290,30 @@ returns NIL."
           until (eq i +newline-marker+)
           collect i)))
 
-(defmacro pop-preprocessor-directive-token (token-list)
-  "Pops the next token in TOKEN-LIST ignoring `+whitespace-marker+'"
-  (with-gensyms (head_)
-    `(let ((,head_ (pop ,token-list)))
-       (if (eq +whitespace-marker+ ,head_)
-           (pop ,token-list)
-           ,head_))))
-
-(defun check-no-preprocessoro-token (token-list directive-name)
-  "Checks no preprocessing token is left in TOKEN-LIST."
-  (when-let (bad-token (pop-preprocessor-directive-token token-list))
+(defun check-preprocessor-token-non-null (token directive-name)
+  (unless token
     (error 'preprocess-error
-           :format-control "Extra tokens are found after #~A target: ~A"
-           :format-arguments (list (string directive-name)
-                                   bad-token))))
+           :format-control "No token after #~A"
+           :format-arguments (list directive-name))))
+
+(defmacro pop-preprocessor-directive-token (token-list
+                                            &key (check-non-null t) (directive-name "directive"))
+  "Pops the next token in TOKEN-LIST ignoring `+whitespace-marker+'"
+  (with-gensyms (head_ ret_)
+    `(let* ((,head_ (pop ,token-list))
+            (,ret_ (if (eq +whitespace-marker+ ,head_)
+                       (pop ,token-list)
+                       ,head_)))
+       ,(when check-non-null
+          `(check-preprocessor-token-non-null ,ret_ ,directive-name))
+       ,ret_)))
+
+(defun check-no-preprocessor-token (token-list directive-name)
+  "Checks no preprocessing token is left in TOKEN-LIST."
+  (when (find +whitespace-marker+ token-list :test-not 'eql)
+    (error 'preprocess-error
+           :format-control "Extra tokens are found after #~A"
+           :format-arguments (list (string directive-name)))))
 
 (defgeneric process-preprocessing-directive (directive-symbol token-list state))
 
@@ -334,8 +343,8 @@ returns NIL."
 
 (defun process-ifn?def (directive-symbol token-list state)
   (let* ((identifier
-           (prog1 (pop-preprocessor-directive-token token-list)
-             (check-no-preprocessoro-token token-list directive-symbol)))
+           (prog1 (pop-preprocessor-directive-token token-list :directive-name directive-symbol)
+             (check-no-preprocessor-token token-list directive-symbol)))
          (condition (ecase directive-symbol
                       (with-c-syntax.preprocessor-directive:|ifdef|
                         `(defined ,identifier))
@@ -368,7 +377,7 @@ returns NIL."
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|else|))
                                             token-list state)
-  (check-no-preprocessoro-token token-list directive-symbol)
+  (check-no-preprocessor-token token-list directive-symbol)
   (with-preprocessor-state-slots (state)
     (unless if-section-stack
       (error 'preprocess-error
@@ -390,7 +399,7 @@ returns NIL."
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|endif|))
                                             token-list state)
-  (check-no-preprocessoro-token token-list directive-symbol)
+  (check-no-preprocessor-token token-list directive-symbol)
   (with-preprocessor-state-slots (state)
     (unless if-section-stack
       (error 'preprocess-error
@@ -406,7 +415,7 @@ returns NIL."
                                             token-list state)
   ;; TODO: Add local macro scope for preprocessor macros.
   (let* ((identifier
-           (pop-preprocessor-directive-token token-list))
+           (pop-preprocessor-directive-token token-list :directive-name directive-symbol))
          (function-like-p (eql (first token-list) 'with-c-syntax.punctuator:|(|)))
     (cond
       (function-like-p
@@ -418,8 +427,8 @@ returns NIL."
                                              (eql 'with-c-syntax.preprocessor-directive:|undef|))
                                             token-list state)
   (let ((identifier
-          (pop-preprocessor-directive-token token-list)))
-    (check-no-preprocessoro-token token-list directive-symbol)
+          (pop-preprocessor-directive-token token-list :directive-name directive-symbol)))
+    (check-no-preprocessor-token token-list directive-symbol)
     (remove-preprocessor-macro identifier)))
 
 ;; TODO: #line
@@ -465,7 +474,7 @@ returns NIL."
     (let* ((directive-tokens
              (draw-preprocessor-directive-line-tokens state))
            (directive-name
-             (pop-preprocessor-directive-token directive-tokens)))
+             (pop-preprocessor-directive-token directive-tokens :check-non-null nil)))
       (typecase directive-name
         (null                           ; Null directive
          (assert (null directive-tokens))
