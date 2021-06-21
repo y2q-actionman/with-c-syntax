@@ -333,14 +333,6 @@ returns NIL."
   ((condition-results :initform (make-array 1 :fill-pointer 0 :adjustable t)
                       :type vector)))
 
-(defmethod cl:initialize-instance ((obj if-section) &rest args
-                                   &key init-condition init-result
-                                   &allow-other-keys)
-  (declare (ignorable args))
-  (let ((obj (call-next-method)))
-    (if-section-push-condition-result obj init-condition init-result)
-    obj))
-
 (defmethod if-section-push-condition-result (if-section form result)
   (with-slots (condition-results) if-section
     (vector-push-extend (cons form result) condition-results)))
@@ -350,14 +342,13 @@ returns NIL."
     (loop for (nil . result) across condition-results
             thereis result)))
 
-(defun begin-if-section (state condition result)
-  (let ((if-section-obj
-          (make-instance 'if-section :init-condition condition
-                                     :init-result result)))
+(defun begin-if-section (state condition-form eval-result)
+  (let ((if-section-obj (make-instance 'if-section)))
+    (if-section-push-condition-result if-section-obj condition-form eval-result)
     (with-preprocessor-state-slots (state)
       (push if-section-obj if-section-stack)
       (when (and (null if-section-skip-reason)
-                 (not result))
+                 (not eval-result))
         (setf if-section-skip-reason if-section-obj)))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
