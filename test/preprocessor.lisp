@@ -161,7 +161,7 @@
     #ifdef FUGA
     char* x = "ifdef FUGA";
     #else
-    char* x = "no defintiion";
+    char* x = "no definition";
     #endif
     #endif
     
@@ -186,7 +186,7 @@
     #ifdef FUGA
     char* x = "ifdef FUGA";
     #else
-    char* x = "no defintiion";
+    char* x = "no definition";
     #endif
     #endif
     
@@ -210,7 +210,7 @@
     #ifdef FUGA
     char* x = "ifdef FUGA";
     #else
-    char* x = "no defintiion";
+    char* x = "no definition";
     #endif
     #endif
     
@@ -234,7 +234,7 @@
     #ifdef FUGA
     char* x = "ifdef FUGA";
     #else
-    char* x = "no defintiion";
+    char* x = "no definition";
     #endif
     #endif
     
