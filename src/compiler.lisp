@@ -69,6 +69,17 @@ on its ~return~ argument.
 (defvar *wcs-expanding-environment* nil
   "`with-c-syntax' bind this to `&environment' argument.")
 
+(defmacro with-c-compilation-unit ((entry-form return-last?) ; Move to compiler?
+				   &body body)
+  "Establishes variable bindings for a new compilation."
+  `(let ((*struct-specs* (copy-hash-table *struct-specs*))
+         (*typedef-names* (copy-hash-table *typedef-names*))
+         (*dynamic-binding-requested* nil)
+         (*function-pointer-ids* nil)
+         (*toplevel-entry-form* ,entry-form)
+	 (*return-last-statement* ,return-last?))
+     ,@body))
+
 ;;; Lexer
 (defun list-lexer (list &aux (syntax-package (find-package '#:with-c-syntax.syntax)))
   #'(lambda ()

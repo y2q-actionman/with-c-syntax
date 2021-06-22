@@ -14,15 +14,20 @@
                 ((:file "package")
 		 (:file "util" :depends-on ("package"))
 		 (:file "condition" :depends-on ("package"))
+                 (:file "physical-source" ; Translation Phase 1,2
+                  :depends-on ("condition"))
+                 (:file "reader"        ; Translation Phase 3
+                  :depends-on ("physical-source"))
+                 (:file "preprocessor"  ; Translation Phase 4,(5),6
+                  :depends-on ("condition" "reader" "compiler")) ; Uses compiler for implemeting '#if'
+                 ;; TODO: Add lexer here.
                  (:file "struct" :depends-on ("package"))
                  (:file "typedef" :depends-on ("package"))
                  (:file "pseudo-pointer" :depends-on ("util" "condition"))
-                 (:file "preprocessor" :depends-on ("condition"))
-                 (:file "compiler"
-		  :depends-on ("struct" "typedef" "pseudo-pointer" "preprocessor"))
-                 (:file "with-c-syntax" :depends-on ("compiler"))
-                 (:file "physical-source" :depends-on ("package"))
-                 (:file "reader" :depends-on ("with-c-syntax" "physical-source"))))
+                 (:file "compiler"      ; Translation Phase 7
+		  :depends-on ("struct" "typedef" "pseudo-pointer"))
+                 (:file "with-c-syntax" ; Entry Point
+                  :depends-on ("preprocessor" "compiler"))))
                (:module "libc"
 		:serial nil	
                 :components

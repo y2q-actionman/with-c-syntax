@@ -1,28 +1,5 @@
 (in-package #:with-c-syntax.core)
 
-;;; Macro interface
-(defmacro with-c-compilation-unit ((entry-form return-last?)
-				   &body body)
-  "* Syntax
-~with-c-compilation-unit~ (entry-form return-last?) &body form* => result*
-
-* Arguments and Values
-- entry-form  :: a form
-- return-last? :: a boolean
-- forms       :: a implicit progn
-- results     :: the values returned by forms
-
-* Description
-Establishes variable bindings for a new compilation.
-"
-  `(let ((*struct-specs* (copy-hash-table *struct-specs*))
-         (*typedef-names* (copy-hash-table *typedef-names*))
-         (*dynamic-binding-requested* nil)
-         (*function-pointer-ids* nil)
-         (*toplevel-entry-form* ,entry-form)
-	 (*return-last-statement* ,return-last?))
-     ,@body))
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun expand-c-syntax (body try-add-{} entry-form return-last?)
     (handler-case
