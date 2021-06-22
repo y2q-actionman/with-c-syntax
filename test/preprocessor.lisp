@@ -69,6 +69,10 @@
 
 (test test-pp-if-syntax-errors
   ;; TODO: #if
+  (signals.macroexpand.wcs ()
+    #2{ #if }#)
+  (signals.macroexpand.wcs ()
+    #2{ #if x y }#)
   
   (signals.macroexpand.wcs ()
     #2{ #ifdef }#)
@@ -104,6 +108,35 @@
     #2{
     #ifdef X
     #endif extra-token
+    }#))
+
+(test test-pp-if-simple-case
+  (is.equal.wcs "if-side"
+    #2{
+    #if 1
+    char* x = "if-side";
+    #else
+    char* x = "else-side";
+    #endif
+    return x;
+    }#)
+  (is.equal.wcs "else-side"
+    #2{
+    #if 0
+    char* x = "if-side";
+    #else
+    char* x = "else-side";
+    #endif
+    return x;
+    }#)
+  (is.equal.wcs "else-side"
+    #2{
+    #if nil
+    char* x = "if-side";
+    #else
+    char* x = "else-side";
+    #endif
+    return x;
     }#))
 
 (test test-pp-ifdef

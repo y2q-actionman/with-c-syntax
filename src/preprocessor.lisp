@@ -41,8 +41,16 @@ having a same NAME. If not found, returns `nil'.")
 
 ;;; C punctuators.
 
-(defun find-punctuator (name)
-  (find-symbol name '#:with-c-syntax.punctuator))
+(defun find-punctuator (name process-digraph?)
+  (when-let (punctuator (find-symbol name '#:with-c-syntax.punctuator))
+    (when-let (replace (find-digraph-replacement punctuator)) ; Check digraph 
+      (unless (eq process-digraph? :no-warn)
+        (warn 'with-c-syntax-style-warning
+              :message (format nil "Digraph sequence '~A' (means ~A) found."
+                               punctuator replace)))
+      (when process-digraph?
+        (setf punctuator replace)))
+    punctuator))
 
 (defun find-digraph-replacement (punctuator)
   (case punctuator
@@ -295,17 +303,21 @@ returns NIL."
          :format-control "No token after #~A"
          :format-arguments (list directive-name)))
 
-(defmacro pop-preprocessor-directive-token (token-list directive-name)
+(defmacro check-and-pop-pp-directive-token-1 (token-list directive-name errorp)
+  "Used by `pop-preprocessor-directive-token'"
+  `(if (null ,token-list)
+       (when ,errorp
+         (error-no-preprocessor-token ,directive-name))
+       (pop ,token-list)))
+
+(defmacro pop-preprocessor-directive-token (token-list directive-name &key (errorp t))
   "Pops the next token in TOKEN-LIST ignoring `+whitespace-marker+'"
   (with-gensyms (head_)
-    `(macrolet ((check-and-pop ()
-                  `(if (null ,',token-list)
-                       (error-no-preprocessor-token ,',directive-name)
-                       (pop ,',token-list))))
-       (let ((,head_ (check-and-pop)))
-         (if (eq +whitespace-marker+ ,head_)
-             (check-and-pop)
-             ,head_)))))
+    `(let ((,head_
+             (check-and-pop-pp-directive-token-1 ,token-list ,directive-name ,errorp)))
+       (if (eq +whitespace-marker+ ,head_)
+           (check-and-pop-pp-directive-token-1 ,token-list ,directive-name ,errorp)
+           ,head_))))
 
 (defun preprocessor-token-exists-p (token-list)
   (find +whitespace-marker+ token-list :test-not 'eql))
@@ -345,6 +357,84 @@ returns NIL."
       (when (and (null if-section-skip-reason)
                  (not eval-result))
         (setf if-section-skip-reason if-section-obj)))))
+
+(defun pp-|defined|-operator-p (token readtable-case)
+  (ecase readtable-case
+    ((:upcase :invert) (string= token "DEFINED"))
+    ((:downcase :preserve) (string= token "defined"))))
+
+(defun pp-if-expression-lexer (token-list process-digraph? readtable-case directive-symbol)
+  #'(lambda ()
+      (if
+       (null token-list)
+       (values nil nil)
+       (let ((token (pop-preprocessor-directive-token token-list directive-symbol :errorp nil)))
+         (typecase token
+           (null
+            (values 'lisp-expression nil))
+           (symbol
+            (cond
+              ((when-let (punctuator (find-punctuator (symbol-name token) process-digraph?))
+                 (values punctuator punctuator)))
+              ((pp-|defined|-operator-p token readtable-case) 
+               ;; defined operator
+               (let* ((defined-1 (pop-preprocessor-directive-token token-list directive-symbol))
+                      (param
+                        (if (and (symbolp defined-1)
+                                 (string= defined-1 "("))
+                            (prog1 (pop-preprocessor-directive-token token-list directive-symbol)
+                              (let ((r-paren? (pop-preprocessor-directive-token
+                                               token-list directive-symbol)))
+                                (unless (and (symbolp r-paren?)
+                                             (string= r-paren? ")"))
+                                  (error
+                                   'preprocess-error
+	                           :format-control "'defined' operator does not have corresponding ')'. '~A' was found."
+	                           :format-arguments (list r-paren?)))))
+                            defined-1)))
+                 (unless (symbolp param)
+                   (error
+                    'preprocess-error
+	            :format-control "'defined' operator takes only identifiers. '~A' was passed."
+	            :format-arguments (list param)))
+                 (values 'lisp-expression
+                         (find-preprocessor-macro param))))
+              (t
+               ;; In C99, remaining identifiers are replaced to 0.
+               ;; ("6.10.1 Conditional inclusion" in ISO/IEC 9899.)
+               (values 'lisp-expression nil))))
+           (integer
+            (values 'int-const token))
+           (character
+            (values 'char-const token))
+           (float
+            (values 'float-const token))
+           (string
+            (values 'string token))
+           (otherwise
+            (values 'lisp-expression token)))))))
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|if|))
+                                            directive-token-list state)
+  (with-preprocessor-state-slots (state)
+    (let* ((condition directive-token-list)
+           (lexer (pp-if-expression-lexer directive-token-list process-digraph? readtable-case
+                                          directive-symbol))
+           (parsed-form
+             (handler-case
+                 (prog1
+                     (with-c-compilation-unit (nil t)
+                       (parse-with-lexer lexer *expression-parser*))
+                   (when (funcall lexer)
+                     (error 'preprocess-error
+                            :format-control "Extra tokens are found after #if")))
+               (yacc-parse-error (condition)
+                 (error 'preprocess-if-expression-parse-error :yacc-error condition))))
+           (value (eval parsed-form))
+           (result (and value
+                        (not (eql value 0))))) ; Special case for "#if 0" idiom.
+      (begin-if-section state condition result))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|ifdef|))
@@ -493,14 +583,7 @@ returns NIL."
 (defun preprocessor-loop-try-intern-punctuators (state token)
   "Intern puctuators. this is with-c-syntax specific preprocessing path."
   (with-preprocessor-state-slots (state)
-    (when-let (punctuator (find-punctuator (symbol-name token)))
-      (when-let ((replace (find-digraph-replacement punctuator))) ; Check digraph 
-        (unless (eq process-digraph? :no-warn)
-          (warn 'with-c-syntax-style-warning
-                :message (format nil "Digraph sequence '~A' (means ~A) found."
-                                 punctuator replace)))
-        (when process-digraph?
-          (setf punctuator replace)))
+    (when-let (punctuator (find-punctuator (symbol-name token) process-digraph?))
       (push punctuator result-list)
       ;; typedef hack -- adds "void ;" after each typedef.
       (when (and typedef-hack?

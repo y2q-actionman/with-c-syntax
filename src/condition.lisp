@@ -15,6 +15,15 @@
   (:documentation
    "Used in the preprocessor."))
 
+(define-condition preprocess-if-expression-parse-error (preprocess-error)
+  ((yacc-error :initarg :yacc-error))
+  (:report
+   (lambda (condition stream)
+     (format stream "with-c-syntax preprocess error at parsing if expression. yacc error is~%~A"
+             (slot-value condition 'yacc-error))))
+  (:documentation
+   "Used when an error occurred at the parser."))
+
 (define-condition lexer-error (with-c-syntax-error)
   ((token :initarg :token
           :reader lexer-error-token))
