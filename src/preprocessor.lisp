@@ -394,7 +394,8 @@ returns NIL."
 	                           :format-control "'defined' operator does not have corresponding ')'. '~A' was found."
 	                           :format-arguments (list r-paren?)))))
                             defined-1)))
-                 (unless (symbolp param)
+                 (when (or (not (symbolp param))
+                           (find-punctuator (symbol-name param) process-digraph?))
                    (error
                     'preprocess-error
 	            :format-control "'defined' operator takes only identifiers. '~A' was passed."
@@ -404,13 +405,15 @@ returns NIL."
               (t
                ;; In C99, remaining identifiers are replaced to 0.
                ;; ("6.10.1 Conditional inclusion" in ISO/IEC 9899.)
+               ;; I replace it to `cl:nil' for compromising Lisp manner.
+               ;; This substitutuin will supress casts.
                (values 'lisp-expression nil))))
            (integer
             (values 'int-const token))
            (character
             (values 'char-const token))
            (float
-            (values 'float-const token))
+            (values 'float-const token)) ; FIXME: #if does not accept floats.
            (string
             (values 'string token))
            (otherwise
@@ -426,17 +429,18 @@ returns NIL."
                                           directive-symbol))
            (parsed-form
              (handler-case
-                 (prog1
-                     (with-c-compilation-unit (nil t)
-                       (parse-with-lexer lexer *expression-parser*))
-                   (when (funcall lexer)
-                     (error 'preprocess-error
-                            :format-control "Extra tokens are found after #if")))
+                 (with-c-compilation-unit (nil t)
+                   (parse-with-lexer lexer *expression-parser*))
                (yacc-parse-error (condition)
                  (error 'preprocess-if-expression-parse-error :yacc-error condition))))
+           (check-left-token
+             (when (funcall lexer)
+               (error 'preprocess-error
+                      :format-control "Extra tokens are found after #if")))
            (value (eval parsed-form))
            (result (and value
                         (not (eql value 0))))) ; Special case for "#if 0" idiom.
+      (declare (ignore check-left-token))
       (begin-if-section state condition result))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
