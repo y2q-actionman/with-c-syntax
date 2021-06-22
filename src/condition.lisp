@@ -35,12 +35,11 @@
    "Used in the lexer."))
 
 (define-condition with-c-syntax-parse-error (with-c-syntax-error)
-  ((yacc-error :initarg :yacc-error
-               :reader with-c-syntax-parse-error-yacc-error))
+  ((yacc-error :initarg :yacc-error))
   (:report
    (lambda (condition stream)
      (format stream "with-c-syntax parse error. yacc error is~%~A"
-             (with-c-syntax-parse-error-yacc-error condition))))
+             (slot-value condition 'yacc-error))))
   (:documentation
    "Used when an error occurred at the parser."))
 

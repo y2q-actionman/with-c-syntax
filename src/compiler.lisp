@@ -1143,7 +1143,7 @@ This is not intended for calling directly. The `va_start' macro uses this."
 				`(,*toplevel-entry-form*)))))
 
 ;;; The parser
-(define-parser *expression-parser*
+(define-parser *expression-parser*      ; TODO: Rename?
   (:muffle-conflicts t)         ; for 'dangling else'.
   ;; http://www.cs.man.ac.uk/~pjj/bnf/c_syntax.bnf
   (:terminals

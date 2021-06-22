@@ -147,6 +147,8 @@ indicated by `+preprocessor-macro+'."
        finally
          (return (values macro-args lis-head)))))
 
+;;; Identifier split.
+
 (defmacro mv-cond-let ((&rest vars) &body clauses)
   "This is like the famous 'COND-LET', but takes multiple values."
   (let ((clause1 (first clauses)))
@@ -419,6 +421,7 @@ returns NIL."
                                             directive-token-list state)
   (with-preprocessor-state-slots (state)
     (let* ((condition directive-token-list)
+           ;; TODO: Expand PP macro before parsing.
            (lexer (pp-if-expression-lexer directive-token-list process-digraph? readtable-case
                                           directive-symbol))
            (parsed-form
@@ -515,6 +518,7 @@ returns NIL."
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|undef|))
                                             token-list state)
+  (declare (ignore state))
   (let ((identifier
           (pop-last-preprocessor-directive-token token-list directive-symbol)))
     (remove-preprocessor-macro identifier)))
