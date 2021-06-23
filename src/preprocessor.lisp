@@ -442,18 +442,18 @@ returns NIL."
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|ifdef|))
-                                            token-list state)
+                                            directive-token-list state)
   (let* ((identifier
-           (pop-last-preprocessor-directive-token token-list directive-symbol))
+           (pop-last-preprocessor-directive-token directive-token-list directive-symbol))
          (condition `(,directive-symbol ,identifier))
          (result (preprocessor-macro-exists-p identifier)))
     (begin-if-section state condition result)))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|ifndef|))
-                                            token-list state)
+                                            directive-token-list state)
   (let* ((identifier
-           (pop-last-preprocessor-directive-token token-list directive-symbol))
+           (pop-last-preprocessor-directive-token directive-token-list directive-symbol))
          (condition `(,directive-symbol ,identifier))
          (result (not (preprocessor-macro-exists-p identifier))))
     (begin-if-section state condition result)))
@@ -471,8 +471,8 @@ returns NIL."
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|else|))
-                                            token-list state)
-  (check-no-preprocessor-token token-list directive-symbol)
+                                            directive-token-list state)
+  (check-no-preprocessor-token directive-token-list directive-symbol)
   (with-preprocessor-state-slots (state)
     (unless if-section-stack
       (error 'preprocess-error
@@ -491,8 +491,8 @@ returns NIL."
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|endif|))
-                                            token-list state)
-  (check-no-preprocessor-token token-list directive-symbol)
+                                            directive-token-list state)
+  (check-no-preprocessor-token directive-token-list directive-symbol)
   (with-preprocessor-state-slots (state)
     (unless if-section-stack
       (error 'preprocess-error
@@ -505,35 +505,35 @@ returns NIL."
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|define|))
-                                            token-list state)
+                                            directive-token-list state)
   ;; TODO: Add local macro scope for preprocessor macros.
   (let* ((identifier
-           (pop-preprocessor-directive-token token-list directive-symbol))
-         (function-like-p (eql (first token-list) 'with-c-syntax.punctuator:|(|)))
+           (pop-preprocessor-directive-token directive-token-list directive-symbol))
+         (function-like-p (eql (first directive-token-list) 'with-c-syntax.punctuator:|(|)))
     (cond
       (function-like-p
        (error "TODO: function-like macro"))
       (t
-       (add-preprocessor-macro identifier token-list)))))
+       (add-preprocessor-macro identifier directive-token-list)))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|undef|))
-                                            token-list state)
+                                            directive-token-list state)
   (declare (ignore state))
   (let ((identifier
-          (pop-last-preprocessor-directive-token token-list directive-symbol)))
+          (pop-last-preprocessor-directive-token directive-token-list directive-symbol)))
     (remove-preprocessor-macro identifier)))
 
 ;; TODO: #line
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|error|))
-                                            token-list state)
-  (let ((token-list-for-print (delete +whitespace-marker+ token-list)))
-    (with-preprocessor-state-slots (state)
-      (error 'preprocess-error
-             :format-control "[File ~A: Line ~D] #error: ~{~A~^ ~}"
-             :format-arguments (list (if file-pathname (enough-namestring file-pathname)) 
+                                            directive-token-list state)
+  (let ((token-list-for-print (delete +whitespace-marker+ directive-token-list)))
+    (error 'preprocess-error
+           :format-control "[File ~A: Line ~D] #error: ~{~A~^ ~}"
+           :format-arguments (with-preprocessor-state-slots (state)
+                               (list (if file-pathname (enough-namestring file-pathname)) 
                                      line-number
                                      token-list-for-print)))))
 
