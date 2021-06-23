@@ -281,6 +281,19 @@
     return x;
     }#))
 
+(test test-pp-ifdef-skip-test
+  (is.equal.wcs 100
+    #2{
+    #ifdef FUGA
+    #error "this" error is skipped!
+    # Unknown Directive is ignored!
+    # "Strings" or numbers like
+    # 0xfff are also ignored.
+    #endif
+    
+    return 100;
+    }#))
+
 (test test-pp-object-like-macro
   (is.equal.wcs 3
     #2{

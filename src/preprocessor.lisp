@@ -572,18 +572,20 @@ returns NIL."
         (return-from preprocessor-loop-do-directives t))
       (let ((directive-token
               (pop-preprocessor-directive-token token-list "")))
-        (unless (symbolp directive-token)
-          (error 'preprocess-error
-                 :format-control "'~A' cannot be uses as preprocessing directive name"
-                 :format-arguments (list directive-token)))
-        (if-let ((directive-symbol
-                  (find-preprocessor-directive (symbol-name directive-token) readtable-case)))
-          (when (or (preprocessing-conditional-directive-p directive-symbol)
-                    (not if-section-skip-reason))
-            (process-preprocessing-directive directive-symbol token-list state))
-          (error 'preprocess-error
-                 :format-control "Unknown preprocessing directive ~A"
-                 :format-arguments (list directive-token)))))))
+        (flet ((raise-pp-error ()
+                 (unless if-section-skip-reason
+                   (error 'preprocess-error
+                          :format-control "'~A' cannot be used as a preprocessing directive."
+                          :format-arguments (list directive-token)))
+                 (return-from preprocessor-loop-do-directives nil)))
+          (unless (symbolp directive-token)
+            (raise-pp-error))
+          (if-let ((directive-symbol
+                    (find-preprocessor-directive (symbol-name directive-token) readtable-case)))
+            (when (or (preprocessing-conditional-directive-p directive-symbol)
+                      (not if-section-skip-reason))
+              (process-preprocessing-directive directive-symbol token-list state))
+            (raise-pp-error)))))))
 
 (defun preprocessor-loop-try-intern-punctuators (state token)
   "Intern puctuators. this is with-c-syntax specific preprocessing path."
