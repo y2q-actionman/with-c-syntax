@@ -656,7 +656,15 @@
     return int_t \;
     })
   t)
-;; removal of 'typedef guard' is tested at test-preprocessor
+
+(test test-typedef-hack ()
+  ;; Tests removal of 'typedef guard'
+  (is.equal.wcs 1
+    {
+    typedef int int_t \;
+    int_t x = 1 \;
+    return x \;
+    }))
 
 (test test-lisptype-decls
   (is.equal.wcs '(1 2 3)

@@ -275,9 +275,7 @@ returns NIL."
    (if-section-stack :initform nil :type list
                      :accessor pp-state-if-section-stack)
    (if-section-skip-reason :initform nil
-                           :accessor pp-state-if-section-skip-reason)
-   (typedef-hack? :initform nil :type boolean
-                  :accessor pp-state-typedef-hack?)))
+                           :accessor pp-state-if-section-skip-reason)))
 
 (defmacro with-preprocessor-state-slots ((state) &body body)
   `(with-accessors ((token-list pp-state-token-list)
@@ -286,7 +284,6 @@ returns NIL."
                     (file-pathname pp-state-file-pathname)
                     (line-number pp-state-line-number)
                     (tokens-in-line pp-state-tokens-in-line)
-                    (typedef-hack? pp-state-typedef-hack?)
                     (if-section-stack pp-state-if-section-stack)
                     (if-section-skip-reason pp-state-if-section-skip-reason)
                     (process-digraph? pp-state-process-digraph?))
@@ -593,11 +590,6 @@ returns NIL."
   (with-preprocessor-state-slots (state)
     (when-let (punctuator (find-punctuator (symbol-name token) process-digraph?))
       (push punctuator result-list)
-      ;; typedef hack -- adds "void ;" after each typedef.
-      (when (and typedef-hack?
-	         (eq punctuator '\;))
-        (setf typedef-hack? nil)
-        (revappendf result-list '(|void| \;)))
       t)))
 
 (defun preprocessor-loop-try-intern-keywords (state token)
@@ -605,8 +597,6 @@ returns NIL."
   (with-preprocessor-state-slots (state)
     (when-let (c-op (find-c-terminal (symbol-name token) readtable-case))
       (push c-op result-list)
-      (when (eq c-op '|typedef|)
-        (setf typedef-hack? t)) ; enables 'typedef hack'.
       t)))
   
 (defun preprocessor-loop-concatenate-string (state token)
@@ -693,11 +683,6 @@ Current workings are below:
 
 - Calling preprocessor macros, defined by `add-preprocessor-macro'.
   How preprocessor macros are expanded is described below.
-
-- A dirty hack for 'typedef'.
-  Automatically adds 'void ;' after each typedef declarations.  This
-  is a workaround for avoiding the problem between 'the lexer hack'
-  and the look-aheading of cl-yacc.
 
 
 Expansion rules:

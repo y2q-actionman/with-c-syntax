@@ -303,12 +303,4 @@
   (is.equal.wcs "abc"
     return "a" "b" "c" \; ))
 
-(test test-typedef-hack ()
-  (is.equal.wcs 1
-    {
-    typedef int int_t \;
-    int_t x = 1 \;
-    return x \;
-    }))
-
 ;;; TODO: add symbol-interning tests
