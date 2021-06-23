@@ -71,7 +71,7 @@
                 #:parse-with-lexer
 		#:yacc-parse-error)
   (:import-from #:named-readtables
-        	#:defreadtable #:merge-readtables-into)
+                #:defreadtable #:find-readtable)
   (:export
    ;; util.lisp
    #:+nul-character+

@@ -721,14 +721,19 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   ;;   How to be '\' treated?
   )
 
-(defun install-c-reader (readtable level)
-  "Inserts reader macros for C reader into READTABLE.
- See `*with-c-syntax-reader-level*'."
-  (handler-bind ((named-readtables:reader-macro-conflict #'continue))
-    (case level
-      (0 (merge-readtables-into readtable 'c-reader-level-0))
-      (1 (merge-readtables-into readtable 'c-reader-level-1))
-      (2 (merge-readtables-into readtable 'c-reader-level-2)))))
+(defun make-c-readtable (level readtable-case)
+  "Returns a readtable for tokenize C source. See `*with-c-syntax-reader-level*'."
+  (let* ((c-readtable-name
+           (ecase level
+             (0 'c-reader-level-0)
+             (1 'c-reader-level-1)
+             (2 'c-reader-level-2)))
+         (c-readtable (find-readtable c-readtable-name)))
+    (if readtable-case
+        (let ((new-readtable (copy-readtable c-readtable)))
+          (setf (readtable-case new-readtable) readtable-case)
+          new-readtable)
+        c-readtable)))
 
 (defconstant +newline-marker+
   '+newline-marker+
@@ -784,14 +789,11 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
          (*previous-syntax* *readtable*)
          (*second-unread-char* nil)
-         (c-readtable (copy-readtable nil))
+         (c-readtable (make-c-readtable level *with-c-syntax-reader-case*))
          (process-backslash-newline
            (case *with-c-syntax-reader-process-backslash-newline*
              (:auto (>= level +with-c-syntax-default-reader-level+))
              (otherwise *with-c-syntax-reader-process-backslash-newline*))))
-    (install-c-reader c-readtable level)
-    (when *with-c-syntax-reader-case*
-      (setf (readtable-case c-readtable) *with-c-syntax-reader-case*))
     (loop
       with cp-stream = (make-instance 'physical-source-input-stream
                                       :stream stream :target-readtable c-readtable
