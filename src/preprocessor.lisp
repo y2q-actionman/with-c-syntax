@@ -338,19 +338,19 @@ returns NIL."
 (defgeneric process-preprocessing-directive (directive-symbol token-list state))
 
 (defclass if-section ()
-  ((condition-results :initform (make-array 1 :fill-pointer 0 :adjustable t)
+  ((group-conditions :initform (make-array 1 :fill-pointer 0 :adjustable t)
                       :type vector)))
 
 (defmethod print-object ((obj if-section) stream)
   (print-unreadable-object (obj stream :type t :identity t)))
 
-(defmethod if-section-push-condition-result (if-section form result)
-  (with-slots (condition-results) if-section
-    (vector-push-extend (cons form result) condition-results)))
+(defmethod if-section-add-group (if-section form result)
+  (with-slots (group-conditions) if-section
+    (vector-push-extend (cons form result) group-conditions)))
 
 (defun begin-if-section (state condition-form eval-result)
   (let ((if-section-obj (make-instance 'if-section)))
-    (if-section-push-condition-result if-section-obj condition-form eval-result)
+    (if-section-add-group if-section-obj condition-form eval-result)
     (with-preprocessor-state-slots (state)
       (push if-section-obj if-section-stack)
       (when (and (null if-section-skip-reason)
@@ -416,10 +416,15 @@ returns NIL."
            (otherwise
             (values 'lisp-expression token)))))))
 
+(defconstant +skipped+ '+skipped+)
+
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|if|))
                                             directive-token-list state)
   (with-preprocessor-state-slots (state)
+    (when if-section-skip-reason
+      (begin-if-section state (list +skipped+ directive-symbol) nil)
+      (return-from process-preprocessing-directive nil))
     (let* ((condition directive-token-list)
            ;; TODO: Expand PP macro before parsing.
            (lexer (pp-if-expression-lexer directive-token-list process-digraph? readtable-case
@@ -443,25 +448,33 @@ returns NIL."
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|ifdef|))
                                             directive-token-list state)
-  (let* ((identifier
-           (pop-last-preprocessor-directive-token directive-token-list directive-symbol))
-         (condition `(,directive-symbol ,identifier))
-         (result (preprocessor-macro-exists-p identifier)))
-    (begin-if-section state condition result)))
+  (with-preprocessor-state-slots (state)
+    (when if-section-skip-reason
+      (begin-if-section state (list +skipped+ directive-symbol) nil)
+      (return-from process-preprocessing-directive nil))
+    (let* ((identifier
+             (pop-last-preprocessor-directive-token directive-token-list directive-symbol))
+           (condition `(,directive-symbol ,identifier))
+           (result (preprocessor-macro-exists-p identifier)))
+      (begin-if-section state condition result))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|ifndef|))
                                             directive-token-list state)
-  (let* ((identifier
-           (pop-last-preprocessor-directive-token directive-token-list directive-symbol))
-         (condition `(,directive-symbol ,identifier))
-         (result (not (preprocessor-macro-exists-p identifier))))
-    (begin-if-section state condition result)))
+  (with-preprocessor-state-slots (state)
+    (when if-section-skip-reason
+      (begin-if-section state (list +skipped+ directive-symbol) nil)
+      (return-from process-preprocessing-directive nil))
+    (let* ((identifier
+             (pop-last-preprocessor-directive-token directive-token-list directive-symbol))
+           (condition `(,directive-symbol ,identifier))
+           (result (not (preprocessor-macro-exists-p identifier))))
+      (begin-if-section state condition result))))
 
 (defmethod if-section-processed-p (if-section)
-  (with-slots (condition-results) if-section
+  (with-slots (group-conditions) if-section
     (loop with processed? = nil
-          for (condition . eval-result) across condition-results
+          for (condition . eval-result) across group-conditions
           when (eq condition 'with-c-syntax.preprocessor-directive:|else|)
             do (error 'preprocess-error
                       :format-control "#else already appeared.")
@@ -469,28 +482,29 @@ returns NIL."
             do (setf processed? t)
           finally (return processed?))))
 
-(defmethod process-preprocessing-directive ((directive-symbol
-                                             (eql 'with-c-syntax.preprocessor-directive:|elif|))
-                                            directive-token-list state)
+(defun check-in-if-section (state directive-symbol)
   (with-preprocessor-state-slots (state)
     (unless if-section-stack
       (error 'preprocess-error
-             :format-control "#else appeared outside of #if section."))
+             :format-control "#~A appeared outside of #if section."
+             :format-arguments (list (symbol-name directive-symbol))))))
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|elif|))
+                                            directive-token-list state)
+  (check-in-if-section state directive-symbol)
+  (with-preprocessor-state-slots (state)
     (let* ((current-if-section (first if-section-stack))
            (if-section-processed-p (if-section-processed-p current-if-section)))
       (cond
-        ((not if-section-skip-reason)
-         ;; #if 1 ... #elif <here> ... #endif
-         (if-section-push-condition-result current-if-section directive-symbol nil)
-         (setf if-section-skip-reason current-if-section))
-        ((not (eq if-section-skip-reason current-if-section))
-         ;; #if 0 #if 1 ...  #elif <here> ... #endif #endif 
-         (if-section-push-condition-result current-if-section directive-symbol nil))
+        ((and if-section-skip-reason
+              (not (eq if-section-skip-reason current-if-section))) ; Skipped because of outer if-section.
+         (if-section-add-group current-if-section (list +skipped+ directive-symbol) nil))
         (if-section-processed-p
-         ;; #if 1 #if 0 ...  #elif 1 ... #elif <here> ... #endif #endif 
-         (if-section-push-condition-result current-if-section directive-symbol nil)
+         (if-section-add-group current-if-section directive-symbol nil)
          (setf if-section-skip-reason current-if-section))
         (t
+         ;; TODO: merge with #if part.
          (let* ((condition directive-token-list)
                 (lexer (pp-if-expression-lexer directive-token-list process-digraph? readtable-case
                                                directive-symbol))
@@ -508,7 +522,7 @@ returns NIL."
                 (result (and value
                              (not (eql value 0))))) ; Special case for "#if 0" idiom.
            (declare (ignore check-left-token))
-           (if-section-push-condition-result current-if-section condition result)
+           (if-section-add-group current-if-section condition result)
            (setf if-section-skip-reason (if result
                                             nil
                                             current-if-section))))))))
@@ -517,36 +531,27 @@ returns NIL."
                                              (eql 'with-c-syntax.preprocessor-directive:|else|))
                                             directive-token-list state)
   (check-no-preprocessor-token directive-token-list directive-symbol)
+  (check-in-if-section state directive-symbol)
   (with-preprocessor-state-slots (state)
-    (unless if-section-stack
-      (error 'preprocess-error
-             :format-control "#else appeared outside of #if section."))
     (let* ((current-if-section (first if-section-stack))
            (if-section-processed-p (if-section-processed-p current-if-section)))
       (cond
-        ((not if-section-skip-reason)
-         ;; #if 1 ... #else <here> ... #endif
-         (if-section-push-condition-result current-if-section directive-symbol nil)
-         (setf if-section-skip-reason current-if-section))
-        ((not (eq if-section-skip-reason current-if-section))
-         ;; #if 0 #if 1 ...  #else <here> ... #endif #endif 
-         (if-section-push-condition-result current-if-section directive-symbol nil))
+        ((and if-section-skip-reason
+              (not (eq if-section-skip-reason current-if-section))) ; Skipped because of outer if-section.
+         (if-section-add-group current-if-section (list +skipped+ directive-symbol) nil))
         (if-section-processed-p
-         ;; #if 1 #if 0 ...  #elif 1 ... #else <here> ... #endif #endif 
-         (if-section-push-condition-result current-if-section directive-symbol nil)
+         (if-section-add-group current-if-section directive-symbol nil)
          (setf if-section-skip-reason current-if-section))
         (t
-         (if-section-push-condition-result current-if-section directive-symbol t)
+         (if-section-add-group current-if-section directive-symbol t)
          (setf if-section-skip-reason nil))))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|endif|))
                                             directive-token-list state)
   (check-no-preprocessor-token directive-token-list directive-symbol)
+  (check-in-if-section state directive-symbol)
   (with-preprocessor-state-slots (state)
-    (unless if-section-stack
-      (error 'preprocess-error
-             :format-control "#endif appeared outside of #if section."))
     (let ((removed-if-section (pop if-section-stack)))
       (when (eq if-section-skip-reason removed-if-section)
         (setf if-section-skip-reason nil)))))
@@ -556,55 +561,45 @@ returns NIL."
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|define|))
                                             directive-token-list state)
-  ;; TODO: Add local macro scope for preprocessor macros.
-  (let* ((identifier
-           (pop-preprocessor-directive-token directive-token-list directive-symbol))
-         (function-like-p (eql (first directive-token-list) 'with-c-syntax.punctuator:|(|)))
-    (cond
-      (function-like-p
-       (error "TODO: function-like macro"))
-      (t
-       (add-preprocessor-macro identifier directive-token-list)))))
+  (with-preprocessor-state-slots (state)
+    (when if-section-skip-reason
+      (return-from process-preprocessing-directive nil))
+    ;; TODO: Add local macro scope for preprocessor macros.
+    (let* ((identifier
+             (pop-preprocessor-directive-token directive-token-list directive-symbol))
+           (function-like-p (eql (first directive-token-list) 'with-c-syntax.punctuator:|(|)))
+      (cond
+        (function-like-p
+         (error "TODO: function-like macro"))
+        (t
+         (add-preprocessor-macro identifier directive-token-list))))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|undef|))
                                             directive-token-list state)
-  (declare (ignore state))
-  (let ((identifier
-          (pop-last-preprocessor-directive-token directive-token-list directive-symbol)))
-    (remove-preprocessor-macro identifier)))
+  (with-preprocessor-state-slots (state)
+    (when if-section-skip-reason
+      (return-from process-preprocessing-directive nil))
+    (let ((identifier
+            (pop-last-preprocessor-directive-token directive-token-list directive-symbol)))
+      (remove-preprocessor-macro identifier))))
 
 ;; TODO: #line
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|error|))
                                             directive-token-list state)
-  (let ((token-list-for-print (delete +whitespace-marker+ directive-token-list)))
-    (error 'preprocess-error
-           :format-control "[File ~A: Line ~D] #error: ~{~A~^ ~}"
-           :format-arguments (with-preprocessor-state-slots (state)
-                               (list (if file-pathname (enough-namestring file-pathname)) 
+  (with-preprocessor-state-slots (state)
+    (when if-section-skip-reason
+      (return-from process-preprocessing-directive nil))
+    (let ((token-list-for-print (delete +whitespace-marker+ directive-token-list)))
+      (error 'preprocess-error
+             :format-control "[File ~A: Line ~D] #error: ~{~A~^ ~}"
+             :format-arguments (list (if file-pathname (enough-namestring file-pathname)) 
                                      line-number
                                      token-list-for-print)))))
 
 ;;; TODO: #pragma
-
-(defun preprocessing-conditional-directive-p (directive-symbol)
-  (ecase directive-symbol
-    ((with-c-syntax.preprocessor-directive:|if|
-       with-c-syntax.preprocessor-directive:|ifdef|
-       with-c-syntax.preprocessor-directive:|ifndef|
-       with-c-syntax.preprocessor-directive:|elif|
-       with-c-syntax.preprocessor-directive:|else|
-       with-c-syntax.preprocessor-directive:|endif|)
-     t)
-    ((with-c-syntax.preprocessor-directive:|include|
-       with-c-syntax.preprocessor-directive:|define|
-       with-c-syntax.preprocessor-directive:|undef|
-       with-c-syntax.preprocessor-directive:|line|
-       with-c-syntax.preprocessor-directive:|error|
-       with-c-syntax.preprocessor-directive:|pragma|)
-     nil)))
 
 (defun preprocessor-loop-at-directive-p (state token)
   (with-preprocessor-state-slots (state)
@@ -632,9 +627,7 @@ returns NIL."
             (raise-pp-error))
           (if-let ((directive-symbol
                     (find-preprocessor-directive (symbol-name directive-token) readtable-case)))
-            (when (or (preprocessing-conditional-directive-p directive-symbol)
-                      (not if-section-skip-reason))
-              (process-preprocessing-directive directive-symbol token-list state))
+            (process-preprocessing-directive directive-symbol token-list state)
             (raise-pp-error)))))))
 
 (defun preprocessor-loop-try-intern-punctuators (state token)
