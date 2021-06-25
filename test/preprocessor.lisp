@@ -294,6 +294,51 @@
     return 100;
     }#))
 
+(test test-pp-elif
+  (is.equal.wcs "ifdef-side"
+    #2{
+    #define HOGE
+    #define FUGA
+    #ifdef HOGE
+    char* x = "ifdef-side";
+    #elif defined FUGA
+    char* x = "elif-side";
+    #else
+    char* x = "else-side";
+    #endif
+    return x;
+    #undef HOGE
+    #undef FUGA
+    }#)
+  (is.equal.wcs "elif-side"
+    #2{
+    #undef HOGE
+    #define FUGA
+    #ifdef HOGE
+    char* x = "ifdef-side";
+    #elif defined FUGA
+    char* x = "elif-side";
+    #else
+    char* x = "else-side";
+    #endif
+    return x;
+    #undef FUGA
+    }#)
+  (is.equal.wcs "else-side"
+    #2{
+    #undef HOGE
+    #undef FUGA
+    #ifdef HOGE
+    char* x = "ifdef-side";
+    #elif defined FUGA
+    char* x = "elif-side";
+    #else
+    char* x = "else-side";
+    #endif
+    return x;
+    }#)
+  )
+
 (test test-pp-object-like-macro
   (is.equal.wcs 3
     #2{

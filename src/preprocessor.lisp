@@ -337,12 +337,12 @@ returns NIL."
 
 (defgeneric process-preprocessing-directive (directive-symbol token-list state))
 
-;; TODO:
-;; Conditionals (if, elif)
-
 (defclass if-section ()
   ((condition-results :initform (make-array 1 :fill-pointer 0 :adjustable t)
                       :type vector)))
+
+(defmethod print-object ((obj if-section) stream)
+  (print-unreadable-object (obj stream :type t :identity t)))
 
 (defmethod if-section-push-condition-result (if-section form result)
   (with-slots (condition-results) if-section
@@ -398,7 +398,7 @@ returns NIL."
 	            :format-control "'defined' operator takes only identifiers. '~A' was passed."
 	            :format-arguments (list param)))
                  (values 'lisp-expression
-                         (find-preprocessor-macro param))))
+                         (preprocessor-macro-exists-p param))))
               (t
                ;; In C99, remaining identifiers are replaced to 0.
                ;; ("6.10.1 Conditional inclusion" in ISO/IEC 9899.)
@@ -464,10 +464,54 @@ returns NIL."
           for (condition . eval-result) across condition-results
           when (eq condition 'with-c-syntax.preprocessor-directive:|else|)
             do (error 'preprocess-error
-                      :format-control "#else appeared twice.")
+                      :format-control "#else already appeared.")
           when eval-result
             do (setf processed? t)
           finally (return processed?))))
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|elif|))
+                                            directive-token-list state)
+  (with-preprocessor-state-slots (state)
+    (unless if-section-stack
+      (error 'preprocess-error
+             :format-control "#else appeared outside of #if section."))
+    (let* ((current-if-section (first if-section-stack))
+           (if-section-processed-p (if-section-processed-p current-if-section)))
+      (cond
+        ((not if-section-skip-reason)
+         ;; #if 1 ... #elif <here> ... #endif
+         (if-section-push-condition-result current-if-section directive-symbol nil)
+         (setf if-section-skip-reason current-if-section))
+        ((not (eq if-section-skip-reason current-if-section))
+         ;; #if 0 #if 1 ...  #elif <here> ... #endif #endif 
+         (if-section-push-condition-result current-if-section directive-symbol nil))
+        (if-section-processed-p
+         ;; #if 1 #if 0 ...  #elif 1 ... #elif <here> ... #endif #endif 
+         (if-section-push-condition-result current-if-section directive-symbol nil)
+         (setf if-section-skip-reason current-if-section))
+        (t
+         (let* ((condition directive-token-list)
+                (lexer (pp-if-expression-lexer directive-token-list process-digraph? readtable-case
+                                               directive-symbol))
+                (parsed-form
+                  (handler-case
+                      (with-c-compilation-unit (nil t)
+                        (parse-with-lexer lexer *expression-parser*))
+                    (yacc-parse-error (condition)
+                      (error 'preprocess-if-expression-parse-error :yacc-error condition))))
+                (check-left-token
+                  (when (funcall lexer)
+                    (error 'preprocess-error
+                           :format-control "Extra tokens are found after #elif")))
+                (value (eval parsed-form))
+                (result (and value
+                             (not (eql value 0))))) ; Special case for "#if 0" idiom.
+           (declare (ignore check-left-token))
+           (if-section-push-condition-result current-if-section condition result)
+           (setf if-section-skip-reason (if result
+                                            nil
+                                            current-if-section))))))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|else|))
@@ -478,15 +522,21 @@ returns NIL."
       (error 'preprocess-error
              :format-control "#else appeared outside of #if section."))
     (let* ((current-if-section (first if-section-stack))
-           (else-result (not (if-section-processed-p current-if-section))))
-      (if-section-push-condition-result current-if-section
-                                        'with-c-syntax.preprocessor-directive:|else| else-result)
+           (if-section-processed-p (if-section-processed-p current-if-section)))
       (cond
-        ((null if-section-skip-reason)
-         (assert (not else-result)
-                 () "It must be NIL because (null if-section-skip-reason) means the previous if-group was T.")
+        ((not if-section-skip-reason)
+         ;; #if 1 ... #else <here> ... #endif
+         (if-section-push-condition-result current-if-section directive-symbol nil)
          (setf if-section-skip-reason current-if-section))
-        ((eq if-section-skip-reason current-if-section)
+        ((not (eq if-section-skip-reason current-if-section))
+         ;; #if 0 #if 1 ...  #else <here> ... #endif #endif 
+         (if-section-push-condition-result current-if-section directive-symbol nil))
+        (if-section-processed-p
+         ;; #if 1 #if 0 ...  #elif 1 ... #else <here> ... #endif #endif 
+         (if-section-push-condition-result current-if-section directive-symbol nil)
+         (setf if-section-skip-reason current-if-section))
+        (t
+         (if-section-push-condition-result current-if-section directive-symbol t)
          (setf if-section-skip-reason nil))))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
