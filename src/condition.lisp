@@ -106,13 +106,7 @@
 (define-condition with-c-syntax-warning (simple-warning)
   ()
   (:documentation
-   "* Class Precedence List
-with-c-syntax-warning, simple-warning, ...
-
-* Description
-The type ~with-c-syntax-warning~ consists of all warnings in the
-with-c-syntax system.
-"))
+   "The root type of all warnings in the with-c-syntax system."))
 
 (define-condition with-c-syntax-style-warning (style-warning)
   ((message :initarg :message :reader with-c-syntax-style-warning-message))

@@ -695,7 +695,79 @@ returns NIL."
                                      line-number
                                      token-list-for-print)))))
 
-;;; TODO: #pragma
+(defun process-wcs-pragma (directive-symbol directive-token-list state)
+  (error "TODO: wcs specific pragma")
+  )
+
+(defun process-stdc-pragma (directive-symbol directive-token-list state)
+  (with-preprocessor-state-slots (state)
+    (when if-section-skip-reason
+      (return-from process-stdc-pragma nil))
+    (let* ((token1 (pop-preprocessor-directive-token directive-token-list directive-symbol))
+           (token2 (pop-preprocessor-directive-token directive-token-list directive-symbol))
+           on-off-switch)
+      (check-no-preprocessor-token directive-token-list directive-symbol)
+      (flet ((raise-unsyntactic-stdc-pragma-error ()
+               (error 'preprocess-error
+                      :format-control "Unsyntactic standard pragma '#pragma STDC ~A ~A'"
+                      :format-arguments (list token1 token2)))
+             (not-implemented-stdc-pragma-error ()
+               (error 'preprocess-error
+                      :format-contron "Current with-c-syntax does not implement '#pragma STDC ~A ~A'."
+                      :format-arguments (list token1 token2))))
+        (unless (and (symbolp token1) (symbolp token2))
+          (raise-unsyntactic-stdc-pragma-error))
+        (setf on-off-switch
+              (switch (token2 :test 'string=)
+                ("ON" t)
+                ("OFF" nil)
+                ("DEFAULT" :default)
+                (otherwise (raise-unsyntactic-stdc-pragma-error))))
+        (switch (token1 :test 'string=)
+          ("FP_CONTRACT"
+           (ecase on-off-switch
+             ((:default) t)
+             ((t nil)                   ; FIXME
+              (not-implemented-stdc-pragma-error))))
+          ("FENV_ACCESS"
+           (ecase on-off-switch
+             ((:default nil) t)
+             ((t)                       ; FIXME
+              (not-implemented-stdc-pragma-error))))
+          ("CX_LIMITED_RANGE"
+           (ecase on-off-switch
+             ((:default nil) t)
+             ((t)                       ; FIXME
+              (not-implemented-stdc-pragma-error))))
+          (otherwise
+           (raise-unsyntactic-stdc-pragma-error)))))))
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|pragma|))
+                                            directive-token-list state)
+  (unless (preprocessor-token-exists-p directive-token-list)
+    (warn 'with-c-syntax-style-warning
+          :message "#pragma does not have any arguments.")
+    (return-from process-preprocessing-directive nil))
+  (let ((first-token
+          (pop-preprocessor-directive-token directive-token-list directive-symbol)))
+    (flet ((process-unknown-pragma ()
+             (with-preprocessor-state-slots (state)
+               (unless if-section-skip-reason
+                 (warn 'with-c-syntax-style-warning
+                       :message (format nil "'#pragma ~{~A~^ ~}' was ignored."
+                                        (delete +whitespace-marker+ directive-token-list))))
+               (return-from process-preprocessing-directive nil))))
+      (unless (symbolp first-token)
+        (process-unknown-pragma))
+      (switch (first-token :test 'string=)
+        ("WCS"
+         (process-wcs-pragma directive-symbol directive-token-list state))
+        ("STDC"
+         (process-stdc-pragma directive-symbol directive-token-list state))
+        ;; TODO: #pragma once
+        (otherwise
+         (process-unknown-pragma))))))
 
 ;;; Special preprocessor macro definitions
 
