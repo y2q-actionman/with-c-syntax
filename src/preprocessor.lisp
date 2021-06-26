@@ -644,7 +644,43 @@ returns NIL."
             (pop-last-preprocessor-directive-token directive-token-list directive-symbol)))
       (remove-preprocessor-macro identifier))))
 
-;; TODO: #line
+(defun parse-line-arguments (token-list directive-symbol &key (try-pp-macro-expand t))
+  (let* ((tmp-token-list token-list)
+         (line-number (pop-preprocessor-directive-token tmp-token-list directive-symbol))
+         (file-name (pop-preprocessor-directive-token tmp-token-list directive-symbol :errorp nil)))
+    (cond
+      ((and (integerp line-number)
+            ;; TODO: check the line number consists of digit-sequence only.
+            (or (null file-name) (stringp file-name))
+            (not (preprocessor-token-exists-p tmp-token-list)))
+       (values line-number file-name))
+      (try-pp-macro-expand
+       ;; TODO: expand macros here.
+       (return-from parse-line-arguments
+         (parse-line-arguments token-list directive-symbol :try-pp-macro-expand nil)))
+      (t
+       (error 'preprocess-error
+              :format-control "#~A syntax error. Arguments are ~A"
+              :format-arguments (list directive-symbol token-list))))))
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|line|))
+                                            directive-token-list state)
+  (with-preprocessor-state-slots (state)
+    (when if-section-skip-reason
+      (return-from process-preprocessing-directive nil))
+    (multiple-value-bind (arg-line-number arg-file-name)
+        (parse-line-arguments directive-token-list directive-symbol)
+      (unless (<= 1 arg-line-number 2147483647)
+        (error 'preprocess-error
+               :format-control "#~A line number '~A' is out of range."
+               :format-arguments (list directive-symbol arg-line-number)))
+      (setf line-number arg-line-number)
+      (when arg-file-name
+        (setf file-pathname (parse-namestring arg-file-name)))
+      ;; Pop the direcive's newline for setting next line's line-number to same.
+      (let ((next-token (pop token-list)))
+        (assert (eq next-token +newline-marker+))))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|error|))

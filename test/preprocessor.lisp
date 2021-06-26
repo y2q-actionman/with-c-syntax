@@ -384,6 +384,35 @@
     #undef X extra-token
     }#))
   
+(test test-pp-line-directive
+  (is.equal.wcs 100
+    #2{
+    #line 100
+    return __LINE__;
+    }#)
+  (is.equal.wcs (+ 1 10000 -100)
+    #2{ return __LINE__
+    #line 10000
+    + __LINE__
+    #line 100
+    - __LINE__;
+    }#)
+  (is.equal.wcs "filename-xxx"
+    #2{
+    #line 1 "filename-xxx"
+    return __FILE__;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #line 0
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #line 2147483648
+    }#)
+  ;; TODO: macro expansion.
+  )
+
 (test test-pp-strcat
   (is.equal.wcs "abc"
     return "a" "b" "c" \; ))
