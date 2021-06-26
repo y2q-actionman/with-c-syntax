@@ -68,18 +68,24 @@ having a same NAME. If not found, returns `nil'.")
 
 ;;; Preprocessor macro.
 
+(defpackage #:with-c-syntax.preprocessor-special-macro
+  (:use)
+  (:export #:__DATE__ #:__FILE__ #:__LINE__ #:__TIME__))
+
 (defconstant +preprocessor-macro+
   '+preprocessor-macro+
   "A symbol used as an indicator of `symbol-plist' holding the preprocessor function.
 See `add-preprocessor-macro'.")
 
 (defun preprocessor-macro-exists-p (symbol)
-  (get-properties (symbol-plist symbol) `(,+preprocessor-macro+)))
+  (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
+      (get-properties (symbol-plist symbol) `(,+preprocessor-macro+))))
 
 (defun find-preprocessor-macro (symbol)
   "Finds and returns a preprocessor macro definition named SYMBOL,
 added by `add-preprocessor-macro'."
-  (get symbol +preprocessor-macro+))
+  (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
+      (get symbol +preprocessor-macro+)))
 
 (defun add-preprocessor-macro (symbol value)
   "Establishes a new preprocessor macro to SYMBOL, which is corresponded to VALUE.
@@ -655,6 +661,39 @@ returns NIL."
 
 ;;; TODO: #pragma
 
+;;; Special preprocessor macro definitions
+
+(define-constant +pp-date-month-name+
+    #("(bad month)"
+      "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec")
+  :test 'equalp
+  :documentation "A vector of month names following asctime() manner. Used by __DATE__")
+
+(defun with-c-syntax.preprocessor-special-macro:__DATE__ (&optional state)
+  (declare (ignore state))
+  (multiple-value-bind (_second _minute _hour date month year)
+      (get-decoded-time)
+    (declare (ignore _second _minute _hour))
+    (format nil "~A ~2,' D ~4,'0D"
+            (aref +pp-date-month-name+ month) date year)))
+
+(defun with-c-syntax.preprocessor-special-macro:__FILE__ (state)
+  (with-preprocessor-state-slots (state)
+    (if file-pathname
+        (namestring file-pathname))))
+
+(defun with-c-syntax.preprocessor-special-macro:__LINE__ (state)
+  (with-preprocessor-state-slots (state)
+    line-number))
+
+(defun with-c-syntax.preprocessor-special-macro:__TIME__ (&optional state)
+  (declare (ignore state))
+  (multiple-value-bind (second minute hour)
+      (get-decoded-time)
+    (format nil "~2,'0d:~2,'0d:~2,'0d" hour minute second)))
+
+;;; Preprocessor loop helpers.
+
 (defun preprocessor-loop-at-directive-p (state token)
   (with-preprocessor-state-slots (state)
     (and (symbolp token)
@@ -739,7 +778,11 @@ returns NIL."
               ;; Part of translation Phase 4 -- preprocessor macro
               ((preprocessor-macro-exists-p token)
                (let ((pp-macro (find-preprocessor-macro token)))
-                 (cond ((functionp pp-macro) ; preprocessor funcion
+                 (cond ((and (symbolp pp-macro) ; Special macros
+                             (eql (symbol-package pp-macro)
+                                  (find-package '#:with-c-syntax.preprocessor-special-macro)))
+                        (push (funcall pp-macro state) result-list))
+                       ((functionp pp-macro) ; preprocessor funcion
 	                (multiple-value-bind (macro-arg new-lis)
 		            (collect-preprocessor-macro-arguments token-list)
 		          (push (apply pp-macro macro-arg) result-list)

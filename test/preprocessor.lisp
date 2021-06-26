@@ -349,6 +349,33 @@
     #undef HOGE // ; TODO: Remove this if a kind of local-macros are implemented.
     }#))
 
+(test test-pp-special-macro
+  (is.equal.wcs 1
+    #2{ __LINE__ }#)
+  (is.equal.wcs 2
+    #2{
+    __LINE__
+    }#)
+  (is.equal.wcs 10
+    #2{ return __LINE__
+    + __LINE__
+    + __LINE__
+    + __LINE__;
+    }#)
+  (is (stringp #2{ __DATE__ }#))
+  (is (stringp #2{ __TIME__ }#))
+  ;; TODO:
+  ;; (load-time-value
+  ;;  (cond (*compile-file-pathname*
+  ;;         (namestring *compile-file-pathname*))
+  ;;        (*load-pathname*
+  ;;         (namestring *load-pathname*))
+  ;;        (t
+  ;;         nil)))
+  (is (typep 
+       #2{ __FILE__ }#
+       '(or string cl:null))))
+
 (test test-pp-undef-syntax-errors
   (signals.macroexpand.wcs ()
     #2{ #undef }#)
