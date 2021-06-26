@@ -557,7 +557,56 @@ returns NIL."
       (when (eq if-section-skip-reason removed-if-section)
         (setf if-section-skip-reason nil)))))
 
-;; TODO: #include
+(defun parse-header-name (token-list directive-symbol &key (try-pp-macro-expand t))
+  ;; FIXME: Current header-name implementation does not recognize implementation-defined points.
+  (let ((token1 (pop-preprocessor-directive-token token-list directive-symbol)))
+    (cond
+      ((stringp token1)
+       ;; FIXME: Treating of these chars is implementation-defined: ', \, //, or /* .
+       ;; See ISO/IEC 9899:1999, page 64.
+       (check-no-preprocessor-token token-list directive-symbol)
+       (values token1 :q-char-sequence))
+      ((and (symbolp token1) (string= token1 "<"))
+       (pprint 'start-<>)
+       ;; FIXME: Treating of these chars is implementation-defined: ', \, ", //, or /* .
+       ;; See ISO/IEC 9899:1999, page 64.
+       ;; FIXME: The number of whitespaces is not preserved. To fix it,
+       ;;  I must treat whitespaces specially only after '#include' by our reader.
+       (pprint token-list)
+       (loop for token = (pop token-list)
+             do (pprint token)
+             until (and (symbolp token) (string= token ">"))
+             collect
+             (cond ((eq token +whitespace-marker+)
+                    #\space)
+                   ((symbolp token)
+                    (symbol-name token))
+                   (t
+                    token))
+               into h-tokens
+             finally
+                (check-no-preprocessor-token token-list directive-symbol)
+                (return (values (format nil "~{~A~}" h-tokens)
+                                :h-char-sequence))))
+      (try-pp-macro-expand
+       ;; FIXME: macroexpand here
+       (return-from parse-header-name
+         (parse-header-name token-list directive-symbol :try-pp-macro-expand nil)))
+      (t
+       (error 'preprocess-error
+              :format-control "'~A' cannot be used for #~A"
+              :format-arguments (list token1 directive-symbol))))))
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|include|))
+                                            directive-token-list state)
+  (with-preprocessor-state-slots (state)
+    (when if-section-skip-reason
+      (return-from process-preprocessing-directive nil))
+    (multiple-value-bind (header-name header-type)
+        (parse-header-name directive-token-list directive-symbol)
+      (error "TODO: #include ~A ~A" header-name header-type)
+      )))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|define|))
