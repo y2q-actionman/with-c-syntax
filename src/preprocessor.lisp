@@ -305,8 +305,9 @@ returns NIL."
 (defmacro check-and-pop-pp-directive-token-1 (token-list directive-name errorp)
   "Used by `pop-preprocessor-directive-token'"
   `(if (null ,token-list)
-       (when ,errorp
-         (error-no-preprocessor-token ,directive-name))
+       ,(if errorp
+            `(error-no-preprocessor-token ,directive-name)
+            nil)
        (pop ,token-list)))
 
 (defmacro pop-preprocessor-directive-token (token-list directive-name &key (errorp t))
