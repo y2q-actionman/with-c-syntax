@@ -292,12 +292,13 @@ returns NIL."
 
 (defun draw-preprocessor-directive-line-tokens (state)
   (with-preprocessor-state-slots (state)
-    (loop for i = (pop token-list)
+    (loop for i = (first token-list)
           while token-list
           until (eq i +newline-marker+)
+          do (pop token-list)
           collect i)))
 
-(defun error-no-preprocessor-token (directive-name)
+(defun raise-no-preprocessor-token-error (directive-name)
   (error 'preprocess-error
          :format-control "No token after #~A"
          :format-arguments (list directive-name)))
@@ -306,7 +307,7 @@ returns NIL."
   "Used by `pop-preprocessor-directive-token'"
   `(if (null ,token-list)
        ,(if errorp
-            `(error-no-preprocessor-token ,directive-name)
+            `(raise-no-preprocessor-token-error ,directive-name)
             nil)
        (pop ,token-list)))
 
@@ -320,7 +321,8 @@ returns NIL."
            ,head_))))
 
 (defun preprocessor-token-exists-p (token-list)
-  (find +whitespace-marker+ token-list :test-not 'eql))
+  (loop for token in token-list
+        thereis (not (eq token +whitespace-marker+))))
 
 (defun check-no-preprocessor-token (token-list directive-name)
   "Checks no preprocessing token is left in TOKEN-LIST."
@@ -426,6 +428,8 @@ returns NIL."
     (when if-section-skip-reason
       (begin-if-section state (list +skipped+ directive-symbol) nil)
       (return-from process-preprocessing-directive nil))
+    (unless (preprocessor-token-exists-p directive-token-list)
+      (raise-no-preprocessor-token-error directive-symbol))
     (let* ((condition directive-token-list)
            ;; TODO: Expand PP macro before parsing.
            (lexer (pp-if-expression-lexer directive-token-list process-digraph? readtable-case
@@ -506,6 +510,8 @@ returns NIL."
          (setf if-section-skip-reason current-if-section))
         (t
          ;; TODO: merge with #if part.
+         (unless (preprocessor-token-exists-p directive-token-list)
+           (raise-no-preprocessor-token-error directive-symbol))
          (let* ((condition directive-token-list)
                 (lexer (pp-if-expression-lexer directive-token-list process-digraph? readtable-case
                                                directive-symbol))
