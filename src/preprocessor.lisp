@@ -357,6 +357,17 @@ returns NIL."
   (with-slots (group-conditions) if-section
     (vector-push-extend (cons form result) group-conditions)))
 
+(defmethod if-section-processed-p (if-section)
+  (with-slots (group-conditions) if-section
+    (loop with processed? = nil
+          for (condition . eval-result) across group-conditions
+          when (eq condition :else)
+            do (error 'preprocess-error
+                      :format-control "#else already appeared.")
+          when eval-result
+            do (setf processed? t)
+          finally (return processed?))))
+
 (defun begin-if-section (state condition-form eval-result)
   (let ((if-section-obj (make-instance 'if-section)))
     (if-section-add-group if-section-obj condition-form eval-result)
@@ -425,14 +436,12 @@ returns NIL."
            (otherwise
             (values 'lisp-expression token)))))))
 
-(defconstant +skipped+ '+skipped+)
-
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|if|))
                                             directive-token-list state)
   (with-preprocessor-state-slots (state)
     (when if-section-skip-reason
-      (begin-if-section state (list +skipped+ directive-symbol) nil)
+      (begin-if-section state '(:skipped :if) nil)
       (return-from process-preprocessing-directive nil))
     (unless (preprocessor-token-exists-p directive-token-list)
       (raise-no-preprocessor-token-error directive-symbol))
@@ -461,37 +470,27 @@ returns NIL."
                                             directive-token-list state)
   (with-preprocessor-state-slots (state)
     (when if-section-skip-reason
-      (begin-if-section state (list +skipped+ directive-symbol) nil)
+      (begin-if-section state '(:skipped :ifdef) nil)
       (return-from process-preprocessing-directive nil))
     (let* ((identifier
              (pop-last-preprocessor-directive-token directive-token-list directive-symbol))
-           (condition `(,directive-symbol ,identifier))
+           (condition `(:ifdef ,identifier))
            (result (preprocessor-macro-exists-p identifier)))
       (begin-if-section state condition result))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|ifndef|))
                                             directive-token-list state)
+  ;; TODO: merge with 'ifdef'.
   (with-preprocessor-state-slots (state)
     (when if-section-skip-reason
-      (begin-if-section state (list +skipped+ directive-symbol) nil)
+      (begin-if-section state '(:skipped :ifndef) nil)
       (return-from process-preprocessing-directive nil))
     (let* ((identifier
              (pop-last-preprocessor-directive-token directive-token-list directive-symbol))
-           (condition `(,directive-symbol ,identifier))
+           (condition `(:ifndef ,identifier))
            (result (not (preprocessor-macro-exists-p identifier))))
       (begin-if-section state condition result))))
-
-(defmethod if-section-processed-p (if-section)
-  (with-slots (group-conditions) if-section
-    (loop with processed? = nil
-          for (condition . eval-result) across group-conditions
-          when (eq condition 'with-c-syntax.preprocessor-directive:|else|)
-            do (error 'preprocess-error
-                      :format-control "#else already appeared.")
-          when eval-result
-            do (setf processed? t)
-          finally (return processed?))))
 
 (defun check-in-if-section (state directive-symbol)
   (with-preprocessor-state-slots (state)
@@ -510,9 +509,9 @@ returns NIL."
       (cond
         ((and if-section-skip-reason
               (not (eq if-section-skip-reason current-if-section))) ; Skipped because of outer if-section.
-         (if-section-add-group current-if-section (list +skipped+ directive-symbol) nil))
+         (if-section-add-group current-if-section '(:skipped :elif) nil))
         (if-section-processed-p
-         (if-section-add-group current-if-section directive-symbol nil)
+         (if-section-add-group current-if-section '(:processed :elif) nil)
          (setf if-section-skip-reason current-if-section))
         (t
          ;; TODO: merge with #if part.
@@ -551,12 +550,12 @@ returns NIL."
       (cond
         ((and if-section-skip-reason
               (not (eq if-section-skip-reason current-if-section))) ; Skipped because of outer if-section.
-         (if-section-add-group current-if-section (list +skipped+ directive-symbol) nil))
+         (if-section-add-group current-if-section '(:skipped :else) nil))
         (if-section-processed-p
-         (if-section-add-group current-if-section directive-symbol nil)
+         (if-section-add-group current-if-section :else nil)
          (setf if-section-skip-reason current-if-section))
         (t
-         (if-section-add-group current-if-section directive-symbol t)
+         (if-section-add-group current-if-section :else t)
          (setf if-section-skip-reason nil))))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
