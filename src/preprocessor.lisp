@@ -567,12 +567,10 @@ returns NIL."
        (check-no-preprocessor-token token-list directive-symbol)
        (values token1 :q-char-sequence))
       ((and (symbolp token1) (string= token1 "<"))
-       (pprint 'start-<>)
        ;; FIXME: Treating of these chars is implementation-defined: ', \, ", //, or /* .
        ;; See ISO/IEC 9899:1999, page 64.
        ;; FIXME: The number of whitespaces is not preserved. To fix it,
        ;;  I must treat whitespaces specially only after '#include' by our reader.
-       (pprint token-list)
        (loop for token = (pop token-list)
              do (pprint token)
              until (and (symbolp token) (string= token ">"))
