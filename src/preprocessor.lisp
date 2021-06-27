@@ -587,7 +587,6 @@ returns NIL."
        ;; FIXME: The number of whitespaces is not preserved. To fix it,
        ;;  I must treat whitespaces specially only after '#include' by our reader.
        (loop for token = (pop token-list)
-             do (pprint token)
              until (and (symbolp token) (string= token ">"))
              collect
              (cond ((eq token +whitespace-marker+)
@@ -614,7 +613,7 @@ returns NIL."
   ((if-section-stack :initarg :if-section-stack
                      :reader saved-include-state-if-section-stack)))
 
-(defmethod push-include-state ((state preprocessor-state) new-file-pathname)
+(defmethod push-include-state ((state preprocessor-state))
   (with-preprocessor-state-slots (state)
     (let ((i-state (make-instance 'saved-include-state
                                   :if-section-stack if-section-stack)))
@@ -635,8 +634,29 @@ returns NIL."
 (define-constant +end-of-inclusion-subdirective+ "END_OF_INCLUSION"
   :test 'equal)
 
+(defun find-include-<header>-file (header-name &key (errorp t))
+  "Finds a file specified by #include <...> style header-name.
+ Current strategy is only looking with-c-syntax specific files."
+  (let* ((wcs-include-directory
+           (asdf:system-relative-pathname :with-c-syntax "include"
+                                          :type :directory))
+         (path (merge-pathnames header-name wcs-include-directory)))
+    (or (probe-file path)
+        (when errorp
+          (error 'preprocess-include-file-error
+                 :pathname header-name)))))
+
+(defun find-include-header-file (header-name &key (errorp t))
+  "Finds a file specified by #include \"...\" style header-name.
+ Current strategy is just to use `cl:probe-file'. So it will affected
+ by `*default-pathname-defaults*'.
+ If no file was found, `find-include-<header>-file' is called."
+  (or (probe-file header-name)
+      (find-include-<header>-file header-name :errorp errorp)))
+
 (defun tokenize-included-source-file (header-name state reader-level)
   (let ((start-pragma-string
+          ;; TODO: use tokens
           (format nil "#line 1 \"~A\"~%" header-name))
         (end-pragma-string
           (with-output-to-string (out)
@@ -665,10 +685,13 @@ returns NIL."
       (return-from process-preprocessing-directive nil))
     (multiple-value-bind (header-name header-type)
         (parse-header-name directive-token-list directive-symbol)
-      (let ((included-tokens
-              ;; TODO: FIXME: I should take the caller's reader level!
-              (tokenize-included-source-file header-name state 2)))
-        (push-include-state state header-name)
+      (let* ((pathname (ecase header-type
+                         (:q-char-sequence (find-include-header-file header-name))
+                         (:h-char-sequence (find-include-<header>-file header-name))))
+             (included-tokens
+               ;; TODO: FIXME: I should take the caller's reader level!
+               (tokenize-included-source-file pathname state 2)))
+        (push-include-state state)
         (pop-next-newline token-list)
         (setf token-list
               (nconc included-tokens token-list))))))

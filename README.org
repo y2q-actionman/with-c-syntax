@@ -212,16 +212,17 @@ This library is quicklisp-ready.
 ** or, Loading manually
 
 *** Libraries depending on
-- cl-yacc :: As a parser for C syntax
-- alexandria
+- cl-yacc :: As a parser for C syntax.
+- alexandria :: Many utilities.
 - named-readtables :: For exporting '#{' reader syntax.
 - cl-ppcre :: For parsing numeric constants.
 - trivial-gray-streams :: For implementing translation phase 1 and 2 correctly.
+- asdf :: For using system-relative pathname, implementing =#include <...>=
 
 **** by libc
-- osicat
 - float-features :: For math.h, dealing NaN and Infinities.
 - floating-point-contractions :: For math.h, to implement some functions.
+- osicat
 
 **** by test codes
 - 1am :: As a testing framework.

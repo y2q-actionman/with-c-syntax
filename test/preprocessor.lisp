@@ -431,15 +431,43 @@
   )
 
 (test test-pp-include
-  (with-open-file (out "/tmp/tmp.h" :direction :output :if-exists :supersede)
-    (format out "int hoge = 100;"))
-  (let ((form
-          '#2{
-          #include "/tmp/tmp.h"
-          return hoge;
-          }#))
-    (is (= (eval form)
-           100))))
+  (unwind-protect
+       (progn
+         (with-open-file (out "/tmp/tmp.h" :direction :output :if-exists :supersede)
+           (format out "int hoge = 100;"))
+         (let ((form
+                 '#2{
+                 #include "/tmp/tmp.h"
+                 return hoge; // This is with-c-syntax.test::hoge.
+                 }#))
+           (is (= (let ((*package* (find-package '#:with-c-syntax.test)))
+                    (eval form))
+                  100))))
+    (delete-file "/tmp/tmp.h")))
+  
+(test test-pp-include-2
+  (is.equal.wcs 10
+    #2{
+    #include <iso646.h>
+    return 10 or 9999;
+    
+    // ; FIXME: Make a local macro!
+    #undef and
+    #undef and_eq
+    #undef bitand
+    #undef bitor
+    #undef compl
+    #undef not
+    #undef not_eq
+    #undef or
+    #undef or_eq
+    #undef xor
+    #undef xor_eq
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #include <not_exists>
+    }#))
   
 (test test-pp-strcat
   (is.equal.wcs "abc"

@@ -3,7 +3,7 @@
   :license "WTFPL"
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
   :depends-on (#:alexandria #:yacc #:named-readtables
-                            #:cl-ppcre #:trivial-gray-streams
+                            #:cl-ppcre #:trivial-gray-streams #:asdf
                             ;; for libc implementation (TODO: split libc defsystem from core?)
                             #:osicat #:float-features #:floating-point-contractions)
   :serial t
