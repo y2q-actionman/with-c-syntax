@@ -362,6 +362,23 @@
     + __LINE__
     + __LINE__;
     }#)
+  (is.equal.wcs (+ 1 3 7 12 15)
+    #2{ return __LINE__
+    # // null directive
+    + __LINE__
+    #ifdef HOGE
+    + __LINE__
+    #endif
+    + __LINE__
+    #define FUGA
+    #if ! defined FUGA
+    + 999999
+    #else
+    + __LINE__
+    #endif
+    #undef FUGA
+    + __LINE__;
+    }#)
   (is (stringp #2{ __DATE__ }#))
   (is (stringp #2{ __TIME__ }#))
   ;; TODO:
