@@ -281,18 +281,22 @@ returns NIL."
    (if-section-stack :initform nil :type list
                      :accessor pp-state-if-section-stack)
    (if-section-skip-reason :initform nil
-                           :accessor pp-state-if-section-skip-reason)))
+                           :accessor pp-state-if-section-skip-reason)
+   (include-stack :initform nil
+                  :accessor pp-state-include-stack)))
 
+;; TODO: reduce its usage
 (defmacro with-preprocessor-state-slots ((state) &body body)
-  `(with-accessors ((token-list pp-state-token-list)
-                    (readtable-case pp-state-readtable-case)
-                    (result-list pp-state-result-list)
+  `(with-accessors ((readtable-case pp-state-readtable-case)
+                    (process-digraph? pp-state-process-digraph?)
                     (file-pathname pp-state-file-pathname)
+                    (token-list pp-state-token-list)
+                    (result-list pp-state-result-list)
                     (line-number pp-state-line-number)
                     (tokens-in-line pp-state-tokens-in-line)
                     (if-section-stack pp-state-if-section-stack)
                     (if-section-skip-reason pp-state-if-section-skip-reason)
-                    (process-digraph? pp-state-process-digraph?))
+                    (include-stack pp-state-include-stack))
        ,state
      ,@body))
 
@@ -606,6 +610,53 @@ returns NIL."
               :format-control "'~A' cannot be used for #~A"
               :format-arguments (list token1 directive-symbol))))))
 
+(defclass saved-include-state ()
+  ((if-section-stack :initarg :if-section-stack
+                     :reader saved-include-state-if-section-stack)))
+
+(defmethod push-include-state ((state preprocessor-state) new-file-pathname)
+  (with-preprocessor-state-slots (state)
+    (let ((i-state (make-instance 'saved-include-state
+                                  :if-section-stack if-section-stack)))
+      (push i-state include-stack))))
+
+(defmethod pop-include-state ((state preprocessor-state))
+  (with-preprocessor-state-slots (state)
+    (let ((i-state (pop include-stack)))
+      (unless (eql if-section-stack
+                   (saved-include-state-if-section-stack i-state))
+        (error 'preprocess-error
+               :format-control "#if section does not end in included file ~A"
+               :format-arguments (list file-pathname))))))
+
+(define-constant +with-c-syntax-pragma+ "WCS"
+  :test 'equal)
+
+(define-constant +end-of-inclusion-subdirective+ "END_OF_INCLUSION"
+  :test 'equal)
+
+(defun tokenize-included-source-file (header-name state reader-level)
+  (let ((start-pragma-string
+          (format nil "#line 1 \"~A\"~%" header-name))
+        (end-pragma-string
+          (with-output-to-string (out)
+            (terpri out)
+            (format out "#pragma ~A ~A~%"
+                    +with-c-syntax-pragma+ +end-of-inclusion-subdirective+)
+            (format out "#line ~A \"~A\"~%"
+                    (pp-state-line-number state) (pp-state-file-pathname state)))))
+    (with-input-from-string (start-pragma start-pragma-string)
+      (with-open-file (main-source header-name)
+        (with-input-from-string (end-pragma end-pragma-string)
+          (with-open-stream (stream (make-concatenated-stream start-pragma main-source end-pragma))
+            (tokenize-source reader-level stream nil)))))))
+
+(defmacro pop-next-newline (token-list)
+  "Pop the direcive's newline for setting next line's line-number to same."
+  `(let ((next-token (pop ,token-list)))
+     (assert (eq next-token +newline-marker+))
+     next-token))
+
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|include|))
                                             directive-token-list state)
@@ -614,8 +665,13 @@ returns NIL."
       (return-from process-preprocessing-directive nil))
     (multiple-value-bind (header-name header-type)
         (parse-header-name directive-token-list directive-symbol)
-      (error "TODO: #include ~A ~A" header-name header-type)
-      )))
+      (let ((included-tokens
+              ;; TODO: FIXME: I should take the caller's reader level!
+              (tokenize-included-source-file header-name state 2)))
+        (push-include-state state header-name)
+        (pop-next-newline token-list)
+        (setf token-list
+              (nconc included-tokens token-list))))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|define|))
@@ -646,13 +702,17 @@ returns NIL."
 (defun parse-line-arguments (token-list directive-symbol &key (try-pp-macro-expand t))
   (let* ((tmp-token-list token-list)
          (line-number (pop-preprocessor-directive-token tmp-token-list directive-symbol))
-         (file-name (pop-preprocessor-directive-token tmp-token-list directive-symbol :errorp nil)))
+         (file-name-supplied-p
+           (preprocessor-token-exists-p tmp-token-list))
+         (file-name
+           (if file-name-supplied-p
+               (pop-preprocessor-directive-token tmp-token-list directive-symbol))))
     (cond
       ((and (integerp line-number)
             ;; TODO: check the line number consists of digit-sequence only.
             (or (null file-name) (stringp file-name))
             (not (preprocessor-token-exists-p tmp-token-list)))
-       (values line-number file-name))
+       (values line-number file-name file-name-supplied-p))
       (try-pp-macro-expand
        ;; TODO: expand macros here.
        (return-from parse-line-arguments
@@ -668,18 +728,17 @@ returns NIL."
   (with-preprocessor-state-slots (state)
     (when if-section-skip-reason
       (return-from process-preprocessing-directive nil))
-    (multiple-value-bind (arg-line-number arg-file-name)
+    (multiple-value-bind (arg-line-number arg-file-name arg-file-name-supplied-p)
         (parse-line-arguments directive-token-list directive-symbol)
       (unless (<= 1 arg-line-number 2147483647)
         (error 'preprocess-error
                :format-control "#~A line number '~A' is out of range."
                :format-arguments (list directive-symbol arg-line-number)))
       (setf line-number arg-line-number)
-      (when arg-file-name
+      (when arg-file-name-supplied-p
         (setf file-pathname (parse-namestring arg-file-name)))
       ;; Pop the direcive's newline for setting next line's line-number to same.
-      (let ((next-token (pop token-list)))
-        (assert (eq next-token +newline-marker+))))))
+      (pop-next-newline token-list))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|error|))
@@ -694,9 +753,19 @@ returns NIL."
                                      line-number
                                      token-list-for-print)))))
 
-(defun process-wcs-pragma (directive-symbol directive-token-list state)
-  (error "TODO: wcs specific pragma")
-  )
+(defun process-with-c-syntax-pragma (directive-symbol directive-token-list state)
+  (let ((token1 (pop-preprocessor-directive-token directive-token-list directive-symbol)))
+      (flet ((raise-unsyntactic-wcs-pragma-error ()
+               (error 'preprocess-error
+                      :format-control "Unsyntactic pragma '#pragma ~A ~A'"
+                      :format-arguments (list +with-c-syntax-pragma+ token1))))
+        (unless (symbolp token1)
+          (raise-unsyntactic-wcs-pragma-error))
+        (switch (token1 :test 'string=)
+          (+end-of-inclusion-subdirective+
+           (pop-include-state state))
+          (otherwise
+           (raise-unsyntactic-wcs-pragma-error))))))
 
 (defun process-stdc-pragma (directive-symbol directive-token-list state)
   (with-preprocessor-state-slots (state)
@@ -760,8 +829,8 @@ returns NIL."
       (unless (symbolp first-token)
         (process-unknown-pragma))
       (switch (first-token :test 'string=)
-        ("WCS"
-         (process-wcs-pragma directive-symbol directive-token-list state))
+        (+with-c-syntax-pragma+
+         (process-with-c-syntax-pragma directive-symbol directive-token-list state))
         ("STDC"
          (process-stdc-pragma directive-symbol directive-token-list state))
         ;; TODO: #pragma once
@@ -867,6 +936,12 @@ returns NIL."
     (do ((token (pop token-list) (pop token-list)))
         ((and (null token-list) ; I must check 'token-list' here to get all symbols, including NIL.
 	      (null token))
+         (when if-section-stack
+           (error 'preprocess-error
+                  :format-control "#if section does not end"))
+         (when include-stack
+           (error 'preprocess-error
+                  :format-control "Internal error on processing #include. Please consult the author."))
          state)
       (cond
         ((eq token +whitespace-marker+)

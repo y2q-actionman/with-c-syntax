@@ -753,14 +753,14 @@ If not, returns a next token by `cl:read' after unreading CHAR."
            (unread-char c stream)
            (return (values c cnt))))
 
-(defun read-preprocessing-token (stream c-readtable keep-whitespace)
+(defun read-preprocessing-token (stream c-readtable keep-whitespace recursive-p)
   "Reads a token from STREAM until EOF or '}#' found. Newline is read
  as `+newline-marker+'."
   (let ((*readtable* c-readtable))
     (cond
       (*second-unread-char*
        (assert (not (c-whitespace-p *second-unread-char*)))
-       (read-after-unread (shiftf *second-unread-char* nil) stream t nil t))
+       (read-after-unread (shiftf *second-unread-char* nil) stream t nil recursive-p))
       (t
        (multiple-value-bind (first-char whitespaces)
            (skip-c-whitespace stream)
@@ -781,9 +781,9 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                   (t
                    (intern "}")))) ; Intern it into the current `*package*'.
            (t
-            (read-preserving-whitespace stream t :eof t))))))))
+            (read-preserving-whitespace stream t :eof recursive-p))))))))
 
-(defun tokenize-source (level stream)
+(defun tokenize-source (level stream reader-macro-mode)
   "Tokenize C source by doing translation phase 1, 2, and 3.
  LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
@@ -800,7 +800,13 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                                       :phase-2 process-backslash-newline)
       with keep-whitespace = nil
       
-      for token = (read-preprocessing-token cp-stream c-readtable keep-whitespace)
+      for token = (handler-case
+                      (read-preprocessing-token cp-stream c-readtable keep-whitespace
+                                                reader-macro-mode)
+                    (end-of-file (e)
+                      (if reader-macro-mode
+                          (error e)
+                          (loop-finish))))
       do (cond
            ((eq token +wcs-end-marker+)
             (loop-finish))
@@ -822,7 +828,8 @@ the result is wrapped with `with-c-syntax'.
   (let ((level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2))
         (input-file-pathname (ignore-errors (namestring stream))))
     (multiple-value-bind (tokens readtable)
-        (tokenize-source level stream)
+        (tokenize-source level stream t)
+      ;; TODO: Move these parameters to #pragma?
       `(with-c-syntax (:readtable-case
                        ;; Capture the readtable-case used for reading inside '#{ ... }#'.
                        ,(readtable-case readtable)

@@ -413,6 +413,17 @@
   ;; TODO: macro expansion.
   )
 
+(test test-pp-include
+  (with-open-file (out "/tmp/tmp.h" :direction :output :if-exists :supersede)
+    (format out "int hoge = 100;"))
+  (let ((form
+          '#2{
+          #include "/tmp/tmp.h"
+          return hoge;
+          }#))
+    (is (= (eval form)
+           100))))
+  
 (test test-pp-strcat
   (is.equal.wcs "abc"
     return "a" "b" "c" \; ))
