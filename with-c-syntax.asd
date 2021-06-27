@@ -19,7 +19,7 @@
                  (:file "reader"        ; Translation Phase 3
                   :depends-on ("physical-source"))
                  (:file "preprocessor"  ; Translation Phase 4,(5),6
-                  :depends-on ("condition" "reader" "compiler")) ; Uses compiler for implemeting '#if'
+                  :depends-on ("condition" "reader" "compiler")) ; Uses compiler for implementing '#if'
                  ;; TODO: Add lexer here.
                  (:file "struct" :depends-on ("package"))
                  (:file "typedef" :depends-on ("package"))
