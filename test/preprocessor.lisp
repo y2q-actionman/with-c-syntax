@@ -464,7 +464,7 @@
     #undef xor
     #undef xor_eq
     }#)
-  (signals.macroexpand.wcs ()
+  (signals.macroexpand.wcs (with-c-syntax.core::preprocess-include-file-error)
     #2{
     #include <not_exists>
     }#))

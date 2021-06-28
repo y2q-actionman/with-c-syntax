@@ -131,6 +131,7 @@ indicated by `+preprocessor-macro+'."
 	     :format-arguments (list begin))))
   (labels
       ((pop-or-error ()
+         ;; TODO: use `pop-preprocessor-directive-token' for treating `+whitespace-marker+'.
          (unless lis-head
            (error 'preprocess-error
 		  :format-control "Reached end of forms at finding preprocessor macro arguments."))
