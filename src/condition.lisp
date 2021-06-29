@@ -28,8 +28,8 @@
   ()
   (:report
    (lambda (condition stream)
-     (format stream "with-c-syntax preprocess error at parsing if expression. yacc error is~%~A"
-             (slot-value condition 'yacc-error))))
+     (format stream "with-c-syntax preprocessor failed to include file ~A"
+             (file-error-pathname condition))))
   (:documentation
    "Used when an error occurred at the parser."))
 
