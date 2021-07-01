@@ -149,7 +149,6 @@
     char* x = "else-side";
     #endif
     return x;
-    #undef HOGE
     }#)
   (is.equal.wcs "else-side"
     #2{
@@ -172,7 +171,6 @@
     char* x = "else-side";
     #endif
     return x;
-    #undef HOGE
     }#)
   (is.equal.wcs "ifndef-side"
     #2{
@@ -206,9 +204,6 @@
     #endif
     
     return x;
-    
-    #undef HOGE
-    #undef FUGA
     }#)
 
   (is.equal.wcs "ifdef HOGE"
@@ -231,8 +226,6 @@
     #endif
     
     return x;
-    
-    #undef HOGE
     }#)
 
   (is.equal.wcs "ifdef FUGA"
@@ -255,8 +248,6 @@
     #endif
     
     return x;
-    
-    #undef FUGA
     }#)
 
   (is.equal.wcs "no definition"
@@ -307,8 +298,6 @@
     char* x = "else-side";
     #endif
     return x;
-    #undef HOGE
-    #undef FUGA
     }#)
   (is.equal.wcs "elif-side"
     #2{
@@ -322,7 +311,6 @@
     char* x = "else-side";
     #endif
     return x;
-    #undef FUGA
     }#)
   (is.equal.wcs "else-side"
     #2{
@@ -346,7 +334,6 @@
     int x = 1;
     int y = 2;
     return HOGE \;
-    #undef HOGE // ; TODO: Remove this if a kind of local-macros are implemented.
     }#))
 
 (test test-pp-special-macro
@@ -450,19 +437,6 @@
     #2{
     #include <iso646.h>
     return 10 or 9999;
-    
-    // ; FIXME: Make a local macro!
-    #undef and
-    #undef and_eq
-    #undef bitand
-    #undef bitor
-    #undef compl
-    #undef not
-    #undef not_eq
-    #undef or
-    #undef or_eq
-    #undef xor
-    #undef xor_eq
     }#)
   (signals.macroexpand.wcs (with-c-syntax.core::preprocess-include-file-error)
     #2{

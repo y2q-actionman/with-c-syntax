@@ -84,8 +84,6 @@
    #:with-c-syntax-style-warning
    ;; preprocessor.lisp
    #:find-preprocessor-macro
-   #:add-preprocessor-macro
-   #:remove-preprocessor-macro
    #:define-preprocessor-constant
    #:define-preprocessor-function
    #:preprocessor

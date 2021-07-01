@@ -77,15 +77,17 @@ having a same NAME. If not found, returns `nil'.")
   "A symbol used as an indicator of `symbol-plist' holding the preprocessor function.
 See `add-preprocessor-macro'.")
 
-(defun preprocessor-macro-exists-p (symbol)
+(defun preprocessor-macro-exists-p (state symbol)
   (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
-      (get-properties (symbol-plist symbol) `(,+preprocessor-macro+))))
+      (get-properties (symbol-plist symbol) `(,+preprocessor-macro+))
+      (assoc symbol (pp-state-macro-alist state))))
 
-(defun find-preprocessor-macro (symbol)
+(defun find-preprocessor-macro (state symbol)
   "Finds and returns a preprocessor macro definition named SYMBOL,
 added by `add-preprocessor-macro'."
   (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
-      (get symbol +preprocessor-macro+)))
+      (get symbol +preprocessor-macro+)
+      (cdr (assoc symbol (pp-state-macro-alist state)))))
 
 (defun add-preprocessor-macro (symbol value)
   "Establishes a new preprocessor macro to SYMBOL, which is corresponded to VALUE.
@@ -93,10 +95,6 @@ added by `add-preprocessor-macro'."
 Preprocessor macros are held in `symbol-plist' of SYMBOL, and
 indicated by `+preprocessor-macro+'."
   (setf (get symbol +preprocessor-macro+) value))
-
-(defun remove-preprocessor-macro (symbol)
-  "Removes a preprocessor macro named SYMBOL."
-  (remprop symbol +preprocessor-macro+))
 
 (defmacro define-preprocessor-constant (name value &optional documentation)
   "Defines a new preprocessor symbol macro, named by NAME and its value is VALUE."
@@ -279,6 +277,8 @@ returns NIL."
                 :accessor pp-state-line-number)
    (tokens-in-line :initform 0 :type integer
                    :accessor pp-state-tokens-in-line)
+   (macro-alist :initform () :type list
+                :accessor pp-state-macro-alist)
    (if-section-stack :initform nil :type list
                      :accessor pp-state-if-section-stack)
    (if-section-skip-reason :initform nil
@@ -295,6 +295,7 @@ returns NIL."
                     (result-list pp-state-result-list)
                     (line-number pp-state-line-number)
                     (tokens-in-line pp-state-tokens-in-line)
+                    (macro-alist pp-state-macro-alist)
                     (if-section-stack pp-state-if-section-stack)
                     (if-section-skip-reason pp-state-if-section-skip-reason)
                     (include-stack pp-state-include-stack))
@@ -387,7 +388,8 @@ returns NIL."
     ((:upcase :invert) (string= token "DEFINED"))
     ((:downcase :preserve) (string= token "defined"))))
 
-(defun pp-if-expression-lexer (token-list process-digraph? readtable-case directive-symbol)
+(defun pp-if-expression-lexer (token-list process-digraph? readtable-case directive-symbol
+                               pp-state-macro-alist)
   #'(lambda ()
       (if
        (null token-list)
@@ -423,7 +425,8 @@ returns NIL."
 	            :format-control "'defined' operator takes only identifiers. '~A' was passed."
 	            :format-arguments (list param)))
                  (values 'lisp-expression
-                         (preprocessor-macro-exists-p param))))
+                         (if (assoc param pp-state-macro-alist) ; FIXME: `preprocessor-macro-exists-p'
+                             t nil))))
               (t
                ;; In C99, remaining identifiers are replaced to 0.
                ;; ("6.10.1 Conditional inclusion" in ISO/IEC 9899.)
@@ -453,7 +456,8 @@ returns NIL."
     (let* ((condition directive-token-list)
            ;; TODO: Expand PP macro before parsing.
            (lexer (pp-if-expression-lexer directive-token-list process-digraph? readtable-case
-                                          directive-symbol))
+                                          directive-symbol
+                                          (pp-state-macro-alist state)))
            (parsed-form
              (handler-case
                  (with-c-compilation-unit (nil t)
@@ -480,7 +484,7 @@ returns NIL."
     (let* ((identifier
              (pop-last-preprocessor-directive-token directive-token-list directive-symbol))
            (condition `(:ifdef ,identifier))
-           (result (preprocessor-macro-exists-p identifier)))
+           (result (preprocessor-macro-exists-p state identifier)))
       (begin-if-section state condition result))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
@@ -494,7 +498,7 @@ returns NIL."
     (let* ((identifier
              (pop-last-preprocessor-directive-token directive-token-list directive-symbol))
            (condition `(:ifndef ,identifier))
-           (result (not (preprocessor-macro-exists-p identifier))))
+           (result (not (preprocessor-macro-exists-p state identifier))))
       (begin-if-section state condition result))))
 
 (defun check-in-if-section (state directive-symbol)
@@ -524,7 +528,8 @@ returns NIL."
            (raise-no-preprocessor-token-error directive-symbol))
          (let* ((condition directive-token-list)
                 (lexer (pp-if-expression-lexer directive-token-list process-digraph? readtable-case
-                                               directive-symbol))
+                                               directive-symbol
+                                               (pp-state-macro-alist state)))
                 (parsed-form
                   (handler-case
                       (with-c-compilation-unit (nil t)
@@ -697,6 +702,10 @@ returns NIL."
         (setf token-list
               (nconc included-tokens token-list))))))
 
+(defun add-local-preprocessor-macro (state symbol value)
+  (push (cons symbol value)
+        (pp-state-macro-alist state)))
+
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|define|))
                                             directive-token-list state)
@@ -711,7 +720,11 @@ returns NIL."
         (function-like-p
          (error "TODO: function-like macro"))
         (t
-         (add-preprocessor-macro identifier directive-token-list))))))
+         (add-local-preprocessor-macro state identifier directive-token-list))))))
+
+(defun remove-local-preprocessor-macro (state symbol)
+  (deletef (pp-state-macro-alist state) symbol
+           :key 'car :count 1))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|undef|))
@@ -721,7 +734,7 @@ returns NIL."
       (return-from process-preprocessing-directive nil))
     (let ((identifier
             (pop-last-preprocessor-directive-token directive-token-list directive-symbol)))
-      (remove-preprocessor-macro identifier))))
+      (remove-local-preprocessor-macro state identifier))))
 
 (defun parse-line-arguments (token-list directive-symbol &key (try-pp-macro-expand t))
   (let* ((tmp-token-list token-list)
@@ -982,8 +995,8 @@ returns NIL."
            (symbol
             (cond
               ;; Part of translation Phase 4 -- preprocessor macro
-              ((preprocessor-macro-exists-p token)
-               (let ((pp-macro (find-preprocessor-macro token)))
+              ((preprocessor-macro-exists-p state token)
+               (let ((pp-macro (find-preprocessor-macro state token)))
                  (cond ((and (symbolp pp-macro) ; Special macros
                              (eql (symbol-package pp-macro)
                                   (find-package '#:with-c-syntax.preprocessor-special-macro)))
@@ -1028,6 +1041,8 @@ Current workings are below:
   READTABLE-CASE affects how to do it.
 
 - Concatenation of string literals.
+
+- Expands preprocessor macros defined by '#defined'. (Undocumented now.)
 
 - Calling preprocessor macros, defined by `add-preprocessor-macro'.
   How preprocessor macros are expanded is described below.
