@@ -350,6 +350,8 @@ returns NIL."
 
 (defgeneric process-preprocessing-directive (directive-symbol token-list state))
 
+;;; #if sections.
+
 (defclass if-section ()
   ((group-conditions :initform (make-array 1 :fill-pointer 0 :adjustable t)
                       :type vector)))
@@ -576,6 +578,8 @@ returns NIL."
       (when (eq if-section-skip-reason removed-if-section)
         (setf if-section-skip-reason nil)))))
 
+;;; #include
+
 (defun parse-header-name (token-list directive-symbol &key (try-pp-macro-expand t))
   ;; FIXME: Current header-name implementation does not recognize implementation-defined points.
   (let ((token1 (pop-preprocessor-directive-token token-list directive-symbol)))
@@ -646,10 +650,6 @@ returns NIL."
                :format-control "#if section does not end in included file ~A"
                :format-arguments (list file-pathname))))))
 
-(defconstant +with-c-syntax-pragma+ :WCS)
-
-(defconstant +end-of-inclusion-subdirective+ :END_OF_INCLUSION)
-
 (defun find-include-<header>-file (header-name &key (errorp t))
   "Finds a file specified by #include <...> style header-name.
  Current strategy is only looking with-c-syntax specific files."
@@ -685,7 +685,7 @@ returns NIL."
              (tokenize-source (pp-state-reader-level state) stream nil)))
          (end-pragma-tokens
            (list +newline-marker+
-                 '|#| pragma-sym +with-c-syntax-pragma+ +end-of-inclusion-subdirective+ +newline-marker+))
+                 '|#| pragma-sym :WITH_C_SYNTAX :END_OF_INCLUSION +newline-marker+))
          (end-line-tokens
            (if (pp-state-file-pathname state)
                (list '|#| line-sym (pp-state-line-number state) (pp-state-file-pathname state) +newline-marker+)
@@ -719,6 +719,8 @@ returns NIL."
         (setf token-list
               (nconc included-tokens token-list))))))
 
+;;; #define
+
 (defun add-local-preprocessor-macro (state symbol value)
   (push (cons symbol value)
         (pp-state-macro-alist state)))
@@ -739,6 +741,8 @@ returns NIL."
         (t
          (add-local-preprocessor-macro state identifier directive-token-list))))))
 
+;;; #undef
+
 (defun remove-local-preprocessor-macro (state symbol)
   (deletef (pp-state-macro-alist state) symbol
            :key 'car :count 1))
@@ -752,6 +756,8 @@ returns NIL."
     (let ((identifier
             (pop-last-preprocessor-directive-token directive-token-list directive-symbol)))
       (remove-local-preprocessor-macro state identifier))))
+
+;;; #line
 
 (defun parse-line-arguments (token-list directive-symbol &key (try-pp-macro-expand t))
   (let* ((tmp-token-list token-list)
@@ -808,16 +814,18 @@ returns NIL."
                                      line-number
                                      token-list-for-print)))))
 
+;;; #pragma
+
 (defun process-with-c-syntax-pragma (directive-symbol directive-token-list state)
   (let ((token1 (pop-preprocessor-directive-token directive-token-list directive-symbol)))
       (flet ((raise-unsyntactic-wcs-pragma-error ()
                (error 'preprocess-error
                       :format-control "Unsyntactic pragma '#pragma ~A ~A'"
-                      :format-arguments (list +with-c-syntax-pragma+ token1))))
+                      :format-arguments (list :WITH_C_SYNTAX token1))))
         (unless (symbolp token1)
           (raise-unsyntactic-wcs-pragma-error))
         (switch (token1 :test 'string=)
-          (+end-of-inclusion-subdirective+
+          (:END_OF_INCLUSION
            (pop-include-state state))
           (otherwise
            (raise-unsyntactic-wcs-pragma-error))))))
@@ -884,7 +892,7 @@ returns NIL."
       (unless (symbolp first-token)
         (process-unknown-pragma))
       (switch (first-token :test 'string=)
-        (+with-c-syntax-pragma+
+        (:WITH_C_SYNTAX
          (process-with-c-syntax-pragma directive-symbol directive-token-list state))
         ("STDC"
          (process-stdc-pragma directive-symbol directive-token-list state))
