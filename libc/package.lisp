@@ -32,8 +32,6 @@
    #:DECIMAL_DIG
    #:FLT_EVAL_METHOD
    ;; iso646
-   #:|and| #:|and_eq| #:|bitand| #:|bitor| #:|compl|
-   #:|not| #:|not_eq| #:|or| #:|or_eq| #:|xor| #:|xor_eq|
    ;; limits
    #:CHAR_BIT
    #:CHAR_MAX #:CHAR_MIN #:INT_MAX #:INT_MIN
@@ -65,7 +63,6 @@
    ;; stddef
    #:NULL
    #:|ptrdiff_t| #:|size_t| #:|wchar_t|
-   #:|offsetof|
    ;; string
    #:|strcpy| #:|strncpy| #:|strcat| #:|strncat|
    #:|strlen| #:|strcmp| #:|strncmp| #:|strchr| #:|strrchr|

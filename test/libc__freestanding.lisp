@@ -1,5 +1,7 @@
 (in-package #:with-c-syntax.test)
 
+(in-readtable with-c-syntax-readtable)
+
 ;;; C90 freestanding headers:
 ;;; float.h, iso646.h, limits.h, stdarg.h, stddef.h
 
@@ -55,67 +57,78 @@
 ;;; <iso646.h>
 (test test-libc-iso646
   (is.equal.wcs t
-    {
+    #{
+    #include <iso646.h>
     int i = 7 \, j = 3 \;
-    return \( i && j \) == \( i |and| j \) \;
-    })
+    return \( i && j \) == \( i and j \) \;
+    }#)
   (is.equal.wcs t
-    {
+    #{
+    #include <iso646.h>
     int i = 7 \, j = 7 \;
     i &= 3 \;
-    j |and_eq| 3 \;
+    j and_eq 3 \;
     return i == j \;
-    })
+    }#)
   (is.equal.wcs t
-    {
+    #{
+    #include <iso646.h>
     int i = 7 \, j = 3 \;
-    return \( i & j \) == \( i |bitand| j \) \;
-    })
+    return \( i & j \) == \( i bitand j \) \;
+    }#)
   (is.equal.wcs t
-    {
+    #{
+    #include <iso646.h>
     int i = 7 \, j = 3 \;
-    return \( i \| j \) == \( i |bitor| j \) \;
-    })
+    return \( i \| j \) == \( i bitor j \) \;
+    }#)
   (is.equal.wcs t
-    {
+    #{
+    #include <iso646.h>
     int i = 7 \;
-    return ~ i == |compl| i \;
-    })
+    return ~ i == compl i \;
+    }#)
   (is.equal.wcs t
-    {
+    #{
+    #include <iso646.h>
     int i = 7 \;
-    return eq \( ! i \, |not| i \) \;
-    })
+    return eq \( ! i \, not i \) \;
+    }#)
   (is.equal.wcs t
-    {
+    #{
+    #include <iso646.h>
     int i = 7 \, j = 3 \;
-    return eq \( i != j \, i |not_eq| j \) \;
-    })
+    return eq \( i != j \, i not_eq j \) \;
+    }#)
   (muffle-unused-code-warning
     (is.equal.wcs t
-      {
+      #{
+      #include <iso646.h>
       int i = 7 \, j = 3 \;
-      return \( i \|\| j \) == \( i |or| j \) \;
-      }))
+      return \( i \|\| j \) == \( i or j \) \;
+      }#))
   (is.equal.wcs t
-    {
+    #{
+    #include <iso646.h>
     int i = 7 \, j = 7 \;
     i \|= 3 \;
-    j |or_eq| 3 \;
+    j or_eq 3 \;
     return i == j \;
-    })
+    }#)
   (is.equal.wcs t
-    {
+    #{
+    #include <iso646.h>
     int i = 7 \, j = 3 \;
-    return \( i ^ j \) == \( i |xor| j \) \;
-    })
+    return \( i ^ j \) == \( i xor j \) \;
+    }#)
   (is.equal.wcs t
-    {
+    #{
+    #include <iso646.h>
     int i = 7 \, j = 7 \;
     i ^= 3 \;
-    j |xor_eq| 3 \;
+    j xor_eq 3 \;
     return i == j \;
-    }))
+    }#))
 
 ;;; <limits.h>
 (test test-libc-limits
@@ -182,12 +195,19 @@
     })
 
   (signals.macroexpand.wcs ()
-    return |offsetof| \( int \, i \) \;)
+    #{
+    #include <stddef.h>
+    return offsetof \( int \, i \) \;
+    }#)
   (signals.macroexpand.wcs ()
-    return |offsetof| \( struct s \, i \) \;)
+    #{
+    #include <stddef.h>
+    return offsetof \( struct s \, i \) \;
+    }#)
 
   (is.equal.wcs t
-    {
+    #{
+    #include <stddef.h>
     struct s {
         int i \;
         char c \;
@@ -198,11 +218,11 @@
     struct s dummy \;
     \( void \) dummy \;
 
-    return |offsetof| \( struct s \, i \) >= 0
-     && |offsetof| \( struct s \, c \) >= |offsetof| \( struct s \, i \)
-     && |offsetof| \( struct s \, d \) >= |offsetof| \( struct s \, c \)
-     && |offsetof| \( struct s \, a \) >= |offsetof| \( struct s \, d \) \;
-    }))
+    return offsetof \( struct s \, i \) >= 0
+     && offsetof \( struct s \, c \) >= offsetof \( struct s \, i \)
+     && offsetof \( struct s \, d \) >= offsetof \( struct s \, c \)
+     && offsetof \( struct s \, a \) >= offsetof \( struct s \, d \) \;
+    }#))
 
 ;;; <stdarg.h>
 ;;; currently, this is a part of trans.lisp.

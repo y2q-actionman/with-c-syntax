@@ -44,5 +44,10 @@
                  (:file "math" :depends-on ("util" "errno" "fenv" "float"))
                  (:file "stdarg" :depends-on ("util"))
                  (:file "stddef" :depends-on ("util"))
-		 (:file "string" :depends-on ("util")))))
+		 (:file "string" :depends-on ("util"))))
+               (:module "include"
+                :serial nil
+                :components
+                ((:static-file "stddef.h")
+                 (:static-file "iso646.h"))))
   :in-order-to ((test-op (test-op #:with-c-syntax-test))))

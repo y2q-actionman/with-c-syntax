@@ -1,13 +1,1 @@
-(in-package #:with-c-syntax.libc-implementation)
-
-(define-preprocessor-constant |and| '(with-c-syntax.core::&&))
-(define-preprocessor-constant |and_eq| '(with-c-syntax.core::&=))
-(define-preprocessor-constant |bitand| '(with-c-syntax.core::&))
-(define-preprocessor-constant |bitor| '(with-c-syntax.core::\|))
-(define-preprocessor-constant |compl| '(with-c-syntax.core::~))
-(define-preprocessor-constant |not| '(with-c-syntax.core::!))
-(define-preprocessor-constant |not_eq| '(with-c-syntax.core::!=))
-(define-preprocessor-constant |or| '(with-c-syntax.core::\|\|))
-(define-preprocessor-constant |or_eq| '(with-c-syntax.core::\|=))
-(define-preprocessor-constant |xor| '(with-c-syntax.core::^))
-(define-preprocessor-constant |xor_eq| '(with-c-syntax.core::^=))
+;;; Implemented in 'include/iso646.h'.

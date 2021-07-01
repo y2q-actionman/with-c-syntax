@@ -22,7 +22,7 @@ In level 0, these reader macros are installed.
 - ':' :: Reads a solely ':' as a symbol. Not a solely one (like
          `cl:cons') works as a normal package marker.
 
-Level 0 is almost comatible with the standard syntax. However, we need
+Level 0 is almost compatible with the standard syntax. However, we need
 many escapes for using C operators.
 
 
@@ -92,7 +92,8 @@ And, these characters are changed:
 - Digit characters (0,1,2,3,4,5,6,7,8,9) are read as a C numeric
   literals.
 - The single-quote (') works as a character literal of C. The `quote'
-  functionality is lost.
+  functionality is lost. (This prevents the Lisp syntax extremely, so
+  enabled only in level 2).
 
 In this level, there is no compatibilities between symbols of Common
 Lisp.  Especially, for denoting a symbol consists of terminating
@@ -161,12 +162,13 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 (defconstant +wcs-end-marker+ '}#)
 
 (defun read-right-curly-bracket (stream char)
+  (assert (char= char #\}))
   (case (peek-char nil stream nil nil t)
     (#\#                                ; '}#'
      (read-char stream t nil t)
      +wcs-end-marker+)
     (t
-     (read-single-character-symbol stream char))))
+     (intern "}"))))
 
 (defun read-slash-comment (stream char
                            &optional (next-function #'read-lonely-single-symbol))
@@ -332,7 +334,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                   (setf *second-unread-char* #\.) ; We can't use `unread-char' because `peek-char' was used above.
                   (intern "."))))
           (t
-           (read-single-character-symbol stream char)))))
+           (intern ".")))))
 
 (defun read-single-or-compound-assign (stream char)
   (case (peek-char nil stream nil nil t)
@@ -340,7 +342,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
      (read-char stream t nil t)
      (symbolicate char #\=))
     (otherwise
-     (read-single-character-symbol stream char))))
+     (symbolicate char))))
 
 (defun read-plus-like-symbol (stream char)
   "For '+', '&', '|'. They may be '+', '++', or '+='"
@@ -418,7 +420,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
      (read-char stream t nil t)
      (intern ":>"))                     ; digraph ':>'
     (t
-     (read-single-character-symbol stream char))))
+     (intern ":"))))
 
 (defun read-sharp (stream char)
   (assert (char= char #\#))
@@ -427,7 +429,15 @@ If not, returns a next token by `cl:read' after unreading CHAR."
      (read-char stream t nil t)
      (intern "##"))
     (t
-     (read-single-character-symbol stream char))))
+     (intern "#"))))
+
+(defun read-sharp-as-dispatching-macro (stream char num-arg)
+  (when num-arg
+    (error 'with-c-syntax-reader-error
+           :stream stream
+           :format-control "Preprocessor-directive like '#' syntax does not take a numeric arg."))
+  (unread-char char stream)
+  (intern "#"))
 
 (defun read-preprocessing-number (stream c0)
   "Reads a preprocessing number token, defined in
@@ -674,20 +684,30 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (:macro-char #\" #'read-double-quote)
   (:macro-char #\; #'read-single-character-symbol)
   (:macro-char #\( #'read-single-character-symbol)
-  (:macro-char #\) #'read-single-character-symbol))
-;;; TODO: Add #d(efine), #e(rror|lif|lse|ndif), #i(nclude|f|fdef|fndef), #l(ine), #u(ndef)
-;;;    #p(ragma) is conflict with the pathname syntax.
+  (:macro-char #\) #'read-single-character-symbol)
+  ;; Preprocessor directives
+  (:dispatch-macro-char #\# #\d #'read-sharp-as-dispatching-macro) ; #d(efine)
+  (:dispatch-macro-char #\# #\e #'read-sharp-as-dispatching-macro) ; #e(rror|lif|lse|ndif)
+  (:dispatch-macro-char #\# #\i #'read-sharp-as-dispatching-macro) ; #i(nclude|f|fdef|fndef)
+  (:dispatch-macro-char #\# #\l #'read-sharp-as-dispatching-macro) ; #l(ine)
+  (:dispatch-macro-char #\# #\u #'read-sharp-as-dispatching-macro) ; #u(ndef)
+  ;; #p(ragma) is conflict with the pathname syntax.
+  )
 
 (defreadtable c-reader-level-2
-  (:fuse c-reader-level-1)
-  ;; Character constant, overwrites `quote'.
-  ;; (The overwriting prevents Lisp syntax extremely, so enables only in level 2).
-  (:macro-char #\' #'read-single-quote)
-  ;; 'L' prefix for character and string.
-  (:macro-char #\L #'read-L t)
+  (:macro-char #\` #'read-in-previous-syntax) ; for accessing normal syntax.
+  (:macro-char #\' #'read-single-quote) ; Character constant, overwrites `quote'.
+  (:macro-char #\" #'read-double-quote) ; String literal.
+  (:macro-char #\L #'read-L t)  ; 'L' prefix for character and string.
   ;; C punctuators.
-  ;;   Already in Level 0 -- ,
-  ;;   Already in Level 1 -- [ ] { } ( ) ;
+  (:macro-char #\, #'read-single-character-symbol)
+  (:macro-char #\( #'read-single-character-symbol)
+  (:macro-char #\) #'read-single-character-symbol)
+  (:macro-char #\{ #'read-single-character-symbol)
+  (:macro-char #\} #'read-right-curly-bracket)
+  (:macro-char #\[ #'read-single-character-symbol)
+  (:macro-char #\] #'read-single-character-symbol)
+  (:macro-char #\; #'read-single-character-symbol)
   (:macro-char #\. #'read-dot)                       ; . ...
   (:macro-char #\- #'read-minus)                     ; -> -- - -=
   (:macro-char #\+ #'read-plus-like-symbol)          ; ++ + +=
