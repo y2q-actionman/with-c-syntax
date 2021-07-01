@@ -263,7 +263,9 @@ returns NIL."
 ;;; preprocessor-state object held in the main loop.
 
 (defclass preprocessor-state () 
-  ((readtable-case :initarg :readtable-case :initform :upcase :type keyword
+  ((reader-level :initarg :reader-level :initform *with-c-syntax-reader-level* :type integer
+                 :reader pp-state-reader-level)
+   (readtable-case :initarg :readtable-case :type keyword
                    :reader pp-state-readtable-case)
    (process-digraph? :initarg :process-digraph? :initform nil :type boolean
                      :reader pp-state-process-digraph?)
@@ -284,11 +286,15 @@ returns NIL."
    (if-section-skip-reason :initform nil
                            :accessor pp-state-if-section-skip-reason)
    (include-stack :initform nil
-                  :accessor pp-state-include-stack)))
+                  :accessor pp-state-include-stack))
+  (:default-initargs
+   :readtable-case (or *with-c-syntax-reader-case*
+                       (readtable-case *readtable*))))
 
 ;; TODO: reduce its usage
 (defmacro with-preprocessor-state-slots ((state) &body body)
-  `(with-accessors ((readtable-case pp-state-readtable-case)
+  `(with-accessors ((reader-level pp-state-reader-level)
+                    (readtable-case pp-state-readtable-case)
                     (process-digraph? pp-state-process-digraph?)
                     (file-pathname pp-state-file-pathname)
                     (token-list pp-state-token-list)
@@ -695,8 +701,7 @@ returns NIL."
                          (:q-char-sequence (find-include-header-file header-name))
                          (:h-char-sequence (find-include-<header>-file header-name))))
              (included-tokens
-               ;; TODO: FIXME: I should take the caller's reader level!
-               (tokenize-included-source-file pathname state 2)))
+               (tokenize-included-source-file pathname state reader-level)))
         (push-include-state state)
         (pop-next-newline token-list)
         (setf token-list
@@ -1030,8 +1035,12 @@ returns NIL."
             (push token result-list)))
          (incf tokens-in-line))))))
 
-(defun preprocessor (token-list readtable-case input-file-pathname
-                     &key (process-digraph *with-c-syntax-preprocessor-process-digraph*))
+(defun preprocessor (token-list
+                     &key (reader-level *with-c-syntax-reader-level*)
+                       (readtable-case (or *with-c-syntax-reader-case*
+                                           (readtable-case *readtable*)))
+                       (input-file-pathname nil)
+                     (process-digraph *with-c-syntax-preprocessor-process-digraph*))
   "This function preprocesses TOKEN-LIST before parsing.
 
 Current workings are below:
@@ -1067,6 +1076,7 @@ calls the function like:
   (let* ((pp-state
            (make-instance 'preprocessor-state
                           :token-list token-list
+                          :reader-level reader-level
                           :readtable-case readtable-case
                           :file-pathname input-file-pathname 
                           :process-digraph? process-digraph))

@@ -830,9 +830,9 @@ the result is wrapped with `with-c-syntax'.
     (multiple-value-bind (tokens readtable)
         (tokenize-source level stream t)
       ;; TODO: Move these parameters to #pragma?
-      `(with-c-syntax (:readtable-case
+      `(with-c-syntax (:reader-level ,level
                        ;; Capture the readtable-case used for reading inside '#{ ... }#'.
-                       ,(readtable-case readtable)
+                       :readtable-case ,(readtable-case readtable)
                        :input-file-pathname ,input-file-pathname)
          ,@tokens))))
 

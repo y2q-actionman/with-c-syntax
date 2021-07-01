@@ -14,7 +14,9 @@
 
 (defmacro with-c-syntax ((&rest options
 			  &key (preprocess t)
-                            (readtable-case (readtable-case *readtable*))
+                            (reader-level *with-c-syntax-reader-level*)
+                            (readtable-case (or *with-c-syntax-reader-case*
+                                                (readtable-case *readtable*)))
                             (input-file-pathname nil)
                             (return :auto)
 			    (try-add-{} t))
@@ -49,7 +51,9 @@ tries to parse again."
        `(with-c-syntax (,@options ,@options2) ,@body2)))
     (preprocess
      `(with-c-syntax (:preprocess nil :return ,return :try-add-{} ,try-add-{})
-        ,@(preprocessor body readtable-case input-file-pathname)))
+        ,@(preprocessor body :reader-level reader-level
+                        :readtable-case readtable-case
+                        :input-file-pathname input-file-pathname)))
     (t
      (expand-c-syntax body
 		      try-add-{}
