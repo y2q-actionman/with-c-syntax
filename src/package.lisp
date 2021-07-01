@@ -83,8 +83,6 @@
    #:with-c-syntax-warning
    #:with-c-syntax-style-warning
    ;; preprocessor.lisp
-   #:find-preprocessor-macro
-   #:define-preprocessor-constant
    #:define-preprocessor-function
    #:preprocessor
    ;; pseudo-pointer.lisp

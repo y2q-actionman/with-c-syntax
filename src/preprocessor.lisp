@@ -96,14 +96,6 @@ Preprocessor macros are held in `symbol-plist' of SYMBOL, and
 indicated by `+preprocessor-macro+'."
   (setf (get symbol +preprocessor-macro+) value))
 
-(defmacro define-preprocessor-constant (name value &optional documentation)
-  "Defines a new preprocessor symbol macro, named by NAME and its value is VALUE."
-  `(progn
-     (define-constant ,name ,value
-       :test 'equal
-       :documentation ,documentation)
-     (add-preprocessor-macro ',name ,value)))
-
 (defmacro define-preprocessor-function (name lambda-list &body body)
   "Defined a new preprocessor function, named by NAME."
   (let ((pp-macro-function-name
@@ -618,7 +610,7 @@ returns NIL."
                                      :h-char-sequence))))
            ((ends-with #\> name) ; For reader Level 1 -- Like '<iso646.h>'
             (check-no-preprocessor-token token-list directive-symbol)
-            ;; I thought I can use `string-trim', but what to do when I saw '<<stdio.h>' ?
+            ;; I thought I may use `string-trim', but what to do when I saw '<<stdio.h>' ?
             (values (subseq name 1 (1- (length name)))
                     :h-char-sequence))
            (t
