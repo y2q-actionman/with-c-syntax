@@ -83,7 +83,6 @@
    #:with-c-syntax-warning
    #:with-c-syntax-style-warning
    ;; preprocessor.lisp
-   #:define-preprocessor-function
    #:preprocessor
    ;; pseudo-pointer.lisp
    #:pseudo-pointer

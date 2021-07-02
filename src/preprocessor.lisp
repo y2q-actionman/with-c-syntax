@@ -72,41 +72,21 @@ having a same NAME. If not found, returns `nil'.")
   (:use)
   (:export #:__DATE__ #:__FILE__ #:__LINE__ #:__TIME__))
 
-(defconstant +preprocessor-macro+
-  '+preprocessor-macro+
-  "A symbol used as an indicator of `symbol-plist' holding the preprocessor function.
-See `add-preprocessor-macro'.")
+(defun |va_arg| (ap type)           ; FIXME: Define this in <stddef.h>
+  (declare (ignore type))           ; TODO: FIXME: use this.
+  `(pop ,(first ap)))
 
 (defun preprocessor-macro-exists-p (state symbol)
   (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
-      (get-properties (symbol-plist symbol) `(,+preprocessor-macro+))
+      (string= symbol '|va_arg|)
       (assoc symbol (pp-state-macro-alist state))))
 
 (defun find-preprocessor-macro (state symbol)
-  "Finds and returns a preprocessor macro definition named SYMBOL,
-added by `add-preprocessor-macro'."
+  "Finds and returns a preprocessor macro definition named SYMBOL."
   (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
-      (get symbol +preprocessor-macro+)
+      (if (string= symbol '|va_arg|)
+          #'|va_arg|)
       (cdr (assoc symbol (pp-state-macro-alist state)))))
-
-(defun add-preprocessor-macro (symbol value)
-  "Establishes a new preprocessor macro to SYMBOL, which is corresponded to VALUE.
-
-Preprocessor macros are held in `symbol-plist' of SYMBOL, and
-indicated by `+preprocessor-macro+'."
-  (setf (get symbol +preprocessor-macro+) value))
-
-(defmacro define-preprocessor-function (name lambda-list &body body)
-  "Defined a new preprocessor function, named by NAME."
-  (let ((pp-macro-function-name
-	 (format-symbol (symbol-package name) "~A-PREPROCESSOR-MACRO" name))
-	(values-sym (gensym "values")))
-    `(progn
-       (defun ,pp-macro-function-name (&rest ,values-sym)
-	 ;; TODO: catch `destructuring-bind' error.
-	 (destructuring-bind ,lambda-list ,values-sym
-	   ,@body))
-       (add-preprocessor-macro ',name #',pp-macro-function-name))))
 
 (defun preprocessor-equal-p (token name)
   (and (symbolp token)
@@ -1073,9 +1053,6 @@ Current workings are below:
 - Concatenation of string literals.
 
 - Expands preprocessor macros defined by '#defined'. (Undocumented now.)
-
-- Calling preprocessor macros, defined by `add-preprocessor-macro'.
-  How preprocessor macros are expanded is described below.
 
 
 Expansion rules:
