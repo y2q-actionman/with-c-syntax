@@ -126,26 +126,6 @@ having a same NAME. If not found, returns `nil'.")
 
 ;;; Identifier split.
 
-(defmacro mv-cond-let ((&rest vars) &body clauses)
-  "This is like the famous 'COND-LET', but takes multiple values."
-  (let ((clause1 (first clauses)))
-    (cond
-      ((null clauses) nil)
-      ((length= 1 clause1)
-       `(multiple-value-bind (,@vars) ,(first clause1)
-	  (declare (ignorable ,@(rest vars)))
-	  (if ,(first vars)
-	      (values ,@vars)
-	      (mv-cond-let (,@vars) ,@(rest clauses)))))
-      ((eql (first clause1) t)
-       `(progn ,@(rest clause1)))
-      (t
-       `(multiple-value-bind (,@vars) ,(first clause1)
-	  (declare (ignorable ,@(rest vars)))
-	  (if ,(first vars)
-	      (progn ,@(rest clause1))
-	      (mv-cond-let (,@vars) ,@(rest clauses))))))))
-
 (defun intern-to-its-package (name symbol)
   "`intern' NAME into the package of SYMBOL."
   (intern name (symbol-package symbol)))
