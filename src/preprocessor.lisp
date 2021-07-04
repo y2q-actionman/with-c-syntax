@@ -15,22 +15,47 @@
   (declare (ignore type))           ; TODO: FIXME: use this.
   `(pop ,(first ap)))
 
+;;; Macro expansion
+
 (defun preprocessor-macro-exists-p (state symbol)
   (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
       (string= symbol '|va_arg|)
       (assoc symbol (pp-state-macro-alist state))))
 
-(defun find-preprocessor-macro (state symbol)
-  "Finds and returns a preprocessor macro definition named SYMBOL."
-  (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
-      (if (string= symbol '|va_arg|)
-          #'|va_arg|)
-      (cdr (assoc symbol (pp-state-macro-alist state)))))
+(defun remove-whitespace-marker (token-list)
+  (remove +whitespace-marker+ token-list))
 
+(defun expand-preprocessor-macro (token rest-token-list macro-alist pp-state)
+  (when-let ((special-macro
+              (find-symbol (symbol-name token) '#:with-c-syntax.preprocessor-special-macro)))
+    (return-from expand-preprocessor-macro
+      (values (list (funcall special-macro pp-state))
+              rest-token-list)))
+  (when (string= token '|va_arg|)	; FIXME
+    (multiple-value-bind (macro-arg new-lis)
+        (collect-preprocessor-macro-arguments rest-token-list)
+      (return-from expand-preprocessor-macro
+        (values (list (apply #'|va_arg| macro-arg))
+                new-lis))))
+  (let* ((pp-macro-entry (assoc token macro-alist))
+         (pp-macro (cdr pp-macro-entry)))
+    (typecase pp-macro
+      (function                         ; Function-like
+       ;; FIXME
+       (multiple-value-bind (macro-arg new-lis)
+           (collect-preprocessor-macro-arguments rest-token-list)
+         (values (list (apply pp-macro macro-arg))
+                 new-lis)))
+      (t                        ; Object-like
+       (values (remove-whitespace-marker pp-macro)
+               rest-token-list)))))
+
+;;; TODO: move them
 (defun preprocessor-equal-p (token name)
   (and (symbolp token)
        (string= token name)))
 
+;;; TODO: move them
 (defun collect-preprocessor-macro-arguments (lis-head)
   "A part of the `preprocessor' function."
   (let ((begin (pop lis-head)))
@@ -630,7 +655,6 @@ returns NIL."
   (with-preprocessor-state-slots (state)
     (when if-section-skip-reason
       (return-from process-preprocessing-directive nil))
-    ;; TODO: Add local macro scope for preprocessor macros.
     (let* ((identifier
              (pop-preprocessor-directive-token directive-token-list directive-symbol))
            (function-like-p (eql (first directive-token-list) 'with-c-syntax.punctuator:|(|)))
@@ -706,7 +730,7 @@ returns NIL."
   (with-preprocessor-state-slots (state)
     (when if-section-skip-reason
       (return-from process-preprocessing-directive nil))
-    (let ((token-list-for-print (delete +whitespace-marker+ directive-token-list)))
+    (let ((token-list-for-print (remove-whitespace-marker directive-token-list)))
       (error 'preprocess-error
              :format-control "[File ~A: Line ~D] #error: ~{~A~^ ~}"
              :format-arguments (list (if file-pathname (enough-namestring file-pathname)) 
@@ -907,21 +931,10 @@ returns NIL."
             (cond
               ;; Part of translation Phase 4 -- preprocessor macro
               ((preprocessor-macro-exists-p state token)
-               (let ((pp-macro (find-preprocessor-macro state token)))
-                 (cond ((and (symbolp pp-macro) ; Special macros
-                             (eql (symbol-package pp-macro)
-                                  (find-package '#:with-c-syntax.preprocessor-special-macro)))
-                        (push (funcall pp-macro state) result-list))
-                       ((functionp pp-macro) ; preprocessor funcion
-	                (multiple-value-bind (macro-arg new-lis)
-		            (collect-preprocessor-macro-arguments token-list)
-		          (push (apply pp-macro macro-arg) result-list)
-		          (setf token-list new-lis)))
-	               (t               ; symbol expansion
-                        (setf token-list
-                              (append pp-macro token-list))))))
-              ;; TODO: intern digraphs here.
-              
+               (multiple-value-bind (expansion-list rest-tokens)
+                   (expand-preprocessor-macro token token-list macro-alist state)
+                 (nreconcf result-list expansion-list)
+                 (setf token-list rest-tokens)))
               ;; with-c-syntax specific: Try to split the token.
               ;; FIXME: I think this should be only for reader level 1.
               ((unless (or (boundp token)
