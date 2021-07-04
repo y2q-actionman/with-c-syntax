@@ -447,4 +447,9 @@
   (is.equal.wcs "abc"
     return "a" "b" "c" \; ))
 
+
+;;; TODO: digraph tests.
+
+
 ;;; TODO: add symbol-interning tests
+;;;  in lexer?

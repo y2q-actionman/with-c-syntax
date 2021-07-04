@@ -1,14 +1,14 @@
 (in-package #:with-c-syntax.core)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun expand-c-syntax (body try-add-{} entry-form return-last?)
+  (defun expand-c-syntax (body try-add-{} entry-form return-last? readtable-case)
     (handler-case
 	(with-c-compilation-unit (entry-form return-last?)
-	  (parse-with-lexer (list-lexer body) *expression-parser*))
+	  (parse-with-lexer (list-lexer body readtable-case) *expression-parser*))
       (yacc-parse-error (condition)
 	(if (and try-add-{}
 		 (not (starts-with '{ body)))
-	    (expand-c-syntax `({ ,@body }) nil entry-form return-last?)	; retry
+	    (expand-c-syntax `({ ,@body }) nil entry-form return-last? readtable-case) ; retry
 	    (error 'with-c-syntax-parse-error
 		   :yacc-error condition))))))
 
@@ -50,7 +50,8 @@ tries to parse again."
        (declare (ignore op_))
        `(with-c-syntax (,@options ,@options2) ,@body2)))
     (preprocess
-     `(with-c-syntax (:preprocess nil :return ,return :try-add-{} ,try-add-{})
+     `(with-c-syntax (:preprocess nil :return ,return :try-add-{} ,try-add-{}
+                      :readtable-case ,readtable-case)
         ,@(preprocessor body :reader-level reader-level
                         :readtable-case readtable-case
                         :input-file-pathname input-file-pathname)))
@@ -58,4 +59,5 @@ tries to parse again."
      (expand-c-syntax body
 		      try-add-{}
 		      (if (eq return :auto) nil return)
-		      (eq return :auto)))))
+		      (eq return :auto)
+                      readtable-case))))

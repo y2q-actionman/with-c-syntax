@@ -1,66 +1,5 @@
 (in-package #:with-c-syntax.core)
 
-(defmacro define-case-aware-find-symbol
-    (finder-function-name package-name
-     &key (upcased-package-name (format nil "~A.~A" (string package-name) '#:UPCASED))
-       (docstring nil))
-  `(eval-when (:compile-toplevel :load-toplevel :execute)
-     (defpackage ,upcased-package-name
-       (:use)
-       (:intern
-        ,@(loop for sym being the external-symbol of package-name
-                collect (string-upcase (symbol-name sym)))))
-     ,@(loop for sym being the external-symbol of package-name
-             for upcased = (string-upcase (symbol-name sym))
-             collect `(setf (symbol-value (find-symbol ,upcased ',upcased-package-name))
-                            ',sym))
-     (defun ,finder-function-name (name readtable-case)
-       ,@(if docstring `(,docstring))
-       (ecase readtable-case
-         ((:upcase :invert)
-          (if-let ((up-sym (find-symbol name ',upcased-package-name)))
-            (symbol-value up-sym)))
-         ((:downcase :preserve)
-          (find-symbol name ',package-name))))))
-
-;;; C syntax words
-
-(define-case-aware-find-symbol find-c-terminal
-  #:with-c-syntax.syntax
-  :docstring
-  "Find a symbol in `with-c-syntax.syntax' package having a same
-NAME. If not found, returns `nil'.")
-
-;;; CPP directives
-
-(define-case-aware-find-symbol find-preprocessor-directive
-  #:with-c-syntax.preprocessor-directive
-  :docstring
-  "Find a symbol in `with-c-syntax.preprocessor-directive' package
-having a same NAME. If not found, returns `nil'.")
-
-;;; C punctuators.
-
-(defun find-punctuator (name process-digraph?)
-  (when-let (punctuator (find-symbol name '#:with-c-syntax.punctuator))
-    (when-let (replace (find-digraph-replacement punctuator)) ; Check digraph 
-      (unless (eq process-digraph? :no-warn)
-        (warn 'with-c-syntax-style-warning
-              :message (format nil "Digraph sequence '~A' (means ~A) found."
-                               punctuator replace)))
-      (when process-digraph?
-        (setf punctuator replace)))
-    punctuator))
-
-(defun find-digraph-replacement (punctuator)
-  (case punctuator
-    (with-c-syntax.punctuator:|<:| 'with-c-syntax.syntax:[)
-    (with-c-syntax.punctuator:|:>| 'with-c-syntax.syntax:])
-    (with-c-syntax.punctuator:|<%| 'with-c-syntax.syntax:{)
-    (with-c-syntax.punctuator:|%>| 'with-c-syntax.syntax:})
-    (with-c-syntax.punctuator:|%:| 'with-c-syntax.punctuator:|#|)
-    (with-c-syntax.punctuator:|%:%:| 'with-c-syntax.punctuator:|##|)))
-
 (defvar *with-c-syntax-preprocessor-process-digraph* nil
   "Determines whether preprocessor replaces digraphs.
  If this is true, replacement occurs but `with-c-syntax-style-warning' is signalled.
@@ -922,20 +861,6 @@ returns NIL."
             (process-preprocessing-directive directive-symbol token-list state)
             (raise-pp-error)))))))
 
-(defun preprocessor-loop-try-intern-punctuators (state token)
-  "Intern puctuators. this is with-c-syntax specific preprocessing path."
-  (with-preprocessor-state-slots (state)
-    (when-let (punctuator (find-punctuator (symbol-name token) process-digraph?))
-      (push punctuator result-list)
-      t)))
-
-(defun preprocessor-loop-try-intern-keywords (state token)
-  "Intern C keywords. this is with-c-syntax specific preprocessing path."
-  (with-preprocessor-state-slots (state)
-    (when-let (c-op (find-c-terminal (symbol-name token) readtable-case))
-      (push c-op result-list)
-      t)))
-  
 (defun preprocessor-loop-concatenate-string (state token)
   "Do the translation phase 6 -- string concatenation."
   (with-preprocessor-state-slots (state)
@@ -995,15 +920,13 @@ returns NIL."
 	               (t               ; symbol expansion
                         (setf token-list
                               (append pp-macro token-list))))))
-              ;; with-c-syntax specifics.
-              ((preprocessor-loop-try-intern-punctuators state token)
-               t)
-              ((preprocessor-loop-try-intern-keywords state token)
-               t)
+              ;; TODO: intern digraphs here.
+              
               ;; with-c-syntax specific: Try to split the token.
               ;; FIXME: I think this should be only for reader level 1.
               ((unless (or (boundp token)
-                           (fboundp token))
+                           (fboundp token)
+                           (find-c-terminal (symbol-name token) readtable-case))
                  (multiple-value-bind (splited-p results) (preprocessor-try-split token)
 	           (if splited-p
 	               (setf token-list (nconc results token-list))

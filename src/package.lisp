@@ -41,7 +41,14 @@
    "Holds symbols denoting C operators and keywords."))
 
 (defpackage #:with-c-syntax.punctuator
-  (:use #:with-c-syntax.syntax)
+  (:use)
+  (:import-from #:with-c-syntax.syntax
+                #:[ #:] #:\( #:\) #:{ #:} #:\. #:->
+                #:++ #:-- #:& #:* #:+ #:- #:~ #:!
+                #:/ #:% #:<< #:>> #:< #:> #:<= #:>= #:== #:!= #:^ #:\| #:&& #:\|\|
+                #:? #:\: #:\; #:|...|
+                #:= #:*= #:/= #:%= #:+= #:-= #:<<= #:>>= #:&= #:^= #:\|=
+                #:\,)
   (:export
    #:[ #:] #:\( #:\) #:{ #:} #:\. #:->
    #:++ #:-- #:& #:* #:+ #:- #:~ #:!

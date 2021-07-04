@@ -37,11 +37,15 @@
   "Calls nreconc with reversed order args. A helper for `nreconcf'."
   (nreconc list tail))
 
-(defmacro mv-cond-let ((var1 &rest rest-vars) &body clauses)
+(defmacro mv-cond-let ((&rest vars) &body clauses)
   "This is like the famous 'COND-LET', but takes multiple values."
   (if (endp clauses)
       nil
-      (let* ((clause1 (first clauses))
+      (let* ((var1 (if (null vars)
+                       (gensym)
+                       (first vars)))
+             (rest-vars (rest vars))
+             (clause1 (first clauses))
              (clause1-cond (first clause1))
              (clause1-body (or (rest clause1)
                                `((values ,var1 ,@rest-vars)))))
