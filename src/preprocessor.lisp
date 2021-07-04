@@ -232,28 +232,6 @@ returns NIL."
           do (pop token-list)
           collect i)))
 
-(defun raise-no-preprocessor-token-error (directive-name)
-  (error 'preprocess-error
-         :format-control "No token after #~A"
-         :format-arguments (list directive-name)))
-
-(defmacro check-and-pop-pp-directive-token-1 (token-list directive-name errorp)
-  "Used by `pop-preprocessor-directive-token'"
-  `(if (null ,token-list)
-       ,(if errorp
-            `(raise-no-preprocessor-token-error ,directive-name)
-            nil)
-       (pop ,token-list)))
-
-(defmacro pop-preprocessor-directive-token (token-list directive-name &key (errorp t))
-  "Pops the next token in TOKEN-LIST ignoring `+whitespace-marker+'"
-  (with-gensyms (head_)
-    `(let ((,head_
-             (check-and-pop-pp-directive-token-1 ,token-list ,directive-name ,errorp)))
-       (if (eq +whitespace-marker+ ,head_)
-           (check-and-pop-pp-directive-token-1 ,token-list ,directive-name ,errorp)
-           ,head_))))
-
 (defun preprocessor-token-exists-p (token-list)
   (loop for token in token-list
         thereis (not (eq token +whitespace-marker+))))

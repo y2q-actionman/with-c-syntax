@@ -25,7 +25,7 @@
                  (:file "struct" :depends-on ("package"))
                  (:file "typedef" :depends-on ("package"))
                  (:file "pseudo-pointer" :depends-on ("util" "condition"))
-                 (:file "lexer" :depends-on ("util" "typedef"))
+                 (:file "lexer" :depends-on ("util" "reader" "typedef"))
                  (:file "compiler"      ; Translation Phase 7
 		  :depends-on ("lexer" "struct" "typedef" "pseudo-pointer"))
                  (:file "with-c-syntax" ; Entry Point
