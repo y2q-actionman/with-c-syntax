@@ -101,9 +101,9 @@ having a same NAME. If not found, returns `nil'.")
            (null
             (values 'lisp-expression nil))
            (symbol
-            (cond
-              ((when-let (punctuator (find-punctuator (symbol-name token) process-digraph?))
-                 (values punctuator punctuator)))
+            (mv-cond-let (cond-var)
+              ((find-punctuator (symbol-name token) process-digraph?)
+               (values cond-var cond-var))
               ((pp-|defined|-operator-p token readtable-case)
                ;; defined operator
                (let* ((defined-1 (pop-preprocessor-directive-token token-list directive-symbol))
