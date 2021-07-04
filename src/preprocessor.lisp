@@ -20,7 +20,8 @@
 (defun preprocessor-macro-exists-p (macro-alist symbol)
   (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
       (string= symbol '|va_arg|)
-      (assoc symbol macro-alist)))
+      (when-let ((entry (assoc symbol macro-alist)))
+        (not (eql (cdr entry) :macro-suppressed)))))
 
 (defun remove-whitespace-marker (token-list)
   (remove +whitespace-marker+ token-list))
@@ -40,39 +41,40 @@
       (error 'preprocess-error
 	     :format-control "A symbol (~S) found between a preprocessor macro and the first '('"
 	     :format-arguments (list begin))))
-  (handler-case
-      (loop for i = (pop lis-head)      ; Use `cl:pop' for preserving `+whitespace-marker+'.
-            until (token-equal-p i ")")
-            collect
-            (loop with nest-level of-type fixnum = 0
-	          for j = i then (pop lis-head)
-	          do (cond ((token-equal-p j "(")
-		            (incf nest-level))
-		           ((token-equal-p j ",")
-		            (loop-finish))
-		           ((token-equal-p j ")")
-		            (when (minusp (decf nest-level))
-			      (push j lis-head)
-			      (loop-finish))))
-                  collect j)
-              into macro-args
-            finally
-               (return (values macro-args lis-head)))
-    (preprocess-error ()
-      (error 'incompleted-macro-arguments-error :token-list lis-head))))
+  (loop for i = (pop lis-head)      ; Use `cl:pop' for preserving `+whitespace-marker+'.
+        while i
+        if (token-equal-p i ")")
+          return (values macro-args lis-head)
+        collect
+        (loop with nest-level of-type fixnum = 0
+	      for j = i then (pop lis-head)
+	      do (cond ((token-equal-p j "(")
+		        (incf nest-level))
+		       ((token-equal-p j ",")
+		        (loop-finish))
+		       ((token-equal-p j ")")
+		        (when (minusp (decf nest-level))
+			  (push j lis-head)
+			  (loop-finish))))
+              collect j)
+          into macro-args
+        finally
+           (error 'incompleted-macro-arguments-error :token-list lis-head)))
 
 (defun expand-preprocessor-macro (token rest-token-list macro-alist pp-state)
   (when-let ((special-macro
               (find-symbol (symbol-name token) '#:with-c-syntax.preprocessor-special-macro)))
     (return-from expand-preprocessor-macro
       (values (list (funcall special-macro pp-state))
-              rest-token-list)))
+              rest-token-list
+              nil)))
   (when (string= token '|va_arg|)	; FIXME
     (multiple-value-bind (macro-arg new-lis)
         (collect-preprocessor-macro-arguments rest-token-list)
       (return-from expand-preprocessor-macro
         (values (list (apply #'|va_arg| macro-arg))
-                new-lis))))
+                new-lis
+                nil))))
   (let* ((pp-macro-entry (assoc token macro-alist))
          (pp-macro (cdr pp-macro-entry)))
     (typecase pp-macro
@@ -82,9 +84,10 @@
            (collect-preprocessor-macro-arguments rest-token-list)
          (values (list (apply pp-macro macro-arg))
                  new-lis)))
-      (t                        ; Object-like
-       (values (remove-whitespace-marker pp-macro)
-               rest-token-list)))))
+      (t                                ; Object-like
+       (values pp-macro
+               rest-token-list
+               pp-macro-entry)))))
 
 
 ;;; Identifier split.
@@ -837,6 +840,8 @@ returns NIL."
         ((eq token +newline-marker+)
          (incf line-number)
          (setf tokens-in-line 0))
+        ((eq token :end-of-preprocessor-macro-scope)
+         (pop macro-alist))
         ((preprocessor-loop-at-directive-p state token) ; Check directives before #if skips.
          (preprocessor-loop-do-directives state))
         (if-section-skip-reason         ; #if-section skips it.
@@ -847,11 +852,17 @@ returns NIL."
             (cond
               ;; Part of translation Phase 4 -- preprocessor macro
               ((preprocessor-macro-exists-p macro-alist token)
-               (multiple-value-bind (expansion-list rest-tokens)
+               (multiple-value-bind (expansion-list rest-tokens pp-macro-cons)
                    (expand-preprocessor-macro token token-list macro-alist state)
-                 (nreconcf result-list expansion-list)
-                 (setf token-list rest-tokens)))
-	      
+                 (when pp-macro-cons
+                   (push (cons (car pp-macro-cons) :macro-suppressed)
+                         macro-alist))
+                 (setf token-list
+                       (append expansion-list
+                               (if pp-macro-cons
+                                   (list :end-of-preprocessor-macro-scope))
+                               rest-tokens))))
+       
 	      ;; TODO: intern digraph here
 	      
               ;; with-c-syntax specific: Try to split the token.
