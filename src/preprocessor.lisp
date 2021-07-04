@@ -25,6 +25,42 @@
 (defun remove-whitespace-marker (token-list)
   (remove +whitespace-marker+ token-list))
 
+(defun token-equal-p (token name)
+  (and (symbolp token)
+       (string= token name)))
+
+(define-condition incompleted-macro-arguments-error (preprocess-error)
+  ((token-list :initarg :token-list)))
+
+(defun collect-preprocessor-macro-arguments (lis-head)
+  (unless lis-head
+    (error 'incompleted-macro-arguments-error :token-list lis-head))
+  (let ((begin (pop-preprocessor-directive-token lis-head '<macro-expansion>)))
+    (unless (token-equal-p begin "(")
+      (error 'preprocess-error
+	     :format-control "A symbol (~S) found between a preprocessor macro and the first '('"
+	     :format-arguments (list begin))))
+  (handler-case
+      (loop for i = (pop lis-head)      ; Use `cl:pop' for preserving `+whitespace-marker+'.
+            until (token-equal-p i ")")
+            collect
+            (loop with nest-level of-type fixnum = 0
+	          for j = i then (pop lis-head)
+	          do (cond ((token-equal-p j "(")
+		            (incf nest-level))
+		           ((token-equal-p j ",")
+		            (loop-finish))
+		           ((token-equal-p j ")")
+		            (when (minusp (decf nest-level))
+			      (push j lis-head)
+			      (loop-finish))))
+                  collect j)
+              into macro-args
+            finally
+               (return (values macro-args lis-head)))
+    (preprocess-error ()
+      (error 'incompleted-macro-arguments-error :token-list lis-head))))
+
 (defun expand-preprocessor-macro (token rest-token-list macro-alist pp-state)
   (when-let ((special-macro
               (find-symbol (symbol-name token) '#:with-c-syntax.preprocessor-special-macro)))
@@ -50,43 +86,6 @@
        (values (remove-whitespace-marker pp-macro)
                rest-token-list)))))
 
-;;; TODO: move them
-(defun preprocessor-equal-p (token name)
-  (and (symbolp token)
-       (string= token name)))
-
-;;; TODO: move them
-(defun collect-preprocessor-macro-arguments (lis-head)
-  "A part of the `preprocessor' function."
-  (let ((begin (pop lis-head)))
-    (unless (preprocessor-equal-p begin "(")
-      (error 'preprocess-error
-	     :format-control "A symbol (~S) found between a preprocessor macro and the first '('"
-	     :format-arguments (list begin))))
-  (labels
-      ((pop-or-error ()
-         ;; TODO: use `pop-preprocessor-directive-token' for treating `+whitespace-marker+'.
-         (unless lis-head
-           (error 'preprocess-error
-		  :format-control "Reached end of forms at finding preprocessor macro arguments."))
-         (pop lis-head))
-       (collect-one-arg (start)
-         (loop with nest-level of-type fixnum = 0
-	    for j = start then (pop-or-error)
-	    do (cond ((preprocessor-equal-p j "(")
-		      (incf nest-level))
-		     ((preprocessor-equal-p j ",")
-		      (loop-finish))
-		     ((preprocessor-equal-p j ")")
-		      (when (minusp (decf nest-level))
-			(push j lis-head)
-			(loop-finish))))
-            collect j)))
-    (loop for i = (pop-or-error)
-       until (preprocessor-equal-p i ")")
-       collect (collect-one-arg i) into macro-args
-       finally
-         (return (values macro-args lis-head)))))
 
 ;;; Identifier split.
 
@@ -852,6 +851,9 @@ returns NIL."
                    (expand-preprocessor-macro token token-list macro-alist state)
                  (nreconcf result-list expansion-list)
                  (setf token-list rest-tokens)))
+	      
+	      ;; TODO: intern digraph here
+	      
               ;; with-c-syntax specific: Try to split the token.
               ;; FIXME: I think this should be only for reader level 1.
               ((unless (or (boundp token)
