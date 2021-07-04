@@ -61,8 +61,68 @@ having a same NAME. If not found, returns `nil'.")
     (with-c-syntax.punctuator:|%:| 'with-c-syntax.punctuator:|#|)
     (with-c-syntax.punctuator:|%:%:| 'with-c-syntax.punctuator:|##|)))
 
-;;;
+;;; Lexer for '#if' preprocessor-directive.
+(defun pp-|defined|-operator-p (token readtable-case)
+  (ecase readtable-case
+    ((:upcase :invert) (string= token "DEFINED"))
+    ((:downcase :preserve) (string= token "defined"))))
 
+(defun pp-if-expression-lexer (token-list process-digraph? readtable-case directive-symbol
+                               pp-state-macro-alist)
+  #'(lambda ()
+      (if
+       (null token-list)
+       (values nil nil)
+       (let ((token (pop-preprocessor-directive-token token-list directive-symbol :errorp nil)))
+         (typecase token
+           (null
+            (values 'lisp-expression nil))
+           (symbol
+            (cond
+              ((when-let (punctuator (find-punctuator (symbol-name token) process-digraph?))
+                 (values punctuator punctuator)))
+              ((pp-|defined|-operator-p token readtable-case)
+               ;; defined operator
+               (let* ((defined-1 (pop-preprocessor-directive-token token-list directive-symbol))
+                      (param
+                        (if (and (symbolp defined-1)
+                                 (string= defined-1 "("))
+                            (prog1 (pop-preprocessor-directive-token token-list directive-symbol)
+                              (let ((r-paren? (pop-preprocessor-directive-token
+                                               token-list directive-symbol)))
+                                (unless (and (symbolp r-paren?)
+                                             (string= r-paren? ")"))
+                                  (error
+                                   'preprocess-error
+	                           :format-control "'defined' operator does not have corresponding ')'. '~A' was found."
+	                           :format-arguments (list r-paren?)))))
+                            defined-1)))
+                 (when (or (not (symbolp param))
+                           (find-punctuator (symbol-name param) process-digraph?))
+                   (error
+                    'preprocess-error
+	            :format-control "'defined' operator takes only identifiers. '~A' was passed."
+	            :format-arguments (list param)))
+                 (values 'lisp-expression
+                         (if (preprocessor-macro-exists-p pp-state-macro-alist param) t nil))))
+              (t
+               ;; In C99, remaining identifiers are replaced to 0.
+               ;; ("6.10.1 Conditional inclusion" in ISO/IEC 9899.)
+               ;; I replace it to `cl:nil' for compromising Lisp manner.
+               ;; This substitutuin will supress casts.
+               (values 'lisp-expression nil))))
+           (integer
+            (values 'int-const token))
+           (character
+            (values 'char-const token))
+           (float
+            (values 'float-const token)) ; FIXME: #if does not accept floats.
+           (string
+            (values 'string token))
+           (otherwise
+            (values 'lisp-expression token)))))))
+
+;;; Lexer for compiler.
 (defun list-lexer (list readtable-case
                    &aux (syntax-package (find-package '#:with-c-syntax.syntax))
                      (typedef-hack? nil))
