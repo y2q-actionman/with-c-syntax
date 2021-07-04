@@ -202,12 +202,10 @@ However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/bl
 
 ** Loading by quicklisp
 
-This library is quicklisp-ready.
-[[http://quickdocs.org/with-c-syntax][http://quickdocs.org/badge/with-c-syntax.svg]]
++This library is quicklisp-ready.+
 
-#+BEGIN_SRC lisp
-(ql:quickload "with-c-syntax")
-#+END_SRC
+Due to [[https://github.com/y2q-actionman/with-c-syntax/issues/15][Mathematical Errors]], this is removed at [[http://blog.quicklisp.org/2021/07/june-2021-quicklisp-dist-update-now.html][June 2021]].
+I'm now working to fix it.
 
 ** or, Loading manually
 
