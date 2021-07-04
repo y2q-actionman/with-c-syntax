@@ -17,6 +17,15 @@
 
 ;;; Macro expansion
 
+(defclass object-like-macro ()
+  ((replacement-list :initarg :replacement-list
+                     :reader object-like-macro-replacement-list)))
+
+(defclass function-like-macro ()
+  ((identifier-list :initarg :identifiers)
+   (variadicp :initarg :variadicp)
+   (replacement-list :initarg :replacement-list)))
+
 (defun preprocessor-macro-exists-p (macro-alist symbol)
   (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
       (string= symbol '|va_arg|)
@@ -56,6 +65,7 @@
 		        (when (minusp (decf nest-level))
 			  (push j lis-head)
 			  (loop-finish))))
+                 ;; TODO: treat :end-of-preprocessor-macro-scope
               collect j)
           into macro-args
         finally
@@ -77,15 +87,15 @@
                 nil))))
   (let* ((pp-macro-entry (assoc token macro-alist))
          (pp-macro (cdr pp-macro-entry)))
-    (typecase pp-macro
-      (function                         ; Function-like
+    (etypecase pp-macro
+      (function-like-macro
        ;; FIXME
        (multiple-value-bind (macro-arg new-lis)
            (collect-preprocessor-macro-arguments rest-token-list)
          (values (list (apply pp-macro macro-arg))
                  new-lis)))
-      (t                                ; Object-like
-       (values pp-macro
+      (object-like-macro
+       (values (object-like-macro-replacement-list pp-macro)
                rest-token-list
                pp-macro-entry)))))
 
@@ -579,9 +589,30 @@ returns NIL."
            (function-like-p (eql (first directive-token-list) 'with-c-syntax.punctuator:|(|)))
       (cond
         (function-like-p
-         (error "TODO: function-like macro"))
+         (let* ((variadicp nil)
+                (identifier-list
+                  (loop
+                    for i = (pop-preprocessor-directive-token directive-token-list directive-symbol)
+                    while (and (symbolp i)
+                               (string= i ")"))
+                    if (and (symbolp i)
+                            (string= i "..."))
+                      do (setf variadicp t)
+                    else if variadicp
+                           do (error 'preprocess-error
+                                     :format-control "Macro identifier-list has an extra identifier '~A' after '...'"
+                                     :format-arguments (list i))
+                    else
+                      collect i))
+                (macro-obj
+                  (make-instance 'function-like-macro
+                                 :identifier-list identifier-list :variadicp variadicp
+                                 :replacement-list directive-token-list)))
+           (add-local-preprocessor-macro state identifier macro-obj)))
         (t
-         (add-local-preprocessor-macro state identifier directive-token-list))))))
+         (add-local-preprocessor-macro state identifier
+                                       (make-instance 'object-like-macro
+                                                      :replacement-list directive-token-list)))))))
 
 ;;; #undef
 
@@ -858,7 +889,7 @@ returns NIL."
                    (push (cons (car pp-macro-cons) :macro-suppressed)
                          macro-alist))
                  (setf token-list
-                       (append expansion-list
+                       (append expansion-list ; Rescan the expansion results.
                                (if pp-macro-cons
                                    (list :end-of-preprocessor-macro-scope))
                                rest-tokens))))
