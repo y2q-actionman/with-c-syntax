@@ -5,44 +5,47 @@
  If this is true, replacement occurs but `with-c-syntax-style-warning' is signalled.
  If this is `:no-warn', replacement occurs and the style-warning is not signalled.")
 
-;;; Preprocessor macro.
+;;; Special preprocessor macro definitions
 
 (defpackage #:with-c-syntax.preprocessor-special-macro
   (:use)
   (:export #:__DATE__ #:__FILE__ #:__LINE__ #:__TIME__))
 
+(define-constant +pp-date-month-name+
+    #("(bad month)"
+      "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec")
+  :test 'equalp
+  :documentation "A vector of month names following asctime() manner. Used by __DATE__")
+
+(defun with-c-syntax.preprocessor-special-macro:__DATE__ (&optional state)
+  (declare (ignore state))
+  (multiple-value-bind (_second _minute _hour date month year)
+      (get-decoded-time)
+    (declare (ignore _second _minute _hour))
+    (format nil "~A ~2,' D ~4,'0D"
+            (aref +pp-date-month-name+ month) date year)))
+
+(defun with-c-syntax.preprocessor-special-macro:__FILE__ (state)
+  (with-preprocessor-state-slots (state)
+    (if file-pathname
+        (namestring file-pathname))))
+
+(defun with-c-syntax.preprocessor-special-macro:__LINE__ (state)
+  (with-preprocessor-state-slots (state)
+    line-number))
+
+(defun with-c-syntax.preprocessor-special-macro:__TIME__ (&optional state)
+  (declare (ignore state))
+  (multiple-value-bind (second minute hour)
+      (get-decoded-time)
+    (format nil "~2,'0d:~2,'0d:~2,'0d" hour minute second)))
+
 (defun |va_arg| (ap type)           ; FIXME: Define this in <stddef.h>
   (declare (ignore type))           ; TODO: FIXME: use this.
   `(pop ,(first ap)))
 
-;;; Macro expansion
-
-(defclass object-like-macro ()
-  ((replacement-list :initarg :replacement-list
-                     :reader object-like-macro-replacement-list)))
-
-(defclass function-like-macro ()
-  ((identifier-list :initarg :identifiers)
-   (variadicp :initarg :variadicp)
-   (replacement-list :initarg :replacement-list)))
-
-(defun preprocessor-macro-exists-p (macro-alist symbol)
-  (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
-      (string= symbol '|va_arg|)
-      (when-let ((entry (assoc symbol macro-alist)))
-        (not (eql (cdr entry) :macro-suppressed)))))
-
-(defun remove-whitespace-marker (token-list)
-  (remove +whitespace-marker+ token-list))
-
-(defun token-equal-p (token name)
-  (and (symbolp token)
-       (string= token name)))
-
-(define-condition incompleted-macro-arguments-error (preprocess-error)
-  ((token-list :initarg :token-list)))
-
-(defun collect-preprocessor-macro-arguments (lis-head)
+(defun collect-preprocessor-macro-arguments-old (lis-head)
+  "pLeft only for `|va_arg|'."
   (unless lis-head
     (error 'incompleted-macro-arguments-error :token-list lis-head))
   (let ((begin (pop-preprocessor-directive-token lis-head '<macro-expansion>)))
@@ -71,7 +74,117 @@
         finally
            (error 'incompleted-macro-arguments-error :token-list lis-head)))
 
+;;; Preprocessor macro expansion
+
+(defclass object-like-macro ()
+  ;; TODO: add name
+  ((replacement-list :initarg :replacement-list
+                     :reader object-like-macro-replacement-list)))
+
+(defclass function-like-macro ()
+  ;; TODO: add name
+  ((identifier-list :initarg :identifiers
+                    :reader function-like-macro-identifier-list)
+   (variadicp :initarg :variadicp
+              :reader function-like-macro-variadicp)
+   (replacement-list :initarg :replacement-list
+                     :reader function-like-macro-replacement-list)))
+
+(defun preprocessor-macro-exists-p (macro-alist symbol)
+  (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
+      (string= symbol '|va_arg|)
+      (when-let ((entry (assoc symbol macro-alist)))
+        (not (eql (cdr entry) :macro-suppressed)))))
+
+(defun remove-whitespace-marker (token-list)
+  (remove +whitespace-marker+ token-list))
+
+(defun token-equal-p (token name)
+  (and (symbolp token)
+       (string= token name)))
+
+(define-condition incompleted-macro-arguments-error (preprocess-error)
+  ((token-list :initarg :token-list)))
+
+(defstruct pp-macro-argument
+  (identifier)
+  (token-list)       ; Still holds `:end-of-preprocessor-macro-scope'.
+  (macro-alist))     ; The context for macro expansion.
+
+(defun collect-preprocessor-macro-arguments (macro-definition token-list macro-alist)
+  (unless token-list
+    (error 'incompleted-macro-arguments-error :token-list token-list))
+  (let ((begin
+          ;; The previous check for TOKEN-LIST causes dead path.
+          (locally #+sbcl(declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
+            (pop-preprocessor-directive-token token-list '<macro-expansion>))))
+    (unless (token-equal-p begin "(")
+      (error 'preprocess-error
+	     :format-control "A symbol (~S) found between a preprocessor macro and the first '('"
+	     :format-arguments (list begin))))
+  (loop
+    with identifier-list = (function-like-macro-identifier-list macro-definition)
+    with variadicp = (function-like-macro-variadicp macro-definition)
+
+    for i = (pop token-list) ; Use `cl:pop' for preserving `+whitespace-marker+'.
+    while i
+    if (token-equal-p i ")")
+      return (values macro-arg-bindings token-list)
+    collect (loop
+              with identifier
+                = (or (pop identifier-list)
+                      (if variadicp
+                          (gensym)
+                          (error 'preprocess-error
+                                 :format-control "Too many arguments for macro ~A"
+                                 :format-arguments (list macro-definition))))
+              with count-end-of-preprocessor-macro-scope = 0
+              with nest-level of-type fixnum = 0
+              for j = i then (pop token-list)
+              do (switch (j :test 'token-equal-p)
+                   (:end-of-preprocessor-macro-scope
+                    (incf count-end-of-preprocessor-macro-scope))
+                   ("("
+                    (incf nest-level))
+                   (","
+                    (loop-finish))
+                   (")"
+                    (when (minusp (decf nest-level))
+	              (push j token-list)
+	              (loop-finish))))
+              collect j into tokens
+              finally
+                 (let ((pp-macro-arg
+                         (make-pp-macro-argument :identifier identifier
+                                                 :token-list tokens
+                                                 :macro-alist macro-alist)))
+                   (setf macro-alist
+                         (nthcdr count-end-of-preprocessor-macro-scope macro-alist))
+                   (return pp-macro-arg)))
+      into macro-arg-bindings
+    finally
+       (error 'incompleted-macro-arguments-error :token-list token-list)))
+
+(defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
+  "See `expand-preprocessor-macro'"
+  ;; Collect arguments.
+  (multiple-value-bind (macro-arg tail-of-rest-token-list)
+      (collect-preprocessor-macro-arguments macro-definition rest-token-list macro-alist)
+    ;; TODO
+    (error "TODO")
+    (values nil                         ; FIXME
+            tail-of-rest-token-list)))
+
 (defun expand-preprocessor-macro (token rest-token-list macro-alist pp-state)
+  "Expand preprocessor macro named TOKEN. If it is a function-like
+macro, its arguments are taken from REST-TOKEN-LIST. MACRO-ALIST is an
+alist of preprocessor macro definitions.  PP-STATE is a
+`preprocessor-state' object, used for expanding special macros.
+
+ Returns three values:
+ 1. A list of tokens made by expansion.
+ 2. A list, tail of REST-TOKEN-LIST, left after collecting function-like macro arguments.
+ 3. A cons of MACRO-ALIST which is used here. "
   (when-let ((special-macro
               (find-symbol (symbol-name token) '#:with-c-syntax.preprocessor-special-macro)))
     (return-from expand-preprocessor-macro
@@ -80,7 +193,7 @@
               nil)))
   (when (string= token '|va_arg|)	; FIXME
     (multiple-value-bind (macro-arg new-lis)
-        (collect-preprocessor-macro-arguments rest-token-list)
+        (collect-preprocessor-macro-arguments-old rest-token-list)
       (return-from expand-preprocessor-macro
         (values (list (apply #'|va_arg| macro-arg))
                 new-lis
@@ -89,11 +202,11 @@
          (pp-macro (cdr pp-macro-entry)))
     (etypecase pp-macro
       (function-like-macro
-       ;; FIXME
-       (multiple-value-bind (macro-arg new-lis)
-           (collect-preprocessor-macro-arguments rest-token-list)
-         (values (list (apply pp-macro macro-arg))
-                 new-lis)))
+       (multiple-value-bind (expansion tail-token-list)
+           (expand-function-like-macro pp-macro rest-token-list macro-alist pp-state)
+         (values expansion
+                 tail-token-list
+                 pp-macro-entry)))
       (object-like-macro
        (values (object-like-macro-replacement-list pp-macro)
                rest-token-list
@@ -772,37 +885,6 @@ returns NIL."
         ;; TODO: #pragma once
         (otherwise
          (process-unknown-pragma))))))
-
-;;; Special preprocessor macro definitions
-
-(define-constant +pp-date-month-name+
-    #("(bad month)"
-      "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec")
-  :test 'equalp
-  :documentation "A vector of month names following asctime() manner. Used by __DATE__")
-
-(defun with-c-syntax.preprocessor-special-macro:__DATE__ (&optional state)
-  (declare (ignore state))
-  (multiple-value-bind (_second _minute _hour date month year)
-      (get-decoded-time)
-    (declare (ignore _second _minute _hour))
-    (format nil "~A ~2,' D ~4,'0D"
-            (aref +pp-date-month-name+ month) date year)))
-
-(defun with-c-syntax.preprocessor-special-macro:__FILE__ (state)
-  (with-preprocessor-state-slots (state)
-    (if file-pathname
-        (namestring file-pathname))))
-
-(defun with-c-syntax.preprocessor-special-macro:__LINE__ (state)
-  (with-preprocessor-state-slots (state)
-    line-number))
-
-(defun with-c-syntax.preprocessor-special-macro:__TIME__ (&optional state)
-  (declare (ignore state))
-  (multiple-value-bind (second minute hour)
-      (get-decoded-time)
-    (format nil "~2,'0d:~2,'0d:~2,'0d" hour minute second)))
 
 ;;; Preprocessor loop helpers.
 
