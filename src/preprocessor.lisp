@@ -109,7 +109,8 @@
 (defstruct pp-macro-argument
   (identifier)
   (token-list)       ; Still holds `:end-of-preprocessor-macro-scope'.
-  (macro-alist))     ; The context for macro expansion.
+  (token-list-expansion nil)
+  (macro-alist))      ; The context for macro expansion.
 
 (defun collect-preprocessor-macro-arguments (macro-definition token-list macro-alist)
   (unless token-list
@@ -165,12 +166,36 @@
     finally
        (error 'incompleted-macro-arguments-error :token-list token-list)))
 
+(defun expand-macro-arguments (pp-macro-argument pp-state)
+  (let ((token-list (pp-macro-argument-token-list pp-macro-argument))
+        (macro-alist (pp-macro-argument-macro-alist pp-macro-argument))
+        (all-expansions nil))
+    (loop for head = (pop token-list)
+       while (and head token-list)
+       do (cond
+            ((eql head :end-of-preprocessor-macro-scope)
+             (pop macro-alist))
+            ((and (symbolp head)
+                  (preprocessor-macro-exists-p macro-alist head))
+             (multiple-value-bind (expansion rest-tokens)
+                 (expand-preprocessor-macro head token-list macro-alist pp-state)
+               (setf all-expansions
+                     (append all-expansions expansion)
+                     token-list rest-tokens)))
+            (t
+             (setf all-expansions
+                   (append all-expansions (list head))))))
+    (setf (pp-macro-argument-token-list-expansion pp-macro-argument)
+          all-expansions)))
+
 (defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
   "See `expand-preprocessor-macro'"
   ;; Collect arguments.
   (multiple-value-bind (macro-arg tail-of-rest-token-list)
       (collect-preprocessor-macro-arguments macro-definition rest-token-list macro-alist)
-    ;; TODO
+    (dolist (marg macro-arg)
+      (expand-macro-arguments marg pp-state))
+    ;; TODO: body
     (error "TODO")
     (values nil                         ; FIXME
             tail-of-rest-token-list)))
