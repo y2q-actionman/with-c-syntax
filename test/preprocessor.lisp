@@ -55,9 +55,9 @@
     `#6#
     }#))
 
-(test test-collect-preprocessor-macro-arguments
+(test test-collect-preprocessor-macro-arguments-old
   (flet ((cpma (x)
-	   (with-c-syntax.core::collect-preprocessor-macro-arguments x)))
+	   (with-c-syntax.core::collect-preprocessor-macro-arguments-old x)))
     (is (equal (cpma '(|(| 1 2 3 |)|))
 	       '((1 2 3))))
     (is (equal (cpma '(|(| 1 |,| 2 |,| 3 |)|))
