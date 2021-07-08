@@ -224,6 +224,8 @@
                       (error 'preprocess-error
                              :format-control "# operator argument '~A' is not a macro parameter."
                              :format-arguments (list next-token)))
+                    (when (eql (first macro-replacement-list) +whitespace-marker+)
+                      (pop macro-replacement-list))
                     (pop macro-replacement-list)
                  and collect (with-output-to-string (out)
                                (loop with marg = (cdr (assoc next-token macro-arg-alist))
