@@ -190,15 +190,59 @@
 
 (defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
   "See `expand-preprocessor-macro'"
-  ;; Collect arguments.
-  (multiple-value-bind (macro-arg tail-of-rest-token-list)
-      (collect-preprocessor-macro-arguments macro-definition rest-token-list macro-alist)
-    (dolist (marg macro-arg)
-      (expand-macro-arguments marg pp-state))
-    ;; TODO: body
-    (error "TODO")
-    (values nil                         ; FIXME
-            tail-of-rest-token-list)))
+  (let ((macro-arg-alist
+          ;; Collect arguments.
+          (multiple-value-bind (macro-arg-list tail-of-rest-token-list)
+              (collect-preprocessor-macro-arguments macro-definition rest-token-list macro-alist)
+            ;; Pop used tokens from rest-token-list
+            (setf rest-token-list tail-of-rest-token-list)
+            ;; Expand arguments
+            (loop for marg in macro-arg-list
+                  do (expand-macro-arguments marg pp-state)
+                  collect (cons (pp-macro-argument-identifier marg) marg))))
+        (macro-replacement-list (function-like-macro-replacement-list macro-definition)))
+    (when (function-like-macro-variadicp macro-definition)
+      (error "TODO: variadicp"))
+    ;; Expand body
+    (loop for token = (pop macro-replacement-list)
+          as macro-arg = (if (symbolp token)
+                             (assoc token macro-arg-alist))
+          as next-token = (let ((fst (first macro-replacement-list)))
+                            (if (eql fst +whitespace-marker+)
+                                (second macro-replacement-list)
+                                fst)) 
+          while (and token macro-replacement-list)
+
+          if (token-equal-p next-token "##") ; Concatination.
+            do (error "TODO: ## concat")
+          else if (token-equal-p token "#") ; Stringify.
+                 do (unless (symbolp next-token)
+                      (error 'preprocess-error
+                             :format-control "# operator is used to bad argument: '~A'"
+                             :format-arguments (list next-token)))
+                    (unless (assoc next-token macro-arg-alist)
+                      (error 'preprocess-error
+                             :format-control "# operator argument '~A' is not a macro parameter."
+                             :format-arguments (list next-token)))
+                    (pop macro-replacement-list)
+                 and collect (with-output-to-string (out)
+                               (loop with marg = (cdr (assoc next-token macro-arg-alist))
+                                     for i in (pp-macro-argument-token-list-expansion marg)
+                                     if (eql i +whitespace-marker+)
+                                       do (write-char #\space out)
+                                     else
+                                       do (prin1 i out)))
+                       into expand-body
+          else if macro-arg             ; Replacement
+                 append (pp-macro-argument-token-list-expansion (cdr macro-arg))
+                   into expand-body
+          else
+            ;; Other tokens, including `+whitespace-marker+'.
+            collect token into expand-body
+
+          finally
+             (return (values expand-body
+                             rest-token-list)))))
 
 (defun expand-preprocessor-macro (token rest-token-list macro-alist pp-state)
   "Expand preprocessor macro named TOKEN. If it is a function-like
