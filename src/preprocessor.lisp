@@ -105,9 +105,13 @@
   (when (va-args-identifier-p (function-like-macro-name macro-definition))
     (error 'preprocess-error
 	   :format-control "Macro name '__VA_ARGS__' is now allowed as an user defined macro."))
-  (when (some #'va-args-identifier-p (function-like-macro-identifier-list macro-definition))
-    (error 'preprocess-error
-	   :format-control "Function-like-macro cannot have '__VA_ARGS__' in its identifier-list."))
+  (let ((identifier-list (function-like-macro-identifier-list macro-definition)))
+    (when (some #'va-args-identifier-p identifier-list)
+      (error 'preprocess-error
+	     :format-control "Function-like-macro cannot have '__VA_ARGS__' in its identifier-list."))
+    (unless (length= identifier-list (remove-duplicates identifier-list))
+      (error 'preprocess-error
+	     :format-control "Function-like-macro has duplicated parameter names.")))
   (when (and (not (function-like-macro-variadicp macro-definition))
              (some #'va-args-identifier-p (function-like-macro-replacement-list macro-definition)))
     (error 'preprocess-error
