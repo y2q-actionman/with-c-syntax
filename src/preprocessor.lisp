@@ -188,6 +188,53 @@
     (setf (pp-macro-argument-token-list-expansion pp-macro-argument)
           all-expansions)))
 
+(defun expand-macro-replacement-list (macro-arg-alist replacement-list
+                                      rest-token-list macro-alist pp-state) ; FIXME: required?
+  (when (token-equal-p (first replacement-list) "##")
+    (error 'preprocess-error
+           :format-control "The first operand of '##' does not exists."))
+  (loop for token = (pop replacement-list)
+        as macro-arg = (if (symbolp token)
+                           (assoc token macro-arg-alist))
+        as next-token = (let ((fst (first replacement-list)))
+                          (if (eql fst +whitespace-marker+)
+                              (second replacement-list)
+                              fst)) 
+        while (or token replacement-list)
+
+        if (token-equal-p next-token "##") ; Concatination.
+          do (error "TODO: ## concat")
+        else if (token-equal-p token "#") ; Stringify.
+               do (unless (symbolp next-token)
+                    (error 'preprocess-error
+                           :format-control "# operator is used to bad argument: '~A'"
+                           :format-arguments (list next-token)))
+                  (unless (assoc next-token macro-arg-alist)
+                    (error 'preprocess-error
+                           :format-control "# operator argument '~A' is not a macro parameter."
+                           :format-arguments (list next-token)))
+                  (when (eql (first replacement-list) +whitespace-marker+)
+                    (pop replacement-list))
+                  (pop replacement-list)
+               and collect (with-output-to-string (out)
+                             (loop with marg = (cdr (assoc next-token macro-arg-alist))
+                                   for i in (pp-macro-argument-token-list-expansion marg)
+                                   if (eql i +whitespace-marker+)
+                                     do (write-char #\space out)
+                                   else
+                                     do (prin1 i out)))
+                     into expand-body
+        else if macro-arg               ; Replacement
+               append (pp-macro-argument-token-list-expansion (cdr macro-arg))
+                 into expand-body
+        else
+          ;; Other tokens, including `+whitespace-marker+'.
+          collect token into expand-body
+
+        finally
+           (return (values expand-body
+                           rest-token-list))))
+
 (defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
   "See `expand-preprocessor-macro'"
   (let ((macro-arg-alist
@@ -199,52 +246,15 @@
             ;; Expand arguments
             (loop for marg in macro-arg-list
                   do (expand-macro-arguments marg pp-state)
-                  collect (cons (pp-macro-argument-identifier marg) marg))))
-        (macro-replacement-list (function-like-macro-replacement-list macro-definition)))
-    (when (function-like-macro-variadicp macro-definition)
-      (error "TODO: variadicp"))
-    ;; Expand body
-    (loop for token = (pop macro-replacement-list)
-          as macro-arg = (if (symbolp token)
-                             (assoc token macro-arg-alist))
-          as next-token = (let ((fst (first macro-replacement-list)))
-                            (if (eql fst +whitespace-marker+)
-                                (second macro-replacement-list)
-                                fst)) 
-          while (and token macro-replacement-list)
+                  collect (cons (pp-macro-argument-identifier marg) marg)))))
+    (expand-macro-replacement-list macro-arg-alist
+                                   (function-like-macro-replacement-list macro-definition)
+                                   rest-token-list macro-alist pp-state)))
 
-          if (token-equal-p next-token "##") ; Concatination.
-            do (error "TODO: ## concat")
-          else if (token-equal-p token "#") ; Stringify.
-                 do (unless (symbolp next-token)
-                      (error 'preprocess-error
-                             :format-control "# operator is used to bad argument: '~A'"
-                             :format-arguments (list next-token)))
-                    (unless (assoc next-token macro-arg-alist)
-                      (error 'preprocess-error
-                             :format-control "# operator argument '~A' is not a macro parameter."
-                             :format-arguments (list next-token)))
-                    (when (eql (first macro-replacement-list) +whitespace-marker+)
-                      (pop macro-replacement-list))
-                    (pop macro-replacement-list)
-                 and collect (with-output-to-string (out)
-                               (loop with marg = (cdr (assoc next-token macro-arg-alist))
-                                     for i in (pp-macro-argument-token-list-expansion marg)
-                                     if (eql i +whitespace-marker+)
-                                       do (write-char #\space out)
-                                     else
-                                       do (prin1 i out)))
-                       into expand-body
-          else if macro-arg             ; Replacement
-                 append (pp-macro-argument-token-list-expansion (cdr macro-arg))
-                   into expand-body
-          else
-            ;; Other tokens, including `+whitespace-marker+'.
-            collect token into expand-body
-
-          finally
-             (return (values expand-body
-                             rest-token-list)))))
+(defun expand-object-like-macro (macro-definition rest-token-list macro-alist pp-state)
+  (expand-macro-replacement-list nil
+                                 (object-like-macro-replacement-list macro-definition)
+                                 rest-token-list macro-alist pp-state))
 
 (defun expand-preprocessor-macro (token rest-token-list macro-alist pp-state)
   "Expand preprocessor macro named TOKEN. If it is a function-like
@@ -279,9 +289,11 @@ alist of preprocessor macro definitions.  PP-STATE is a
                  tail-token-list
                  pp-macro-entry)))
       (object-like-macro
-       (values (object-like-macro-replacement-list pp-macro)
-               rest-token-list
-               pp-macro-entry)))))
+       (multiple-value-bind (expansion tail-token-list)
+           (expand-object-like-macro pp-macro rest-token-list macro-alist pp-state)
+         (values expansion
+                 tail-token-list
+                 pp-macro-entry))))))
 
 
 ;;; Identifier split.
