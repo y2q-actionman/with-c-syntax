@@ -82,7 +82,7 @@
                      :reader object-like-macro-replacement-list)))
 
 (defun va-args-identifier-p (token)
-  (token-equal-p token "__VA_ARGS__"))
+  (token-equal-p token :__VA_ARGS__))
 
 (defmethod cl:initialize-instance :after ((macro-definition object-like-macro) &rest args)
   (when (va-args-identifier-p (object-like-macro-name macro-definition))
@@ -139,8 +139,6 @@
   (token-list-expansion nil)
   (macro-alist))      ; The context for macro expansion.
 
-;;; TODo: __VA_ARGS__ の対応する引数は 1つ以上なくてはならない。
-
 (defun collect-preprocessor-macro-arguments (macro-definition token-list macro-alist)
   (unless token-list
     (error 'incompleted-macro-arguments-error :token-list token-list))
@@ -153,47 +151,69 @@
 	     :format-control "A symbol (~S) found between a preprocessor macro and the first '('"
 	     :format-arguments (list begin))))
   (loop
+    with macro-arg-vector = (make-array 1 :adjustable t :fill-pointer 0)
     with identifier-list = (function-like-macro-identifier-list macro-definition)
     with variadicp = (function-like-macro-variadicp macro-definition)
+    with va-args-arg = (if variadicp
+                           (make-pp-macro-argument :identifier :__VA_ARGS__
+                                                   :token-list nil
+                                                   :macro-alist macro-alist))
+    with variadic-arg-count = 0
 
     for i = (pop token-list) ; Use `cl:pop' for preserving `+whitespace-marker+'.
-    while i
+    unless i
+      do (error 'incompleted-macro-arguments-error :token-list token-list)
     if (token-equal-p i ")")
-      return (values macro-arg-bindings token-list)
-    collect (loop
-              with identifier
-                = (or (pop identifier-list)
-                      (if variadicp
-                          (gensym)
-                          (error 'preprocess-error
-                                 :format-control "Too many arguments for macro ~A"
-                                 :format-arguments (list macro-definition))))
-              with count-end-of-preprocessor-macro-scope = 0
-              with nest-level of-type fixnum = 0
-              for j = i then (pop token-list)
-              do (switch (j :test 'token-equal-p)
-                   (:end-of-preprocessor-macro-scope
-                    (incf count-end-of-preprocessor-macro-scope))
-                   ("("
-                    (incf nest-level))
-                   (","
-                    (loop-finish))
-                   (")"
-                    (when (minusp (decf nest-level))
-	              (push j token-list)
-	              (loop-finish))))
-              collect j into tokens
-              finally
-                 (let ((pp-macro-arg
-                         (make-pp-macro-argument :identifier identifier
-                                                 :token-list tokens
-                                                 :macro-alist macro-alist)))
-                   (setf macro-alist
-                         (nthcdr count-end-of-preprocessor-macro-scope macro-alist))
-                   (return pp-macro-arg)))
-      into macro-arg-bindings
+      do (loop-finish)
+    do (let* ((identifier (or (pop identifier-list)
+                              (if variadicp
+                                  :__VA_ARGS__
+                                  (error 'preprocess-error
+                                         :format-control "Too many arguments for macro ~A"
+                                         :format-arguments (list macro-definition)))))
+              (marg
+                (loop
+                  named collect-one-arg
+                  with count-end-of-preprocessor-macro-scope = 0
+                  with nest-level of-type fixnum = 0
+                  for j = i then (pop token-list)
+                  do (switch (j :test 'token-equal-p)
+                       (:end-of-preprocessor-macro-scope
+                        (incf count-end-of-preprocessor-macro-scope))
+                       ("("
+                        (incf nest-level))
+                       (","
+                        (loop-finish))
+                       (")"
+                        (when (minusp (decf nest-level))
+	                  (push j token-list)
+	                  (loop-finish))))
+                  collect j into tokens
+                  finally
+                     (let ((pp-macro-arg
+                             (make-pp-macro-argument :identifier identifier
+                                                     :token-list tokens
+                                                     :macro-alist macro-alist)))
+                       (setf macro-alist
+                             (nthcdr count-end-of-preprocessor-macro-scope macro-alist))
+                       (return-from collect-one-arg pp-macro-arg)))))
+         (cond
+           ((eq identifier :__VA_ARGS__)
+            (incf variadic-arg-count)
+            (appendf (pp-macro-argument-token-list va-args-arg)
+                     (pp-macro-argument-token-list marg))
+            (setf (pp-macro-argument-macro-alist va-args-arg)
+                  (pp-macro-argument-macro-alist marg)))
+           (t
+            (vector-push-extend marg macro-arg-vector))))
     finally
-       (error 'incompleted-macro-arguments-error :token-list token-list)))
+       (when variadicp
+         (when (zerop variadic-arg-count)
+           (warn 'with-c-syntax-style-warning
+                 :message "Variadic macro does not have any arguments. __VA_ARGS__ bound to nil."))
+         (vector-push-extend va-args-arg macro-arg-vector))
+       (return
+         (values macro-arg-vector token-list))))
 
 (defun expand-macro-arguments (pp-macro-argument pp-state)
   (let ((token-list (pp-macro-argument-token-list pp-macro-argument))
@@ -267,13 +287,13 @@
 (defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
   "See `expand-preprocessor-macro'"
   ;; Collect arguments.
-  (multiple-value-bind (macro-arg-list tail-of-rest-token-list)
+  (multiple-value-bind (macro-arg-vector tail-of-rest-token-list)
       (collect-preprocessor-macro-arguments macro-definition rest-token-list macro-alist)
     ;; Pop used tokens from rest-token-list
     (setf rest-token-list tail-of-rest-token-list)
     ;; Expand arguments
     (let ((macro-arg-alist
-            (loop for marg in macro-arg-list
+            (loop for marg across macro-arg-vector
                   do (expand-macro-arguments marg pp-state)
                   collect (cons (pp-macro-argument-identifier marg) marg))))
       (expand-macro-replacement-list macro-arg-alist
@@ -819,6 +839,7 @@ returns NIL."
                 (identifier-list
                   (loop
                     for i = (pop-preprocessor-directive-token directive-token-list directive-symbol)
+                    ;; TODO: check i is a symbol or not.
                     while (and (symbolp i)
                                (string= i ")"))
                     if (and (symbolp i)
