@@ -77,18 +77,41 @@
 ;;; Preprocessor macro expansion
 
 (defclass object-like-macro ()
-  ;; TODO: add name
-  ((replacement-list :initarg :replacement-list
+  ((name :initarg :name :reader object-like-macro-name)
+   (replacement-list :initarg :replacement-list
                      :reader object-like-macro-replacement-list)))
 
+(defun va-args-identifier-p (token)
+  (token-equal-p token "__VA_ARGS__"))
+
+(defmethod cl:initialize-instance :after ((macro-definition object-like-macro) &rest args)
+  (when (va-args-identifier-p (object-like-macro-name macro-definition))
+    (error 'preprocess-error
+	   :format-control "Macro name '__VA_ARGS__' is now allowed as an user defined macro."))
+  (when (some #'va-args-identifier-p (object-like-macro-replacement-list macro-definition))
+    (error 'preprocess-error
+	   :format-control "Object-like-macro cannot have '__VA_ARGS__' in its replacement-list.")))
+
 (defclass function-like-macro ()
-  ;; TODO: add name
-  ((identifier-list :initarg :identifiers
+  ((name :initarg :name :reader function-like-macro-name)
+   (identifier-list :initarg :identifiers
                     :reader function-like-macro-identifier-list)
    (variadicp :initarg :variadicp
               :reader function-like-macro-variadicp)
    (replacement-list :initarg :replacement-list
                      :reader function-like-macro-replacement-list)))
+
+(defmethod cl:initialize-instance :after ((macro-definition function-like-macro) &rest args)
+  (when (va-args-identifier-p (function-like-macro-name macro-definition))
+    (error 'preprocess-error
+	   :format-control "Macro name '__VA_ARGS__' is now allowed as an user defined macro."))
+  (when (some #'va-args-identifier-p (function-like-macro-identifier-list macro-definition))
+    (error 'preprocess-error
+	   :format-control "Function-like-macro cannot have '__VA_ARGS__' in its identifier-list."))
+  (when (and (not (function-like-macro-variadicp macro-definition))
+             (some #'va-args-identifier-p (function-like-macro-replacement-list macro-definition)))
+    (error 'preprocess-error
+	   :format-control "Non-variadic Function-like-macro cannot have '__VA_ARGS__' in its replacement-list.")))
 
 (defun preprocessor-macro-exists-p (macro-alist symbol)
   (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
@@ -111,6 +134,8 @@
   (token-list)       ; Still holds `:end-of-preprocessor-macro-scope'.
   (token-list-expansion nil)
   (macro-alist))      ; The context for macro expansion.
+
+;;; TODo: __VA_ARGS__ の対応する引数は 1つ以上なくてはならない。
 
 (defun collect-preprocessor-macro-arguments (macro-definition token-list macro-alist)
   (unless token-list
@@ -237,19 +262,19 @@
 
 (defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
   "See `expand-preprocessor-macro'"
-  (let ((macro-arg-alist
-          ;; Collect arguments.
-          (multiple-value-bind (macro-arg-list tail-of-rest-token-list)
-              (collect-preprocessor-macro-arguments macro-definition rest-token-list macro-alist)
-            ;; Pop used tokens from rest-token-list
-            (setf rest-token-list tail-of-rest-token-list)
-            ;; Expand arguments
+  ;; Collect arguments.
+  (multiple-value-bind (macro-arg-list tail-of-rest-token-list)
+      (collect-preprocessor-macro-arguments macro-definition rest-token-list macro-alist)
+    ;; Pop used tokens from rest-token-list
+    (setf rest-token-list tail-of-rest-token-list)
+    ;; Expand arguments
+    (let ((macro-arg-alist
             (loop for marg in macro-arg-list
                   do (expand-macro-arguments marg pp-state)
-                  collect (cons (pp-macro-argument-identifier marg) marg)))))
-    (expand-macro-replacement-list macro-arg-alist
-                                   (function-like-macro-replacement-list macro-definition)
-                                   rest-token-list macro-alist pp-state)))
+                  collect (cons (pp-macro-argument-identifier marg) marg))))
+      (expand-macro-replacement-list macro-arg-alist
+                                     (function-like-macro-replacement-list macro-definition)
+                                     rest-token-list macro-alist pp-state))))
 
 (defun expand-object-like-macro (macro-definition rest-token-list macro-alist pp-state)
   (expand-macro-replacement-list nil
@@ -771,6 +796,7 @@ returns NIL."
 ;;; #define
 
 (defun add-local-preprocessor-macro (state symbol value)
+  ;; TODO: check redefinition.
   (push (cons symbol value)
         (pp-state-macro-alist state)))
 
@@ -802,12 +828,14 @@ returns NIL."
                       collect i))
                 (macro-obj
                   (make-instance 'function-like-macro
+                                 :name identifier
                                  :identifier-list identifier-list :variadicp variadicp
                                  :replacement-list directive-token-list)))
            (add-local-preprocessor-macro state identifier macro-obj)))
         (t
          (add-local-preprocessor-macro state identifier
                                        (make-instance 'object-like-macro
+                                                      :name identifier
                                                       :replacement-list directive-token-list)))))))
 
 ;;; #undef
