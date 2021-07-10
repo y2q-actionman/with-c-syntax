@@ -157,7 +157,7 @@
     with va-args-arg = (if variadicp
                            (make-pp-macro-argument :identifier :__VA_ARGS__
                                                    :token-list nil
-                                                   :macro-alist macro-alist))
+                                                   :macro-alist nil))
     with variadic-arg-count = 0
 
     for i = (pop token-list) ; Use `cl:pop' for preserving `+whitespace-marker+'.
@@ -202,8 +202,9 @@
             (incf variadic-arg-count)
             (appendf (pp-macro-argument-token-list va-args-arg)
                      (pp-macro-argument-token-list marg))
-            (setf (pp-macro-argument-macro-alist va-args-arg)
-                  (pp-macro-argument-macro-alist marg)))
+            (when (null (pp-macro-argument-macro-alist va-args-arg))
+              (setf (pp-macro-argument-macro-alist va-args-arg)
+                    (pp-macro-argument-macro-alist marg))))
            (t
             (vector-push-extend marg macro-arg-vector))))
     finally
