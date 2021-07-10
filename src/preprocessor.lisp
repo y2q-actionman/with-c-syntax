@@ -201,6 +201,7 @@
            ((eq identifier :__VA_ARGS__)
             (incf variadic-arg-count)
             (appendf (pp-macro-argument-token-list va-args-arg)
+                     (list 'with-c-syntax.punctuator:\,)
                      (pp-macro-argument-token-list marg))
             (when (null (pp-macro-argument-macro-alist va-args-arg))
               (setf (pp-macro-argument-macro-alist va-args-arg)
