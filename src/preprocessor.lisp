@@ -40,40 +40,6 @@
       (get-decoded-time)
     (format nil "~2,'0d:~2,'0d:~2,'0d" hour minute second)))
 
-(defun |va_arg| (ap type)           ; FIXME: Define this in <stddef.h>
-  (declare (ignore type))           ; TODO: FIXME: use this.
-  `(pop ,(first ap)))
-
-(defun collect-preprocessor-macro-arguments-old (lis-head)
-  "pLeft only for `|va_arg|'."
-  (unless lis-head
-    (error 'incompleted-macro-arguments-error :token-list lis-head))
-  (let ((begin (pop-preprocessor-directive-token lis-head '<macro-expansion>)))
-    (unless (token-equal-p begin "(")
-      (error 'preprocess-error
-	     :format-control "A symbol (~S) found between a preprocessor macro and the first '('"
-	     :format-arguments (list begin))))
-  (loop for i = (pop lis-head)      ; Use `cl:pop' for preserving `+whitespace-marker+'.
-        while i
-        if (token-equal-p i ")")
-          return (values macro-args lis-head)
-        collect
-        (loop with nest-level of-type fixnum = 0
-	      for j = i then (pop lis-head)
-	      do (cond ((token-equal-p j "(")
-		        (incf nest-level))
-		       ((token-equal-p j ",")
-		        (loop-finish))
-		       ((token-equal-p j ")")
-		        (when (minusp (decf nest-level))
-			  (push j lis-head)
-			  (loop-finish))))
-                 ;; TODO: treat :end-of-preprocessor-macro-scope
-              collect j)
-          into macro-args
-        finally
-           (error 'incompleted-macro-arguments-error :token-list lis-head)))
-
 ;;; Preprocessor macro expansion
 
 (defun va-args-identifier-p (token)
@@ -128,7 +94,6 @@
 
 (defun preprocessor-macro-exists-p (macro-alist symbol)
   (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
-      (string= symbol '|va_arg|)
       (when-let ((entry (assoc symbol macro-alist)))
         (not (eql (cdr entry) :macro-suppressed)))))
 
@@ -399,7 +364,7 @@
              into expansion
     else if (eq token +placemaker-token+)
            do (error 'preprocess-error
-                     :format-control "Placemaker-token should not be left for macro expansion.")
+                     :format-control "Placemaker-token should not be left after macro expansion.")
     else 
       collect token into expansion
     finally
@@ -442,13 +407,6 @@ alist of preprocessor macro definitions.  PP-STATE is a
       (values (list (funcall special-macro pp-state))
               rest-token-list
               nil)))
-  (when (string= token '|va_arg|)	; FIXME
-    (multiple-value-bind (macro-arg new-lis)
-        (collect-preprocessor-macro-arguments-old rest-token-list)
-      (return-from expand-preprocessor-macro
-        (values (list (apply #'|va_arg| macro-arg))
-                new-lis
-                nil))))
   (let* ((pp-macro-entry (assoc token macro-alist))
          (pp-macro (cdr pp-macro-entry)))
     (etypecase pp-macro

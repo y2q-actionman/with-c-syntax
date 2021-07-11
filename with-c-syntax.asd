@@ -50,6 +50,7 @@
                (:module "include"
                 :serial nil
                 :components
-                ((:static-file "stddef.h")
-                 (:static-file "iso646.h"))))
+                ((:static-file "iso646.h")
+                 (:static-file "stdarg.h")
+                 (:static-file "stddef.h"))))
   :in-order-to ((test-op (test-op #:with-c-syntax-test))))
