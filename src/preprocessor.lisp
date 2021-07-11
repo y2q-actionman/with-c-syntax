@@ -239,6 +239,38 @@
     (setf (pp-macro-argument-token-list-expansion pp-macro-argument)
           all-expansions)))
 
+(defun expand-stringify-operator (token macro-arg-alist)
+  (unless (symbolp token)
+    (error 'preprocess-error
+           :format-control "# operator is used to bad argument: '~A'"
+           :format-arguments (list token)))
+  (unless (assoc token macro-arg-alist)
+    (error 'preprocess-error
+           :format-control "# operator argument '~A' is not a macro parameter."
+           :format-arguments (list token)))
+  (with-output-to-string (out)
+    (loop with marg = (cdr (assoc token macro-arg-alist))
+          with expansion = (pp-macro-argument-token-list-expansion marg)
+          for lis on (if (eql (first expansion) +whitespace-marker+)
+                         (rest expansion) ; Remove the first `+whitespace-marker+'.
+                         expansion)
+          as i = (car lis)
+          do (cond
+               ((and (eql i +whitespace-marker+)
+                     (endp (rest lis))) ; Do not print the last `+whitespace-marker+'.
+                (write-char #\space out))
+               ((characterp i)
+                (format out "'~C'" i))
+               ((stringp i)  
+                (format out "\\\"")
+                (loop for c across i
+                      if (or (char= c #\") (char= c #\\))
+                        do (write-char #\\ out) ; escape double-quote and backslash
+                      do (write-char #\\))
+                (format out "\\\""))
+               (t
+                (prin1 i out))) )))
+
 (defun expand-macro-replacement-list (macro-arg-alist replacement-list
                                       rest-token-list macro-alist pp-state) ; FIXME: required?
   (when (token-equal-p (first replacement-list) "##")
@@ -254,26 +286,13 @@
         while (or token replacement-list)
 
         if (token-equal-p next-token "##") ; Concatination.
+          ;; TODO: placemaker token for empty parameter.
           do (error "TODO: ## concat")
         else if (token-equal-p token "#") ; Stringify.
-               do (unless (symbolp next-token)
-                    (error 'preprocess-error
-                           :format-control "# operator is used to bad argument: '~A'"
-                           :format-arguments (list next-token)))
-                  (unless (assoc next-token macro-arg-alist)
-                    (error 'preprocess-error
-                           :format-control "# operator argument '~A' is not a macro parameter."
-                           :format-arguments (list next-token)))
-                  (when (eql (first replacement-list) +whitespace-marker+)
+               do (when (eql (first replacement-list) +whitespace-marker+)
                     (pop replacement-list))
                   (pop replacement-list)
-               and collect (with-output-to-string (out)
-                             (loop with marg = (cdr (assoc next-token macro-arg-alist))
-                                   for i in (pp-macro-argument-token-list-expansion marg)
-                                   if (eql i +whitespace-marker+)
-                                     do (write-char #\space out)
-                                   else
-                                     do (prin1 i out)))
+               and collect (expand-stringify-operator next-token macro-arg-alist)
                      into expand-body
         else if macro-arg               ; Replacement
                append (pp-macro-argument-token-list-expansion (cdr macro-arg))
