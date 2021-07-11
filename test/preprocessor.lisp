@@ -447,6 +447,18 @@
   (is.equal.wcs "abc"
     return "a" "b" "c" \; ))
 
+(test test-example-6.10.3.3
+  (is.equal.wcs "X ## Y"    ; Because our readtable-case is `:upcase'.
+    #2{
+    #define hash_hash # ## #
+    #define mkstr(a) # a
+    #define in_between(a) mkstr(a)
+    #define join(c, d) in_between(c hash_hash d)
+    char p[] = join(x, y); // equivalent to
+                           // char p[] = "x ## y";
+    return p;
+    }#))
+
 
 ;;; TODO: digraph tests.
 
