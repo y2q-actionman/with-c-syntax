@@ -277,25 +277,64 @@
     (t
      (unless (eql (symbol-package token1) (symbol-package token2))
        (warn 'with-c-syntax-style-warning
-             :message (format nil "## operand '~A' and '~A' belong different package. Package of the '~A' is used."
+             :message (format nil "## operand '~A' and '~A' belong different packages. The package of '~A' is used."
                               token1 token2 token1)))
      (intern-to-its-package (concatenate 'string (symbol-name token1) (symbol-name token2))
                             token1))))
 
+(defun stringify-conced-integer (int)
+  (with-standard-io-syntax
+    (princ-to-string int)))
+
 (defmethod concatenate-token ((token1 symbol) (token2 integer))
   (intern-to-its-package (concatenate 'string (symbol-name token1)
-                                      (with-standard-io-syntax
-                                        (princ-to-string token2)))
+                                      (stringify-conced-integer token2))
                          token1))
 
 (defmethod concatenate-token ((token1 integer) (token2 symbol))
   (intern-to-its-package (concatenate 'string
-                                      (with-standard-io-syntax
-                                        (princ-to-string token1))
+                                      (stringify-conced-integer token1)
                                       (symbol-name token2))
                          token2))
 
-;;; TODO: Leave preprocessing-number here.
+(defun intern-conc-pp-number (str1 str2 package)
+  (let* ((conc (concatenate 'string str1 str2)))
+    (handler-case
+        (read-preprocessing-number-from-string conc)
+      (with-c-syntax-reader-error ()
+        (intern conc package)))))
+
+(defmethod concatenate-token ((token1 integer) (token2 integer))
+  ;; Firstly I thought this can implement with numeric operatons, but
+  ;; how to treat '10 ## -10' ?
+  (intern-conc-pp-number (stringify-conced-integer token1)
+                         (stringify-conced-integer token2)
+                         *package*))
+
+(defmethod concatenate-token ((token1 preprocessing-number) (token2 preprocessing-number))
+  (intern-conc-pp-number (preprocessing-number-string token1)
+                         (preprocessing-number-string token2)
+                         *package*))
+
+(defmethod concatenate-token ((token1 preprocessing-number) (token2 symbol))
+  (intern-conc-pp-number (preprocessing-number-string token1)
+                         (symbol-name token2)
+                         (symbol-package token2)))
+
+(defmethod concatenate-token ((token1 symbol) (token2 preprocessing-number))
+  (intern-conc-pp-number (symbol-name token1)
+                         (preprocessing-number-string token2)
+                         (symbol-package token1)))
+                         
+(defmethod concatenate-token ((token1 preprocessing-number) (token2 integer))
+  (intern-conc-pp-number (preprocessing-number-string token1)
+                         (stringify-conced-integer token2)
+                         *package*))
+
+(defmethod concatenate-token ((token1 integer) (token2 preprocessing-number))
+  (intern-conc-pp-number (stringify-conced-integer token1)
+                         (preprocessing-number-string token2)
+                         *package*))
 
 (defun expand-concatenate-operator (token1 token2 macro-arg-alist)
   (flet ((expand-arg-token (token)

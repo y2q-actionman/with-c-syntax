@@ -502,6 +502,25 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                  (loop-finish)))
     (make-preprocessing-number :string num-str)))
 
+(defun read-preprocessing-number-from-string (string &key (junk-allowed nil))
+  (let* ((index 0)
+         (pp-number
+           (with-input-from-string (in string :index index)
+             (handler-bind
+                 ((with-c-syntax-reader-error
+                      (lambda (&optional _condition)
+                        (declare (ignore _condition))
+                        (when junk-allowed
+                          (return-from read-preprocessing-number-from-string
+                            (values nil index))))))
+               (read-preprocessing-number in (read-char in))))))
+    (when (and (not junk-allowed)
+               (not (length= index string)))
+      (error 'with-c-syntax-reader-error
+             :format-control "\"~A\" has extra characters for preprocessing-numbers."
+             :format-arguments (list string)))
+    (values pp-number index)))
+
 (defun read-0x-numeric-literal (stream c0)
   "Read hexadecimal numeric literal of C."
   ;; TODO: merge with `read-lonely-single-symbol'
