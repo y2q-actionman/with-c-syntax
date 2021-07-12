@@ -974,13 +974,24 @@ returns NIL."
 (defun parse-line-arguments (token-list directive-symbol &key (try-pp-macro-expand t))
   (let* ((tmp-token-list token-list)
          (line-number (pop-preprocessor-directive-token tmp-token-list directive-symbol))
+         (line-number
+           (typecase line-number
+             (preprocessing-number
+              (let ((pp-number-string (preprocessing-number-string line-number)))
+                (unless (every 'digit-char-p pp-number-string)
+                  (error 'preprocess-error
+                         :format-control "#line argument '~A' has non-digit char."
+                         :format-arguments (list pp-number-string))))
+              (parse-preprocessing-number line-number))
+             (integer line-number)
+             (otherwise nil)))
          (file-name-supplied-p
            (preprocessor-token-exists-p tmp-token-list))
          (file-name
            (if file-name-supplied-p
                (pop-preprocessor-directive-token tmp-token-list directive-symbol))))
     (cond
-      ((and (integerp line-number) ; TODO: check the line number consists of digit-sequence only.
+      ((and (integerp line-number)
             (or (null file-name)
                 (stringp file-name)
                 (pathnamep file-name))

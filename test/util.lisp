@@ -27,7 +27,7 @@
   `(signals ,condition
      (with-c-syntax () ,@Body)))
 
-(defmacro is.wcs.reader (forms-in-wcs string)
+(defmacro is.wcs.reader (expected-token-list string)
   (with-gensyms (op options body)
     `(destructuring-bind (,op ,options &body ,body)
          (let ((*readtable* (find-readtable 'with-c-syntax:with-c-syntax-readtable))
@@ -35,7 +35,13 @@
            (read-from-string ,string))
        (declare (ignore ,options))
        (assert (eq ,op 'with-c-syntax))
-       (is (equal ,forms-in-wcs ,body)))))
+       (is (tree-equal ,expected-token-list ,body
+                       :test (lambda (x y)
+                               (typecase y
+                                 (with-c-syntax.core::preprocessing-number
+                                  (equal x (with-c-syntax.core::parse-preprocessing-number y)))
+                                 (otherwise
+                                  (equal x y)))))))))
 
 (defmacro signals.wcs.reader ((&optional (condition 'with-c-syntax-error)) string)
   `(signals ,condition

@@ -553,10 +553,22 @@ O 10\\
   (signals.wcs.reader () "#2{ return '\\0223; }#"))
 
 (test test-reader-integer-bad-character
-  (signals.wcs.reader () "#2{ return 1ff; }#")
-  (signals.wcs.reader () "#2{ return 08; }#")
-  (signals.wcs.reader () "#2{ return 0xgg; }#")
-  (signals.wcs.reader () "#2{ return 0b22; }#"))
+  (signals.macroexpand.wcs ()
+    #2{
+    return 1ff;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 08;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0xgg;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0b22;
+    }#))
 
 (test test-reader-integer-suffix
   (is.equal.wcs 0
@@ -640,13 +652,34 @@ O 10\\
     }#))
 
 (test test-reader-integer-bad-suffix
-  (signals.wcs.reader () "#2{ return 0uu; }#")
-  (signals.wcs.reader () "#2{ return 0lll; }#")
-  (signals.wcs.reader () "#2{ return 1xx; }#")
-  (signals.wcs.reader () "#2{ return 0lL; }#")
-  (signals.wcs.reader () "#2{ return 0Ll; }#")
-  (signals.wcs.reader () "#2{ return 0Lul; }#")
-  (signals.wcs.reader () "#2{ return 0uuL; }#"))
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0uu;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0lll;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 1xx;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0lL;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0Ll;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0Lul;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    return 0uuL;
+    }#))
 
 (test test-reader-decimal-float
   (is.equal.wcs 1d0
@@ -681,8 +714,14 @@ O 10\\
     #2{
     return 070.;
     }#)
-  (signals.wcs.reader () "#2{ 0..0; }#")
-  (signals.wcs.reader () "#2{ 0.0.0; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0..0;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    0.0.0;
+    }#)
   (is.equal.wcs 1.3d0
     #2{
     return 1.3e0;
@@ -699,12 +738,30 @@ O 10\\
     #2{
     return 114.51E+4L;
     }#)
-  (signals.wcs.reader () "#2{ 0.0fl; }#")
-  (signals.wcs.reader () "#2{ 1f; }#")
-  (signals.wcs.reader () "#2{ -0f; }#")
-  (signals.wcs.reader () "#2{ 0.e; }#")
-  (signals.wcs.reader () "#2{ .1e+; }#")
-  (signals.wcs.reader () "#2{ .1eF; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0.0fl;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    1f;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    -0f;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    0.e;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    .1e+;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    .1eF;
+    }#)
 
   ;; Identifiers consists of decimal float chars.
   (is.equal.wcs 100d0
@@ -744,68 +801,122 @@ O 10\\
     }#))
 
 (test test-reader-hexadecimal-float
-  (signals.wcs.reader () "#2{ 0x0.0; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0x0.0;
+    }#)
   (is.equal.wcs 0d0
     #2{
     return 0x0.0p0;
     }#)
-  (signals.wcs.reader () "#2{ 0x2.; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0x2.;
+    }#)
   (is.equal.wcs (* 2d0 (expt 2 1))
     #2{
     return 0x2.p1;
     }#)
-  (signals.wcs.reader () "#2{ 0x.3f; }#")
-  (signals.wcs.reader () "#2{ .3p0f; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0x.3f;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    .3p0f;
+    }#)
   (is.equal.wcs 0.1875f0
     #2{
     return 0x.3p0f;
     }#)
-  (signals.wcs.reader () "#2{ 0x810e+0; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0x810e+0;
+    }#)
   (is.equal.wcs (float #x810 0d0)
     #2{
     return 0x810p+0;
     }#)
-  (signals.wcs.reader () "#2{ 0x2112E-93L; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0x2112E-93L;
+    }#)
   (is.equal.wcs (* 8466l0 (expt 2 -93))
     #2{
     return 0x2112P-93L;
     }#)
-  (signals.wcs.reader () "#2{ 0x0.; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0x0.;
+    }#)
   (is.equal.wcs 0d0
     #2{
     return 0x0.p0;
     }#)
-  (signals.wcs.reader () "#2{ 0x.0; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0x.0;
+    }#)
   (is.equal.wcs 0d0
     #2{
     return 0x.0p0;
     }#)
-  (signals.wcs.reader () "#2{ 0x..p0; }#")
-  (signals.wcs.reader () "#2{ 0x.0.p0; }#")
-  (signals.wcs.reader () "#2{ 0x1.3e0; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0x..p0;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    0x.0.p0;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    0x1.3e0;
+    }#)
   (is.equal.wcs 1.1875d0
     #2{
     return 0x1.3p0;
     }#)
-  (signals.wcs.reader () "#2{ 0x4.2E-10; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0x4.2E-10;
+    }#)
   (is.equal.wcs (* 4.125d0 (expt 2 -10))
     #2{
     return 0x4.2P-10;
     }#)
-  (signals.wcs.reader () "#2{ -0x.11E+2f; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    -0x.11E+2f;
+    }#)
   (is.equal.wcs (* -0.0625f0 (expt 2 2))
     #2{
     return -0x.1P+2f;
     }#)
-  (signals.wcs.reader () "#2{ -0x114.5E+14L; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    -0x114.5E+14L;
+    }#)
   (is.equal.wcs (* 276.3125L0 (expt 2 14))
     #2{
     return 0x114.5P+14L;
     }#)
-  (signals.wcs.reader () "#2{ 0x0.0p0fl; }#")
-  (signals.wcs.reader () "#2{ 0x0.p; }#")
-  (signals.wcs.reader () "#2{ 0x.1p+; }#")
-  (signals.wcs.reader () "#2{ 0x.1pF; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0x0.0p0fl;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    0x0.p;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    0x.1p+;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    0x.1pF;
+    }#)
 
   ;; Integers consists of hexadicimal float chars.
   (is.equal.wcs #x0e0
@@ -838,8 +949,14 @@ O 10\\
     xxx.p1 = 0x42.p1;
     return xxx.p1;
     }#)
-  (signals.wcs.reader () "#2{ 0x3E-3L; }#")
-  (signals.wcs.reader () "#2{ 0x3E- 3L; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    0x3E-3L;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    0x3E- 3L;
+    }#)
   (is.equal.wcs (- #x3E 3 (* (float #x3 0d0) (expt 2 -3)))
     #2{
     struct hoge {
@@ -896,9 +1013,15 @@ O 10\\
     #2{
     return -1e-1L;
     }#)
-  (signals.wcs.reader () "#2{ return -1e -1L; }#")
+  (signals.macroexpand.wcs ()
+    #2{
+    return -1e -1L;
+    }#)
   (is.equal.wcs (* -1d0 (expt 2 -1))
     #2{
     return -0x1p-1L;
     }#)
-  (signals.wcs.reader () "#2{ return -0x1p -1L; }#"))
+  (signals.macroexpand.wcs ()
+    #2{
+    return -0x1p -1L;
+    }#))

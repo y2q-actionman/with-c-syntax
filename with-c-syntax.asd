@@ -18,16 +18,15 @@
                   :depends-on ("condition"))
                  (:file "reader"        ; Translation Phase 3
                   :depends-on ("physical-source"))
-                 (:file "preprocessor"  ; Translation Phase 4,(5),6
-                  :depends-on ("condition" "util"
-                               "reader"
-                               "lexer" "compiler")) ; Uses compiler for implementing '#if'
                  (:file "struct" :depends-on ("package"))
                  (:file "typedef" :depends-on ("package"))
                  (:file "pseudo-pointer" :depends-on ("util" "condition"))
                  (:file "lexer" :depends-on ("util" "reader" "typedef"))
                  (:file "compiler"      ; Translation Phase 7
 		  :depends-on ("lexer" "struct" "typedef" "pseudo-pointer"))
+                 (:file "preprocessor"  ; Translation Phase 4,(5),6
+                  :depends-on ("util" "condition" "reader"
+                               "lexer" "compiler")) ; Uses compiler for implementing '#if'
                  (:file "with-c-syntax" ; Entry Point
                   :depends-on ("preprocessor" "compiler"))))
                (:module "libc"
