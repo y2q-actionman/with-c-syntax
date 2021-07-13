@@ -56,7 +56,6 @@
     }#))
 
 (test test-pp-if-syntax-errors
-  ;; TODO: #if
   (signals.macroexpand.wcs ()
     #2{ #if }#)
   (signals.macroexpand.wcs ()
@@ -72,7 +71,21 @@
   (signals.macroexpand.wcs ()
     #2{ #ifndef X Y }#)
   
-  ;; TODO: #elif
+  (signals.macroexpand.wcs ()
+    #2{ #elif 1 }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #ifdef X
+    #elif  // no-token
+    #endif
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #ifdef X
+    #else
+    #elif 1
+    #endif
+    }#)
   
   (signals.macroexpand.wcs ()
     #2{ #else }#)
