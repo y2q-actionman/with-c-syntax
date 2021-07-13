@@ -123,52 +123,60 @@
   (token-list-expansion nil)
   (macro-alist))      ; The context for macro expansion.
 
+(defun collect-one-macro-argument (token-list macro-alist)
+  (loop
+    with count-end-of-preprocessor-macro-scope = 0
+    with nest-level of-type fixnum = 0
+    for token-cons on token-list
+    as token = (car token-cons)
+    do (switch (token :test 'token-equal-p)
+         (:end-of-preprocessor-macro-scope
+          (incf count-end-of-preprocessor-macro-scope))
+         ("("
+          (incf nest-level))
+         (","
+          (return
+            (values (make-pp-macro-argument :token-list arg-tokens
+                                            :macro-alist macro-alist)
+                    (cdr token-cons)
+                    count-end-of-preprocessor-macro-scope)))
+         (")"
+          (cond ((zerop nest-level)
+                 (return
+                   (values (make-pp-macro-argument :token-list arg-tokens
+                                                   :macro-alist macro-alist)
+                           token-cons
+                           count-end-of-preprocessor-macro-scope)))
+                (t
+                 (decf nest-level)))))
+    collect token into arg-tokens
+    finally
+       (error 'incompleted-macro-arguments-error :token-list token-list)))
+
 (defun collect-preprocessor-macro-arguments (token-list macro-alist)
   (unless token-list
     (error 'incompleted-macro-arguments-error :token-list token-list))
   (let ((begin
           ;; The previous check for TOKEN-LIST causes dead path.
           (locally #+sbcl(declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
-            (pop-preprocessor-directive-token token-list '<macro-expansion>))))
+                   (pop-preprocessor-directive-token token-list '<macro-expansion>))))
     (unless (token-equal-p begin "(")
       (error 'preprocess-error
 	     :format-control "A symbol (~S), not '(', found after a function-like preprocessor macro."
 	     :format-arguments (list begin))))
   (loop
-    for i = (pop token-list) ; Use `cl:pop' for preserving `+whitespace-marker+'.
-    if (token-equal-p i ")")
-      do (loop-finish)
-    unless (or i token-list)
-      do (error 'incompleted-macro-arguments-error :token-list token-list)
+    for token-cons on token-list
+    if (token-equal-p (car token-cons) ")")
+      return (values macro-arg-results (cdr token-cons))
     collect
-    (loop
-      named collect-one-arg
-      with count-end-of-preprocessor-macro-scope = 0
-      with nest-level of-type fixnum = 0
-      for j = i then (pop token-list)
-      do (switch (j :test 'token-equal-p)
-           (:end-of-preprocessor-macro-scope
-            (incf count-end-of-preprocessor-macro-scope))
-           ("("
-            (incf nest-level))
-           (","
-            (loop-finish))
-           (")"
-            (when (minusp (decf nest-level))
-	      (push j token-list)
-	      (loop-finish))))
-      collect j into tokens
-      finally
-         (let ((pp-macro-arg
-                 (make-pp-macro-argument :token-list tokens
-                                         :macro-alist macro-alist)))
-           (setf macro-alist
-                 (nthcdr count-end-of-preprocessor-macro-scope macro-alist))
-           (return-from collect-one-arg pp-macro-arg)))
+    (multiple-value-bind (pp-macro-arg rest-token-list preprocessor-macro-scope-pop-count)
+        (collect-one-macro-argument token-cons macro-alist)
+      (setf token-cons (list* :loop-on-clause-dummy rest-token-list)
+            macro-alist (nthcdr preprocessor-macro-scope-pop-count macro-alist))
+      pp-macro-arg)
       into macro-arg-results
     finally
-       (return
-         (values macro-arg-results token-list))))
+       (error 'incompleted-macro-arguments-error :token-list token-list)))
 
 (defun expand-each-preprocessor-macro-in-list (token-list macro-alist pp-state)
   (loop for token-cons on token-list ; Do not use `pop-preprocessor-directive-token' for preserving `+whitespace-marker+'.
