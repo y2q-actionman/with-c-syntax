@@ -202,18 +202,18 @@
          (values (nreverse macro-arg-results) token-list))))
 
 (defun expand-each-preprocessor-macro-in-list (token-list macro-alist pp-state)
-  (loop for head = (pop token-list)
-        while (or head token-list)
-        if (and (symbolp head)
-                (preprocessor-macro-exists-p macro-alist head))
+  (loop for token-cons on token-list ; Do not use `pop-preprocessor-directive-token' for preserving `+whitespace-marker+'.
+        as token = (first token-cons)
+        if (and (symbolp token)
+                (preprocessor-macro-exists-p macro-alist token))
           append (multiple-value-bind (expansion rest-tokens)
-                     (expand-preprocessor-macro head token-list macro-alist pp-state)
-                   (setf token-list rest-tokens)
+                     (expand-preprocessor-macro token (rest token-cons) macro-alist pp-state)
+                   (setf token-cons (list* :loop-on-clause-dummy rest-tokens))
                    expansion)
-        else if (eql head :end-of-preprocessor-macro-scope)
+        else if (eql token :end-of-preprocessor-macro-scope)
                do (pop macro-alist)
         else
-          collect head))
+          collect token))
 
 (defun expand-macro-arguments (pp-macro-argument pp-state)
   (let ((token-list (pp-macro-argument-token-list pp-macro-argument))
@@ -814,8 +814,10 @@ returns NIL."
             ;;        See ISO/IEC 9899:1999, page 64.
             ;; FIXME: The number of whitespaces is not preserved. To fix it,
             ;;        I must treat whitespaces specially only after '#include' by our reader.
-            (loop for token = (pop token-list)
-                  until (and (symbolp token) (string= token ">"))
+            (loop for token-cons on token-list
+                  as token = (first token-cons)
+                  when (and (symbolp token) (string= token ">"))
+                    do (pop token-cons) (loop-finish)
                   collect
                   (cond ((eq token +whitespace-marker+)
                          #\space)
@@ -825,7 +827,7 @@ returns NIL."
                          token))
                     into h-tokens
                   finally
-                     (check-no-preprocessor-token token-list directive-symbol)
+                     (check-no-preprocessor-token token-cons directive-symbol)
                      (return (values (format nil "~{~A~}" h-tokens)
                                      :h-char-sequence))))
            ((ends-with #\> name) ; For reader Level 1 -- Like '<iso646.h>'
