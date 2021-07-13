@@ -377,38 +377,42 @@
     (error 'preprocess-error
            :format-control "The first operand of '##' does not exists."))
   (loop
-    for token = (pop replacement-list)
-    as next-token = (let ((fst (first replacement-list)))
-                      (if (eql fst +whitespace-marker+)
-                          (second replacement-list)
-                          fst))
-    as macro-arg-entry = (if after-concatenation
-                             nil
-                             (assoc token macro-arg-alist))
+    for token-cons on replacement-list
+    as token = (first token-cons)
+    as next-token-cons = (if (eql (second token-cons) +whitespace-marker+)
+                             (cddr token-cons)
+                             (cdr token-cons))
+    as macro-arg-alist-cons = (if after-concatenation
+                                  nil
+                                  (assoc token macro-arg-alist))
     as after-concatenation = nil
-    while (or token replacement-list)
-    if (token-equal-p next-token "##")  ; Concatenation.
-      do (when (eql (first replacement-list) +whitespace-marker+)
-           (pop replacement-list))
-         (assert (token-equal-p (pop replacement-list) "##"))
-      and append (let* ((token2 (pop replacement-list))
-                        (token2 (if (eql token2 +whitespace-marker+)
-                                    (pop replacement-list)
-                                    token2))
-                        (conc-result-list
-                          (expand-concatenate-operator token token2 macro-arg-alist)))
-                   (push (lastcar conc-result-list) replacement-list)
-                   (setf after-concatenation t)
-                   (butlast conc-result-list))
-            into expansion
+
+    if (token-equal-p (car next-token-cons) "##") ; Concatenation.
+      append (let* ((token2-cons (if (eql (second next-token-cons) +whitespace-marker+)
+                                     (cddr next-token-cons)
+                                     (cdr next-token-cons)))
+                    (token2 (if (endp token2-cons)
+                                (error 'preprocess-error
+                                       :format-control "The second operand of '##' does not exists.")
+                                (car token2-cons)))
+                    (conc-result-list
+                      (expand-concatenate-operator token token2 macro-arg-alist)))
+               (setf token-cons
+                     (list* :loop-on-clause-dummy
+                            (lastcar conc-result-list) ; The result is re-examined, for 'a ## b ## c'.
+                            (cdr token2-cons))) ; removes token2 
+               (setf after-concatenation t)
+               (butlast conc-result-list))
+        into expansion
     else if (token-equal-p token "#")   ; Stringify.
-           do (when (eql (first replacement-list) +whitespace-marker+)
-                (pop replacement-list))
-              (assert (eq (pop replacement-list) next-token))
-           and collect (expand-stringify-operator next-token macro-arg-alist)
+           do (when (endp next-token-cons)
+                (error 'preprocess-error
+                       :format-control "The second operand of '#' does not exists."))
+              (setf token-cons (list* :loop-on-clause-dummy (cdr next-token-cons)))
+           and collect (expand-stringify-operator (car next-token-cons) macro-arg-alist)
                  into expansion
-    else if macro-arg-entry             ; Replacement
-           append (pp-macro-argument-token-list-expansion (cdr macro-arg-entry))
+    else if macro-arg-alist-cons        ; Replacement
+           append (pp-macro-argument-token-list-expansion (cdr macro-arg-alist-cons))
              into expansion
     else if (eq token +placemaker-token+)
            do (error 'preprocess-error
@@ -416,7 +420,7 @@
     else 
       collect token into expansion
     finally
-    (return (delete-consecutive-whitespace-marker expansion))))
+       (return (delete-consecutive-whitespace-marker expansion))))
 
 (defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
   "See `expand-preprocessor-macro'"
