@@ -201,26 +201,28 @@
        (return
          (values (nreverse macro-arg-results) token-list))))
 
+(defun expand-each-preprocessor-macro-in-list (token-list macro-alist pp-state)
+  (loop for head = (pop token-list)
+        while (or head token-list)
+        if (and (symbolp head)
+                (preprocessor-macro-exists-p macro-alist head))
+          append (multiple-value-bind (expansion rest-tokens)
+                     (expand-preprocessor-macro head token-list macro-alist pp-state)
+                   (setf token-list rest-tokens)
+                   expansion)
+        else if (eql head :end-of-preprocessor-macro-scope)
+               do (pop macro-alist)
+        else
+          collect head))
+
 (defun expand-macro-arguments (pp-macro-argument pp-state)
   (let ((token-list (pp-macro-argument-token-list pp-macro-argument))
         (macro-alist (pp-macro-argument-macro-alist pp-macro-argument)))
-    (loop for head = (pop token-list)
-          while (or head token-list)
-          if (and (symbolp head)
-                  (preprocessor-macro-exists-p macro-alist head))
-            append (multiple-value-bind (expansion rest-tokens)
-                       (expand-preprocessor-macro head token-list macro-alist pp-state)
-                     (setf token-list rest-tokens)
-                     expansion)
-              into all-expansions
-          else if (eql head :end-of-preprocessor-macro-scope)
-                 do (pop macro-alist)
-          else
-            collect head into all-expansions
-          finally
-             (setf all-expansions (delete-consecutive-whitespace-marker all-expansions)
-                   (pp-macro-argument-token-list-expansion pp-macro-argument) all-expansions)
-             (return all-expansions))))
+    (let ((all-expansions
+            (expand-each-preprocessor-macro-in-list token-list macro-alist pp-state)))
+      (setf all-expansions (delete-consecutive-whitespace-marker all-expansions)
+            (pp-macro-argument-token-list-expansion pp-macro-argument) all-expansions)
+      all-expansions)))
 
 (defun expand-stringify-operator (token macro-arg-alist)
   (unless (symbolp token)
@@ -794,7 +796,7 @@ returns NIL."
 
 ;;; #include
 
-(defun parse-header-name (token-list directive-symbol &key (try-pp-macro-expand t))
+(defun parse-header-name (token-list directive-symbol try-pp-macro-expand macro-alist pp-state)
   ;; FIXME: Current header-name implementation does not recognize implementation-defined points.
   (let ((token1 (pop-preprocessor-directive-token token-list directive-symbol)))
     (cond
@@ -837,9 +839,10 @@ returns NIL."
               :format-control "'~A' does not have '>'"
               :format-arguments (list token1 directive-symbol))))))
       (try-pp-macro-expand
-       ;; FIXME: macroexpand here
-       (return-from parse-header-name
-         (parse-header-name token-list directive-symbol :try-pp-macro-expand nil)))
+       (push token1 token-list)
+       (let ((expanded (expand-each-preprocessor-macro-in-list token-list macro-alist pp-state)))
+         (return-from parse-header-name
+           (parse-header-name expanded directive-symbol nil nil nil))))
       (t
        (error 'preprocess-error
               :format-control "'~A' cannot be used for #~A"
@@ -922,7 +925,7 @@ returns NIL."
     (when if-section-skip-reason
       (return-from process-preprocessing-directive nil))
     (multiple-value-bind (header-name header-type)
-        (parse-header-name directive-token-list directive-symbol)
+        (parse-header-name directive-token-list directive-symbol t macro-alist state)
       (let* ((pathname (ecase header-type
                          (:q-char-sequence (find-include-header-file header-name))
                          (:h-char-sequence (find-include-<header>-file header-name))))
@@ -1009,7 +1012,7 @@ returns NIL."
 
 ;;; #line
 
-(defun parse-line-arguments (token-list directive-symbol &key (try-pp-macro-expand t))
+(defun parse-line-arguments (token-list directive-symbol try-pp-macro-expand macro-alist pp-state)
   (let* ((tmp-token-list token-list)
          (line-number (pop-preprocessor-directive-token tmp-token-list directive-symbol))
          (line-number
@@ -1036,9 +1039,9 @@ returns NIL."
             (not (preprocessor-token-exists-p tmp-token-list)))
        (values line-number file-name file-name-supplied-p))
       (try-pp-macro-expand
-       ;; TODO: expand macros here.
-       (return-from parse-line-arguments
-         (parse-line-arguments token-list directive-symbol :try-pp-macro-expand nil)))
+       (let ((expanded (expand-each-preprocessor-macro-in-list token-list macro-alist pp-state)))
+         (return-from parse-line-arguments
+           (parse-line-arguments expanded directive-symbol nil nil nil))))
       (t
        (error 'preprocess-error
               :format-control "#~A syntax error. Arguments are ~A"
@@ -1051,7 +1054,7 @@ returns NIL."
     (when if-section-skip-reason
       (return-from process-preprocessing-directive nil))
     (multiple-value-bind (arg-line-number arg-file-name arg-file-name-supplied-p)
-        (parse-line-arguments directive-token-list directive-symbol)
+        (parse-line-arguments directive-token-list directive-symbol t macro-alist state)
       (unless (<= 1 arg-line-number 2147483647)
         (error 'preprocess-error
                :format-control "#~A line number '~A' is out of range."
