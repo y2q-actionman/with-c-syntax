@@ -26,13 +26,12 @@
             (aref +pp-date-month-name+ month) date year)))
 
 (defun with-c-syntax.preprocessor-special-macro:__FILE__ (state)
-  (with-preprocessor-state-slots (state)
+  (let ((file-pathname (pp-state-file-pathname state)))
     (if file-pathname
         (namestring file-pathname))))
 
 (defun with-c-syntax.preprocessor-special-macro:__LINE__ (state)
-  (with-preprocessor-state-slots (state)
-    line-number))
+  (pp-state-line-number state))
 
 (defun with-c-syntax.preprocessor-special-macro:__TIME__ (&optional state)
   (declare (ignore state))
