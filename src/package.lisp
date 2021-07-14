@@ -91,6 +91,10 @@
    #:with-c-syntax-style-warning
    ;; preprocessor.lisp
    #:preprocessor
+   #:preprocessing-number
+   #:preprocessing-number-p
+   #:parse-preprocessing-number
+   #:preprocessing-number-string
    ;; pseudo-pointer.lisp
    #:pseudo-pointer
    #:with-pseudo-pointer-scope

@@ -2,7 +2,7 @@
 
 (in-readtable with-c-syntax-readtable)
 
-(test test-error-directive
+(test test-pp-error-directive
   (signals.macroexpand.wcs (with-c-syntax.core::preprocess-error)
     #2{
     #error Test
@@ -21,7 +21,7 @@
     }#)
   )
 
-(test test-null-directive
+(test test-pp-null-directive
   (is.equal.wcs #1="# and newline immediately after."
     #2{
     #
@@ -448,7 +448,7 @@
   (is.equal.wcs "abc"
     return "a" "b" "c" \; ))
 
-(test test-example-6.10.3.3
+(test test-pp-6.10.3.3-example
   (is.equal.wcs "X ## Y"    ; Because our readtable-case is `:upcase'.
     #2{
     #define hash_hash # ## #
@@ -459,6 +459,16 @@
                            // char p[] = "x ## y";
     return p;
     }#))
+
+(test test-pp-6.10.3.5-example-1
+  (is.wcs.pp.equal
+   #2{
+   #define TABSIZE 100
+   int table[TABSIZE];
+   }#
+   #2{
+   int table [ 100 ] ;
+   }#))
 
 
 ;;; TODO: digraph tests.

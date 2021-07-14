@@ -43,6 +43,21 @@
                                  (otherwise
                                   (equal x y)))))))))
 
+(defun preprocessed-list-equal (list1 list2)
+  (tree-equal list1 list2
+              :test
+              (lambda (x y)
+                (if (and (preprocessing-number-p x) (preprocessing-number-p y))
+                    (equal (preprocessing-number-string x) (preprocessing-number-string y))
+                    (equal x y)))))
+
+(defmacro is.wcs.pp.equal (c-form-1 c-form-2)
+  `(is (preprocessed-list-equal
+        (macroexpand '(with-c-syntax (:preprocess :preprocess-only)
+                       ,c-form-1))
+        (macroexpand '(with-c-syntax (:preprocess :preprocess-only)
+                       ,c-form-2)))))
+
 (defmacro signals.wcs.reader ((&optional (condition 'with-c-syntax-error)) string)
   `(signals ,condition
      (let ((*readtable* (find-readtable 'with-c-syntax:with-c-syntax-readtable)))
