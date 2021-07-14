@@ -1211,6 +1211,34 @@ returns NIL."
             (process-preprocessing-directive directive-symbol token-list state)
             (raise-pp-error)))))))
 
+(define-constant +pragma-operator-name+ "_Pragma"
+  :test 'equal)
+
+(defun pragma-operator-p (token)
+  (token-equal-p token +pragma-operator-name+))
+
+(defun preprocessor-loop-do-pragma-operator (state)
+  (with-preprocessor-state-slots (state)
+    (unless (token-equal-p (pop-preprocessor-directive-token token-list +pragma-operator-name+) "(")
+      (error 'preprocess-error
+             :format-control "~A should be followed by '('"
+             :format-arguments (list +pragma-operator-name+)))
+    (let ((pragma-string (pop-preprocessor-directive-token token-list +pragma-operator-name+)))
+      (unless (stringp pragma-string)
+        (error 'preprocess-error
+               :format-control "~A argument '~A' is not a string."
+               :format-arguments (list +pragma-operator-name+ pragma-string)))
+      (unless (token-equal-p (pop-preprocessor-directive-token token-list +pragma-operator-name+) ")")
+        (error 'preprocess-error
+               :format-control "~A should be ended by ')'"
+               :format-arguments (list +pragma-operator-name+)))
+      (let ((pragma-tokens
+              (with-input-from-string (stream pragma-string)
+                (tokenize-source reader-level stream nil))))
+        (process-preprocessing-directive 'with-c-syntax.preprocessor-directive:|pragma|
+                                         pragma-tokens
+                                         state)))))
+
 (defun preprocessor-loop-concatenate-string (state token)
   "Do the translation phase 6 -- string concatenation."
   (with-preprocessor-state-slots (state)
@@ -1257,6 +1285,8 @@ returns NIL."
          (typecase token
            (symbol
             (cond
+              ((pragma-operator-p token)
+               (preprocessor-loop-do-pragma-operator state))
               ;; Part of translation Phase 4 -- preprocessor macro
               ((preprocessor-macro-exists-p macro-alist token)
                (multiple-value-bind (expansion-list rest-tokens pp-macro-cons)
@@ -1275,7 +1305,6 @@ returns NIL."
 	      ;; Intern punctuators, includes digraphs.
               ((when-let ((punctuator (find-punctuator (symbol-name token) process-digraph?)))
                  (push punctuator result-list)))
-	      
               ;; with-c-syntax specific: Try to split the token.
               ;; FIXME: I think this should be only for reader level 1.
               ((unless (or (boundp token)

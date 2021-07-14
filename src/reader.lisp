@@ -682,7 +682,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
            (t
             (read-preserving-whitespace stream t :eof recursive-p))))))))
 
-(defun tokenize-source (level stream reader-macro-mode)
+(defun tokenize-source (level stream end-with-bracet-sharp)
   "Tokenize C source by doing translation phase 1, 2, and 3.
  LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
@@ -701,9 +701,9 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       
       for token = (handler-case
                       (read-preprocessing-token cp-stream c-readtable keep-whitespace
-                                                reader-macro-mode)
+                                                end-with-bracet-sharp)
                     (end-of-file (e)
-                      (if reader-macro-mode
+                      (if end-with-bracet-sharp
                           (error e)
                           (loop-finish))))
       do (cond
