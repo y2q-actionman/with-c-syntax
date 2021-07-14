@@ -26,13 +26,12 @@
             (aref +pp-date-month-name+ month) date year)))
 
 (defun with-c-syntax.preprocessor-special-macro:__FILE__ (state)
-  (with-preprocessor-state-slots (state)
+  (let ((file-pathname (pp-state-file-pathname state)))
     (if file-pathname
         (namestring file-pathname))))
 
 (defun with-c-syntax.preprocessor-special-macro:__LINE__ (state)
-  (with-preprocessor-state-slots (state)
-    line-number))
+  (pp-state-line-number state))
 
 (defun with-c-syntax.preprocessor-special-macro:__TIME__ (&optional state)
   (declare (ignore state))
@@ -116,108 +115,126 @@
   ((token-list :initarg :token-list)))
 
 (defstruct pp-macro-argument
-  (identifier)
   (token-list)       ; Still holds `:end-of-preprocessor-macro-scope'.
   (token-list-expansion nil)
   (macro-alist))      ; The context for macro expansion.
 
-(defun collect-preprocessor-macro-arguments (macro-definition token-list macro-alist)
+(defun collect-one-macro-argument (token-list macro-alist)
+  (loop
+    with count-end-of-preprocessor-macro-scope = 0
+    with nest-level of-type fixnum = 0
+    for token-cons on token-list
+    as token = (car token-cons)
+    do (switch (token :test 'token-equal-p)
+         (:end-of-preprocessor-macro-scope
+          (incf count-end-of-preprocessor-macro-scope))
+         ("("
+          (incf nest-level))
+         (","
+          (return
+            (values (make-pp-macro-argument :token-list arg-tokens
+                                            :macro-alist macro-alist)
+                    (cdr token-cons)
+                    count-end-of-preprocessor-macro-scope)))
+         (")"
+          (cond ((zerop nest-level)
+                 (return
+                   (values (make-pp-macro-argument :token-list arg-tokens
+                                                   :macro-alist macro-alist)
+                           token-cons
+                           count-end-of-preprocessor-macro-scope)))
+                (t
+                 (decf nest-level)))))
+    collect token into arg-tokens
+    finally
+       (error 'incompleted-macro-arguments-error :token-list token-list)))
+
+(defun collect-preprocessor-macro-arguments (token-list macro-alist)
   (unless token-list
     (error 'incompleted-macro-arguments-error :token-list token-list))
   (let ((begin
           ;; The previous check for TOKEN-LIST causes dead path.
           (locally #+sbcl(declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
-            (pop-preprocessor-directive-token token-list '<macro-expansion>))))
+                   (pop-preprocessor-directive-token token-list '<macro-expansion>))))
     (unless (token-equal-p begin "(")
       (error 'preprocess-error
-	     :format-control "A symbol (~S) found between a preprocessor macro and the first '('"
+	     :format-control "A symbol (~S), not '(', found after a function-like preprocessor macro."
 	     :format-arguments (list begin))))
   (loop
-    with macro-arg-results = nil
-    with identifier-list = (function-like-macro-identifier-list macro-definition)
-    with variadicp = (function-like-macro-variadicp macro-definition)
-    with va-args-arg = (if variadicp
-                           (make-pp-macro-argument :identifier :__VA_ARGS__
-                                                   :token-list nil
-                                                   :macro-alist nil))
-    with variadic-arg-count = 0
-    for i = (pop token-list) ; Use `cl:pop' for preserving `+whitespace-marker+'.
-    if (token-equal-p i ")")
-      do (loop-finish)
-    unless (or i token-list)
-      do (error 'incompleted-macro-arguments-error :token-list token-list)
-    do (let* ((identifier (or (pop identifier-list)
-                              (if variadicp
-                                  :__VA_ARGS__
-                                  (error 'preprocess-error
-                                         :format-control "Too many arguments for macro '~A' tokens: ~A"
-                                         :format-arguments (list macro-definition token-list)))))
-              (marg
-                (loop
-                  named collect-one-arg
-                  with count-end-of-preprocessor-macro-scope = 0
-                  with nest-level of-type fixnum = 0
-                  for j = i then (pop token-list)
-                  do (switch (j :test 'token-equal-p)
-                       (:end-of-preprocessor-macro-scope
-                        (incf count-end-of-preprocessor-macro-scope))
-                       ("("
-                        (incf nest-level))
-                       (","
-                        (loop-finish))
-                       (")"
-                        (when (minusp (decf nest-level))
-	                  (push j token-list)
-	                  (loop-finish))))
-                  collect j into tokens
-                  finally
-                     (let ((pp-macro-arg
-                             (make-pp-macro-argument :identifier identifier
-                                                     :token-list tokens
-                                                     :macro-alist macro-alist)))
-                       (setf macro-alist
-                             (nthcdr count-end-of-preprocessor-macro-scope macro-alist))
-                       (return-from collect-one-arg pp-macro-arg)))))
-         (cond
-           ((eq identifier :__VA_ARGS__)
-            (incf variadic-arg-count)
-            (appendf (pp-macro-argument-token-list va-args-arg)
-                     (list 'with-c-syntax.punctuator:\,)
-                     (pp-macro-argument-token-list marg))
-            (when (null (pp-macro-argument-macro-alist va-args-arg))
-              (setf (pp-macro-argument-macro-alist va-args-arg)
-                    (pp-macro-argument-macro-alist marg))))
-           (t
-            (push marg macro-arg-results))))
+    for token-cons on token-list
+    if (token-equal-p (car token-cons) ")")
+      return (values macro-arg-results (cdr token-cons))
+    collect
+    (multiple-value-bind (pp-macro-arg rest-token-list preprocessor-macro-scope-pop-count)
+        (collect-one-macro-argument token-cons macro-alist)
+      (setf token-cons (list* :loop-on-clause-dummy rest-token-list)
+            macro-alist (nthcdr preprocessor-macro-scope-pop-count macro-alist))
+      pp-macro-arg)
+      into macro-arg-results
     finally
-       (when variadicp
-         (when (zerop variadic-arg-count)
-           (warn 'with-c-syntax-style-warning
-                 :message "Variadic macro does not have any arguments. __VA_ARGS__ bound to nil."))
-         (push va-args-arg macro-arg-results))
-       (return
-         (values (nreverse macro-arg-results) token-list))))
+       (error 'incompleted-macro-arguments-error :token-list token-list)))
+
+(defun expand-each-preprocessor-macro-in-list (token-list macro-alist pp-state)
+  (loop for token-cons on token-list ; Do not use `pop-preprocessor-directive-token' for preserving `+whitespace-marker+'.
+        as token = (first token-cons)
+        if (and (symbolp token)
+                (preprocessor-macro-exists-p macro-alist token))
+          append (multiple-value-bind (expansion rest-tokens)
+                     (expand-preprocessor-macro token (rest token-cons) macro-alist pp-state)
+                   (setf token-cons (list* :loop-on-clause-dummy rest-tokens))
+                   expansion)
+        else if (eql token :end-of-preprocessor-macro-scope)
+               do (pop macro-alist)
+        else
+          collect token))
 
 (defun expand-macro-arguments (pp-macro-argument pp-state)
   (let ((token-list (pp-macro-argument-token-list pp-macro-argument))
         (macro-alist (pp-macro-argument-macro-alist pp-macro-argument)))
-    (loop for head = (pop token-list)
-          while (or head token-list)
-          if (and (symbolp head)
-                  (preprocessor-macro-exists-p macro-alist head))
-            append (multiple-value-bind (expansion rest-tokens)
-                       (expand-preprocessor-macro head token-list macro-alist pp-state)
-                     (setf token-list rest-tokens)
-                     expansion)
-              into all-expansions
-          else if (eql head :end-of-preprocessor-macro-scope)
-                 do (pop macro-alist)
-          else
-            collect head into all-expansions
-          finally
-             (setf all-expansions (delete-consecutive-whitespace-marker all-expansions)
-                   (pp-macro-argument-token-list-expansion pp-macro-argument) all-expansions)
-             (return all-expansions))))
+    (let ((all-expansions
+            (expand-each-preprocessor-macro-in-list token-list macro-alist pp-state)))
+      (setf all-expansions (delete-consecutive-whitespace-marker all-expansions)
+            (pp-macro-argument-token-list-expansion pp-macro-argument) all-expansions)
+      all-expansions)))
+
+(defun make-macro-arguments-alist (macro-definition macro-arg-list)
+  (loop
+    for marg-cons on macro-arg-list
+    and identifier-cons on (function-like-macro-identifier-list macro-definition)
+    collect (cons (first identifier-cons) (first marg-cons))
+      into result-alist
+    finally
+       (cond
+         ((assert (not (and marg-cons identifier-cons))))
+         ((and (endp marg-cons) identifier-cons)
+          (error 'preprocess-error
+                 :format-control "Insufficient arguments for macro '~A'"
+                 :format-arguments (list (function-like-macro-name macro-definition))))
+         ((and marg-cons (endp identifier-cons))
+          (unless (function-like-macro-variadicp macro-definition)
+            (error 'preprocess-error
+                   :format-control "Too many arguments for macro '~A'"
+                   :format-arguments (list (function-like-macro-name macro-definition))))
+          (loop for marg in marg-cons
+                as last-macro-alist = (pp-macro-argument-macro-alist marg)
+                append (pp-macro-argument-token-list marg) into tokens
+                append (pp-macro-argument-token-list-expansion marg) into expansions
+                finally
+                   (push (cons :__VA_ARGS__
+                               (make-pp-macro-argument :token-list tokens
+                                                       :token-list-expansion expansions
+                                                       :macro-alist last-macro-alist))
+                         result-alist)))
+         (t            ; (and (endp marg-cons) (endp identifier-cons))
+          (when (function-like-macro-variadicp macro-definition)
+            (warn 'with-c-syntax-style-warning
+                  :message "Variadic macro does not have any arguments. __VA_ARGS__ bound to nil.")
+            (push (cons :__VA_ARGS__
+                        (make-pp-macro-argument :token-list nil
+                                                :token-list-expansion nil
+                                                :macro-alist nil))
+                  result-alist))))
+       (return result-alist)))
 
 (defun expand-stringify-operator (token macro-arg-alist)
   (unless (symbolp token)
@@ -364,38 +381,42 @@
     (error 'preprocess-error
            :format-control "The first operand of '##' does not exists."))
   (loop
-    for token = (pop replacement-list)
-    as next-token = (let ((fst (first replacement-list)))
-                      (if (eql fst +whitespace-marker+)
-                          (second replacement-list)
-                          fst))
-    as macro-arg-entry = (if after-concatenation
-                             nil
-                             (assoc token macro-arg-alist))
+    for token-cons on replacement-list
+    as token = (first token-cons)
+    as next-token-cons = (if (eql (second token-cons) +whitespace-marker+)
+                             (cddr token-cons)
+                             (cdr token-cons))
+    as macro-arg-alist-cons = (if after-concatenation
+                                  nil
+                                  (assoc token macro-arg-alist))
     as after-concatenation = nil
-    while (or token replacement-list)
-    if (token-equal-p next-token "##")  ; Concatenation.
-      do (when (eql (first replacement-list) +whitespace-marker+)
-           (pop replacement-list))
-         (assert (token-equal-p (pop replacement-list) "##"))
-      and append (let* ((token2 (pop replacement-list))
-                        (token2 (if (eql token2 +whitespace-marker+)
-                                    (pop replacement-list)
-                                    token2))
-                        (conc-result-list
-                          (expand-concatenate-operator token token2 macro-arg-alist)))
-                   (push (lastcar conc-result-list) replacement-list)
-                   (setf after-concatenation t)
-                   (butlast conc-result-list))
-            into expansion
+
+    if (token-equal-p (car next-token-cons) "##") ; Concatenation.
+      append (let* ((token2-cons (if (eql (second next-token-cons) +whitespace-marker+)
+                                     (cddr next-token-cons)
+                                     (cdr next-token-cons)))
+                    (token2 (if (endp token2-cons)
+                                (error 'preprocess-error
+                                       :format-control "The second operand of '##' does not exists.")
+                                (car token2-cons)))
+                    (conc-result-list
+                      (expand-concatenate-operator token token2 macro-arg-alist)))
+               (setf token-cons
+                     (list* :loop-on-clause-dummy
+                            (lastcar conc-result-list) ; The result is re-examined, for 'a ## b ## c'.
+                            (cdr token2-cons))) ; removes token2 
+               (setf after-concatenation t)
+               (butlast conc-result-list))
+        into expansion
     else if (token-equal-p token "#")   ; Stringify.
-           do (when (eql (first replacement-list) +whitespace-marker+)
-                (pop replacement-list))
-              (assert (eq (pop replacement-list) next-token))
-           and collect (expand-stringify-operator next-token macro-arg-alist)
+           do (when (endp next-token-cons)
+                (error 'preprocess-error
+                       :format-control "The second operand of '#' does not exists."))
+              (setf token-cons (list* :loop-on-clause-dummy (cdr next-token-cons)))
+           and collect (expand-stringify-operator (car next-token-cons) macro-arg-alist)
                  into expansion
-    else if macro-arg-entry             ; Replacement
-           append (pp-macro-argument-token-list-expansion (cdr macro-arg-entry))
+    else if macro-arg-alist-cons        ; Replacement
+           append (pp-macro-argument-token-list-expansion (cdr macro-arg-alist-cons))
              into expansion
     else if (eq token +placemaker-token+)
            do (error 'preprocess-error
@@ -403,20 +424,18 @@
     else 
       collect token into expansion
     finally
-    (return (delete-consecutive-whitespace-marker expansion))))
+       (return (delete-consecutive-whitespace-marker expansion))))
 
 (defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
   "See `expand-preprocessor-macro'"
   ;; Collect arguments.
   (multiple-value-bind (macro-arg-list tail-of-rest-token-list)
-      (collect-preprocessor-macro-arguments macro-definition rest-token-list macro-alist)
-    ;; Pop used tokens from rest-token-list
-    (setf rest-token-list tail-of-rest-token-list)
-    ;; Expand arguments
+      (collect-preprocessor-macro-arguments rest-token-list macro-alist)
+    (setf rest-token-list tail-of-rest-token-list) ; Pop used tokens from rest-token-list
+    (dolist (marg macro-arg-list)
+      (expand-macro-arguments marg pp-state))
     (let ((macro-arg-alist
-            (loop for marg in macro-arg-list
-                  do (expand-macro-arguments marg pp-state)
-                  collect (cons (pp-macro-argument-identifier marg) marg))))
+            (make-macro-arguments-alist macro-definition macro-arg-list)))
       (values 
        (expand-macro-replacement-list (function-like-macro-replacement-list macro-definition)
                                       macro-arg-alist)
@@ -791,7 +810,7 @@ returns NIL."
 
 ;;; #include
 
-(defun parse-header-name (token-list directive-symbol &key (try-pp-macro-expand t))
+(defun parse-header-name (token-list directive-symbol try-pp-macro-expand macro-alist pp-state)
   ;; FIXME: Current header-name implementation does not recognize implementation-defined points.
   (let ((token1 (pop-preprocessor-directive-token token-list directive-symbol)))
     (cond
@@ -809,8 +828,10 @@ returns NIL."
             ;;        See ISO/IEC 9899:1999, page 64.
             ;; FIXME: The number of whitespaces is not preserved. To fix it,
             ;;        I must treat whitespaces specially only after '#include' by our reader.
-            (loop for token = (pop token-list)
-                  until (token-equal-p token ">")
+            (loop for token-cons on token-list
+                  as token = (first token-cons)
+                  when (token-equal-p token ">")
+                    do (pop token-cons) (loop-finish)
                   collect
                   (cond ((eq token +whitespace-marker+)
                          #\space)
@@ -820,7 +841,7 @@ returns NIL."
                          token))
                     into h-tokens
                   finally
-                     (check-no-preprocessor-token token-list directive-symbol)
+                     (check-no-preprocessor-token token-cons directive-symbol)
                      (return (values (format nil "~{~A~}" h-tokens)
                                      :h-char-sequence))))
            ((ends-with #\> name) ; For reader Level 1 -- Like '<iso646.h>'
@@ -834,9 +855,10 @@ returns NIL."
               :format-control "'~A' does not have '>'"
               :format-arguments (list token1 directive-symbol))))))
       (try-pp-macro-expand
-       ;; FIXME: macroexpand here
-       (return-from parse-header-name
-         (parse-header-name token-list directive-symbol :try-pp-macro-expand nil)))
+       (push token1 token-list)
+       (let ((expanded (expand-each-preprocessor-macro-in-list token-list macro-alist pp-state)))
+         (return-from parse-header-name
+           (parse-header-name expanded directive-symbol nil nil nil))))
       (t
        (error 'preprocess-error
               :format-control "'~A' cannot be used for #~A"
@@ -919,7 +941,7 @@ returns NIL."
     (when if-section-skip-reason
       (return-from process-preprocessing-directive nil))
     (multiple-value-bind (header-name header-type)
-        (parse-header-name directive-token-list directive-symbol)
+        (parse-header-name directive-token-list directive-symbol t macro-alist state)
       (let* ((pathname (ecase header-type
                          (:q-char-sequence (find-include-header-file header-name))
                          (:h-char-sequence (find-include-<header>-file header-name))))
@@ -1006,7 +1028,7 @@ returns NIL."
 
 ;;; #line
 
-(defun parse-line-arguments (token-list directive-symbol &key (try-pp-macro-expand t))
+(defun parse-line-arguments (token-list directive-symbol try-pp-macro-expand macro-alist pp-state)
   (let* ((tmp-token-list token-list)
          (line-number (pop-preprocessor-directive-token tmp-token-list directive-symbol))
          (line-number
@@ -1033,9 +1055,9 @@ returns NIL."
             (not (preprocessor-token-exists-p tmp-token-list)))
        (values line-number file-name file-name-supplied-p))
       (try-pp-macro-expand
-       ;; TODO: expand macros here.
-       (return-from parse-line-arguments
-         (parse-line-arguments token-list directive-symbol :try-pp-macro-expand nil)))
+       (let ((expanded (expand-each-preprocessor-macro-in-list token-list macro-alist pp-state)))
+         (return-from parse-line-arguments
+           (parse-line-arguments expanded directive-symbol nil nil nil))))
       (t
        (error 'preprocess-error
               :format-control "#~A syntax error. Arguments are ~A"
@@ -1048,7 +1070,7 @@ returns NIL."
     (when if-section-skip-reason
       (return-from process-preprocessing-directive nil))
     (multiple-value-bind (arg-line-number arg-file-name arg-file-name-supplied-p)
-        (parse-line-arguments directive-token-list directive-symbol)
+        (parse-line-arguments directive-token-list directive-symbol t macro-alist state)
       (unless (<= 1 arg-line-number 2147483647)
         (error 'preprocess-error
                :format-control "#~A line number '~A' is out of range."
