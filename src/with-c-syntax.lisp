@@ -25,9 +25,19 @@
   "This macro is a entry point of the with-c-syntax system. BODY will be
 interpreted as C syntax, executed, and return values.
 
+PREPROCESS specifies how to do preprocess. If nil, this macro compiles
+BODY without preprocessing. If t, preprocesses and compiles BODY. If
+`:preprocess-only', this macro preprocesses BODY and returns the
+result as-is.
+
+READER-LEVEL specifies the reader level (see `*with-c-syntax-reader-level*').
+This is used when '#include' or '_Pragma()' was used.
 
 READTABLE-CASE specifies the readtable case of symbols in BODY when it
 was read.  This affects how to intern C keywords.
+
+INPUT-FILE-PATHNAME is passed to the preprocessor and used when
+'__FILE__' macro was used.
 
 If RETURN is `:auto', returns the last form's value if BODY is a
 compound statement. (If BODY is a compilation unit, this returns NIL
@@ -49,15 +59,21 @@ tries to parse again."
 	 (first body)
        (declare (ignore op_))
        `(with-c-syntax (,@options ,@options2) ,@body2)))
-    (preprocess
-     `(with-c-syntax (:preprocess nil :return ,return :try-add-{} ,try-add-{}
-                      :readtable-case ,readtable-case)
-        ,@(preprocessor body :reader-level reader-level
-                        :readtable-case readtable-case
-                        :input-file-pathname input-file-pathname)))
     (t
-     (expand-c-syntax body
-		      try-add-{}
-		      (if (eq return :auto) nil return)
-		      (eq return :auto)
-                      readtable-case))))
+     (ecase preprocess
+       (:preprocess-only
+        (preprocessor body :reader-level reader-level
+                           :readtable-case readtable-case
+                           :input-file-pathname input-file-pathname))
+       (t
+        `(with-c-syntax (:preprocess nil :return ,return :try-add-{} ,try-add-{}
+                         :readtable-case ,readtable-case)
+           ,@(preprocessor body :reader-level reader-level
+                                :readtable-case readtable-case
+                                :input-file-pathname input-file-pathname)))
+       ((nil)
+        (expand-c-syntax body
+		         try-add-{}
+		         (if (eq return :auto) nil return)
+		         (eq return :auto)
+                         readtable-case))))))
