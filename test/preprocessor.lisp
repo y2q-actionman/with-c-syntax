@@ -470,6 +470,13 @@
    int table [ 100 ] ;
    }#))
 
+(test test-pp-6.10.3.3-example-2
+  (is.equal.wcs 100
+    #2{
+    #define max(a, b) ((a) > (b) ? (a) : (b))
+    max (-1, 100)
+    }#))
+
 
 ;;; TODO: digraph tests.
 
