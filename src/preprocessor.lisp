@@ -54,6 +54,7 @@
     (princ (object-like-macro-name macro-definition) stream)))
 
 (defmethod cl:initialize-instance :after ((macro-definition object-like-macro) &rest args)
+  (declare (ignorable args))
   (when (va-args-identifier-p (object-like-macro-name macro-definition))
     (error 'preprocess-error
 	   :format-control "Macro name '__VA_ARGS__' is now allowed as an user defined macro."))
@@ -76,6 +77,7 @@
     (princ (function-like-macro-identifier-list macro-definition) stream)))
 
 (defmethod cl:initialize-instance :after ((macro-definition function-like-macro) &rest args)
+  (declare (ignorable args))
   (when (va-args-identifier-p (function-like-macro-name macro-definition))
     (error 'preprocess-error
 	   :format-control "Macro name '__VA_ARGS__' is now allowed as an user defined macro."))
@@ -376,8 +378,9 @@
                (nthcdr (if token2-first-whitespacep 2 1)
                        token2-expansion))))))
 
-(defun expand-macro-replacement-list (replacement-list macro-arg-alist)
-  (when (token-equal-p (first replacement-list) "##")
+(defun expand-macro-replacement-list (replacement-list macro-arg-alist process-digraph?)
+  (when (or (token-equal-p (first replacement-list) "##")
+            (and process-digraph? (token-equal-p (first replacement-list) "%:%:")))
     (error 'preprocess-error
            :format-control "The first operand of '##' does not exists."))
   (loop
@@ -390,8 +393,8 @@
                                   nil
                                   (assoc token macro-arg-alist))
     as after-concatenation = nil
-
-    if (token-equal-p (car next-token-cons) "##") ; Concatenation.
+    if (or (token-equal-p (car next-token-cons) "##") ; Concatenation.
+           (and process-digraph? (token-equal-p (car next-token-cons) "%:%:")))
       append (let* ((token2-cons (if (eql (second next-token-cons) +whitespace-marker+)
                                      (cddr next-token-cons)
                                      (cdr next-token-cons)))
@@ -408,7 +411,8 @@
                (setf after-concatenation t)
                (butlast conc-result-list))
         into expansion
-    else if (token-equal-p token "#")   ; Stringify.
+    else if (or (token-equal-p token "#") ; Stringify.
+                (and process-digraph? (token-equal-p token "%:")))
            do (when (endp next-token-cons)
                 (error 'preprocess-error
                        :format-control "The second operand of '#' does not exists."))
@@ -438,12 +442,14 @@
             (make-macro-arguments-alist macro-definition macro-arg-list)))
       (values 
        (expand-macro-replacement-list (function-like-macro-replacement-list macro-definition)
-                                      macro-arg-alist)
+                                      macro-arg-alist
+                                      (pp-state-process-digraph? pp-state))
        rest-token-list))))
 
-(defun expand-object-like-macro (macro-definition)
+(defun expand-object-like-macro (macro-definition pp-state)
   (expand-macro-replacement-list (object-like-macro-replacement-list macro-definition)
-                                 nil))
+                                 nil
+                                 (pp-state-process-digraph? pp-state)))
 
 (defun expand-preprocessor-macro (token rest-token-list macro-alist pp-state)
   "Expand preprocessor macro named TOKEN. If it is a function-like
@@ -471,7 +477,7 @@ alist of preprocessor macro definitions.  PP-STATE is a
                  tail-token-list
                  pp-macro-entry)))
       (object-like-macro
-       (let ((expansion (expand-object-like-macro pp-macro)))
+       (let ((expansion (expand-object-like-macro pp-macro pp-state)))
          (values expansion
                  rest-token-list
                  pp-macro-entry))))))
@@ -1266,8 +1272,9 @@ returns NIL."
                                         (eql (first rest-tokens) +whitespace-marker+))
                                    (rest rest-tokens)
                                    rest-tokens)))))
-       
-	      ;; TODO: intern digraph here
+	      ;; Intern punctuators, includes digraphs.
+              ((when-let ((punctuator (find-punctuator (symbol-name token) process-digraph?)))
+                 (push punctuator result-list)))
 	      
               ;; with-c-syntax specific: Try to split the token.
               ;; FIXME: I think this should be only for reader level 1.

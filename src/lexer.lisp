@@ -330,6 +330,7 @@ having a same NAME. If not found, returns `nil'.")
                (values nil nil)))
           (symbol
            (mv-cond-let (cond-var)
+             ;; TODO: Preprocessor interns punctuators, so this logic can be simplified.
              ((find-c-terminal (symbol-name value) readtable-case)
               ;; typedef hack -- adds "void ;" after each typedef.
               (case cond-var
