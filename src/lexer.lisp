@@ -224,6 +224,10 @@ having a same NAME. If not found, returns `nil'.")
 
 ;;; Lexer for '#if' preprocessor-directive.
 
+(defun token-equal-p (token name)
+  (and (symbolp token)
+       (string= token name)))
+
 (defun raise-no-preprocessor-token-error (directive-name)
   (error 'preprocess-error
          :format-control "No token after #~A"
@@ -269,13 +273,11 @@ having a same NAME. If not found, returns `nil'.")
                ;; defined operator
                (let* ((defined-1 (pop-preprocessor-directive-token token-list directive-symbol))
                       (param
-                        (if (and (symbolp defined-1)
-                                 (string= defined-1 "("))
+                        (if (token-equal-p defined-1 "(")
                             (prog1 (pop-preprocessor-directive-token token-list directive-symbol)
                               (let ((r-paren? (pop-preprocessor-directive-token
                                                token-list directive-symbol)))
-                                (unless (and (symbolp r-paren?)
-                                             (string= r-paren? ")"))
+                                (unless (token-equal-p r-paren? ")")
                                   (error
                                    'preprocess-error
 	                           :format-control "'defined' operator does not have corresponding ')'. '~A' was found."

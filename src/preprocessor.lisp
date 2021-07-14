@@ -112,10 +112,6 @@
         while cons)
   token-list)
 
-(defun token-equal-p (token name)
-  (and (symbolp token)
-       (string= token name)))
-
 (define-condition incompleted-macro-arguments-error (preprocess-error)
   ((token-list :initarg :token-list)))
 
@@ -814,7 +810,7 @@ returns NIL."
             ;; FIXME: The number of whitespaces is not preserved. To fix it,
             ;;        I must treat whitespaces specially only after '#include' by our reader.
             (loop for token = (pop token-list)
-                  until (and (symbolp token) (string= token ">"))
+                  until (token-equal-p token ">")
                   collect
                   (cond ((eq token +whitespace-marker+)
                          #\space)
@@ -1084,9 +1080,7 @@ returns NIL."
                (error 'preprocess-error
                       :format-control "Unsyntactic pragma '#pragma ~A ~A'"
                       :format-arguments (list :WITH_C_SYNTAX token1))))
-        (unless (symbolp token1)
-          (raise-unsyntactic-wcs-pragma-error))
-        (switch (token1 :test 'string=)
+        (switch (token1 :test 'token-equal-p)
           (:END_OF_INCLUSION
            (pop-include-state state))
           (otherwise
@@ -1108,15 +1102,13 @@ returns NIL."
                (error 'preprocess-error
                       :format-contron "Current with-c-syntax does not implement '#pragma STDC ~A ~A'."
                       :format-arguments (list token1 token2))))
-        (unless (and (symbolp token1) (symbolp token2))
-          (raise-unsyntactic-stdc-pragma-error))
         (setf on-off-switch
-              (switch (token2 :test 'string=)
+              (switch (token2 :test 'token-equal-p)
                 ("ON" t)
                 ("OFF" nil)
                 ("DEFAULT" :default)
                 (otherwise (raise-unsyntactic-stdc-pragma-error))))
-        (switch (token1 :test 'string=)
+        (switch (token1 :test 'token-equal-p)
           ("FP_CONTRACT"
            (ecase on-off-switch
              ((:default) t)
@@ -1151,9 +1143,7 @@ returns NIL."
                        :message (format nil "'#pragma ~{~A~^ ~}' was ignored."
                                         (delete +whitespace-marker+ directive-token-list))))
                (return-from process-preprocessing-directive nil))))
-      (unless (symbolp first-token)
-        (process-unknown-pragma))
-      (switch (first-token :test 'string=)
+      (switch (first-token :test 'token-equal-p)
         (:WITH_C_SYNTAX
          (process-with-c-syntax-pragma directive-symbol directive-token-list state))
         ("STDC"
