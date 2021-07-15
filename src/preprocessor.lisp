@@ -144,11 +144,12 @@
            ("("
             (incf nest-level))
            (","
-            (return
-              (values (make-pp-macro-argument :token-list arg-tokens
-                                              :macro-alist macro-alist)
-                      (cdr token-cons)
-                      macro-alist-result)))
+            (when (zerop nest-level)
+              (return
+                (values (make-pp-macro-argument :token-list arg-tokens
+                                                :macro-alist macro-alist)
+                        (cdr token-cons)
+                        macro-alist-result))))
            (")"
             (cond ((zerop nest-level)
                    (return
@@ -158,7 +159,7 @@
                              macro-alist-result)))
                   (t
                    (decf nest-level)))))
-    collect token into arg-tokens
+      and collect token into arg-tokens
     finally
        (error 'incompleted-macro-arguments-error :token-list token-list)))
 
@@ -166,7 +167,8 @@
   (let ((args-start
           (loop for token-cons on token-list
                 as token = (car token-cons)
-                if (eql token +whitespace-marker+)
+                if (or (eql token +whitespace-marker+)
+                       (eql token +newline-marker+)) 
                   do (progn)
                 else if (typep token 'macro-definition)
                        do (push (cons (macro-definition-name token) :macro-suppressed)
@@ -453,7 +455,6 @@
        (return (delete-consecutive-whitespace-marker expansion))))
 
 (defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
-  "See `expand-preprocessor-macro'"
   ;; Collect arguments.
   (multiple-value-bind (macro-arg-list tail-of-rest-token-list new-macro-alist)
       (collect-preprocessor-macro-arguments rest-token-list macro-alist)
@@ -471,6 +472,7 @@
 (defun function-like-macro-invocation-p (token-list)
   (loop for i in token-list
         if (or (eql i +whitespace-marker+)
+               (eql i +newline-marker+)
                (typep i 'macro-definition) ; macro scoping
                (eql i :end-of-preprocessor-macro-scope)) ; macro scoping
           do (progn)                    ; go next.
@@ -490,14 +492,18 @@ macro, its arguments are taken from REST-TOKEN-LIST. MACRO-ALIST is an
 alist of preprocessor macro definitions.  PP-STATE is a
 `preprocessor-state' object, used for expanding special macros.
 
- Returns two values:
+ Returns four values:
  1. A list of tokens made by expansion.
- 2. A list, tail of REST-TOKEN-LIST, left after collecting function-like macro arguments."
+ 2. A list, tail of REST-TOKEN-LIST, left after collecting function-like macro arguments.
+ 3. An alist derived from MACRO-ALISR changed after expansion.
+ 4. A boolean tells whether TOKEN is a function-like-macro but
+    REST-TOKEN-LIST is not a form of invocation."
   (when-let ((special-macro
               (find-symbol (symbol-name token) '#:with-c-syntax.preprocessor-special-macro)))
     (return-from expand-preprocessor-macro
       (values (list (funcall special-macro pp-state))
-              rest-token-list)))
+              rest-token-list
+              macro-alist)))
   (let* ((pp-macro-entry (assoc token macro-alist))
          (pp-macro (cdr pp-macro-entry)))
     (etypecase pp-macro
@@ -512,7 +518,8 @@ alist of preprocessor macro definitions.  PP-STATE is a
                      new-macro-alist))
            (values (list token)
                    rest-token-list
-                   macro-alist)))
+                   macro-alist
+                   t)))
       (object-like-macro
        (let ((expansion (expand-object-like-macro pp-macro pp-state)))
          (values (nconc (list pp-macro)
@@ -1387,12 +1394,15 @@ returns NIL."
                (preprocessor-loop-do-pragma-operator state))
               ;; Part of translation Phase 4 -- preprocessor macro
               ((preprocessor-macro-exists-p macro-alist token)
-               (multiple-value-bind (expansion-list rest-tokens new-macro-alist)
+               (multiple-value-bind (expansion-list rest-tokens new-macro-alist not-invoked)
                    (expand-preprocessor-macro token token-list macro-alist state)
-                 (setf macro-alist new-macro-alist)
-                 (setf token-list
-                       (append expansion-list ; Rescan the expansion results.
-                               rest-tokens))))
+                 (cond (not-invoked
+                        (push token result-list))
+                       (t
+                        (setf macro-alist new-macro-alist)
+                        (setf token-list
+                              (append expansion-list ; Rescan the expansion results.
+                                      rest-tokens))))))
 	      ;; Intern punctuators, includes digraphs.
               ((when-let ((punctuator (find-punctuator (symbol-name token) process-digraph?)))
                  (push punctuator result-list)))

@@ -489,18 +489,38 @@
     max (-1, 100)
     }#))
 
-(test test-pp-6.10.3.5-example-3-1
+(test test-pp-6.10.3.5-example-3
   ;; incompleted..
   (let ((*package* (find-package '#:with-c-syntax.test))) ; This affects #include. FIXME: I should add pragma for change package.
+    (is.wcs.pp.equal
+     #2{
+     #include "test/test-pp-6.10.3.5-example-3.h"
+     f(y+1) + f(f(z)) % t(t(g)(0) + t)(1) ;
+     }#
+     #2{
+     f(2 * (y+1)) + f(2 * (f(2 * (z[0])))) % f(2 * (0)) + t(1) ;
+     }#)
+    (is.wcs.pp.equal
+     #2{
+     #include "test/test-pp-6.10.3.5-example-3.h"
+     // (
+     g(x+(3,4)-w) \| h 5) & m
+     	 (f)^m(m);
+     }#
+     #2{
+     f(2 * (2+(3,4)-0,1)) \| f(2 * (~ 5)) & f(2 * (0,1))^m(0,1);
+     }#)
+    ))
+
+(test test-not-function-invocation
   (is.wcs.pp.equal
    #2{
-   #include "test/test-pp-6.10.3.5-example-3.h"
-   f(y+1) + f(f(z)) % t(t(g)(0) + t)(1);
+   #define x() (a, b, c)
+   x
    }#
    #2{
-   f(2 * (y+1)) + f(2 * (f(2 * (z[0])))) % f(2 * (0)) + t(1);
-   }#)))
-
+   x
+   }#))
 
 ;;; TODO: digraph tests.
 
