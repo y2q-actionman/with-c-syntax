@@ -477,6 +477,17 @@
     max (-1, 100)
     }#))
 
+(test test-pp-6.10.3.5-example-3-1
+  ;; incompleted..
+  (is.wcs.pp.equal
+   #2{
+   #include "test/test-pp-6.10.3.5-example-3.h"
+   f(y+1) + f(f(z));
+   }#
+   #2{
+   f(2 * (y+1)) + f(2 * (f(2 * (z[0]))));
+   }#))
+
 
 ;;; TODO: digraph tests.
 

@@ -44,7 +44,16 @@
 (defun va-args-identifier-p (token)
   (token-equal-p token :__VA_ARGS__))
 
-(defclass object-like-macro ()
+(defclass macro-definition ()
+  ((name :initarg :name :reader macro-definition-name)))
+
+(defmethod cl:initialize-instance :after ((macro-definition macro-definition) &rest args)
+  (declare (ignorable args))
+  (when (va-args-identifier-p (macro-definition-name macro-definition))
+    (error 'preprocess-error
+	   :format-control "Macro name '__VA_ARGS__' is now allowed as an user defined macro.")))
+
+(defclass object-like-macro (macro-definition)
   ((name :initarg :name :reader object-like-macro-name)
    (replacement-list :initarg :replacement-list
                      :reader object-like-macro-replacement-list)))
@@ -55,14 +64,11 @@
 
 (defmethod cl:initialize-instance :after ((macro-definition object-like-macro) &rest args)
   (declare (ignorable args))
-  (when (va-args-identifier-p (object-like-macro-name macro-definition))
-    (error 'preprocess-error
-	   :format-control "Macro name '__VA_ARGS__' is now allowed as an user defined macro."))
   (when (some #'va-args-identifier-p (object-like-macro-replacement-list macro-definition))
     (error 'preprocess-error
 	   :format-control "Object-like-macro cannot have '__VA_ARGS__' in its replacement-list.")))
 
-(defclass function-like-macro ()
+(defclass function-like-macro (macro-definition)
   ((name :initarg :name :reader function-like-macro-name)
    (identifier-list :initarg :identifier-list
                     :reader function-like-macro-identifier-list)
@@ -78,9 +84,6 @@
 
 (defmethod cl:initialize-instance :after ((macro-definition function-like-macro) &rest args)
   (declare (ignorable args))
-  (when (va-args-identifier-p (function-like-macro-name macro-definition))
-    (error 'preprocess-error
-	   :format-control "Macro name '__VA_ARGS__' is now allowed as an user defined macro."))
   (let ((identifier-list (function-like-macro-identifier-list macro-definition)))
     (when (some #'va-args-identifier-p identifier-list)
       (error 'preprocess-error
@@ -114,7 +117,11 @@
   token-list)
 
 (define-condition incompleted-macro-arguments-error (preprocess-error)
-  ((token-list :initarg :token-list)))
+  ((token-list :initarg :token-list))
+  (:report
+   (lambda (condition stream)
+     (format stream "preprocessor macro argument is incompleted. tokens: ~S"
+             (slot-value condition 'token-list)))))
 
 (defstruct pp-macro-argument
   (token-list)       ; Still holds `:end-of-preprocessor-macro-scope'.
@@ -123,30 +130,34 @@
 
 (defun collect-one-macro-argument (token-list macro-alist)
   (loop
-    with count-end-of-preprocessor-macro-scope = 0
+    with macro-alist-result = macro-alist
     with nest-level of-type fixnum = 0
     for token-cons on token-list
     as token = (car token-cons)
-    do (switch (token :test 'token-equal-p)
-         (:end-of-preprocessor-macro-scope
-          (incf count-end-of-preprocessor-macro-scope))
-         ("("
-          (incf nest-level))
-         (","
-          (return
-            (values (make-pp-macro-argument :token-list arg-tokens
-                                            :macro-alist macro-alist)
-                    (cdr token-cons)
-                    count-end-of-preprocessor-macro-scope)))
-         (")"
-          (cond ((zerop nest-level)
-                 (return
-                   (values (make-pp-macro-argument :token-list arg-tokens
-                                                   :macro-alist macro-alist)
-                           token-cons
-                           count-end-of-preprocessor-macro-scope)))
-                (t
-                 (decf nest-level)))))
+    if (typep token 'macro-definition)
+      do (push (cons (macro-definition-name token) :macro-suppressed)
+               macro-alist-result)
+    else if (eq token :end-of-preprocessor-macro-scope)
+           do (pop macro-alist-result)
+    else
+      do (switch (token :test 'token-equal-p)
+           ("("
+            (incf nest-level))
+           (","
+            (return
+              (values (make-pp-macro-argument :token-list arg-tokens
+                                              :macro-alist macro-alist)
+                      (cdr token-cons)
+                      macro-alist-result)))
+           (")"
+            (cond ((zerop nest-level)
+                   (return
+                     (values (make-pp-macro-argument :token-list arg-tokens
+                                                     :macro-alist macro-alist)
+                             token-cons
+                             macro-alist-result)))
+                  (t
+                   (decf nest-level)))))
     collect token into arg-tokens
     finally
        (error 'incompleted-macro-arguments-error :token-list token-list)))
@@ -165,12 +176,12 @@
   (loop
     for token-cons on token-list
     if (token-equal-p (car token-cons) ")")
-      return (values macro-arg-results (cdr token-cons))
+      return (values macro-arg-results (cdr token-cons) macro-alist)
     collect
-    (multiple-value-bind (pp-macro-arg rest-token-list preprocessor-macro-scope-pop-count)
+    (multiple-value-bind (pp-macro-arg rest-token-list new-macro-alist)
         (collect-one-macro-argument token-cons macro-alist)
       (setf token-cons (list* :loop-on-clause-dummy rest-token-list)
-            macro-alist (nthcdr preprocessor-macro-scope-pop-count macro-alist))
+            macro-alist new-macro-alist)
       pp-macro-arg)
       into macro-arg-results
     finally
@@ -181,16 +192,20 @@
         as token = (first token-cons)
         if (and (symbolp token)
                 (preprocessor-macro-exists-p macro-alist token))
-          append (multiple-value-bind (expansion rest-tokens)
+          append (multiple-value-bind (expansion rest-tokens new-macro-alist)
                      (expand-preprocessor-macro token (rest token-cons) macro-alist pp-state)
-                   (setf token-cons (list* :loop-on-clause-dummy rest-tokens))
+                   (setf token-cons (list* :loop-on-clause-dummy rest-tokens)
+                         macro-alist new-macro-alist)
                    expansion)
+        else if (typep token 'macro-definition)
+               do (push (cons (macro-definition-name token) :macro-suppressed)
+                        macro-alist)
         else if (eql token :end-of-preprocessor-macro-scope)
                do (pop macro-alist)
         else
           collect token))
 
-(defun expand-macro-arguments (pp-macro-argument pp-state)
+(defun expand-macro-argument (pp-macro-argument pp-state)
   (let ((token-list (pp-macro-argument-token-list pp-macro-argument))
         (macro-alist (pp-macro-argument-macro-alist pp-macro-argument)))
     (let ((all-expansions
@@ -433,18 +448,18 @@
 (defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
   "See `expand-preprocessor-macro'"
   ;; Collect arguments.
-  (multiple-value-bind (macro-arg-list tail-of-rest-token-list)
+  (multiple-value-bind (macro-arg-list tail-of-rest-token-list new-macro-alist)
       (collect-preprocessor-macro-arguments rest-token-list macro-alist)
-    (setf rest-token-list tail-of-rest-token-list) ; Pop used tokens from rest-token-list
     (dolist (marg macro-arg-list)
-      (expand-macro-arguments marg pp-state))
+      (expand-macro-argument marg pp-state))
     (let ((macro-arg-alist
             (make-macro-arguments-alist macro-definition macro-arg-list)))
       (values 
        (expand-macro-replacement-list (function-like-macro-replacement-list macro-definition)
                                       macro-arg-alist
                                       (pp-state-process-digraph? pp-state))
-       rest-token-list))))
+       tail-of-rest-token-list
+       new-macro-alist))))
 
 (defun expand-object-like-macro (macro-definition pp-state)
   (expand-macro-replacement-list (object-like-macro-replacement-list macro-definition)
@@ -457,30 +472,32 @@ macro, its arguments are taken from REST-TOKEN-LIST. MACRO-ALIST is an
 alist of preprocessor macro definitions.  PP-STATE is a
 `preprocessor-state' object, used for expanding special macros.
 
- Returns three values:
+ Returns two values:
  1. A list of tokens made by expansion.
- 2. A list, tail of REST-TOKEN-LIST, left after collecting function-like macro arguments.
- 3. A cons of MACRO-ALIST which is used here. "
+ 2. A list, tail of REST-TOKEN-LIST, left after collecting function-like macro arguments."
   (when-let ((special-macro
               (find-symbol (symbol-name token) '#:with-c-syntax.preprocessor-special-macro)))
     (return-from expand-preprocessor-macro
       (values (list (funcall special-macro pp-state))
-              rest-token-list
-              nil)))
+              rest-token-list)))
   (let* ((pp-macro-entry (assoc token macro-alist))
          (pp-macro (cdr pp-macro-entry)))
     (etypecase pp-macro
       (function-like-macro
-       (multiple-value-bind (expansion tail-token-list)
+       (multiple-value-bind (expansion tail-token-list new-macro-alist)
            (expand-function-like-macro pp-macro rest-token-list macro-alist pp-state)
-         (values expansion
+         (values (nconc (list pp-macro)
+                        expansion
+                        (list :end-of-preprocessor-macro-scope))
                  tail-token-list
-                 pp-macro-entry)))
+                 new-macro-alist)))
       (object-like-macro
        (let ((expansion (expand-object-like-macro pp-macro pp-state)))
-         (values expansion
+         (values (nconc (list pp-macro)
+                        expansion
+                        (list :end-of-preprocessor-macro-scope))
                  rest-token-list
-                 pp-macro-entry))))))
+                 macro-alist))))))
 
 
 ;;; Identifier split.
@@ -1275,8 +1292,6 @@ returns NIL."
         ((eq token +newline-marker+)
          (incf line-number)
          (setf tokens-in-line 0))
-        ((eq token :end-of-preprocessor-macro-scope)
-         (pop macro-alist))
         ((preprocessor-loop-at-directive-p state token) ; Check directives before #if skips.
          (preprocessor-loop-do-directives state))
         (if-section-skip-reason         ; #if-section skips it.
@@ -1285,23 +1300,18 @@ returns NIL."
          (typecase token
            (symbol
             (cond
+              ((eq token :end-of-preprocessor-macro-scope)
+               (pop macro-alist))
               ((pragma-operator-p token)
                (preprocessor-loop-do-pragma-operator state))
               ;; Part of translation Phase 4 -- preprocessor macro
               ((preprocessor-macro-exists-p macro-alist token)
-               (multiple-value-bind (expansion-list rest-tokens pp-macro-cons)
+               (multiple-value-bind (expansion-list rest-tokens new-macro-alist)
                    (expand-preprocessor-macro token token-list macro-alist state)
-                 (when pp-macro-cons
-                   (push (cons (car pp-macro-cons) :macro-suppressed)
-                         macro-alist))
+                 (setf macro-alist new-macro-alist)
                  (setf token-list
                        (append expansion-list ; Rescan the expansion results.
-                               (if pp-macro-cons
-                                   (list :end-of-preprocessor-macro-scope))
-                               (if (and (eql (lastcar expansion-list) +whitespace-marker+)
-                                        (eql (first rest-tokens) +whitespace-marker+))
-                                   (rest rest-tokens)
-                                   rest-tokens)))))
+                               rest-tokens))))
 	      ;; Intern punctuators, includes digraphs.
               ((when-let ((punctuator (find-punctuator (symbol-name token) process-digraph?)))
                  (push punctuator result-list)))
@@ -1318,6 +1328,9 @@ returns NIL."
                (push token result-list))))
            (string
             (preprocessor-loop-concatenate-string state token))
+           (macro-definition ; This is not a token -- a marker for suppress recursive expansion.
+            (push (cons (macro-definition-name token) :macro-suppressed)
+                  macro-alist))
            (t
             (push token result-list)))
          (incf tokens-in-line))))))
