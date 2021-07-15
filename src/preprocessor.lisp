@@ -931,6 +931,8 @@ returns NIL."
                :format-control "#if section does not end in included file ~A"
                :format-arguments (list file-pathname))))))
 
+;;; TODO: add a parameter for include path.
+
 (defun find-include-<header>-file (header-name &key (errorp t))
   "Finds a file specified by #include <...> style header-name.
  Current strategy is only looking with-c-syntax specific files."
@@ -965,6 +967,7 @@ returns NIL."
            (with-open-file (stream header-name)
              (tokenize-source (pp-state-reader-level state) stream nil)))
          (end-pragma-tokens
+           ;; TODO: change this to a special token like :end-of-preprocessor-macro-scope ?
            (list +newline-marker+
                  '|#| pragma-sym :WITH_C_SYNTAX :END_OF_INCLUSION +newline-marker+))
          (end-line-tokens
@@ -1155,6 +1158,9 @@ returns NIL."
            (pop-include-state state))
           (otherwise
            (raise-unsyntactic-wcs-pragma-error))))))
+
+;;; TODO: Add pragma for reader-level and package, for included file.
+;;; TODO: Add pragma for arbitary form??
 
 (defun process-stdc-pragma (directive-symbol directive-token-list state)
   (with-preprocessor-state-slots (state)

@@ -491,6 +491,7 @@
 
 (test test-pp-6.10.3.5-example-3-1
   ;; incompleted..
+  (let ((*package* (find-package '#:with-c-syntax.test))) ; This affects #include. FIXME: I should add pragma for change package.
   (is.wcs.pp.equal
    #2{
    #include "test/test-pp-6.10.3.5-example-3.h"
@@ -498,7 +499,7 @@
    }#
    #2{
    f(2 * (y+1)) + f(2 * (f(2 * (z[0])))) % f(2 * (0)) + t(1);
-   }#))
+   }#)))
 
 
 ;;; TODO: digraph tests.
