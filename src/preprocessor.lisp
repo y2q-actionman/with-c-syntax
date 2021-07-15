@@ -958,25 +958,20 @@ returns NIL."
          (line-sym (ecase readtable-case
                      ((:upcase :invert) '|LINE|)
                      ((:downcase :preserve) '|line|)))
-         (pragma-sym (ecase readtable-case
-                       ((:upcase :invert) '|PRAGMA|)
-                       ((:downcase :preserve) '|pragma|)))
          (start-line-tokens
            (list '|#| line-sym 1 header-name +newline-marker+))
          (main-tokens
            (with-open-file (stream header-name)
              (tokenize-source (pp-state-reader-level state) stream nil)))
-         (end-pragma-tokens
-           ;; TODO: change this to a special token like :end-of-preprocessor-macro-scope ?
-           (list +newline-marker+
-                 '|#| pragma-sym :WITH_C_SYNTAX :END_OF_INCLUSION +newline-marker+))
+         (end-tokens
+           (list :end-of-inclusion +newline-marker+))
          (end-line-tokens
            (if (pp-state-file-pathname state)
                (list '|#| line-sym (pp-state-line-number state) (pp-state-file-pathname state) +newline-marker+)
                (list '|#| line-sym (pp-state-line-number state) +newline-marker+))))
     (nconc start-line-tokens
            main-tokens
-           end-pragma-tokens
+           end-tokens
            end-line-tokens)))
 
 (defmacro pop-next-newline (token-list)
@@ -1154,18 +1149,14 @@ returns NIL."
                       :format-control "Unsyntactic pragma '#pragma ~A ~A'"
                       :format-arguments (list :WITH_C_SYNTAX token1))))
         (switch (token1 :test 'token-equal-p)
-          (:END_OF_INCLUSION
-           (pop-include-state state))
           (otherwise
            (raise-unsyntactic-wcs-pragma-error))))))
 
-;;; TODO: Add pragma for reader-level and package, for included file.
-;;; TODO: Add pragma for arbitary form??
+;;; TODO: Add pragma for reader-level and in-package, for included file. These parameters are should saved into the include-stack.
+;;; TODO: Add pragma for arbitary form, like #pragma WITH_C_SYNTAX EVAL (...) ?
 
 (defun process-stdc-pragma (directive-symbol directive-token-list state)
   (with-preprocessor-state-slots (state)
-    (when if-section-skip-reason
-      (return-from process-stdc-pragma nil))
     (let* ((token1 (pop-preprocessor-directive-token directive-token-list directive-symbol))
            (token2 (pop-preprocessor-directive-token directive-token-list directive-symbol))
            on-off-switch)
@@ -1206,6 +1197,8 @@ returns NIL."
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|pragma|))
                                             directive-token-list state)
+  (when (pp-state-if-section-skip-reason state)
+    (return-from process-preprocessing-directive nil))
   (unless (preprocessor-token-exists-p directive-token-list)
     (warn 'with-c-syntax-style-warning
           :message "#pragma does not have any arguments.")
@@ -1323,6 +1316,8 @@ returns NIL."
         ((eq token +newline-marker+)
          (incf line-number)
          (setf tokens-in-line 0))
+        ((eq token :end-of-inclusion)
+         (pop-include-state state))
         ((preprocessor-loop-at-directive-p state token) ; Check directives before #if skips.
          (preprocessor-loop-do-directives state))
         (if-section-skip-reason         ; #if-section skips it.
