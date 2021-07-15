@@ -224,44 +224,12 @@ having a same NAME. If not found, returns `nil'.")
 
 ;;; Lexer for '#if' preprocessor-directive.
 
-(defun token-equal-p (token name)
-  (and (symbolp token)
-       (string= token name)))
-
-(defun raise-no-preprocessor-token-error (directive-name)
-  (error 'preprocess-error
-         :format-control "No token after #~A"
-         :format-arguments (list directive-name)))
-
-(defmacro check-and-pop-pp-directive-token-1 (token-list directive-name errorp)
-  "Used by `pop-preprocessor-directive-token'"
-  `(if (null ,token-list)
-       ,(if errorp
-            `(raise-no-preprocessor-token-error ,directive-name)
-            nil)
-       (pop ,token-list)))
-
-(defmacro pop-preprocessor-directive-token (token-list directive-name &key (errorp t))
-  "Pops the next token in TOKEN-LIST ignoring `+whitespace-marker+'"
-  (with-gensyms (head_)
-    `(let ((,head_
-             (check-and-pop-pp-directive-token-1 ,token-list ,directive-name ,errorp)))
-       (if (eq +whitespace-marker+ ,head_)
-           (check-and-pop-pp-directive-token-1 ,token-list ,directive-name ,errorp)
-           ,head_))))
-
-(defun pp-|defined|-operator-p (token readtable-case)
-  (ecase readtable-case
-    ((:upcase :invert) (string= token "DEFINED"))
-    ((:downcase :preserve) (string= token "defined"))))
-
-(defun pp-if-expression-lexer (token-list process-digraph? readtable-case directive-symbol
-                               pp-state-macro-alist)
+(defun pp-if-expression-lexer (token-list process-digraph?)
   #'(lambda ()
       (if
        (null token-list)
        (values nil nil)
-       (let ((token (pop-preprocessor-directive-token token-list directive-symbol :errorp nil)))
+       (let ((token (pop token-list)))
          (typecase token
            (null
             (values 'lisp-expression nil))
@@ -269,28 +237,6 @@ having a same NAME. If not found, returns `nil'.")
             (mv-cond-let (cond-var)
               ((find-punctuator (symbol-name token) process-digraph?)
                (values cond-var cond-var))
-              ((pp-|defined|-operator-p token readtable-case)
-               ;; defined operator
-               (let* ((defined-1 (pop-preprocessor-directive-token token-list directive-symbol))
-                      (param
-                        (if (token-equal-p defined-1 "(")
-                            (prog1 (pop-preprocessor-directive-token token-list directive-symbol)
-                              (let ((r-paren? (pop-preprocessor-directive-token
-                                               token-list directive-symbol)))
-                                (unless (token-equal-p r-paren? ")")
-                                  (error
-                                   'preprocess-error
-	                           :format-control "'defined' operator does not have corresponding ')'. '~A' was found."
-	                           :format-arguments (list r-paren?)))))
-                            defined-1)))
-                 (when (or (not (symbolp param))
-                           (find-punctuator (symbol-name param) process-digraph?))
-                   (error
-                    'preprocess-error
-	            :format-control "'defined' operator takes only identifiers. '~A' was passed."
-	            :format-arguments (list param)))
-                 (values 'lisp-expression
-                         (if (preprocessor-macro-exists-p pp-state-macro-alist param) t nil))))
               (t
                ;; In C99, remaining identifiers are replaced to 0.
                ;; ("6.10.1 Conditional inclusion" in ISO/IEC 9899.)

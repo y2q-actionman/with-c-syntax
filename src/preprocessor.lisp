@@ -673,6 +673,32 @@ returns NIL."
   (loop for token in token-list
         thereis (not (eq token +whitespace-marker+))))
 
+(defun token-equal-p (token name)
+  (and (symbolp token)
+       (string= token name)))
+
+(defun raise-no-preprocessor-token-error (directive-name)
+  (error 'preprocess-error
+         :format-control "No token after #~A"
+         :format-arguments (list directive-name)))
+
+(defmacro check-and-pop-pp-directive-token-1 (token-list directive-name errorp)
+  "Used by `pop-preprocessor-directive-token'"
+  `(if (null ,token-list)
+       ,(if errorp
+            `(raise-no-preprocessor-token-error ,directive-name)
+            nil)
+       (pop ,token-list)))
+
+(defmacro pop-preprocessor-directive-token (token-list directive-name &key (errorp t))
+  "Pops the next token in TOKEN-LIST ignoring `+whitespace-marker+'"
+  (with-gensyms (head_)
+    `(let ((,head_
+             (check-and-pop-pp-directive-token-1 ,token-list ,directive-name ,errorp)))
+       (if (eq +whitespace-marker+ ,head_)
+           (check-and-pop-pp-directive-token-1 ,token-list ,directive-name ,errorp)
+           ,head_))))
+
 (defun check-no-preprocessor-token (token-list directive-name)
   "Checks no preprocessing token is left in TOKEN-LIST."
   (when (preprocessor-token-exists-p token-list)
@@ -722,20 +748,58 @@ returns NIL."
                  (not eval-result))
         (setf if-section-skip-reason if-section-obj)))))
 
-(defmethod process-preprocessing-directive ((directive-symbol
-                                             (eql 'with-c-syntax.preprocessor-directive:|if|))
-                                            directive-token-list state)
+(defun pp-defined-operator-p (token readtable-case)
+  (ecase readtable-case
+    ((:upcase :invert) (token-equal-p token "DEFINED"))
+    ((:downcase :preserve) (token-equal-p token "defined"))))
+
+(defun expand-defined-operator (token-list macro-alist readtable-case
+                                process-digraph? directive-symbol)
+  (loop while (preprocessor-token-exists-p token-list)  ; FIXME: this is too slow..
+        collect
+        (let ((token (pop-preprocessor-directive-token token-list directive-symbol :errorp nil)))
+          (cond
+            ((pp-defined-operator-p token readtable-case)
+             (let* ((next-token
+                      (pop-preprocessor-directive-token token-list directive-symbol))
+                    (param
+                      (if (token-equal-p next-token "(")
+                          (prog1 (pop-preprocessor-directive-token token-list directive-symbol)
+                            (let ((r-paren?
+                                    (pop-preprocessor-directive-token token-list directive-symbol)))
+                              (unless (token-equal-p r-paren? ")")
+                                (error
+                                 'preprocess-error
+	                         :format-control "'defined' operator does not have corresponding ')'. '~A' was found."
+	                         :format-arguments (list r-paren?)))))
+                          next-token)))
+               (when (or (not (symbolp param))
+                         (find-punctuator (symbol-name param) process-digraph?))
+                 (error
+                  'preprocess-error
+	          :format-control "'defined' operator takes only identifiers. '~A' was passed."
+	          :format-arguments (list param)))
+               (if (preprocessor-macro-exists-p macro-alist param) 1 nil)))
+            (t
+             token)))))
+
+(defun remove-macro-scope-special-token (token-list)
+  (loop for i in token-list
+        unless (or (eql i :end-of-preprocessor-macro-scope)
+                   (typep i 'macro-definition))
+          collect i))
+
+(defun eval-if-expression (directive-symbol directive-token-list state)
   (with-preprocessor-state-slots (state)
-    (when if-section-skip-reason
-      (begin-if-section state '(:skipped :if) nil)
-      (return-from process-preprocessing-directive nil))
-    (unless (preprocessor-token-exists-p directive-token-list)
-      (raise-no-preprocessor-token-error directive-symbol))
-    (let* ((condition directive-token-list)
-           ;; TODO: Expand PP macro before parsing.
-           (lexer (pp-if-expression-lexer directive-token-list process-digraph? readtable-case
-                                          directive-symbol
-                                          (pp-state-macro-alist state)))
+    (let* ((expansion
+             (expand-defined-operator directive-token-list macro-alist readtable-case
+                                      process-digraph? directive-symbol))
+           (expansion
+             (expand-each-preprocessor-macro-in-list expansion macro-alist state))
+           (expansion
+             (remove-macro-scope-special-token expansion))
+           (lexer
+             (pp-if-expression-lexer expansion process-digraph?))
            (parsed-form
              (handler-case
                  (with-c-compilation-unit (nil t)
@@ -750,7 +814,19 @@ returns NIL."
            (result (and value
                         (not (eql value 0))))) ; Special case for "#if 0" idiom.
       (declare (ignore check-left-token))
-      (begin-if-section state condition result))))
+      result)))
+
+(defmethod process-preprocessing-directive ((directive-symbol
+                                             (eql 'with-c-syntax.preprocessor-directive:|if|))
+                                            directive-token-list state)
+  (with-preprocessor-state-slots (state)
+    (when if-section-skip-reason
+      (begin-if-section state '(:skipped :if) nil)
+      (return-from process-preprocessing-directive nil))
+    (unless (preprocessor-token-exists-p directive-token-list)
+      (raise-no-preprocessor-token-error directive-symbol))
+    (let ((result (eval-if-expression directive-symbol directive-token-list state)))
+      (begin-if-section state directive-token-list result))))
 
 (defmethod process-preprocessing-directive ((directive-symbol
                                              (eql 'with-c-syntax.preprocessor-directive:|ifdef|))
@@ -801,28 +877,10 @@ returns NIL."
          (if-section-add-group current-if-section '(:processed :elif) nil)
          (setf if-section-skip-reason current-if-section))
         (t
-         ;; TODO: merge with #if part.
          (unless (preprocessor-token-exists-p directive-token-list)
            (raise-no-preprocessor-token-error directive-symbol))
-         (let* ((condition directive-token-list)
-                (lexer (pp-if-expression-lexer directive-token-list process-digraph? readtable-case
-                                               directive-symbol
-                                               (pp-state-macro-alist state)))
-                (parsed-form
-                  (handler-case
-                      (with-c-compilation-unit (nil t)
-                        (parse-with-lexer lexer *expression-parser*))
-                    (yacc-parse-error (condition)
-                      (error 'preprocess-if-expression-parse-error :yacc-error condition))))
-                (check-left-token
-                  (when (funcall lexer)
-                    (error 'preprocess-error
-                           :format-control "Extra tokens are found after #elif")))
-                (value (eval parsed-form))
-                (result (and value
-                             (not (eql value 0))))) ; Special case for "#if 0" idiom.
-           (declare (ignore check-left-token))
-           (if-section-add-group current-if-section condition result)
+         (let ((result (eval-if-expression directive-symbol directive-token-list state)))
+           (if-section-add-group current-if-section directive-token-list result)
            (setf if-section-skip-reason (if result
                                             nil
                                             current-if-section))))))))

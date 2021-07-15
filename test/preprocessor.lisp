@@ -359,7 +359,7 @@
     #endif
     + __LINE__
     #define FUGA
-    #if ! defined FUGA
+    #if ! defined(FUGA) && !defined(FUGA) 
     + 999999
     #else
     + __LINE__
