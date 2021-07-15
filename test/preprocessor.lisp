@@ -448,6 +448,18 @@
   (is.equal.wcs "abc"
     return "a" "b" "c" \; ))
 
+(test test-pp-next-token-inclusion
+  ;; From mcpp-2.7.2 cpp-test.html#2.7.6
+  (is.equal.wcs 21
+    #2{
+    int a = 1, b = 20;
+    
+    #define add( x, y)      ((x) + (y))
+    #define head            add(
+
+    return head a, b);
+    }#))
+
 (test test-pp-6.10.3.3-example
   (is.equal.wcs "X ## Y"    ; Because our readtable-case is `:upcase'.
     #2{
@@ -470,7 +482,7 @@
    int table [ 100 ] ;
    }#))
 
-(test test-pp-6.10.3.3-example-2
+(test test-pp-6.10.3.5-example-2
   (is.equal.wcs 100
     #2{
     #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -482,10 +494,10 @@
   (is.wcs.pp.equal
    #2{
    #include "test/test-pp-6.10.3.5-example-3.h"
-   f(y+1) + f(f(z));
+   f(y+1) + f(f(z)) % t(t(g)(0) + t)(1);
    }#
    #2{
-   f(2 * (y+1)) + f(2 * (f(2 * (z[0]))));
+   f(2 * (y+1)) + f(2 * (f(2 * (z[0])))) % f(2 * (0)) + t(1);
    }#))
 
 

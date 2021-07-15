@@ -160,34 +160,42 @@
                    (decf nest-level)))))
     collect token into arg-tokens
     finally
+       ;; TODO: this is a real error?
        (error 'incompleted-macro-arguments-error :token-list token-list)))
 
 (defun collect-preprocessor-macro-arguments (token-list macro-alist)
-  (unless token-list
-    (error 'incompleted-macro-arguments-error :token-list token-list))
-  (let ((begin
-          ;; The previous check for TOKEN-LIST causes dead path.
-          (locally #+sbcl(declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
-                   (pop-preprocessor-directive-token token-list '<macro-expansion>))))
-    (unless (token-equal-p begin "(")
-      (error 'preprocess-error
-	     :format-control "A symbol (~S), not '(', found after a function-like preprocessor macro."
-	     :format-arguments (list begin))))
-  (loop
-    for token-cons on token-list
-    if (token-equal-p (car token-cons) ")")
-      return (values macro-arg-results (cdr token-cons) macro-alist)
-    collect
-    (multiple-value-bind (pp-macro-arg rest-token-list new-macro-alist)
-        (collect-one-macro-argument token-cons macro-alist)
-      (setf token-cons (list* :loop-on-clause-dummy rest-token-list)
-            macro-alist new-macro-alist)
-      pp-macro-arg)
-      into macro-arg-results
-    finally
-       (error 'incompleted-macro-arguments-error :token-list token-list)))
+  (let ((args-start
+          (loop for token-cons on token-list
+                as token = (car token-cons)
+                if (eql token +whitespace-marker+)
+                  do (progn)
+                else if (typep token 'macro-definition)
+                       do (push (cons (macro-definition-name token) :macro-suppressed)
+                                macro-alist)
+                else if (eql token :end-of-preprocessor-macro-scope)
+                       do (pop macro-alist)
+                else
+                  do (assert (token-equal-p token "(") ()
+                             'preprocess-error
+                             :format-control "This is a BUG of function-like-macro-invocation-p.")
+                  and return (cdr token-cons))))
+    (loop
+      for token-cons on args-start
+      if (token-equal-p (car token-cons) ")")
+        return (values macro-arg-results (cdr token-cons) macro-alist)
+      collect
+      (multiple-value-bind (pp-macro-arg rest-token-list new-macro-alist)
+          (collect-one-macro-argument token-cons macro-alist)
+        (setf token-cons (list* :loop-on-clause-dummy rest-token-list)
+              macro-alist new-macro-alist)
+        pp-macro-arg)
+        into macro-arg-results
+      finally
+         ;; TODO: this is a real error?
+         (error 'incompleted-macro-arguments-error :token-list token-list))))
 
 (defun expand-each-preprocessor-macro-in-list (token-list macro-alist pp-state)
+  "Used by `expand-macro-argument', #line and #include."
   (loop for token-cons on token-list ; Do not use `pop-preprocessor-directive-token' for preserving `+whitespace-marker+'.
         as token = (first token-cons)
         if (and (symbolp token)
@@ -209,12 +217,14 @@
   (let ((token-list (pp-macro-argument-token-list pp-macro-argument))
         (macro-alist (pp-macro-argument-macro-alist pp-macro-argument)))
     (let ((all-expansions
+            ;; TODO: catch incompleted-macro-arguments-error here???
             (expand-each-preprocessor-macro-in-list token-list macro-alist pp-state)))
       (setf all-expansions (delete-consecutive-whitespace-marker all-expansions)
             (pp-macro-argument-token-list-expansion pp-macro-argument) all-expansions)
       all-expansions)))
 
 (defun make-macro-arguments-alist (macro-definition macro-arg-list)
+  "Makes an alist of (<symbol> . <macro-argument>) for function-like-macro expansion."
   (loop
     for marg-cons on macro-arg-list
     and identifier-cons on (function-like-macro-identifier-list macro-definition)
@@ -461,6 +471,17 @@
        tail-of-rest-token-list
        new-macro-alist))))
 
+(defun function-like-macro-invocation-p (token-list)
+  (loop for i in token-list
+        if (or (eql i +whitespace-marker+)
+               (typep i 'macro-definition) ; macro scoping
+               (eql i :end-of-preprocessor-macro-scope)) ; macro scoping
+          do (progn)                    ; go next.
+        else if (token-equal-p i "(")
+               return i
+        else
+          return nil))
+
 (defun expand-object-like-macro (macro-definition pp-state)
   (expand-macro-replacement-list (object-like-macro-replacement-list macro-definition)
                                  nil
@@ -484,13 +505,17 @@ alist of preprocessor macro definitions.  PP-STATE is a
          (pp-macro (cdr pp-macro-entry)))
     (etypecase pp-macro
       (function-like-macro
-       (multiple-value-bind (expansion tail-token-list new-macro-alist)
-           (expand-function-like-macro pp-macro rest-token-list macro-alist pp-state)
-         (values (nconc (list pp-macro)
-                        expansion
-                        (list :end-of-preprocessor-macro-scope))
-                 tail-token-list
-                 new-macro-alist)))
+       (if (function-like-macro-invocation-p rest-token-list)
+           (multiple-value-bind (expansion tail-token-list new-macro-alist)
+               (expand-function-like-macro pp-macro rest-token-list macro-alist pp-state)
+             (values (nconc (list pp-macro)
+                            expansion
+                            (list :end-of-preprocessor-macro-scope))
+                     tail-token-list
+                     new-macro-alist))
+           (values (list token)
+                   rest-token-list
+                   macro-alist)))
       (object-like-macro
        (let ((expansion (expand-object-like-macro pp-macro pp-state)))
          (values (nconc (list pp-macro)
