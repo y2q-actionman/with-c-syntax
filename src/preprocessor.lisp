@@ -160,7 +160,6 @@
                    (decf nest-level)))))
     collect token into arg-tokens
     finally
-       ;; TODO: this is a real error?
        (error 'incompleted-macro-arguments-error :token-list token-list)))
 
 (defun collect-preprocessor-macro-arguments (token-list macro-alist)
@@ -191,7 +190,6 @@
         pp-macro-arg)
         into macro-arg-results
       finally
-         ;; TODO: this is a real error?
          (error 'incompleted-macro-arguments-error :token-list token-list))))
 
 (defun expand-each-preprocessor-macro-in-list (token-list macro-alist pp-state)
@@ -217,7 +215,6 @@
   (let ((token-list (pp-macro-argument-token-list pp-macro-argument))
         (macro-alist (pp-macro-argument-macro-alist pp-macro-argument)))
     (let ((all-expansions
-            ;; TODO: catch incompleted-macro-arguments-error here???
             (expand-each-preprocessor-macro-in-list token-list macro-alist pp-state)))
       (setf all-expansions (delete-consecutive-whitespace-marker all-expansions)
             (pp-macro-argument-token-list-expansion pp-macro-argument) all-expansions)
