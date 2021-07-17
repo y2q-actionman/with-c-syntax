@@ -80,7 +80,7 @@
 (defmethod cl:print-object ((macro-definition function-like-macro) stream)
   (print-unreadable-object (macro-definition stream :type t :identity t)
     (princ (function-like-macro-name macro-definition) stream)
-    (princ (function-like-macro-identifier-list macro-definition) stream)))
+    (princ (or (function-like-macro-identifier-list macro-definition) "()") stream)))
 
 (defmethod cl:initialize-instance :after ((macro-definition function-like-macro) &rest args)
   (declare (ignorable args))
@@ -149,14 +149,16 @@
                 (values (make-pp-macro-argument :token-list arg-tokens
                                                 :macro-alist macro-alist)
                         (cdr token-cons)
-                        macro-alist-result))))
+                        macro-alist-result
+                        'with-c-syntax.syntax:|,|))))
            (")"
             (cond ((zerop nest-level)
                    (return
                      (values (make-pp-macro-argument :token-list arg-tokens
                                                      :macro-alist macro-alist)
-                             token-cons
-                             macro-alist-result)))
+                             (cdr token-cons)
+                             macro-alist-result
+                             'with-c-syntax.syntax:|)|)))
                   (t
                    (decf nest-level)))))
       and collect token into arg-tokens
@@ -181,16 +183,19 @@
                              :format-control "This is a BUG of function-like-macro-invocation-p.")
                   and return (cdr token-cons))))
     (loop
-      for token-cons on args-start
-      if (token-equal-p (car token-cons) ")")
-        return (values macro-arg-results (cdr token-cons) macro-alist)
-      collect
-      (multiple-value-bind (pp-macro-arg rest-token-list new-macro-alist)
-          (collect-one-macro-argument token-cons macro-alist)
-        (setf token-cons (list* :loop-on-clause-dummy rest-token-list)
-              macro-alist new-macro-alist)
-        pp-macro-arg)
-        into macro-arg-results
+      with token-cons = args-start
+      while token-cons
+      for (pp-macro-arg rest-token-list new-macro-alist separator-token)
+        = (multiple-value-list
+           (collect-one-macro-argument token-cons macro-alist))
+      collect pp-macro-arg into macro-arg-results
+      do (setf token-cons rest-token-list
+               macro-alist new-macro-alist)
+         (ecase separator-token
+           (with-c-syntax.syntax:|,|
+             (progn))
+           (with-c-syntax.syntax:|)|
+             (return (values macro-arg-results token-cons macro-alist))))
       finally
          (error 'incompleted-macro-arguments-error :token-list token-list))))
 
@@ -225,8 +230,9 @@
 (defun make-macro-arguments-alist (macro-definition macro-arg-list)
   "Makes an alist of (<symbol> . <macro-argument>) for function-like-macro expansion."
   (loop
+    with macro-identifier-list = (function-like-macro-identifier-list macro-definition)
     for marg-cons on macro-arg-list
-    and identifier-cons on (function-like-macro-identifier-list macro-definition)
+    and identifier-cons on macro-identifier-list
     collect (cons (first identifier-cons) (first marg-cons))
       into result-alist
     finally
@@ -237,20 +243,38 @@
                  :format-control "Insufficient arguments for macro '~A'"
                  :format-arguments (list (function-like-macro-name macro-definition))))
          ((and marg-cons (endp identifier-cons))
-          (unless (function-like-macro-variadicp macro-definition)
-            (error 'preprocess-error
-                   :format-control "Too many arguments for macro '~A'"
-                   :format-arguments (list (function-like-macro-name macro-definition))))
-          (loop for marg in marg-cons
-                as last-macro-alist = (pp-macro-argument-macro-alist marg)
-                append (pp-macro-argument-token-list marg) into tokens
-                append (pp-macro-argument-token-list-expansion marg) into expansions
-                finally
-                   (push (cons :__VA_ARGS__
-                               (make-pp-macro-argument :token-list tokens
-                                                       :token-list-expansion expansions
-                                                       :macro-alist last-macro-alist))
-                         result-alist)))
+          (cond
+            ((and (length= 0 macro-identifier-list)
+                  (length= 1 macro-arg-list)
+                  (length= 0 (pp-macro-argument-token-list (first macro-arg-list)))
+                  (not (function-like-macro-variadicp macro-definition)))
+             ;; Macro invocation like 'X()' may mean one of followings:
+             ;; - Passing no arguments to X.
+             ;; - Passing one argument consists of empty tokens.
+             ;; This check looks where the first situation or not.
+             ;; 
+             ;; See 'q()' macro usage of the Example3, in ISO/IEC 9899:1999
+             ;; page 156, '6.1.3.5 Scope of macro definitions'.
+             (push (cons (first macro-identifier-list)
+                         (make-pp-macro-argument :token-list nil
+                                                 :token-list-expansion nil
+                                                 :macro-alist nil))
+                   result-alist))
+            ((not (function-like-macro-variadicp macro-definition))
+             (error 'preprocess-error
+                    :format-control "Too many arguments for macro '~A'"
+                    :format-arguments (list (function-like-macro-name macro-definition))))
+            (t
+             (loop for marg in marg-cons
+                   as last-macro-alist = (pp-macro-argument-macro-alist marg)
+                   append (pp-macro-argument-token-list marg) into tokens
+                   append (pp-macro-argument-token-list-expansion marg) into expansions
+                   finally
+                      (push (cons :__VA_ARGS__
+                                  (make-pp-macro-argument :token-list tokens
+                                                          :token-list-expansion expansions
+                                                          :macro-alist last-macro-alist))
+                            result-alist)))))
          (t            ; (and (endp marg-cons) (endp identifier-cons))
           (when (function-like-macro-variadicp macro-definition)
             (warn 'with-c-syntax-style-warning
@@ -391,7 +415,7 @@
              (eql (first token2-expansion) +whitespace-marker+))
            (token2-first (if token2-first-whitespacep
                              (second token2-expansion)
-                             (first token1-expansion)))
+                             (first token2-expansion)))
            (concat-result (concatenate-token
                            token1-last
                            token2-first)))
@@ -447,8 +471,7 @@
            append (pp-macro-argument-token-list-expansion (cdr macro-arg-alist-cons))
              into expansion
     else if (eq token +placemaker-token+)
-           do (error 'preprocess-error
-                     :format-control "Placemaker-token should not be left after macro expansion.")
+           do (progn) ; Placemaker-token should not be left after macro expansion. 
     else 
       collect token into expansion
     finally

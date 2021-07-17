@@ -510,6 +510,14 @@
      #2{
      f(2 * (2+(3,4)-0,1)) \| f(2 * (~ 5)) & f(2 * (0,1))^m(0,1);
      }#)
+    (is.wcs.pp.equal
+     #2{
+     #include "test/test-pp-6.10.3.5-example-3.h"
+     p() i[q()] = { q(1), r(2,3), r(4,), r(,5), r(,) };
+     }#
+     #2{
+     int i[] = { 1, 23, 4, 5,  };
+     }#)
     ))
 
 (test test-not-function-invocation
