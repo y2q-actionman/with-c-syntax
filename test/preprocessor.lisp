@@ -453,36 +453,56 @@
        '(or string cl:null))))
 
 (test test-pp-stringify
-  (is.equal.wcs "ABC"             ; Because readtable-case is :upcase.
-    #2{
-    #define STR(x) #x
-    STR (abc)
-    }#)
   (muffle-unused-code-warning
+    (is.equal.wcs "ABC"           ; Because readtable-case is :upcase.
+      #2{
+      #define STR(x) #x
+      STR (abc)
+      }#)
     (is.equal.wcs "100"
       #2{
       #define STR(x) #x
       STR (100)
-      }#))
-  (muffle-unused-code-warning
+      }#)
     (is.equal.wcs ""
       #2{
       #define STR(x) #x
       STR ()
-      }#))
-  (muffle-unused-code-warning
+      }#)
+    (is.equal.wcs "EMPTY"
+      #2{
+      #define STR(x) #x		// not expands the argument.
+      #define EMPTY
+      STR (EMPTY)
+      }#)
     (is.equal.wcs ""
       #2{
-      #define EMPTY
       #define STR(x) #x
-      STR (EMPTY)
-      }#))
-  (is.equal.wcs "1.2"
-    #2{
-    #define CAT(x,y) x##y
-    #define STR(x) #x
-    STR(CAT(1,.2))
-    }#))
+      #define EXPAND_STR(x) STR(x) 
+      #define EMPTY
+      EXPAND_STR (EMPTY)
+      }#)
+    (is.equal.wcs "1.2"
+      #2{
+      #define STR(x) #x
+      #define EXPAND_STR(x) STR(x) 
+      #define CAT(x,y) x##y
+      EXPAND_STR(CAT(1,.2))
+      }#)
+    (is.equal.wcs "1. 2"
+      #2{
+      #define STR(x) #x
+      #define EXPAND_STR(x) STR(x) 
+      #define CAT(x,y) x##y
+      EXPAND_STR(CAT(1 ,. 2))
+      }#)
+    (is.equal.wcs "1.2"
+      #2{
+      #define STR(x) #x
+      #define EXPAND_STR(x) STR(x) 
+      #define CAT3(x,y,z) x##y##z
+      EXPAND_STR(CAT3(1 ,. , 2))
+      }#)))
 
 (test test-pp-next-token-inclusion
   ;; From mcpp-2.7.2 cpp-test.html#2.7.6

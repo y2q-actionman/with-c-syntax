@@ -306,32 +306,29 @@
     (error 'preprocess-error
            :format-control "# operator argument '~A' is not a macro parameter."
            :format-arguments (list token)))
-  (with-output-to-string (out)
-    (loop with marg = (cdr (assoc token macro-arg-alist))
-          with expansion = (pp-macro-argument-token-list-expansion marg)
-          for lis on (if (eql (first expansion) +whitespace-marker+)
-                         (rest expansion) ; Remove the first `+whitespace-marker+'.
-                         expansion)
-          as i = (car lis)
-          do (cond
-               ((and (eql i +whitespace-marker+)
-                     (not (endp (rest lis)))) ; Do not print the last `+whitespace-marker+'.
-                (write-char #\space out))
-               ((macro-scoping-marker-p i)
-                (progn))
-               ((preprocessing-number-p i)
-                (princ (preprocessing-number-string i) out))
-               ((characterp i)
-                (format out "'~C'" i))
-               ((stringp i)  
-                (princ "\\\"" out)
-                (loop for c across i
-                      if (or (char= c #\") (char= c #\\))
-                        do (write-char #\\ out) ; escape double-quote and backslash
-                      do (write-char #\\))
-                (princ "\\\"" out))
-               (t
-                (princ i out))))))
+  (string-trim
+   '(#\space)
+   (with-output-to-string (out)
+     (loop with marg = (cdr (assoc token macro-arg-alist))
+           for i in (pp-macro-argument-token-list marg)
+           if (macro-control-marker-p i)
+             do (progn)
+           else
+             do (cond
+                  ((preprocessing-number-p i)
+                   (princ (preprocessing-number-string i) out))
+                  ((characterp i)
+                   (format out "'~C'" i))
+                  ((stringp i)  
+                   (princ "\\\"" out)
+                   (loop for c across i
+                         if (or (char= c #\") (char= c #\\))
+                           do (write-char #\\ out) ; escape double-quote and backslash
+                         do (write-char #\\))
+                   (princ "\\\"" out))
+                  (t
+                   (princ i out)))
+                (princ #\space out)))))
 
 (defconstant +placemaker-token+ '||)
 
@@ -417,29 +414,37 @@
 (defun expand-concatenate-operator (token1 token2 macro-arg-alist)
   (flet ((expand-arg-token (token)
            (if-let ((entry (assoc token macro-arg-alist)))
-             (pp-macro-argument-token-list-expansion (cdr entry))
+             (pp-macro-argument-token-list (cdr entry))
              (list token))))
-    (let* ((token1-expansion (or (expand-arg-token token1) (list +placemaker-token+)))
-           (token2-expansion (or (expand-arg-token token2) (list +placemaker-token+)))
-           (token1-last-whitespacep
-             (eql (lastcar token1-expansion) +whitespace-marker+))
-           (token1-last (if token1-last-whitespacep
-                            (car (last token1-expansion 2))
-                            (lastcar token1-expansion)))
-           (token2-first-whitespacep
-             (eql (first token2-expansion) +whitespace-marker+))
-           (token2-first (if token2-first-whitespacep
-                             (second token2-expansion)
-                             (first token2-expansion)))
+    (let* ((t1-tokens (expand-arg-token token1))
+           (t1-tokens-last-token-pos
+             (position-if-not #'macro-control-marker-p t1-tokens :from-end t))
+           (t1-last-token
+             (if t1-tokens-last-token-pos
+                 (nth t1-tokens-last-token-pos t1-tokens)
+                 +placemaker-token+))
+           (t1-other-tokens
+             (if t1-tokens-last-token-pos
+                 (remove t1-last-token t1-tokens :test 'eq :from-end t :count 1)
+                 t1-tokens))
+           (t2-tokens (expand-arg-token token2))
+           (t2-tokens-first-token-pos
+             (position-if-not #'macro-control-marker-p t2-tokens))
+           (t2-first-token
+             (if t2-tokens-first-token-pos
+                 (nth t2-tokens-first-token-pos t2-tokens)
+                 +placemaker-token+))
+           (t2-other-tokens
+             (if t2-tokens-first-token-pos
+                 (remove t2-first-token t2-tokens :test 'eq :count 1)
+                 t2-tokens))
            (concat-result (concatenate-token
-                           token1-last
-                           token2-first)))
+                           t1-last-token
+                           t2-first-token)))
       (delete-consecutive-whitespace-marker
-       (append (butlast token1-expansion
-                        (if token1-last-whitespacep 2 1))
+       (append t1-other-tokens
                (list concat-result)
-               (nthcdr (if token2-first-whitespacep 2 1)
-                       token2-expansion))))))
+               t2-other-tokens)))))
 
 (defun expand-macro-replacement-list (replacement-list macro-arg-alist process-digraph?)
   (when (or (token-equal-p (first replacement-list) "##")
