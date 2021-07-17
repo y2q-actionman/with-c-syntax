@@ -375,7 +375,7 @@
          (let ((form
                  '#2{
                  #include "/tmp/tmp.h"
-                 return hoge; // This is with-c-syntax.test::hoge.
+                 return `|hoge|; // This is with-c-syntax.test::hoge.
                  }#))
            (is (= (let ((*package* (find-package '#:with-c-syntax.test)))
                     (eval form))
@@ -558,7 +558,6 @@
     }#))
 
 (test test-pp-6.10.3.5-example-3
-  ;; incompleted..
   (let ((*package* (find-package '#:with-c-syntax.test))) ; This affects #include. FIXME: I should add pragma for change package.
     (is.wcs.pp.equal
      #2{
@@ -586,7 +585,23 @@
      #2{
      int i[] = { 1, 23, 4, 5,  };
      }#)
-    ))
+    ;; FIXME: cleanup these compicated reader-case handlings!
+    (let ((*with-c-syntax-reader-case* :preserve)
+          (*readtable* (copy-readtable)))
+      (setf (readtable-case *readtable*) :preserve)
+      #.(setf *with-c-syntax-reader-case* :preserve)
+      #.(setf (readtable-case *readtable*) :preserve)
+      (IS.WCS.PP.EQUAL
+       #2{
+       #include "test/test-pp-6.10.3.5-example-3.h"
+       char c[2][6] = { str(hello), str() } ;
+       }#
+       #2{
+       char c[2][6] = { "hello", "" }   ;
+       }#)
+      #.(SETF (READTABLE-CASE *READTABLE*) :UPCASE)
+      #.(setf *with-c-syntax-reader-case* nil))
+    t))
 
 
 ;;; TODO: digraph tests.

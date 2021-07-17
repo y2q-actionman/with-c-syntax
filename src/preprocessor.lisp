@@ -656,10 +656,10 @@ returns NIL."
 ;;; preprocessor-state object held in the main loop.
 
 (defclass preprocessor-state () 
-  ((reader-level :initarg :reader-level :initform *with-c-syntax-reader-level* :type integer
+  ((reader-level :initarg :reader-level :initform 2 :type integer
                  :reader pp-state-reader-level)
    (readtable-case :initarg :readtable-case :type keyword
-                   :reader pp-state-readtable-case)
+                   :accessor pp-state-readtable-case)
    (process-digraph? :initarg :process-digraph? :initform nil :type boolean
                      :reader pp-state-process-digraph?)
    (file-pathname :initarg :file-pathname :initform nil
@@ -686,9 +686,7 @@ returns NIL."
 
 ;; TODO: reduce its usage
 (defmacro with-preprocessor-state-slots ((state) &body body)
-  `(with-accessors ((reader-level pp-state-reader-level)
-                    (readtable-case pp-state-readtable-case)
-                    (process-digraph? pp-state-process-digraph?)
+  `(with-accessors ((process-digraph? pp-state-process-digraph?)
                     (file-pathname pp-state-file-pathname)
                     (token-list pp-state-token-list)
                     (result-list pp-state-result-list)
@@ -826,7 +824,8 @@ returns NIL."
 (defun eval-if-expression (directive-symbol directive-token-list state)
   (with-preprocessor-state-slots (state)
     (let* ((expansion
-             (expand-defined-operator directive-token-list macro-alist readtable-case
+             (expand-defined-operator directive-token-list macro-alist
+                                      (pp-state-readtable-case state) 
                                       process-digraph? directive-symbol))
            (expansion
              (expand-each-preprocessor-macro-in-list expansion macro-alist state))
@@ -1050,13 +1049,22 @@ returns NIL."
          (line-sym (ecase readtable-case
                      ((:upcase :invert) '|LINE|)
                      ((:downcase :preserve) '|line|)))
+         (pragma-sym (ecase readtable-case
+                       ((:upcase :invert) '|PRAGMA|)
+                       ((:downcase :preserve) '|pragma|)))
          (start-line-tokens
-           (list '|#| line-sym 1 header-name +newline-marker+))
+           (list
+            '|#| pragma-sym :WITH_C_SYNTAX :SET_READTABLE_CASE :preserve +newline-marker+
+            '|#| '|line| 1 header-name +newline-marker+))
          (main-tokens
+           ;; Included file is read at reader level == 2 and readtable-case == :preserve at default.
            (with-open-file (stream header-name)
-             (tokenize-source (pp-state-reader-level state) stream nil)))
+             (tokenize-source 2 ; FIXME: See the value set by the #pragma.
+                              stream nil
+                              :preserve)))
          (end-tokens
-           (list :end-of-inclusion +newline-marker+))
+           (list :end-of-inclusion +newline-marker+
+                 '|#| '|pragma| :WITH_C_SYNTAX :SET_READTABLE_CASE readtable-case +newline-marker+))
          (end-line-tokens
            (if (pp-state-file-pathname state)
                (list '|#| line-sym (pp-state-line-number state) (pp-state-file-pathname state) +newline-marker+)
@@ -1236,16 +1244,30 @@ returns NIL."
 
 (defun process-with-c-syntax-pragma (directive-symbol directive-token-list state)
   (let ((token1 (pop-preprocessor-directive-token directive-token-list directive-symbol)))
-      (flet ((raise-unsyntactic-wcs-pragma-error ()
-               (error 'preprocess-error
-                      :format-control "Unsyntactic pragma '#pragma ~A ~A'"
-                      :format-arguments (list :WITH_C_SYNTAX token1))))
-        (switch (token1 :test 'token-equal-p)
-          (otherwise
-           (raise-unsyntactic-wcs-pragma-error))))))
+    (flet ((raise-unsyntactic-wcs-pragma-error ()
+             (error 'preprocess-error
+                    :format-control "Unsyntactic pragma '#pragma ~A ~A'"
+                    :format-arguments (list :WITH_C_SYNTAX token1))))
+      (switch (token1 :test 'token-equal-p)
+        ;; TODO: Add pragma for reader-level and in-package, for included file. These parameters are should saved into the include-stack.
+        ;; TODO: included file's default reader-level == 2 and readtable-case = :preserve, for reading (real) C source.
+        ;; ("INCLUSION_READER_LEVEL")
+        ;; ("INCLUSION_READTABLE_CASE")
+        ;; ("INCLUSION_PACKAGE")
+        ;; TODO: These pragmas works when next '#include' appears. These are NOT for the file the pragma written.
+        ;; I should warn when no '#include' appears even if these pragma used.
+        ("SET_READTABLE_CASE"
+         (let ((token2 (pop-preprocessor-directive-token directive-token-list directive-symbol)))
+           (unless (member token2 '(:upcase :downcase :preserve :invert)
+                           :test 'token-equal-p)
+             (error 'preprocess-error
+                    :format-control "Bad argument for pragma '#pragma WITH_C_SYNTAX ~A ~A'"
+                    :format-arguments (list token1 token2)))
+           (setf (pp-state-readtable-case state)
+                 (find-symbol (string token2) :keyword))))
+        (otherwise
+         (raise-unsyntactic-wcs-pragma-error))))))
 
-;;; TODO: Add pragma for reader-level and in-package, for included file. These parameters are should saved into the include-stack.
-;;; TODO: Add pragma for arbitary form, like #pragma WITH_C_SYNTAX EVAL (...) ?
 
 (defun process-stdc-pragma (directive-symbol directive-token-list state)
   (with-preprocessor-state-slots (state)
@@ -1305,7 +1327,7 @@ returns NIL."
                                         (delete +whitespace-marker+ directive-token-list))))
                (return-from process-preprocessing-directive nil))))
       (switch (first-token :test 'token-equal-p)
-        (:WITH_C_SYNTAX
+        ("WITH_C_SYNTAX"
          (process-with-c-syntax-pragma directive-symbol directive-token-list state))
         ("STDC"
          (process-stdc-pragma directive-symbol directive-token-list state))
@@ -1340,7 +1362,8 @@ returns NIL."
           (unless (symbolp directive-token)
             (raise-pp-error))
           (if-let ((directive-symbol
-                    (find-preprocessor-directive (symbol-name directive-token) readtable-case)))
+                    (find-preprocessor-directive (symbol-name directive-token)
+                                                 (pp-state-readtable-case state))))
             (process-preprocessing-directive directive-symbol token-list state)
             (raise-pp-error)))))))
 
@@ -1367,7 +1390,9 @@ returns NIL."
                :format-arguments (list +pragma-operator-name+)))
       (let ((pragma-tokens
               (with-input-from-string (stream pragma-string)
-                (tokenize-source reader-level stream nil))))
+                (tokenize-source (pp-state-reader-level state)
+                                 stream nil
+                                 (pp-state-readtable-case state)))))
         (process-preprocessing-directive 'with-c-syntax.preprocessor-directive:|pragma|
                                          pragma-tokens
                                          state)))))
@@ -1440,7 +1465,8 @@ returns NIL."
               ;; FIXME: I think this should be only for reader level 1.
               ((unless (or (boundp token)
                            (fboundp token)
-                           (find-c-terminal (symbol-name token) readtable-case))
+                           (find-c-terminal (symbol-name token)
+                                            (pp-state-readtable-case state)))
                  (multiple-value-bind (splited-p results) (preprocessor-try-split token)
 	           (if splited-p
 	               (setf token-list (nconc results token-list))

@@ -682,13 +682,13 @@ If not, returns a next token by `cl:read' after unreading CHAR."
            (t
             (read-preserving-whitespace stream t :eof recursive-p))))))))
 
-(defun tokenize-source (level stream end-with-bracet-sharp)
+(defun tokenize-source (level stream end-with-bracet-sharp readtable-case)
   "Tokenize C source by doing translation phase 1, 2, and 3.
  LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
          (*previous-syntax* *readtable*)
          (*second-unread-char* nil)
-         (c-readtable (make-c-readtable level *with-c-syntax-reader-case*))
+         (c-readtable (make-c-readtable level readtable-case))
          (process-backslash-newline
            (case *with-c-syntax-reader-process-backslash-newline*
              (:auto (>= level +with-c-syntax-default-reader-level+))
@@ -727,7 +727,7 @@ the result is wrapped with `with-c-syntax'.
   (let ((level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2))
         (input-file-pathname (ignore-errors (namestring stream))))
     (multiple-value-bind (tokens readtable)
-        (tokenize-source level stream t)
+        (tokenize-source level stream t *with-c-syntax-reader-case*)
       ;; TODO: Move these parameters to #pragma?
       `(with-c-syntax (:reader-level ,level
                        ;; Capture the readtable-case used for reading inside '#{ ... }#'.

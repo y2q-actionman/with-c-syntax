@@ -1,11 +1,25 @@
-#define and	`with-c-syntax.syntax:&&
-#define and_eq	`with-c-syntax.syntax:&= 
-#define bitand	`with-c-syntax.syntax:&
-#define bitor	`with-c-syntax.syntax:\|
-#define compl	`with-c-syntax.syntax:~
-#define not	`with-c-syntax.syntax:!
-#define not_eq	`with-c-syntax.syntax:!= 
-#define or	`with-c-syntax.syntax:\|\|
-#define or_eq	`with-c-syntax.syntax:\|= 
-#define xor	`with-c-syntax.syntax:^
-#define xor_eq	`with-c-syntax.syntax:^= 
+#if `(MEMBER (READTABLE-CASE *READTABLE*) '(:DOWNCASE :PRESERVE))
+#define and	`WITH-C-SYNTAX.SYNTAX:&&
+#define and_eq	`WITH-C-SYNTAX.SYNTAX:&= 
+#define bitand	`WITH-C-SYNTAX.SYNTAX:&
+#define bitor	`WITH-C-SYNTAX.SYNTAX:\|
+#define compl	`WITH-C-SYNTAX.SYNTAX:~
+#define not	`WITH-C-SYNTAX.SYNTAX:!
+#define not_eq	`WITH-C-SYNTAX.SYNTAX:!= 
+#define or	`WITH-C-SYNTAX.SYNTAX:\|\|
+#define or_eq	`WITH-C-SYNTAX.SYNTAX:\|= 
+#define xor	`WITH-C-SYNTAX.SYNTAX:^
+#define xor_eq	`WITH-C-SYNTAX.SYNTAX:^= 
+#elif `(MEMBER (READTABLE-CASE *READTABLE*) '(:UPCASE :INVERT))
+#define AND	`WITH-C-SYNTAX.SYNTAX:&&
+#define AND_EQ	`WITH-C-SYNTAX.SYNTAX:&= 
+#define BITAND	`WITH-C-SYNTAX.SYNTAX:&
+#define BITOR	`WITH-C-SYNTAX.SYNTAX:\|
+#define COMPL	`WITH-C-SYNTAX.SYNTAX:~
+#define NOT	`WITH-C-SYNTAX.SYNTAX:!
+#define NOT_EQ	`WITH-C-SYNTAX.SYNTAX:!= 
+#define OR	`WITH-C-SYNTAX.SYNTAX:\|\|
+#define OR_EQ	`WITH-C-SYNTAX.SYNTAX:\|= 
+#define XOR	`WITH-C-SYNTAX.SYNTAX:^
+#define XOR_EQ	`WITH-C-SYNTAX.SYNTAX:^= 
+#endif
