@@ -45,56 +45,61 @@
   (token-equal-p token :__VA_ARGS__))
 
 (defclass macro-definition ()
-  ((name :initarg :name :reader macro-definition-name)))
+  ((name :initarg :name :reader macro-definition-name)
+   (replacement-list :initarg :replacement-list
+                     :reader macro-definition-replacement-list)))
 
-(defmethod cl:initialize-instance :after ((macro-definition macro-definition) &rest args)
+(defmethod cl:initialize-instance :before ((macro-definition macro-definition)
+                                           &rest args &key name)
   (declare (ignorable args))
-  (when (va-args-identifier-p (macro-definition-name macro-definition))
+  (when (va-args-identifier-p name)
     (error 'preprocess-error
 	   :format-control "Macro name '__VA_ARGS__' is now allowed as an user defined macro.")))
 
+(defmethod cl:initialize-instance :after ((macro-definition macro-definition) &rest args)
+  (declare (ignorable args))
+  (with-slots (replacement-list) macro-definition
+    (when (eq (first replacement-list) +whitespace-marker+)
+      (pop replacement-list))))
+
 (defclass object-like-macro (macro-definition)
-  ((name :initarg :name :reader object-like-macro-name)
-   (replacement-list :initarg :replacement-list
-                     :reader object-like-macro-replacement-list)))
+  ())
 
 (defmethod cl:print-object ((macro-definition object-like-macro) stream)
   (print-unreadable-object (macro-definition stream :type t :identity t)
-    (princ (object-like-macro-name macro-definition) stream)))
+    (princ (macro-definition-name macro-definition) stream)))
 
-(defmethod cl:initialize-instance :after ((macro-definition object-like-macro) &rest args)
+(defmethod cl:initialize-instance :before ((macro-definition object-like-macro)
+                                           &rest args &key replacement-list)
   (declare (ignorable args))
-  (when (some #'va-args-identifier-p (object-like-macro-replacement-list macro-definition))
+  (when (some #'va-args-identifier-p replacement-list)
     (error 'preprocess-error
 	   :format-control "Object-like-macro cannot have '__VA_ARGS__' in its replacement-list.")))
 
 (defclass function-like-macro (macro-definition)
-  ((name :initarg :name :reader function-like-macro-name)
-   (identifier-list :initarg :identifier-list
+  ((identifier-list :initarg :identifier-list
                     :reader function-like-macro-identifier-list)
    (variadicp :initarg :variadicp
-              :reader function-like-macro-variadicp)
-   (replacement-list :initarg :replacement-list
-                     :reader function-like-macro-replacement-list)))
+              :reader function-like-macro-variadicp)))
 
 (defmethod cl:print-object ((macro-definition function-like-macro) stream)
   (print-unreadable-object (macro-definition stream :type t :identity t)
-    (princ (function-like-macro-name macro-definition) stream)
+    (princ (macro-definition-name macro-definition) stream)
     (princ (or (function-like-macro-identifier-list macro-definition) "()") stream)))
 
-(defmethod cl:initialize-instance :after ((macro-definition function-like-macro) &rest args)
+(defmethod cl:initialize-instance :before ((macro-definition function-like-macro)
+                                           &rest args &key identifier-list variadicp replacement-list)
   (declare (ignorable args))
-  (let ((identifier-list (function-like-macro-identifier-list macro-definition)))
-    (when (some #'va-args-identifier-p identifier-list)
-      (error 'preprocess-error
-	     :format-control "Function-like-macro cannot have '__VA_ARGS__' in its identifier-list."))
-    (unless (length= identifier-list (remove-duplicates identifier-list))
-      (error 'preprocess-error
-	     :format-control "Function-like-macro has duplicated parameter names.")))
-  (when (and (not (function-like-macro-variadicp macro-definition))
-             (some #'va-args-identifier-p (function-like-macro-replacement-list macro-definition)))
+  (when (some #'va-args-identifier-p identifier-list)
     (error 'preprocess-error
-	   :format-control "Non-variadic Function-like-macro cannot have '__VA_ARGS__' in its replacement-list.")))
+           :format-control "Function-like-macro cannot have '__VA_ARGS__' in its identifier-list."))
+  (unless (length= identifier-list (remove-duplicates identifier-list))
+    (error 'preprocess-error
+           :format-control "Function-like-macro has duplicated parameter names."))
+  (when (and (not variadicp)
+             (some #'va-args-identifier-p replacement-list))
+    (error 'preprocess-error
+           :format-control "Non-variadic Function-like-macro cannot have '__VA_ARGS__' in its replacement-list.")))
 
 (defun preprocessor-macro-exists-p (macro-alist symbol)
   (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
@@ -241,7 +246,7 @@
          ((and (endp marg-cons) identifier-cons)
           (error 'preprocess-error
                  :format-control "Insufficient arguments for macro '~A'"
-                 :format-arguments (list (function-like-macro-name macro-definition))))
+                 :format-arguments (list (macro-definition-name macro-definition))))
          ((and marg-cons (endp identifier-cons))
           (cond
             ((and (length= 0 macro-identifier-list)
@@ -263,7 +268,7 @@
             ((not (function-like-macro-variadicp macro-definition))
              (error 'preprocess-error
                     :format-control "Too many arguments for macro '~A'"
-                    :format-arguments (list (function-like-macro-name macro-definition))))
+                    :format-arguments (list (macro-definition-name macro-definition))))
             (t
              (loop for marg in marg-cons
                    as last-macro-alist = (pp-macro-argument-macro-alist marg)
@@ -306,15 +311,20 @@
                ((and (eql i +whitespace-marker+)
                      (not (endp (rest lis)))) ; Do not print the last `+whitespace-marker+'.
                 (write-char #\space out))
+               ((or (eq i :end-of-preprocessor-macro-scope)
+                    (typep i 'macro-definition))
+                (progn))
+               ((preprocessing-number-p i)
+                (princ (preprocessing-number-string i) out))
                ((characterp i)
                 (format out "'~C'" i))
                ((stringp i)  
-                (format out "\\\"")
+                (princ "\\\"" out)
                 (loop for c across i
                       if (or (char= c #\") (char= c #\\))
                         do (write-char #\\ out) ; escape double-quote and backslash
                       do (write-char #\\))
-                (format out "\\\""))
+                (princ "\\\"" out))
                (t
                 (princ i out))))))
 
@@ -486,7 +496,7 @@
     (let ((macro-arg-alist
             (make-macro-arguments-alist macro-definition macro-arg-list)))
       (values 
-       (expand-macro-replacement-list (function-like-macro-replacement-list macro-definition)
+       (expand-macro-replacement-list (macro-definition-replacement-list macro-definition)
                                       macro-arg-alist
                                       (pp-state-process-digraph? pp-state))
        tail-of-rest-token-list
@@ -505,7 +515,7 @@
           return nil))
 
 (defun expand-object-like-macro (macro-definition pp-state)
-  (expand-macro-replacement-list (object-like-macro-replacement-list macro-definition)
+  (expand-macro-replacement-list (macro-definition-replacement-list macro-definition)
                                  nil
                                  (pp-state-process-digraph? pp-state)))
 

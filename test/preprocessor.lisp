@@ -328,7 +328,78 @@
     }#)
   )
 
-(test test-pp-object-like-macro
+(test test-pp-undef-syntax-errors
+  (signals.macroexpand.wcs ()
+    #2{ #undef }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #undef X extra-token
+    }#))
+  
+(test test-pp-line-directive
+  (is.equal.wcs 100
+    #2{
+    #line 100
+    return __LINE__;
+    }#)
+  (is.equal.wcs (+ 1 10000 -100)
+    #2{ return __LINE__
+    #line 10000
+    + __LINE__
+    #line 100
+    - __LINE__;
+    }#)
+  (is.equal.wcs "filename-xxx"
+    #2{
+    #line 1 "filename-xxx"
+    return __FILE__;
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #line 0
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #line 2147483648
+    }#)
+  ;; TODO: macro expansion.
+  )
+
+;;; #include
+
+(test test-pp-include
+  (unwind-protect
+       (progn
+         (with-open-file (out "/tmp/tmp.h" :direction :output :if-exists :supersede)
+           (format out "int hoge = 100;"))
+         (let ((form
+                 '#2{
+                 #include "/tmp/tmp.h"
+                 return hoge; // This is with-c-syntax.test::hoge.
+                 }#))
+           (is (= (let ((*package* (find-package '#:with-c-syntax.test)))
+                    (eval form))
+                  100))))
+    (delete-file "/tmp/tmp.h")))
+  
+(test test-pp-include-2
+  (is.equal.wcs 10
+    #2{
+    #include <iso646.h>
+    return 10 or 9999;
+    }#)
+  (signals.macroexpand.wcs (with-c-syntax.core::preprocess-include-file-error)
+    #2{
+    #include <not_exists>
+    }#))
+  
+(test test-pp-strcat
+  (is.equal.wcs "abc"
+    return "a" "b" "c" \; ))
+
+;;; Macro expansion
+
+(test test-pp-simple-object-like-macro
   (is.equal.wcs 3
     #2{
     #define HOGE (x + y)
@@ -381,72 +452,37 @@
        #2{ __FILE__ }#
        '(or string cl:null))))
 
-(test test-pp-undef-syntax-errors
-  (signals.macroexpand.wcs ()
-    #2{ #undef }#)
-  (signals.macroexpand.wcs ()
+(test test-pp-stringify
+  (is.equal.wcs "ABC"             ; Because readtable-case is :upcase.
     #2{
-    #undef X extra-token
+    #define STR(x) #x
+    STR (abc)
+    }#)
+  (muffle-unused-code-warning
+    (is.equal.wcs "100"
+      #2{
+      #define STR(x) #x
+      STR (100)
+      }#))
+  (muffle-unused-code-warning
+    (is.equal.wcs ""
+      #2{
+      #define STR(x) #x
+      STR ()
+      }#))
+  (muffle-unused-code-warning
+    (is.equal.wcs ""
+      #2{
+      #define EMPTY
+      #define STR(x) #x
+      STR (EMPTY)
+      }#))
+  (is.equal.wcs "1.2"
+    #2{
+    #define CAT(x,y) x##y
+    #define STR(x) #x
+    STR(CAT(1,.2))
     }#))
-  
-(test test-pp-line-directive
-  (is.equal.wcs 100
-    #2{
-    #line 100
-    return __LINE__;
-    }#)
-  (is.equal.wcs (+ 1 10000 -100)
-    #2{ return __LINE__
-    #line 10000
-    + __LINE__
-    #line 100
-    - __LINE__;
-    }#)
-  (is.equal.wcs "filename-xxx"
-    #2{
-    #line 1 "filename-xxx"
-    return __FILE__;
-    }#)
-  (signals.macroexpand.wcs ()
-    #2{
-    #line 0
-    }#)
-  (signals.macroexpand.wcs ()
-    #2{
-    #line 2147483648
-    }#)
-  ;; TODO: macro expansion.
-  )
-
-(test test-pp-include
-  (unwind-protect
-       (progn
-         (with-open-file (out "/tmp/tmp.h" :direction :output :if-exists :supersede)
-           (format out "int hoge = 100;"))
-         (let ((form
-                 '#2{
-                 #include "/tmp/tmp.h"
-                 return hoge; // This is with-c-syntax.test::hoge.
-                 }#))
-           (is (= (let ((*package* (find-package '#:with-c-syntax.test)))
-                    (eval form))
-                  100))))
-    (delete-file "/tmp/tmp.h")))
-  
-(test test-pp-include-2
-  (is.equal.wcs 10
-    #2{
-    #include <iso646.h>
-    return 10 or 9999;
-    }#)
-  (signals.macroexpand.wcs (with-c-syntax.core::preprocess-include-file-error)
-    #2{
-    #include <not_exists>
-    }#))
-  
-(test test-pp-strcat
-  (is.equal.wcs "abc"
-    return "a" "b" "c" \; ))
 
 (test test-pp-next-token-inclusion
   ;; From mcpp-2.7.2 cpp-test.html#2.7.6
@@ -459,6 +495,18 @@
 
     return head a, b);
     }#))
+
+(test test-pp-not-function-invocation
+  (is.wcs.pp.equal
+   #2{
+   #define x() (a, b, c)
+   x
+   }#
+   #2{
+   x
+   }#))
+
+;;; Examples in C standard.
 
 (test test-pp-6.10.3.3-example
   (is.equal.wcs "X ## Y"    ; Because our readtable-case is `:upcase'.
@@ -520,15 +568,6 @@
      }#)
     ))
 
-(test test-not-function-invocation
-  (is.wcs.pp.equal
-   #2{
-   #define x() (a, b, c)
-   x
-   }#
-   #2{
-   x
-   }#))
 
 ;;; TODO: digraph tests.
 
