@@ -133,6 +133,15 @@
   (token-list-expansion nil)
   (macro-alist))      ; The context for macro expansion.
 
+(defun macro-scoping-marker-p (token)
+  (or (eql token :end-of-preprocessor-macro-scope)
+      (typep token 'macro-definition)))
+
+(defun macro-control-marker-p (token)
+  (or (eql token +whitespace-marker+)
+      (eql token +newline-marker+)
+      (macro-scoping-marker-p token)))
+
 (defun collect-one-macro-argument (token-list macro-alist)
   (loop
     with macro-alist-result = macro-alist
@@ -145,27 +154,24 @@
     else if (eq token :end-of-preprocessor-macro-scope)
            do (pop macro-alist-result)
     else
-      do (switch (token :test 'token-equal-p)
-           ("("
-            (incf nest-level))
-           (","
-            (when (zerop nest-level)
-              (return
-                (values (make-pp-macro-argument :token-list arg-tokens
-                                                :macro-alist macro-alist)
-                        (cdr token-cons)
-                        macro-alist-result
-                        'with-c-syntax.syntax:|,|))))
-           (")"
-            (cond ((zerop nest-level)
-                   (return
-                     (values (make-pp-macro-argument :token-list arg-tokens
-                                                     :macro-alist macro-alist)
-                             (cdr token-cons)
-                             macro-alist-result
-                             'with-c-syntax.syntax:|)|)))
-                  (t
-                   (decf nest-level)))))
+      do (flet ((return-this-arg ()
+                  (return-from collect-one-macro-argument
+                    (values (make-pp-macro-argument :token-list arg-tokens
+                                                    :macro-alist macro-alist)
+                            (cdr token-cons)
+                            macro-alist-result
+                            token))))
+           (switch (token :test 'token-equal-p)
+             ("("
+              (incf nest-level))
+             (","
+              (when (zerop nest-level)
+                (return-this-arg)))
+             (")"
+              (cond ((zerop nest-level)
+                     (return-this-arg))
+                    (t
+                     (decf nest-level))))))
       and collect token into arg-tokens
     finally
        (error 'incompleted-macro-arguments-error :token-list token-list)))
@@ -196,11 +202,11 @@
       collect pp-macro-arg into macro-arg-results
       do (setf token-cons rest-token-list
                macro-alist new-macro-alist)
-         (ecase separator-token
-           (with-c-syntax.syntax:|,|
-             (progn))
-           (with-c-syntax.syntax:|)|
-             (return (values macro-arg-results token-cons macro-alist))))
+         (switch (separator-token :test 'token-equal-p)
+           (","
+            (progn))
+           (")"
+            (return (values macro-arg-results token-cons macro-alist))))
       finally
          (error 'incompleted-macro-arguments-error :token-list token-list))))
 
@@ -311,8 +317,7 @@
                ((and (eql i +whitespace-marker+)
                      (not (endp (rest lis)))) ; Do not print the last `+whitespace-marker+'.
                 (write-char #\space out))
-               ((or (eq i :end-of-preprocessor-macro-scope)
-                    (typep i 'macro-definition))
+               ((macro-scoping-marker-p i)
                 (progn))
                ((preprocessing-number-p i)
                 (princ (preprocessing-number-string i) out))
@@ -328,7 +333,7 @@
                (t
                 (princ i out))))))
 
-(defconstant +placemaker-token+ :||)
+(defconstant +placemaker-token+ '||)
 
 (defgeneric concatenate-token (token1 token2)
   (:documentation "Perform token concatenation caused by '##' operator.")
@@ -488,7 +493,6 @@
        (return (delete-consecutive-whitespace-marker expansion))))
 
 (defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
-  ;; Collect arguments.
   (multiple-value-bind (macro-arg-list tail-of-rest-token-list new-macro-alist)
       (collect-preprocessor-macro-arguments rest-token-list macro-alist)
     (dolist (marg macro-arg-list)
@@ -503,16 +507,10 @@
        new-macro-alist))))
 
 (defun function-like-macro-invocation-p (token-list)
-  (loop for i in token-list
-        if (or (eql i +whitespace-marker+)
-               (eql i +newline-marker+)
-               (typep i 'macro-definition) ; macro scoping
-               (eql i :end-of-preprocessor-macro-scope)) ; macro scoping
-          do (progn)                    ; go next.
-        else if (token-equal-p i "(")
-               return i
-        else
-          return nil))
+  (let ((first-token
+          (find-if-not #'macro-control-marker-p token-list)))
+    (and first-token
+         (token-equal-p first-token "("))))
 
 (defun expand-object-like-macro (macro-definition pp-state)
   (expand-macro-replacement-list (macro-definition-replacement-list macro-definition)
@@ -820,12 +818,6 @@ returns NIL."
             (t
              token)))))
 
-(defun remove-macro-scope-special-token (token-list)
-  (loop for i in token-list
-        unless (or (eql i :end-of-preprocessor-macro-scope)
-                   (typep i 'macro-definition))
-          collect i))
-
 (defun eval-if-expression (directive-symbol directive-token-list state)
   (with-preprocessor-state-slots (state)
     (let* ((expansion
@@ -834,7 +826,7 @@ returns NIL."
            (expansion
              (expand-each-preprocessor-macro-in-list expansion macro-alist state))
            (expansion
-             (remove-macro-scope-special-token expansion))
+             (remove-if #'macro-scoping-marker-p expansion))
            (lexer
              (pp-if-expression-lexer expansion process-digraph?))
            (parsed-form
