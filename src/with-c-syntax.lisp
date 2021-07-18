@@ -1,14 +1,14 @@
 (in-package #:with-c-syntax.core)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun expand-c-syntax (body try-add-{} entry-form return-last? readtable-case)
+  (defun expand-c-syntax (body try-add-{} entry-form return-last?)
     (handler-case
 	(with-c-compilation-unit (entry-form return-last?)
-	  (parse-with-lexer (list-lexer body readtable-case) *expression-parser*))
+	  (parse-with-lexer (list-lexer body) *expression-parser*))
       (yacc-parse-error (condition)
 	(if (and try-add-{}
 		 (not (starts-with '{ body)))
-	    (expand-c-syntax `({ ,@body }) nil entry-form return-last? readtable-case) ; retry
+	    (expand-c-syntax `({ ,@body }) nil entry-form return-last?) ; retry
 	    (error 'with-c-syntax-parse-error
 		   :yacc-error condition))))))
 
@@ -34,7 +34,7 @@ READER-LEVEL specifies the reader level (see `*with-c-syntax-reader-level*').
 This is used when '#include' or '_Pragma()' was used.
 
 READTABLE-CASE specifies the readtable case of symbols in BODY when it
-was read.  This affects how to intern C keywords.
+was read.  This affects how to intern C keywords by the preprocessor.
 
 INPUT-FILE-PATHNAME is passed to the preprocessor and used when
 '__FILE__' macro was used.
@@ -75,5 +75,4 @@ tries to parse again."
         (expand-c-syntax body
 		         try-add-{}
 		         (if (eq return :auto) nil return)
-		         (eq return :auto)
-                         readtable-case))))))
+		         (eq return :auto)))))))

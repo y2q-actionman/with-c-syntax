@@ -260,7 +260,7 @@ having a same NAME. If not found, returns `nil'.")
             (values 'lisp-expression token)))))))
 
 ;;; Lexer for compiler.
-(defun list-lexer (list readtable-case
+(defun list-lexer (token-list
                    &aux (syntax-package (find-package '#:with-c-syntax.syntax))
                      (typedef-hack? nil))
   ;; # This lexer does a dirty hack for 'typedef'.
@@ -268,56 +268,41 @@ having a same NAME. If not found, returns `nil'.")
   ;; This is a workaround for avoiding the problem between 'the lexer
   ;; hack' and the look-aheading of cl-yacc.
   #'(lambda ()
-      (let ((value (pop list)))
-        (typecase value
-          (null
-           (if list
-               (values 'id nil)
-               (values nil nil)))
-          (symbol
-           (mv-cond-let (cond-var)
-             ;; TODO: Preprocessor interns punctuators, so this logic can be simplified.
-             ((find-c-terminal (symbol-name value) readtable-case)
-              ;; typedef hack -- adds "void ;" after each typedef.
-              (case cond-var
-                (|typedef|
-                 (setf typedef-hack? t))
-                (\;
-                 (when typedef-hack?
-                   (setf typedef-hack? nil)
-                   (setf list (list* (ecase readtable-case
-                                       ((:upcase :invert) '|VOID|)
-                                       ((:downcase :preserve) '|void|))
-                                     '\; list)))))
-              (values cond-var cond-var))
-             ;; FIXME: this part is should be removed, but I need it now
-             ;; for some tests..
-             ((eql (symbol-package value) syntax-package)
-              ;; typedef hack -- adds "void ;" after each typedef.
-              (case value
-                (|typedef|
-                 (setf typedef-hack? t))
-                (\;
-                 (when typedef-hack?
-                   (setf typedef-hack? nil)
-                   (setf list (list* '|void| '\; list)))))
-              (values value value))
-             ((gethash value *typedef-names*)
-              (values 'typedef-id value))
-             (t
-              (values 'id value))))
-          (integer
-           (values 'int-const value))
-          (character
-           (values 'char-const value))
-          (float
-           (values 'float-const value))
-          (string
-           (values 'string value))
-          (preprocessing-number
-           (let ((num (parse-preprocessing-number value)))
-             (etypecase num
-               (integer (values 'int-const num))
-               (float (values 'float-const num)))))
-          (otherwise
-           (values 'lisp-expression value))))))
+      (if
+       (null token-list)
+       (values nil nil)
+       (let ((token (pop token-list)))
+         (typecase token
+           (null
+            (values 'id nil))
+           (symbol
+            (cond
+              ((eql (symbol-package token) syntax-package)
+               ;; typedef hack -- adds "void ;" after each typedef.
+               (case token
+                 (|typedef|
+                  (setf typedef-hack? t))
+                 (\;
+                  (when typedef-hack?
+                    (setf typedef-hack? nil)
+                    (setf token-list (list* '|void| '\; token-list)))))
+               (values token token))
+              ((gethash token *typedef-names*)
+               (values 'typedef-id token))
+              (t
+               (values 'id token))))
+           (integer
+            (values 'int-const token))
+           (character
+            (values 'char-const token))
+           (float
+            (values 'float-const token))
+           (string
+            (values 'string token))
+           (preprocessing-number
+            (let ((num (parse-preprocessing-number token)))
+              (etypecase num
+                (integer (values 'int-const num))
+                (float (values 'float-const num)))))
+           (otherwise
+            (values 'lisp-expression token)))))))

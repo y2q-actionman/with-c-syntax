@@ -787,4 +787,3 @@ a /* other stuff on this line */ )
      }#)))
 
 ;;; TODO: add symbol-interning tests
-;;;  in lexer?

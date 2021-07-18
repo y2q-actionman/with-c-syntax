@@ -900,7 +900,7 @@ returns NIL."
            (expansion
              (expand-each-preprocessor-macro-in-list expansion macro-alist state))
            (expansion
-             (remove-if #'macro-scoping-marker-p expansion))
+             (remove-if #'macro-scoping-marker-p expansion)) ; TODO: move to the next lexer?
            (lexer
              (pp-if-expression-lexer expansion process-digraph?))
            (parsed-form
