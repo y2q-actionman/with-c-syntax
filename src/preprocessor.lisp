@@ -1576,24 +1576,7 @@ Current workings are below:
 - Concatenation of string literals.
 
 - Expands preprocessor macros defined by '#defined'. (Undocumented now.)
-
-
-Expansion rules:
-
-- If VALUE is nil, no expansion is done. The original symbol is left.
-
-- If VALUE is a object not a function, it is used as an expansion.
-
-- If VALUE is a function, the function is called, and the returned
-value is used for expansion. Arguments for the function are datum
-between the following \( symbol and the next \) symbol, delimited
-by \, symbol.
-
-Example: If MAC is defined for a macro and its value is a function,
-this sequence
-  MAC \( a \, b b \, c c c \)
-calls the function like:
-  (funcall #'a-func-of-MAC '(a) '(b b) '(c c c))"
+"
   (let* ((pp-state
            (make-instance 'preprocessor-state
                           :token-list token-list
@@ -1604,35 +1587,3 @@ calls the function like:
          (pp-state
            (preprocessor-loop pp-state)))
     (nreverse (pp-state-result-list pp-state))))
-
-;;; NOTE:
-;;; I don't plan to implemente the C preprocessor fully.
-;;; To explain the reason, Let's see the CPP works
-;;; (from https://en.wikipedia.org/wiki/C_preprocessor).
-;;; 
-;;; 1. Handling trigraphs.
-;;;    This is not needed because all '# \ ^ [ ] | { } ~' characters
-;;;    are in the standard characters of CL.
-;;; 2. Line splicing.
-;;;    This is done by the Lisp reader.
-;;; 3. Tokenization.
-;;;    This is done by the Lisp reader also.
-;;; 4. Macro Expansion and Directive Handling.
-;;;    I think all directives can be replaced:
-;;;    '#include'   -- `LOAD' or '#.' syntax.
-;;;    '#if' family -- '#+', '#-', or `defmacro's.
-;;;    '#define'    -- `defmacro'.
-;;;    '#undef'     -- `fmakunbound'.
-;;;    '#error'     --  `error'.
-;;;    '#' directive -- `#.(string ...)'
-;;;    '##' directive -- calling `intern' in macros.
-;;;
-;;; And its macro-expansing rule is quite difficult. I felt it is unworthy to make it.
-;;; 
-;;; However, I leave here old comments:
-;;; ----
-;;; The feature 'If ~val~ is nil, no expansion is done.' is for
-;;; implementing the recursive expansion in the future.  In CPP, an
-;;; expanded macro is ignored in the next (recursive) expansion.  So,
-;;; if a macro was expanded, I will push (the-expanded-macro . nil),
-;;; and call the preprocessor recursively.
