@@ -1533,6 +1533,10 @@ returns NIL."
 	      ;; Intern punctuators, includes digraphs.
               ((when-let ((punctuator (find-punctuator (symbol-name token) process-digraph?)))
                  (push punctuator result-list)))
+	      ;; Intern keywords.
+              ((when-let ((c-terminal
+                           (find-c-terminal (symbol-name token) (pp-state-readtable-case state))))
+                 (push c-terminal result-list)))
               ;; with-c-syntax specific: Try to split the token.
               ;; FIXME: I think this should be only for reader level 1.
               ((unless (or (boundp token)
