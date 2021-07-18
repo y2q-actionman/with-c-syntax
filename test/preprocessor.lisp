@@ -519,10 +519,10 @@
 (test test-pp-not-function-invocation
   (is.wcs.pp.equal
    #2{
-   #define x() (a, b, c)
    x
    }#
    #2{
+   #define x() (a, b, c)
    x
    }#))
 
@@ -583,11 +583,11 @@
 (test test-pp-6.10.3.5-example-1
   (is.wcs.pp.equal
    #2{
-   #define TABSIZE 100
-   int table[TABSIZE];
+   int table [ 100 ] ;
    }#
    #2{
-   int table [ 100 ] ;
+   #define TABSIZE 100
+   int table[TABSIZE];
    }#))
 
 (test test-pp-6.10.3.5-example-2
@@ -601,29 +601,29 @@
   (let ((*package* (find-package '#:with-c-syntax.test))) ; This affects #include. FIXME: I should add pragma for change package.
     (is.wcs.pp.equal
      #2{
-     #include "test/test-pp-6.10.3.5-example-3.h"
-     f(y+1) + f(f(z)) % t(t(g)(0) + t)(1) ;
+     f(2 * (y+1)) + f(2 * (f(2 * (z[0])))) % f(2 * (0)) + t(1) ;
      }#
      #2{
-     f(2 * (y+1)) + f(2 * (f(2 * (z[0])))) % f(2 * (0)) + t(1) ;
+     #include "test/test-pp-6.10.3.5-example-3.h"
+     f(y+1) + f(f(z)) % t(t(g)(0) + t)(1) ;
      }#)
     (is.wcs.pp.equal
+     #2{
+     f(2 * (2+(3,4)-0,1)) \| f(2 * (~ 5)) & f(2 * (0,1))^m(0,1);
+     }#
      #2{
      #include "test/test-pp-6.10.3.5-example-3.h"
      // (
      g(x+(3,4)-w) \| h 5) & m
      	 (f)^m(m);
-     }#
-     #2{
-     f(2 * (2+(3,4)-0,1)) \| f(2 * (~ 5)) & f(2 * (0,1))^m(0,1);
      }#)
     (is.wcs.pp.equal
      #2{
-     #include "test/test-pp-6.10.3.5-example-3.h"
-     p() i[q()] = { q(1), r(2,3), r(4,), r(,5), r(,) };
+     int i[] = { 1, 23, 4, 5,  };
      }#
      #2{
-     int i[] = { 1, 23, 4, 5,  };
+     #include "test/test-pp-6.10.3.5-example-3.h"
+     p() i[q()] = { q(1), r(2,3), r(4,), r(,5), r(,) };
      }#)
     ;; FIXME: cleanup these compicated reader-case handlings!
     (let ((*with-c-syntax-reader-case* :preserve)
@@ -633,11 +633,11 @@
       #.(setf (readtable-case *readtable*) :preserve)
       (IS.WCS.PP.EQUAL
        #2{
-       #include "test/test-pp-6.10.3.5-example-3.h"
-       char c[2][6] = { str(hello), str() } ;
+       char c[2][6] = { "hello", "" }   ;
        }#
        #2{
-       char c[2][6] = { "hello", "" }   ;
+       #include "test/test-pp-6.10.3.5-example-3.h"
+       char c[2][6] = { str(hello), str() } ;
        }#)
       #.(SETF (READTABLE-CASE *READTABLE*) :UPCASE)
       #.(setf *with-c-syntax-reader-case* nil))

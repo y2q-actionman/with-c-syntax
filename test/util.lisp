@@ -4,6 +4,8 @@
   (when (fboundp 'trivial-cltl2:compiler-let)
     (pushnew :with-c-syntax-test-use-compiler-let *features*)))
 
+;;; Testing normal notations.
+
 (defmacro define-is.*.wcs (name eql-operator-name &key (use-option nil))
   `(defmacro ,name (,@ (if use-option '(option) nil)
 		       val &body body)
@@ -27,6 +29,8 @@
   `(signals ,condition
      (with-c-syntax () ,@Body)))
 
+;;; Testing Readers
+
 (defmacro is.wcs.reader (expected-token-list string)
   (with-gensyms (op options body)
     `(destructuring-bind (,op ,options &body ,body)
@@ -43,6 +47,15 @@
                                  (otherwise
                                   (equal x y)))))))))
 
+
+
+(defmacro signals.wcs.reader ((&optional (condition 'with-c-syntax-error)) string)
+  `(signals ,condition
+     (let ((*readtable* (find-readtable 'with-c-syntax:with-c-syntax-readtable)))
+       (read-from-string ,string))))
+
+;;; Testing Preprocessors
+
 (defun preprocessed-list-equal (list1 list2)
   (tree-equal list1 list2
               :test
@@ -58,10 +71,7 @@
         (macroexpand '(with-c-syntax (:preprocess :preprocess-only)
                        ,c-form-2)))))
 
-(defmacro signals.wcs.reader ((&optional (condition 'with-c-syntax-error)) string)
-  `(signals ,condition
-     (let ((*readtable* (find-readtable 'with-c-syntax:with-c-syntax-readtable)))
-       (read-from-string ,string))))
+;;; some utils
 
 (defmacro muffle-unused-code-warning (&body body)
   "Muffles `sb-ext:code-deletion-note' of SBCL. For other
