@@ -1339,10 +1339,9 @@ returns NIL."
 
 (defun preprocessor-loop-at-directive-p (state token)
   (with-preprocessor-state-slots (state)
-    (and (symbolp token)
-         (zerop tokens-in-line)
-         (or (string= token "#")
-             (and process-digraph? (string= token "%:"))))))
+    (and (zerop tokens-in-line)
+         (or (token-equal-p token "#")
+             (and process-digraph? (token-equal-p token "%:"))))))
 
 (defun preprocessor-loop-do-directives (state)
   "Process preprocessor directives. This is tranlation phase 4."

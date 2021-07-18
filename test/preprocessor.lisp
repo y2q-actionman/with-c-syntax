@@ -526,6 +526,46 @@
    x
    }#))
 
+;;; digraph tests.
+
+(test test-pp-digraph
+  #-with-c-syntax-test-use-compiler-let
+  (progn (warn "Test ~A was skipped." 'test-pp-digraph)
+         (return-from test-pp-digraph nil))
+  #+with-c-syntax-test-use-compiler-let
+  (trivial-cltl2:compiler-let
+      ((with-c-syntax.core::*with-c-syntax-preprocessor-process-digraph* :no-warn))
+    (is.equal.wcs 30
+      #2{
+      int array<:5:> = <%0,1,2,3,4%>;
+      int ret = 0;
+      int i;
+      for (i = 0;
+             i < sizeof (array);
+             ++i) <%
+        ret += array<:i:> * i;
+      %>
+      return ret;
+      }#)
+    (is.equal.wcs "<::><%%>"
+      #2{
+      #define STR(x) #x
+      STR (<:) STR (:>) STR (<%) STR (%>)
+      }#)
+    (is.equal.wcs "%:"
+      #2{
+      %:define STR(x) %:x
+      STR(%:)
+      }#)
+    (signals.wcs.reader (package-error) "%:2{ \"This does not works.\" }%:")
+    (is.equal.wcs "%:%:"
+      #2{
+      %:define CAT(x,y) x %:%: y
+      %:define STR(x) %:x
+      %:define STR_EXPAND(x) STR(x)
+      STR_EXPAND(CAT(%:,%:))
+      }#)))
+
 ;;; Examples in C standard.
 
 (test test-pp-6.10.3.3-example
@@ -604,7 +644,6 @@
     t))
 
 
-;;; TODO: digraph tests.
 
 
 ;;; TODO: add symbol-interning tests
