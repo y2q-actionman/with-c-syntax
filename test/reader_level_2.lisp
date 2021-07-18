@@ -162,14 +162,14 @@ de";
          }#)))
   ;; https://gcc.gnu.org/onlinedocs/gcc-11.1.0/cpp/Initial-processing.html#Initial-processing
   (is.wcs.reader
-   '(text outside comment)
+   '(text +whitespace-marker+ outside +whitespace-marker+ comment +whitespace-marker+)
    "#2{/* this is /* one comment */ text outside comment }#")
   (is.wcs.reader
-   '(+newline-marker+ text outside comment)
+   '(+newline-marker+ text +whitespace-marker+ outside +whitespace-marker+ comment +whitespace-marker+)
    "#2{// this is // one comment
 text outside comment }#")
   (is.wcs.reader
-   '(outside comment)
+   '(outside +whitespace-marker+ comment)
    ;; XXX:
    ;; This case has subtle problems. Newlines are gone away because no
    ;; newlines until '}#' appears. This behavior affects __LINE__
@@ -183,7 +183,8 @@ text outside comment }#")
    "#2{// line comment /* contains block comment */
 }#")
   (is.wcs.reader
-   '(+newline-marker+ oops ! this isn’t a comment anymore * /)
+   '(+whitespace-marker+ +newline-marker+
+     +whitespace-marker+ oops ! +whitespace-marker+ this +whitespace-marker+ isn’t +whitespace-marker+ a +whitespace-marker+ comment +whitespace-marker+ anymore +whitespace-marker+ * /)
    "#2{ // l.c.  /* block comment begins
     oops! this isn’t a comment anymore */}#")
   (is.wcs.reader

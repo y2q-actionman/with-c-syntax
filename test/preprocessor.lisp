@@ -765,11 +765,10 @@ a /* other stuff on this line */ )
      #include "test/test-pp-6.10.3.5-example-7.h"
      debug("X = %d\n", x);    
      }#)
-    ;; TODO: FIXME: Current implementation does not saves whitespaces not in directives.
     (is.wcs.pp.equal
      #2{
      // puts( "the first, second, and third items." ); // should be it.
-     puts( "THE FIRST,SECOND,AND THIRD ITEMS." ); // because of :upcase.
+     puts( "THE FIRST, SECOND, AND THIRD ITEMS." ); // because of :upcase.
      }#
      #2{
      #include "test/test-pp-6.10.3.5-example-7.h"

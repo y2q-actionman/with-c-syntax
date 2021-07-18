@@ -689,6 +689,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
          (*previous-syntax* *readtable*)
          (*second-unread-char* nil)
          (c-readtable (make-c-readtable level readtable-case))
+         (keep-whitespace-default (>= level 2))
          (process-backslash-newline
            (case *with-c-syntax-reader-process-backslash-newline*
              (:auto (>= level +with-c-syntax-default-reader-level+))
@@ -697,7 +698,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       with cp-stream = (make-instance 'physical-source-input-stream
                                       :stream stream :target-readtable c-readtable
                                       :phase-2 process-backslash-newline)
-      with keep-whitespace = nil
+      with keep-whitespace = keep-whitespace-default
       
       for token = (handler-case
                       (read-preprocessing-token cp-stream c-readtable keep-whitespace
@@ -713,7 +714,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                  (or (string= token "#") (string= token "%:")))
             (setf keep-whitespace t))
            ((eq token +newline-marker+)
-            (setf keep-whitespace nil)))
+            (setf keep-whitespace keep-whitespace-default)))
       collect token into token-list
       finally
          (return (values token-list c-readtable)))))
