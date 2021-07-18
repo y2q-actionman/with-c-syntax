@@ -297,6 +297,18 @@
                   result-alist))))
        (return result-alist)))
 
+(defgeneric stringify-separator-required-p (prev-token)
+  (:method ((prev-token (eql +whitespace-marker+)))
+    nil)
+  (:method ((prev-token string))
+    nil)
+  (:method ((prev-token character))
+    nil)
+  (:method ((prev-token preprocessing-number))
+    t)
+  (:method ((prev-token symbol))
+    (not (find-punctuator (symbol-name prev-token) t))))
+
 (defun expand-stringify-operator (token macro-arg-alist)
   (unless (symbolp token)
     (error 'preprocess-error
@@ -306,29 +318,39 @@
     (error 'preprocess-error
            :format-control "# operator argument '~A' is not a macro parameter."
            :format-arguments (list token)))
-  (string-trim
-   '(#\space)
-   (with-output-to-string (out)
-     (loop with marg = (cdr (assoc token macro-arg-alist))
-           for i in (pp-macro-argument-token-list marg)
-           if (macro-control-marker-p i)
-             do (progn)
-           else
-             do (cond
-                  ((preprocessing-number-p i)
-                   (princ (preprocessing-number-string i) out))
-                  ((characterp i)
-                   (format out "'~C'" i))
-                  ((stringp i)  
-                   (princ "\\\"" out)
-                   (loop for c across i
-                         if (or (char= c #\") (char= c #\\))
-                           do (write-char #\\ out) ; escape double-quote and backslash
-                         do (write-char #\\))
-                   (princ "\\\"" out))
-                  (t
-                   (princ i out)))
-                (princ #\space out)))))
+  (with-output-to-string (out)
+    (loop with marg = (cdr (assoc token macro-arg-alist))
+          for prev = +whitespace-marker+ then i
+          for i in (pp-macro-argument-token-list marg)
+          do (cond
+               ((macro-scoping-marker-p i)
+                (setf i prev))         ; Keeps prev.
+               ((or (eq i +whitespace-marker+)
+                    (eq i +newline-marker+))
+                (unless (eq prev +whitespace-marker+)
+                  (write-char #\space out)))
+               ((preprocessing-number-p i)
+                (when (stringify-separator-required-p prev)
+                  (write-char #\space out))
+                (princ (preprocessing-number-string i) out))
+               ((characterp i)
+                (format out "'~C'" i))
+               ((stringp i)
+                (princ "\"" out)
+                (loop for c across i
+                      if (or (char= c #\") (char= c #\\))
+                        do (write-char #\\ out) ; escape double-quote and backslash
+                      do (write-char c out))
+                (princ "\"" out))
+               ((symbolp i)
+                (assert (not (macro-control-marker-p i)))
+                (when (and (not (find-punctuator (symbol-name i) t))
+                           (stringify-separator-required-p prev))
+                  (write-char #\space out))
+                (princ i out))
+               (t
+                (assert (not (macro-control-marker-p i)))
+                (princ i out))))))
 
 (defconstant +placemaker-token+ '||)
 

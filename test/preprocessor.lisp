@@ -643,7 +643,64 @@
       #.(setf *with-c-syntax-reader-case* nil))
     t))
 
-
+(test test-pp-6.10.3.5-example-4
+  (let ((*package* (find-package '#:with-c-syntax.test))) ; This affects #include. FIXME: I should add pragma for change package.
+    (is.wcs.pp.equal
+     #2{
+     printf("x1= %d, x2= %s", x1, x2);
+     }#
+     #2{
+     #include "test/test-pp-6.10.3.5-example-4.h"
+     debug(1, 2);
+     }#)
+    ;; TODO: FIXME: Handling or '\' char is different between C and Lisp.
+    #+()
+    (is.wcs.pp.equal
+     #2{
+     fputs("strncmp(\"abc\\0d\", \"abc\", '\\4') == 0: @\n",
+           s);
+     }#
+     #2{
+     #include "test/test-pp-6.10.3.5-example-4.h"
+     fputs(str(strncmp("abc\0d", "abc", '\4') // this goes away
+                      == 0) str(: @\n), s);
+     }#)
+    ;; This is a problematic example, pointed by MCPP.
+    ;; One reason to use `+whitespace-marker+' is for this example.
+    ;;   See MCPP's cpp-test.html#2.7.2
+    ;; TODO: FIXME: Use #include
+    ;; FIXME: cleanup these compicated reader-case handlings!
+    (let ((*with-c-syntax-reader-case* :preserve)
+          (*readtable* (copy-readtable)))
+      (setf (readtable-case *readtable*) :preserve)
+      #.(setf *with-c-syntax-reader-case* :preserve)
+      #.(setf (readtable-case *readtable*) :preserve)
+      (IS.WCS.PP.EQUAL
+       #2{
+       /* #include */ "vers2.h"
+       }#
+       #2{
+       #include "test/test-pp-6.10.3.5-example-4.h"
+       /* #include */ xstr(INCFILE(2).h)
+       }#)
+      #.(SETF (READTABLE-CASE *READTABLE*) :UPCASE)
+      #.(setf *with-c-syntax-reader-case* nil))
+    (is.wcs.pp.equal
+     #2{
+     "hello";
+     }#
+     #2{
+     #include "test/test-pp-6.10.3.5-example-4.h"
+     glue(HIGH, LOW);
+     }#)
+    (is.wcs.pp.equal
+     #2{
+     "hello, world"
+     }#
+     #2{
+     #include "test/test-pp-6.10.3.5-example-4.h"
+     xglue(HIGH, LOW)
+     }#)))
 
 
 ;;; TODO: add symbol-interning tests
