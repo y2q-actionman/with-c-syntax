@@ -504,6 +504,22 @@
       EXPAND_STR(CAT3(1 ,. , 2))
       }#)))
 
+(test test-pp-weird-rescan
+  ;; From mcpp-2.7.2 cpp-test.html#2.7.6
+  (is.wcs.pp.equal
+   #2{
+   FUNC1 ( x , y )
+   }#
+   #2{
+   #define FUNC1( a, b)    ((a) + (b))
+   #define FUNC2( a, b)    FUNC1 OP_LPA a OP_CMA b OP_RPA
+   #define OP_LPA          (
+   #define OP_RPA          )
+   #define OP_CMA          ,
+
+   FUNC2( x, y)   
+   }#))
+
 (test test-pp-next-token-inclusion
   ;; From mcpp-2.7.2 cpp-test.html#2.7.6
   (is.equal.wcs 21
@@ -515,6 +531,19 @@
 
     return head a, b);
     }#))
+
+(test test-pp-next-token-inclusion-2
+  ;; From mcpp-2.7.2 cpp-test.html#2.7.6
+  (is.wcs.pp.equal
+   #2{
+   ((x)+(y))
+   }#
+   #2{
+   #define add( x, y)      ((x) + (y))
+   #define sub( x, y)      ((x) - (y))
+   #define OP  add
+   OP( x, y);
+   }#))
 
 (test test-pp-not-function-invocation
   (is.wcs.pp.equal
