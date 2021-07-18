@@ -60,7 +60,24 @@
   (declare (ignorable args))
   (with-slots (replacement-list) macro-definition
     (when (eq (first replacement-list) +whitespace-marker+)
-      (pop replacement-list))))
+      (pop replacement-list))
+    (when (eq (lastcar replacement-list) +whitespace-marker+)
+      (setf replacement-list (butlast replacement-list)))))
+
+(defgeneric check-valid-macro-redefinition (macro-definition1 macro-definition2 name)
+  (:method (mdef1 mdef2 name)
+    (error 'preprocess-error
+           :format-control "Macro '~A' redefinition from ~A type to ~A type is invalid."
+           :format-arguments (list name (type-of mdef1) (type-of mdef2)))))
+
+(defgeneric check-replacement-list-equal (mdef1 mdef2 name)
+  (:method ((mdef1 macro-definition) (mdef2 macro-definition) name)
+    (let ((r-list-1 (macro-definition-replacement-list mdef1))
+          (r-list-2 (macro-definition-replacement-list mdef2)))
+      (unless (replacement-list-equal r-list-1 r-list-2)
+        (error 'preprocess-error
+               :format-control "Macro '~A' redefinition is invalid because replacement-lists are different.~%Old: ~A~%New: ~A"
+               :format-arguments (list name r-list-1 r-list-2))))))
 
 (defclass object-like-macro (macro-definition)
   ())
@@ -75,6 +92,17 @@
   (when (some #'va-args-identifier-p replacement-list)
     (error 'preprocess-error
 	   :format-control "Object-like-macro cannot have '__VA_ARGS__' in its replacement-list.")))
+
+(defun replacement-list-equal (list1 list2)
+  (tree-equal list1 list2
+              :test
+              (lambda (x y)
+                (if (and (preprocessing-number-p x) (preprocessing-number-p y))
+                    (equal (preprocessing-number-string x) (preprocessing-number-string y))
+                    (equal x y)))))
+
+(defmethod check-valid-macro-redefinition ((mdef1 object-like-macro) (mdef2 object-like-macro) name)
+  (check-replacement-list-equal mdef1 mdef2 name))
 
 (defclass function-like-macro (macro-definition)
   ((identifier-list :initarg :identifier-list
@@ -100,6 +128,21 @@
              (some #'va-args-identifier-p replacement-list))
     (error 'preprocess-error
            :format-control "Non-variadic Function-like-macro cannot have '__VA_ARGS__' in its replacement-list.")))
+
+(defmethod check-valid-macro-redefinition ((mdef1 function-like-macro) (mdef2 function-like-macro) name)
+  (check-replacement-list-equal mdef1 mdef2 name)
+  (let ((i-list-1 (function-like-macro-identifier-list mdef1))
+        (i-list-2 (function-like-macro-identifier-list mdef2)))
+    (unless (equal i-list-1 i-list-2)
+      (error 'preprocess-error
+             :format-control "Macro '~A' redefinition is invalid because identifier-lists are different.~%Old: ~A~%New: ~A"
+             :format-arguments (list name i-list-1 i-list-2))))
+  (let ((variadicp-1 (function-like-macro-variadicp mdef1))
+        (variadicp-2 (function-like-macro-variadicp mdef2)))
+    (unless (equal variadicp-1 variadicp-2)
+      (error 'preprocess-error
+             :format-control "Macro '~A' redefinition is invalid because variance are different.~%Old: ~A~%New: ~A"
+             :format-arguments (list name variadicp-1 variadicp-2)))))
 
 (defun preprocessor-macro-exists-p (macro-alist symbol)
   (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
@@ -1122,10 +1165,13 @@ returns NIL."
 
 ;;; #define
 
-(defun add-local-preprocessor-macro (state symbol value)
-  ;; TODO: check redefinition.
-  (push (cons symbol value)
-        (pp-state-macro-alist state)))
+(defun add-local-preprocessor-macro (state symbol macro-definition)
+  (with-accessors ((macro-alist pp-state-macro-alist)) state
+    (if-let ((old-def-entry (assoc symbol macro-alist)))
+      (progn
+        (check-valid-macro-redefinition (cdr old-def-entry) macro-definition symbol)
+        (setf (cdr old-def-entry) macro-definition))
+      (push (cons symbol macro-definition) macro-alist))))
 
 (defun collect-function-like-macro-identifier-list
     (token-list &optional (directive-symbol 'with-c-syntax.preprocessor-directive:|define|))

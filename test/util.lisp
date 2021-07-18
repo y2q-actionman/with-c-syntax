@@ -42,12 +42,10 @@
        (is (tree-equal ,expected-token-list ,body
                        :test (lambda (x y)
                                (typecase y
-                                 (with-c-syntax.core::preprocessing-number
-                                  (equal x (with-c-syntax.core::parse-preprocessing-number y)))
+                                 (preprocessing-number
+                                  (equal x (parse-preprocessing-number y)))
                                  (otherwise
                                   (equal x y)))))))))
-
-
 
 (defmacro signals.wcs.reader ((&optional (condition 'with-c-syntax-error)) string)
   `(signals ,condition
@@ -56,16 +54,8 @@
 
 ;;; Testing Preprocessors
 
-(defun preprocessed-list-equal (list1 list2)
-  (tree-equal list1 list2
-              :test
-              (lambda (x y)
-                (if (and (preprocessing-number-p x) (preprocessing-number-p y))
-                    (equal (preprocessing-number-string x) (preprocessing-number-string y))
-                    (equal x y)))))
-
 (defmacro is.wcs.pp.equal (c-form-1 c-form-2)
-  `(is (preprocessed-list-equal
+  `(is (with-c-syntax.core::replacement-list-equal
         (macroexpand '(with-c-syntax (:preprocess :preprocess-only)
                        ,c-form-1))
         (macroexpand '(with-c-syntax (:preprocess :preprocess-only)

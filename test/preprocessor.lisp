@@ -714,6 +714,38 @@
               t(10,,), t(,11,), t(,,12), t(,,) };
    }#))
 
+(test test-pp-6.10.3.5-example-6
+  (is.equal.wcs 0
+    #2{
+    #define OBJ_LIKE (1-1)
+    #define OBJ_LIKE /* white space */ (1-1) /* other */
+    
+    #define FUNC_LIKE(a) ( a )
+    #define FUNC_LIKE( a )( /* note the white space */ \
+a /* other stuff on this line */ )
+
+    FUNC_LIKE (OBJ_LIKE)
+    }#)
+  (signals.macroexpand.wcs (with-c-syntax.core::preprocess-error)
+    #2{
+    #define OBJ_LIKE (1-1)
+    #define OBJ_LIKE (0) // different token sequence
+    }#)
+  (signals.macroexpand.wcs (with-c-syntax.core::preprocess-error)
+    #2{
+    #define OBJ_LIKE (1-1)
+    #define OBJ_LIKE (1 - 1) // different white space
+    }#)
+  (signals.macroexpand.wcs (with-c-syntax.core::preprocess-error)
+    #2{
+    #define FUNC_LIKE(a) ( a )
+    #define FUNC_LIKE(b) ( a ) // different parameter usage
+    }#)
+  (signals.macroexpand.wcs (with-c-syntax.core::preprocess-error)
+    #2{
+    #define FUNC_LIKE(a) ( a )
+    #define FUNC_LIKE(b) ( b ) // different parameter spelling
+    }#))
 
 ;;; TODO: add symbol-interning tests
 ;;;  in lexer?
