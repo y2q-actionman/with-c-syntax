@@ -319,12 +319,17 @@
                     :format-control "Too many arguments for macro '~A'"
                     :format-arguments (list (macro-definition-name macro-definition))))
             (t
-             (loop for marg in marg-cons
+             (loop with comma-token = 'with-c-syntax.punctuator:|,|
+                   for at-first = t then nil
+                   for marg in marg-cons
                    as last-macro-alist = (pp-macro-argument-macro-alist marg)
+                   unless at-first      ; Insert comma between each args.
+                     collect comma-token into tokens
+                     and collect comma-token into expansions
                    append (pp-macro-argument-token-list marg) into tokens
                    append (pp-macro-argument-token-list-expansion marg) into expansions
                    finally
-                      (push (cons :__VA_ARGS__
+                      (push (cons (intern (string :__VA_ARGS__)) 
                                   (make-pp-macro-argument :token-list tokens
                                                           :token-list-expansion expansions
                                                           :macro-alist last-macro-alist))
@@ -333,7 +338,7 @@
           (when (function-like-macro-variadicp macro-definition)
             (warn 'with-c-syntax-style-warning
                   :message "Variadic macro does not have any arguments. __VA_ARGS__ bound to nil.")
-            (push (cons :__VA_ARGS__
+            (push (cons (intern (string :__VA_ARGS__)) 
                         (make-pp-macro-argument :token-list nil
                                                 :token-list-expansion nil
                                                 :macro-alist nil))

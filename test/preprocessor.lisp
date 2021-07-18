@@ -747,5 +747,44 @@ a /* other stuff on this line */ )
     #define FUNC_LIKE(b) ( b ) // different parameter spelling
     }#))
 
+(test test-pp-6.10.3.5-example-7
+  (let ((*package* (find-package '#:with-c-syntax.test))) ; This affects #include. FIXME: I should add pragma for change package.
+    (is.wcs.pp.equal
+     #2{
+     fprintf(stderr,  "Flag" );
+     }#
+     #2{
+     #include "test/test-pp-6.10.3.5-example-7.h"
+     debug("Flag");
+     }#)
+    (is.wcs.pp.equal
+     #2{
+     fprintf(stderr,  "X = %d\n", x );
+     }#
+     #2{
+     #include "test/test-pp-6.10.3.5-example-7.h"
+     debug("X = %d\n", x);    
+     }#)
+    ;; TODO: FIXME: Current implementation does not saves whitespaces not in directives.
+    (is.wcs.pp.equal
+     #2{
+     // puts( "the first, second, and third items." ); // should be it.
+     puts( "THE FIRST,SECOND,AND THIRD ITEMS." ); // because of :upcase.
+     }#
+     #2{
+     #include "test/test-pp-6.10.3.5-example-7.h"
+     showlist(The first, second, and third items.);     
+     }#)
+    (is.wcs.pp.equal
+     #2{
+     // puts() argument is different,because of :upcase.
+     ((x>y)?puts("X>Y"):
+                      printf("x is %d but y is %d", x, y));
+     }#
+     #2{
+     #include "test/test-pp-6.10.3.5-example-7.h"
+     report(x>y, "x is %d but y is %d", x, y);
+     }#)))
+
 ;;; TODO: add symbol-interning tests
 ;;;  in lexer?
