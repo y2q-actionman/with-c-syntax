@@ -1538,11 +1538,12 @@ returns NIL."
                            (find-c-terminal (symbol-name token) (pp-state-readtable-case state))))
                  (push c-terminal result-list)))
               ;; with-c-syntax specific: Try to split the token.
-              ;; FIXME: I think this should be only for reader level 1.
-              ((unless (or (boundp token)
-                           (fboundp token)
-                           (find-c-terminal (symbol-name token)
-                                            (pp-state-readtable-case state)))
+              ((when (and
+                      (<= (pp-state-reader-level state) 1)
+                      (not (or (boundp token)
+                               (fboundp token)
+                               (find-c-terminal (symbol-name token)
+                                                (pp-state-readtable-case state)))))
                  (multiple-value-bind (splited-p results) (preprocessor-try-split token)
 	           (if splited-p
 	               (setf token-list (nconc results token-list))
