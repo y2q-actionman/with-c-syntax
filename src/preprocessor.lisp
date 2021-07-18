@@ -150,7 +150,14 @@
         (not (eql (cdr entry) :macro-suppressed)))))
 
 (defun remove-whitespace-marker (token-list)
-  (remove +whitespace-marker+ token-list))
+  (remove-if (lambda (x) (or (eql x +whitespace-marker+)
+                             (eql x +newline-marker+)))
+             token-list))
+
+(defun delete-whitespace-marker (token-list)
+  (delete-if (lambda (x) (or (eql x +whitespace-marker+)
+                             (eql x +newline-marker+)))
+             token-list))
 
 (defun delete-consecutive-whitespace-marker (token-list)
   (loop for cons = token-list then next
@@ -481,40 +488,58 @@
                          (preprocessing-number-string token2)
                          *package*))
 
+(defun split-list-at (list pos)
+  (loop with target = '#:unspecific
+        for count from 0
+        for i in list
+        if (< count pos)
+          collect i into before
+        else if (= count pos)
+               do (setf target i)
+        else
+          collect i into after
+        finally
+           (return (values before target after))))
+
+(defun split-concatenate-operator-left-operand (token-list)
+  (let ((last-token-pos
+          (position-if-not #'macro-control-marker-p token-list :from-end t)))
+    (if last-token-pos
+        (multiple-value-bind (before last-token after)
+            (split-list-at token-list last-token-pos)
+          (values before
+                  last-token
+                  (delete-whitespace-marker after)))
+        (values (copy-list token-list)
+                +placemaker-token+
+                nil))))
+
+(defun split-concatenate-operator-right-operand (token-list)
+  (let ((first-token-pos
+          (position-if-not #'macro-control-marker-p token-list)))
+    (if first-token-pos
+        (multiple-value-bind (before first-token after)
+            (split-list-at token-list first-token-pos)
+          (values (delete-whitespace-marker before)
+                  first-token
+                  after))
+        (values nil
+                +placemaker-token+
+                (copy-list token-list)))))
+
 (defun expand-concatenate-operator (token1 token2 macro-arg-alist)
   (flet ((expand-arg-token (token)
            (if-let ((entry (assoc token macro-arg-alist)))
              (pp-macro-argument-token-list (cdr entry))
              (list token))))
-    (let* ((t1-tokens (expand-arg-token token1))
-           (t1-tokens-last-token-pos
-             (position-if-not #'macro-control-marker-p t1-tokens :from-end t))
-           (t1-last-token
-             (if t1-tokens-last-token-pos
-                 (nth t1-tokens-last-token-pos t1-tokens)
-                 +placemaker-token+))
-           (t1-other-tokens
-             (if t1-tokens-last-token-pos
-                 (remove t1-last-token t1-tokens :test 'eq :from-end t :count 1)
-                 t1-tokens))
-           (t2-tokens (expand-arg-token token2))
-           (t2-tokens-first-token-pos
-             (position-if-not #'macro-control-marker-p t2-tokens))
-           (t2-first-token
-             (if t2-tokens-first-token-pos
-                 (nth t2-tokens-first-token-pos t2-tokens)
-                 +placemaker-token+))
-           (t2-other-tokens
-             (if t2-tokens-first-token-pos
-                 (remove t2-first-token t2-tokens :test 'eq :count 1)
-                 t2-tokens))
-           (concat-result (concatenate-token
-                           t1-last-token
-                           t2-first-token)))
-      (delete-consecutive-whitespace-marker
-       (append t1-other-tokens
-               (list concat-result)
-               t2-other-tokens)))))
+    (multiple-value-bind (t1-before t1-token t1-after)
+        (split-concatenate-operator-left-operand (expand-arg-token token1))
+      (multiple-value-bind (t2-before t2-token t2-after)
+          (split-concatenate-operator-right-operand (expand-arg-token token2))
+        (values
+         (nconc t1-before t1-after)
+         (concatenate-token t1-token t2-token)
+         (nconc t2-before t2-after))))))
 
 (defun expand-macro-replacement-list (replacement-list macro-arg-alist process-digraph?)
   (when (or (token-equal-p (first replacement-list) "##")
@@ -533,21 +558,22 @@
     as after-concatenation = nil
     if (or (token-equal-p (car next-token-cons) "##") ; Concatenation.
            (and process-digraph? (token-equal-p (car next-token-cons) "%:%:")))
-      append (let* ((token2-cons (if (eql (second next-token-cons) +whitespace-marker+)
-                                     (cddr next-token-cons)
-                                     (cdr next-token-cons)))
-                    (token2 (if (endp token2-cons)
-                                (error 'preprocess-error
-                                       :format-control "The second operand of '##' does not exists.")
-                                (car token2-cons)))
-                    (conc-result-list
-                      (expand-concatenate-operator token token2 macro-arg-alist)))
-               (setf token-cons
-                     (list* :loop-on-clause-dummy
-                            (lastcar conc-result-list) ; The result is re-examined, for 'a ## b ## c'.
-                            (cdr token2-cons))) ; removes token2 
-               (setf after-concatenation t)
-               (butlast conc-result-list))
+      nconc (let* ((token2-cons (if (eql (second next-token-cons) +whitespace-marker+)
+                                    (cddr next-token-cons)
+                                    (cdr next-token-cons)))
+                   (token2 (if (endp token2-cons)
+                               (error 'preprocess-error
+                                      :format-control "The second operand of '##' does not exists.")
+                               (car token2-cons))))
+              (multiple-value-bind (before-token-list conc-result after-token-list)
+                  (expand-concatenate-operator token token2 macro-arg-alist)
+                (setf after-concatenation t)
+                (setf token-cons
+                      (list* :loop-on-clause-dummy
+                             conc-result ; The result is re-examined, for 'a ## b ## c'.
+                             (nconc after-token-list
+                                    (rest token2-cons)))) ; removes token2 
+                before-token-list))
         into expansion
     else if (or (token-equal-p token "#") ; Stringify.
                 (and process-digraph? (token-equal-p token "%:")))
