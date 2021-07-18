@@ -1,0 +1,59 @@
+# From http://3bb.cc/blog/2020/09/11/github-ci/
+
+name: testBuild
+
+on:
+  push:
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: ${{ matrix.lisp }} on ${{ matrix.os }}
+    strategy:
+      matrix:
+        lisp: [sbcl-bin ,ccl]
+        os: [ ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: windows specific settings
+        if: matrix.os == 'windows-latest'
+        run: |
+          git config --global core.autocrlf false
+          echo "::set-env name=ROSWELL_INSTALL_DIR::~/ros"
+          echo "::add-path::~/ros/bin"
+          
+      - uses: actions/checkout@v2
+
+      - name: cache .roswell
+        id: cache-dot-roswell
+        uses: actions/cache@v1
+        with:
+          path: ~/.roswell
+          key: ${{ runner.os }}-dot-roswell-${{ matrix.lisp }}-${{ hashFiles('**/*.asd') }}
+          restore-keys: |
+            ${{ runner.os }}-dot-roswell-${{ matrix.lisp }}-
+            ${{ runner.os }}-dot-roswell-
+            
+      - name: install roswell
+        shell: bash
+        env:
+          LISP: ${{ matrix.lisp }}
+        run: curl -L https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | sh -x
+
+      - name: run lisp
+        continue-on-error: true
+        shell: bash
+        run: |
+          ros -e '(format t "~a:~a on ~a~%...~%~%" (lisp-implementation-type) (lisp-implementation-version) (machine-type))'
+
+      - name: update ql dist if we have one cached
+        shell: bash
+        run: ros -e "(ql:update-all-dists :prompt nil)"
+
+      - name: Build
+        shell: bash
+        run: |
+          ros -e '(handler-bind (#+asdf3.2(asdf:bad-SYSTEM-NAME (function MUFFLE-WARNING))) (handler-case (ql:quickload :with-c-syntax) (error (a) (format t "caught error ~s~%~a~%" a a) (uiop:quit 123))))'
