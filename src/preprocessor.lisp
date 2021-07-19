@@ -5,6 +5,18 @@
  If this is true, replacement occurs but `with-c-syntax-style-warning' is signalled.
  If this is `:no-warn', replacement occurs and the style-warning is not signalled.")
 
+(defun make-with-c-syntax-default-include-pathname ()
+  "Makes a pathname of the directory containing with-c-syntax include
+ files. This is used for making the default value of
+ `*with-c-syntax-include-path-list*'."
+  (asdf:system-relative-pathname :with-c-syntax "include" :type :directory))
+
+(defvar *with-c-syntax-include-pathname-list*
+  (load-time-value (list (make-with-c-syntax-default-include-pathname)))
+  "List of pathnames used for searching include files with '#include <...>' style.
+ Included file name is probed by `merge-pathnames' with each pathname in this list.
+ See `find-include-<header>-file'.")
+
 ;;; Preprocessor macro expansion
 
 (defun va-args-identifier-p (token)
@@ -1095,19 +1107,17 @@ returns NIL."
                :format-control "#if section does not end in included file ~A"
                :format-arguments (list file-pathname))))))
 
-;;; TODO: add a parameter for include path.
-
 (defun find-include-<header>-file (header-name &key (errorp t))
-  "Finds a file specified by #include <...> style header-name.
- Current strategy is only looking with-c-syntax specific files."
-  (let* ((wcs-include-directory
-           (asdf:system-relative-pathname :with-c-syntax "include"
-                                          :type :directory))
-         (path (merge-pathnames header-name wcs-include-directory)))
-    (or (probe-file path)
-        (when errorp
-          (error 'preprocess-include-file-error
-                 :pathname header-name)))))
+  "Finds a file specified by #include <...> style header-name from
+ pathnames in `*with-c-syntax-include-pathname-list*'."
+  (loop for dir in *with-c-syntax-include-pathname-list*
+        as path = (merge-pathnames header-name dir)
+        if (probe-file path)
+          return it
+        finally
+           (when errorp
+             (error 'preprocess-include-file-error
+                    :pathname header-name))))
 
 (defun find-include-header-file (header-name &key (errorp t))
   "Finds a file specified by #include \"...\" style header-name.

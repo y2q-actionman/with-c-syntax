@@ -3,6 +3,7 @@
 (defpackage #:with-c-syntax
   (:use)
   (:export #:with-c-syntax
+           #:*with-c-syntax-include-pathname-list*           
            #:with-c-syntax-readtable
 	   #:*with-c-syntax-reader-level*
 	   #:*with-c-syntax-reader-case*)

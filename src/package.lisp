@@ -96,6 +96,7 @@
    #:with-c-syntax-warning
    #:with-c-syntax-style-warning
    ;; preprocessor.lisp
+   #:*with-c-syntax-include-pathname-list*
    #:preprocessor
    #:preprocessing-number
    #:preprocessing-number-p

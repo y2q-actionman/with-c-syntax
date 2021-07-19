@@ -4,6 +4,17 @@
   (when (fboundp 'trivial-cltl2:compiler-let)
     (pushnew :with-c-syntax-test-use-compiler-let *features*)))
 
+(defun make-with-c-syntax-test-include-pathname ()
+  "See `with-c-syntax.core::make-with-c-syntax-default-include-pathname'"
+  (asdf:system-relative-pathname :with-c-syntax-test "test/include"
+                                 :type :directory))
+
+(eval-when (:load-toplevel :execute)
+  (pushnew (make-with-c-syntax-test-include-pathname)
+           *with-c-syntax-include-pathname-list*
+           :key 'namestring
+           :test 'equal))
+
 ;;; Testing normal notations.
 
 (defmacro define-is.*.wcs (name eql-operator-name &key (use-option nil))
