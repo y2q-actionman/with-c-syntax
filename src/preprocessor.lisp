@@ -1226,7 +1226,8 @@ returns NIL."
       (return-from process-preprocessing-directive nil))
     (let* ((identifier
              (pop-preprocessor-directive-token directive-token-list directive-symbol))
-           (function-like-p (token-equal-p (first directive-token-list) '|(|)))
+           (next-token (first directive-token-list))
+           (function-like-p (token-equal-p next-token '|(|)))
       (cond
         (function-like-p
          (multiple-value-bind (identifier-list variadicp rest-token-list)
@@ -1237,6 +1238,9 @@ returns NIL."
                                                         :identifier-list identifier-list :variadicp variadicp
                                                         :replacement-list rest-token-list))))
         (t
+         (unless (eq next-token +whitespace-marker+)
+           (warn 'with-c-syntax-style-warning
+                 :format-control "C99 requires whitespace after the macro name."))
          (add-local-preprocessor-macro state identifier
                                        (make-instance 'object-like-macro
                                                       :name identifier
