@@ -658,7 +658,7 @@
       %:define STR(x) %:x
       STR(%:)
       }#)
-    (signals.wcs.reader (package-error) "%:2{ \"This does not works.\" }%:")
+    (signals.wcs.reader (error) "%:2{ \"This does not works.\" }%:")
     (is.equal.wcs "%:%:"
       #2{
       %:define CAT(x,y) x %:%: y
