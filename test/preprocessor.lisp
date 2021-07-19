@@ -365,6 +365,13 @@
   ;; TODO: macro expansion.
   )
 
+(test test-pp-not-directive
+  (signals.macroexpand.wcs ()
+    #2{
+    #define MYDEFINE define
+    # MYDEFINE This is not allowed.
+    }#))
+  
 ;;; #include
 
 (test test-pp-include
