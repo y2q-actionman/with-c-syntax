@@ -536,7 +536,7 @@
   ;; From mcpp-2.7.2 cpp-test.html#2.7.6
   (is.wcs.pp.equal
    #2{
-   ((x)+(y))
+   ((x)+(y));
    }#
    #2{
    #define add( x, y)      ((x) + (y))
@@ -553,6 +553,44 @@
    #2{
    #define x() (a, b, c)
    x
+   }#))
+
+;;; pp-number tests.
+
+(test test-pp-number-and-macro
+  (is.wcs.pp.equal
+   #2{
+   12E+EXP
+   }#
+   #2{
+   #define E 8
+   #define EXP 999
+   12E+EXP
+   }#)
+  (is.wcs.pp.equal
+   #2{
+   12+999
+   }#
+   #2{
+   #define EXP 999
+   12+EXP
+   }#)
+  (is.wcs.pp.equal
+   #2{
+   0xFFFFp+EXP
+   }#
+   #2{
+   #define EXP 999
+   0xFFFFp+EXP
+   }#)
+  (is.wcs.pp.equal
+   #2{
+   0xBEEF+999
+   }#
+   #2{
+   #define BEEF 1234
+   #define EXP 999
+   0xBEEF+EXP
    }#))
 
 ;;; digraph tests.
