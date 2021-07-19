@@ -5,40 +5,6 @@
  If this is true, replacement occurs but `with-c-syntax-style-warning' is signalled.
  If this is `:no-warn', replacement occurs and the style-warning is not signalled.")
 
-;;; Special preprocessor macro definitions
-
-(defpackage #:with-c-syntax.preprocessor-special-macro
-  (:use)
-  (:export #:__DATE__ #:__FILE__ #:__LINE__ #:__TIME__))
-
-(define-constant +pp-date-month-name+
-    #("(bad month)"
-      "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec")
-  :test 'equalp
-  :documentation "A vector of month names following asctime() manner. Used by __DATE__")
-
-(defun with-c-syntax.preprocessor-special-macro:__DATE__ (&optional state)
-  (declare (ignore state))
-  (multiple-value-bind (_second _minute _hour date month year)
-      (get-decoded-time)
-    (declare (ignore _second _minute _hour))
-    (format nil "~A ~2,' D ~4,'0D"
-            (aref +pp-date-month-name+ month) date year)))
-
-(defun with-c-syntax.preprocessor-special-macro:__FILE__ (state)
-  (let ((file-pathname (pp-state-file-pathname state)))
-    (if file-pathname
-        (namestring file-pathname))))
-
-(defun with-c-syntax.preprocessor-special-macro:__LINE__ (state)
-  (pp-state-line-number state))
-
-(defun with-c-syntax.preprocessor-special-macro:__TIME__ (&optional state)
-  (declare (ignore state))
-  (multiple-value-bind (second minute hour)
-      (get-decoded-time)
-    (format nil "~2,'0d:~2,'0d:~2,'0d" hour minute second)))
-
 ;;; Preprocessor macro expansion
 
 (defun va-args-identifier-p (token)
@@ -145,7 +111,7 @@
              :format-arguments (list name variadicp-1 variadicp-2)))))
 
 (defun preprocessor-macro-exists-p (macro-alist symbol)
-  (or (find-symbol (symbol-name symbol) '#:with-c-syntax.preprocessor-special-macro)
+  (or (find-symbol (symbol-name symbol) '#:with-c-syntax.predefined-macro)
       (when-let ((entry (assoc symbol macro-alist)))
         (not (eql (cdr entry) :macro-suppressed)))))
 
@@ -618,11 +584,21 @@
                                  nil
                                  (pp-state-process-digraph? pp-state)))
 
+(defun expand-predefined-macro (predefined-macro pp-state)
+  (cond ((boundp predefined-macro)
+         (symbol-value predefined-macro))
+        ((fboundp predefined-macro)
+         (funcall predefined-macro pp-state))
+        (t
+         (error 'preprocess-error
+                :format-control "Predefined macro ~A is not bound nor fbound."
+                :format-arguments (list predefined-macro)))))
+
 (defun expand-preprocessor-macro (token rest-token-list macro-alist pp-state)
   "Expand preprocessor macro named TOKEN. If it is a function-like
 macro, its arguments are taken from REST-TOKEN-LIST. MACRO-ALIST is an
 alist of preprocessor macro definitions.  PP-STATE is a
-`preprocessor-state' object, used for expanding special macros.
+`preprocessor-state' object, used for expanding predefined macros.
 
  Returns four values:
  1. A list of tokens made by expansion.
@@ -630,12 +606,13 @@ alist of preprocessor macro definitions.  PP-STATE is a
  3. An alist derived from MACRO-ALISR changed after expansion.
  4. A boolean tells whether TOKEN is a function-like-macro but
     REST-TOKEN-LIST is not a form of invocation."
-  (when-let ((special-macro
-              (find-symbol (symbol-name token) '#:with-c-syntax.preprocessor-special-macro)))
-    (return-from expand-preprocessor-macro
-      (values (list (funcall special-macro pp-state))
-              rest-token-list
-              macro-alist)))
+  (when-let ((predefined-macro
+              (find-symbol (symbol-name token) '#:with-c-syntax.predefined-macro)))
+    (let ((expansion (expand-predefined-macro predefined-macro pp-state)))
+      (return-from expand-preprocessor-macro
+        (values (list expansion)
+                rest-token-list
+                macro-alist))))
   (let* ((pp-macro-entry (assoc token macro-alist))
          (pp-macro (cdr pp-macro-entry)))
     (etypecase pp-macro

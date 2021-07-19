@@ -452,6 +452,33 @@
        #2{ __FILE__ }#
        '(or string cl:null))))
 
+(test test-pp-predefined-stdc-macro
+  (is.equal.wcs 1
+    #{ __STDC__ }#)
+  (is.equal.wcs "defined!"
+    #{
+    #if defined __STDC__
+    "defined!"
+    #else
+    #error
+    #endif
+    }#)
+  (is
+   #2{
+   member (__STDC_HOSTED__, list(0, 1));
+   }#)
+  (is.equal.wcs 1
+    #{ __STDC_MB_MIGHT_NEQ_WC__ }#)
+  (is.equal.wcs "OK"
+    ;; This case does not run on reader level 1, because of 'L' suffix of the integer.
+    #2{
+    #if __STDC_VERSION__ >= 199901L
+    "OK"
+    #else
+    #error
+    #endif
+    }#))
+
 (test test-pp-stringify
   (muffle-unused-code-warning
     (is.equal.wcs "ABC"           ; Because readtable-case is :upcase.

@@ -67,6 +67,12 @@
    #:|if| #:|ifdef| #:|ifndef| #:|elif| #:|else| #:|endif| #:|include|
    #:|define| #:|undef| #:|line| #:|error| #:|pragma|))
 
+(defpackage #:with-c-syntax.predefined-macro
+  (:use)
+  (:export #:__DATE__ #:__FILE__ #:__LINE__ #:__STDC__
+           #:__STDC_HOSTED__ #:__STDC_MB_MIGHT_NEQ_WC__
+           #:__STDC_VERSION__ #:__TIME__))
+
 (defpackage #:with-c-syntax.core
   (:use #:cl #:with-c-syntax #:with-c-syntax.syntax)
   (:shadowing-import-from

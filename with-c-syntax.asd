@@ -27,6 +27,7 @@
                  (:file "preprocessor"  ; Translation Phase 4,(5),6
                   :depends-on ("util" "condition" "reader"
                                "lexer" "compiler")) ; Uses compiler for implementing '#if'
+                 (:file "predefined-macro" :depends-on ("preprocessor"))
                  (:file "with-c-syntax" ; Entry Point
                   :depends-on ("preprocessor" "compiler"))))
                (:module "libc"
