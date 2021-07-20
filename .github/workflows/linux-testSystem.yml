@@ -54,7 +54,7 @@ jobs:
         shell: bash
         run: ros -e "(ql:update-all-dists :prompt nil)"
 
-      - name: Build
+      - name: Quickload and run asdf:test-system
         shell: bash
         run: |
           ros -e '(handler-bind (#+asdf3.2(asdf:bad-SYSTEM-NAME (function MUFFLE-WARNING))) (handler-case (progn (ql:quickload :with-c-syntax-test) (asdf:test-system :with-c-syntax)) (error (a) (format t "caught error ~s~%~a~%" a a) (uiop:quit 123))))'
