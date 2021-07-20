@@ -36,10 +36,8 @@
    ;; switches
    (target-readtable :type readtable
                      :initarg :target-readtable)
-   (process-phase-1 :type boolean
-                    :initarg :phase-1 :initform nil)
-   (process-phase-2 :type boolean
-                    :initarg :phase-2 :initform t))
+   (process-phase-1 :initarg :phase-1 :initform nil)
+   (process-phase-2 :initarg :phase-2 :initform t))
   (:default-initargs
    :phase-1 *with-c-syntax-reader-process-trigraph*)
   (:documentation "An input stream for doing translation phase 1
