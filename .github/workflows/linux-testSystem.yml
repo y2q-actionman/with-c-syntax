@@ -14,7 +14,8 @@ jobs:
       fail-fast: false
       matrix:
         # 'sbcl-bin/2.0.5' is for Quicklisp build.
-        lisp: [sbcl-bin/2.0.5, sbcl-bin, ccl, ecl, clisp, allegro, cmucl, abcl]
+        lisp: [sbcl-bin/2.0.5, sbcl-bin, ccl, ecl, allegro, cmucl, abcl]
+        # Commented out clisp <- roswell cannot be compiled.
 
     runs-on: ubuntu-latest
 
