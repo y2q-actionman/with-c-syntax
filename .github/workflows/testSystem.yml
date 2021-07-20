@@ -11,8 +11,9 @@ jobs:
   build:
     name: ${{ matrix.lisp }} on ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        lisp: [sbcl-bin ,ccl]
+        lisp: [sbcl-bin, ccl, sbcl-bin/2.0.5 ]
         os: [ ubuntu-latest, macos-latest]
 
     runs-on: ${{ matrix.os }}
