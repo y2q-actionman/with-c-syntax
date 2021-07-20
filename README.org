@@ -217,7 +217,6 @@ I'm now working to fix it.
 - trivial-gray-streams :: For implementing translation phase 1 and 2 correctly.
 
 **** by libc
-- osicat
 - float-features :: For math.h, dealing NaN and Infinities.
 - floating-point-contractions :: For math.h, to implement some functions.
 
