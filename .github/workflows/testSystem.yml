@@ -1,6 +1,6 @@
 # From http://3bb.cc/blog/2020/09/11/github-ci/
 
-name: testBuild
+name: testSystem
 
 on:
   push:
@@ -56,4 +56,4 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          ros -e '(handler-bind (#+asdf3.2(asdf:bad-SYSTEM-NAME (function MUFFLE-WARNING))) (handler-case (ql:quickload :with-c-syntax) (error (a) (format t "caught error ~s~%~a~%" a a) (uiop:quit 123))))'
+          ros -e '(handler-bind (#+asdf3.2(asdf:bad-SYSTEM-NAME (function MUFFLE-WARNING))) (handler-case (progn (ql:quickload :with-c-syntax-test) (asdf:test-system :with-c-syntax)) (error (a) (format t "caught error ~s~%~a~%" a a) (uiop:quit 123))))'
