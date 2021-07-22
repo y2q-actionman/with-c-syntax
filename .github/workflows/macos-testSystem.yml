@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.lisp }} on ${{ matrix.os }}
+    name: ${{ matrix.lisp }}
     strategy:
       fail-fast: false
       matrix:
