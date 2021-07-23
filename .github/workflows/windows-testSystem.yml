@@ -14,12 +14,18 @@ jobs:
       fail-fast: false
       matrix:
         # 'sbcl-bin/2.0.5' is for Quicklisp build.
-        lisp: [sbcl-bin/2.0.5, sbcl-bin, ccl, ecl, allegro, cmucl, abcl]
-        # Commented out clisp <- roswell cannot be compiled.
+        lisp: [sbcl-bin/2.0.5, sbcl-bin, ccl]
 
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
+      - name: windows specific settings
+        # https://dev.classmethod.jp/articles/replace-deprecated-method-on-actions/
+        run: |
+          git config --global core.autocrlf false
+          echo "ROSWELL_INSTALL_DIR=~/ros" >> $GITHUB_ENV
+          echo "~/ros/bin" >> $GITHUB_PATH
+
       - uses: actions/checkout@v2
 
       - name: cache .roswell
@@ -31,7 +37,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-dot-roswell-${{ matrix.lisp }}-
             ${{ runner.os }}-dot-roswell-
-            
+
       - name: install roswell
         shell: sh
         env:
