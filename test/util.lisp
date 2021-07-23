@@ -36,10 +36,31 @@
        (assert (eq ,op 'with-c-syntax))
        (is (equal ,forms-in-wcs ,body)))))
 
+#+ccl
+(defun %signals.wcs.reader-ccl (expected fn)
+  "KLUDGE: `1am:signals' catch CCL's internal condition,
+  `ccl::parse-unknown-type'.  This code tries to ignore it."
+  (flet ((handler (condition)
+           (cond ((typep condition 'ccl::parse-unknown-type)
+                  ;; decline
+                  )
+                 ((typep condition expected)
+                  (1am::passed)
+                  (return-from %signals.wcs.reader-ccl (values)))
+                 (t (error "Expected to signal ~s, but got ~s:~%~a"
+                           expected (type-of condition) condition)))))
+    (handler-bind ((condition #'handler))
+      (funcall fn)))
+  (error "Expected to signal ~s, but got nothing." expected))
+
 (defmacro signals.wcs.reader ((&optional (condition 'with-c-syntax-error)) string)
-  `(signals ,condition
-     (let ((*readtable* (find-readtable 'with-c-syntax:with-c-syntax-readtable)))
-       (read-from-string ,string))))
+  (let ((body
+          `(let ((*readtable* (find-readtable 'with-c-syntax:with-c-syntax-readtable)))
+             (read-from-string ,string))))
+    #-ccl
+    `(signals ,condition ,body)
+    #+ccl
+    `(%signals.wcs.reader-ccl ',condition (lambda () ,body))))
 
 (defmacro muffle-unused-code-warning (&body body)
   "Muffles `sb-ext:code-deletion-note' of SBCL. For other
