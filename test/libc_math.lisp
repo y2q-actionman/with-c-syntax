@@ -360,6 +360,11 @@
   check-errno (values (d, e) = frexp* (NAN), nil);
   is (float-nan-p (d));
 
+  `#+ccl
+  (progn
+    (warn "Skipping some tests for ldexp() on CCL.")
+    (return-from test-math-frexp*-and-ldexp t));
+  
   // ; Specials (|ldexp|)
   check-errno (is (|ldexp| (0.0, most-positive-fixnum) == 0.0), nil);
   check-errno (is (|ldexp| (-0.0, most-negative-fixnum) == -0.0), nil);
@@ -479,6 +484,11 @@
   #{
   is.float-equal (|scalbn| (2.0, 2), 8.0);
   is.float-equal (|scalbn| (-2.0, -2), -.5);
+
+  `#+ccl
+  (progn
+    (warn "Skipping some tests for scalbn() on CCL.")
+    (return-from test-math-scalbn t));
   
   // ; Specials
   check-errno (is (|scalbn| (0.0, most-positive-fixnum) == 0.0), nil);
