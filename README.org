@@ -240,8 +240,9 @@ I'm now working to fix it.
 *** CI
 
     [[https://github.com/y2q-actionman/with-c-syntax/actions/workflows/linux-testSystem.yml/badge.svg]]
+    
     There are Github Actions to run the test above.
-    I wrote the recipe referring the example of [[https://github.com/neil-lindquist/CI-Utils][CI-Utils]].
+    I wrote current recipes referring the example of [[https://github.com/neil-lindquist/CI-Utils][CI-Utils]].
 
 * API
 Please see these docstrings or comments:
