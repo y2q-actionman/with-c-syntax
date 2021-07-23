@@ -211,7 +211,7 @@ I'm now working to fix it.
 
 *** Libraries depending on
 - cl-yacc :: As a parser for C syntax
-- alexandria
+- alexandria :: as utilities.
 - named-readtables :: For exporting '#{' reader syntax.
 - cl-ppcre :: For parsing numeric constants.
 - trivial-gray-streams :: For implementing translation phase 1 and 2 correctly.
@@ -236,6 +236,12 @@ I'm now working to fix it.
 (asdf:load-asd "with-c-syntax-test.asd")
 (asdf:test-system :with-c-syntax)
 #+END_SRC
+
+*** CI
+
+    [[https://github.com/y2q-actionman/with-c-syntax/actions/workflows/linux-testSystem.yml/badge.svg]]
+    There are Github Actions to run the test above.
+    I wrote the recipe referring the example of [[https://github.com/neil-lindquist/CI-Utils][CI-Utils]].
 
 * API
 Please see these docstrings or comments:
