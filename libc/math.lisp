@@ -57,7 +57,11 @@
 ;;;
 ;;;   (define-symbol-macro NAN double-float-nan)
 
-(defvar NAN double-float-nan)
+(defvar NAN
+  ;; KLUDGE: `float-features:double-float-nan' fails on ECL because it
+  ;; calls `bits-double-float' which does not support ECL.
+  #+ecl (ext:nan)
+  #-ecl double-float-nan)
 
 ;;; Utils
 
