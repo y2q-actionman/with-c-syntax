@@ -40,22 +40,26 @@ jobs:
             ${{ runner.os }}-dot-roswell-
             
       - name: install roswell
-        shell: bash
+        shell: sh
         env:
           LISP: ${{ matrix.lisp }}
         run: curl -L https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | sh -x
 
       - name: run lisp
         continue-on-error: true
-        shell: bash
+        shell: sh
         run: |
-          ros -e '(format t "~a:~a on ~a~%...~%~%" (lisp-implementation-type) (lisp-implementation-version) (machine-type))'
+          ros -e '(format t "~a:~a on ~a~%...~%~%" (lisp-implementation-type) (lisp-implementation-version) (machine-type)) '
 
       - name: update ql dist if we have one cached
-        shell: bash
+        shell: sh
         run: ros -e "(ql:update-all-dists :prompt nil)"
 
-      - name: Quickload and run asdf:test-system
-        shell: bash
+      - name: Load trivial-backtrace to cache it
+        shell: sh
+        run: ros -e "(ql:quickload :trivial-backtrace)"
+
+      - name: Quickload it and run asdf:test-system
+        shell: sh
         run: |
-          ros -e '(handler-bind (#+asdf3.2(asdf:bad-SYSTEM-NAME (function MUFFLE-WARNING))) (handler-case (progn (ql:quickload :with-c-syntax-test) (asdf:test-system :with-c-syntax)) (error (a) (format t "caught error ~s~%~a~%" a a) (uiop:quit 123))))'
+          ros -e '(ql:quickload :trivial-backtrace)' -e '(handler-case (progn (ql:quickload :with-c-syntax-test) (asdf:test-system :with-c-syntax)) (error (e) (format t "Caught error ~a" e) (trivial-backtrace:print-backtrace e) (uiop:quit 123)))'
