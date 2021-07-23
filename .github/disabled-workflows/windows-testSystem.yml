@@ -1,6 +1,6 @@
 # From http://3bb.cc/blog/2020/09/11/github-ci/
 
-name: linux-testSystem
+name: windows-testSystem
 
 on:
   push:
