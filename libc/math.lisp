@@ -279,18 +279,33 @@
 
 (defun |cos| (x)
   (coercef x 'double-float)
-  (with-wcs-math-error-handling (ret (cos x))
-    (check-wcs-math-result)))
+  (cond
+    ((float-nan-p x) x)
+    ((float-infinity-p x)               ; for CCL.
+     (wcs-raise-fe-exception FE_INVALID)
+     NAN)
+    (t (with-wcs-math-error-handling (ret (cos x))
+         (check-wcs-math-result)))))
 
 (defun |sin| (x)
   (coercef x 'double-float)
-  (with-wcs-math-error-handling (ret (sin x))
-    (check-wcs-math-result)))
+  (cond
+    ((float-nan-p x) x)
+    ((float-infinity-p x)               ; for CCL.
+     (wcs-raise-fe-exception FE_INVALID)
+     NAN)
+    (t (with-wcs-math-error-handling (ret (sin x))
+         (check-wcs-math-result)))))
 
 (defun |tan| (x)
   (coercef x 'double-float)
-  (with-wcs-math-error-handling (ret (tan x))
-    (check-wcs-math-result)))
+  (cond
+    ((float-nan-p x) x)
+    ((float-infinity-p x)               ; for CCL.
+     (wcs-raise-fe-exception FE_INVALID)
+     NAN)
+    (t (with-wcs-math-error-handling (ret (tan x))
+         (check-wcs-math-result)))))
 
 ;;; Hyperbolic
 
@@ -343,14 +358,14 @@
   (with-wcs-math-error-handling (ret (expt (float 2 x) x))
     (check-wcs-math-result)
     ;; Allegro 10.1 requires this...
-    #+ (or sbcl allegro)
+    #+ (or sbcl allegro ccl)
     (cond ((= ret 0d0)
            (unless (float-infinity-p x)
              (wcs-raise-fe-exception FE_UNDERFLOW))
            ret)
           (t
            ret))
-    #-allegro
+    #- (or sbcl allegro ccl) 
     ret))
 
 (defun |expm1| (x)
@@ -358,14 +373,14 @@
   (with-wcs-math-error-handling (ret (exp-1 x)
                                      :underflow-value (float -1 x))
     (check-wcs-math-result)
-    #+sbcl
-    ;; For SBCL: It does not report `floating-point-underflow'
+    #+(or sbcl ccl)
+    ;; For SBCL and CCL: It does not report `floating-point-underflow'
     (cond
       ((= ret -1d0)
        (wcs-raise-fe-exception FE_UNDERFLOW)
        (float ret x))
       (t ret))
-    #-sbcl
+    #-(or sbcl ccl)
     ret))
 
 (defun frexp* (x)  ; FIXME: how to treat pointer? (cons as a storage?)
@@ -567,7 +582,7 @@
            (* 2 double-float-epsilon (max (abs x) (abs y) (abs realpart)))))
     (> (imagpart ret) scaled-epsilon)))
 
-(defun |pow| (x y)
+(defun |pow| (x y &aux (original-y y))
   (coercef x 'double-float)
   (coercef y 'double-float)
   (handler-case
@@ -607,8 +622,20 @@
                 (not (zerop x)))
            (wcs-raise-fe-exception FE_UNDERFLOW)
            ret)
+          ;; For CCL: It returns the sign of x as-is.
+          ((and (zerop ret) (zerop x))
+           (if (and (integerp original-y) (oddp original-y))
+               ret
+               (float 0 ret)))
           (t
            ret)))
+    #+ccl
+    (type-error (e)
+      ;; CCL on MacOSX comes here -- (EXPT -0.0D0 double-float-positive-infinity).
+      (cond ((and (zerop x)
+                  (float-infinity-p y))
+             double-float-positive-infinity)
+            (t (error e))))
     #+allegro
     (simple-error (e)
       ;; Allegro CL 10.0 on MacOSX comes here -- (expt 0.0 -1).
@@ -642,6 +669,8 @@
        ;; (fceiling DOUBLE-FLOAT-POSITIVE-INFINITY)
        (when (or (float-nan-p ,x)
                  (float-infinity-p ,x))
+         (return-from ,block-name ,x))
+       (when (zerop ,x)                 ; for CCL
          (return-from ,block-name ,x))
        (handler-bind
            ((simple-error
@@ -702,8 +731,15 @@
 ;;; Remainder
 
 (defmacro with-mod-family-error-handling ((x y) &body body)
+  (declare (ignorable x y))
   `(handler-case
-       (progn ,@body)
+       (cond
+         ((float-nan-p ,x) ,x)
+         ((float-infinity-p ,x)         ; for CCL.
+          (wcs-raise-fe-exception FE_INVALID)
+          NAN)
+         (t
+          (progn ,@body)))
      #+ (or sbcl allegro) 
      (simple-error (e)
        ;; Allegro CL 10.0 on MacOS comes here; (sqrt NAN).
