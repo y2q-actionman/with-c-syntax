@@ -32,7 +32,7 @@
                  (:file "assert" :depends-on ("util"))
                  (:file "ctype" :depends-on ("util"))
                  (:file "errno" :depends-on ("util"))
-                 (:file "fenv" :depends-on ("util"))
+                 (:file "fenv" :depends-on ("util" "float"))
                  (:file "float" :depends-on ("util"))
                  (:file "iso646" :depends-on ("util"))
                  (:file "limits" :depends-on ("util"))
