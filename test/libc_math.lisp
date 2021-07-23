@@ -364,6 +364,7 @@
   (progn
     (warn "Skipping some tests for ldexp() on CCL.")
     (return-from test-math-frexp*-and-ldexp t));
+  #-ccl (values);
   
   // ; Specials (|ldexp|)
   check-errno (is (|ldexp| (0.0, most-positive-fixnum) == 0.0), nil);
@@ -489,6 +490,7 @@
   (progn
     (warn "Skipping some tests for scalbn() on CCL.")
     (return-from test-math-scalbn t));
+  #-ccl (values);
   
   // ; Specials
   check-errno (is (|scalbn| (0.0, most-positive-fixnum) == 0.0), nil);
