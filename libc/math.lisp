@@ -143,7 +143,10 @@
 (defconstant HUGE_VALF single-float-positive-infinity) ; C99
 (defconstant HUGE_VALL long-float-positive-infinity)   ; C99
 (defconstant INFINITY single-float-positive-infinity)  ; C99
-(defconstant NAN double-float-nan)                     ; C99
+
+;; XXX: SBCL 2.0.5 causes a weird error if `defconstant' was used.
+;; See https://github.com/y2q-actionman/with-c-syntax/issues/15
+(define-symbol-macro NAN double-float-nan) ; C99
 
 ;;; FPCLASSIFY constants (C99)
 (defconstant FP_INFINITE :FP_INFINITE)
