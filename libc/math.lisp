@@ -144,8 +144,13 @@
 (defconstant HUGE_VALL long-float-positive-infinity)   ; C99
 (defconstant INFINITY single-float-positive-infinity)  ; C99
 
-;; XXX: SBCL 2.0.5 causes a weird error if `defconstant' was used.
-;; See https://github.com/y2q-actionman/with-c-syntax/issues/15
+;; XXX: ECL 21.2.1 an error when `defconstant' was used.
+;; 
+;; Error:
+;;   in file math.lisp, position 5690
+;;   at (DEFCONSTANT NAN ...)
+;;   * The form (PROGN (SI:*MAKE-CONSTANT 'NAN DOUBLE-FLOAT-NAN) (SI::REGISTER-GLOBAL 'NAN)) was not evaluated successfully.
+;;
 (define-symbol-macro NAN double-float-nan) ; C99
 
 ;;; FPCLASSIFY constants (C99)
