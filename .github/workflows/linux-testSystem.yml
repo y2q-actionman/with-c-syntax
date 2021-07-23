@@ -14,11 +14,11 @@ jobs:
       fail-fast: false
       matrix:
         # 'sbcl-bin/2.0.5' is for Quicklisp build.
-        lisp: [sbcl-bin/2.0.5, sbcl-bin, ccl, allegro, ecl]
-        # Commented out
-        #  clisp; roswell cannot be compiled.
+        lisp: [sbcl-bin/2.0.5, sbcl-bin, ccl, allegro, clisp]
+        # Commented out impls:
         #  cmucl; float-features raises error on loading.
         #  abcl; gray-stream looks like broken.
+        #  ecl; error of 0x reader.
 
     runs-on: ubuntu-latest
 
