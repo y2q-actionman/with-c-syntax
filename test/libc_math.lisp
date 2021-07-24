@@ -321,12 +321,15 @@
 
 (test test-math-expm1
   #{
+  double tmp;
   is (`(< 1.71828
          #{ return |expm1|(1.0d0); }#
          1.71829));
   is (|expm1|(0.0) == 0.0);
   is.float-equal (|expm1|(double-float-negative-infinity), -1.0);
-  check-errno (is (|expm1|(most-positive-double-float) == HUGE_VAL), ERANGE);
+  check-errno (tmp = |expm1|(most-positive-double-float), ERANGE);
+  is (float-infinity-p (tmp));
+  is (plusp (tmp));
   check-errno (is (|expm1|(most-negative-double-float) == -1.0), ERANGE);
 //   check-errno (is (|expm1|(double-float-positive-infinity) == HUGE_VAL), nil);
   check-errno (is (|expm1|(double-float-negative-infinity) == -1.0), nil, :alternate-errno, ERANGE);
