@@ -680,7 +680,14 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                   (t
                    (intern "}")))) ; Intern it into the current `*package*'.
            (t
-            (read-preserving-whitespace stream t :eof recursive-p))))))))
+            (read-preserving-whitespace
+             stream t :eof
+             ;; KLUDGE: CCL-1.12's `read-preserving-whitespace' does
+             ;; not saves whitespaces if recursive-p is true. To
+             ;; correctly tokenize C source, I must set it to nil.
+             ;; https://github.com/Clozure/ccl/blob/2ae800e12e3686dd639da370eaa1a8380c85d774/level-1/l1-reader.lisp#L2962-L2963
+             #+ccl nil
+             #-ccl recursive-p))))))))
 
 (defun tokenize-source (level stream end-with-bracet-sharp readtable-case)
   "Tokenize C source by doing translation phase 1, 2, and 3.
