@@ -5,16 +5,26 @@
  If this is true, replacement occurs but `with-c-syntax-style-warning' is signalled.
  If this is `:no-warn', replacement occurs and the style-warning is not signalled.")
 
-(defun make-with-c-syntax-default-include-pathname ()
-  "Makes a pathname of the directory containing with-c-syntax include
- files. This is used for making the default value of
- `*with-c-syntax-include-path-list*'."
-  (asdf:system-relative-pathname :with-c-syntax "include" :type :directory))
+(defun find-asdf-system-relative-file (base name)
+  "See `find-with-c-syntax-default-include-file'"
+  (let* ((name-list (if (listp name)
+                        name
+                        (split-sequence:split-sequence #\/ (string name))))
+         (component (or (asdf:find-component base name-list)
+                        (asdf:find-component base (mapcar 'string-downcase name-list)))))
+    (if component
+        (asdf:component-pathname component))))
 
-(defvar *with-c-syntax-include-pathname-list*
-  (load-time-value (list (make-with-c-syntax-default-include-pathname)))
-  "List of pathnames used for searching include files with '#include <...>' style.
- Included file name is probed by `merge-pathnames' with each pathname in this list.
+(defun find-with-c-syntax-default-include-file (name)
+  "Makes a pathname of the directory containing with-c-syntax include
+ files. This function is used for making the default value of
+ `*with-c-syntax-find-include-file-function-list*'"
+  (find-asdf-system-relative-file '(:with-c-syntax . "include") name))
+
+(defvar *with-c-syntax-find-include-file-function-list*
+  (list 'find-with-c-syntax-default-include-file)
+  "List of functions used for searching include files with '#include <...>' style.
+ Each function should take one argument and returns a pathname, or nil if failed.
  See `find-include-<header>-file'.")
 
 ;;; Preprocessor macro expansion
@@ -1108,11 +1118,11 @@ returns NIL."
                :format-arguments (list file-pathname))))))
 
 (defun find-include-<header>-file (header-name &key (errorp t))
-  "Finds a file specified by #include <...> style header-name from
- pathnames in `*with-c-syntax-include-pathname-list*'."
-  (loop for dir in *with-c-syntax-include-pathname-list*
-        as path = (merge-pathnames header-name dir)
-        if (probe-file path)
+  "Finds a file specified by #include <...> style header-name with
+ pathnames got by `*with-c-syntax-find-include-file-function-list*'."
+  (loop for func in *with-c-syntax-find-include-file-function-list*
+        as path = (funcall func header-name)
+        if path
           return it
         finally
            (when errorp

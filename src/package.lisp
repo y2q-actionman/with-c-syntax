@@ -96,7 +96,8 @@
    #:with-c-syntax-warning
    #:with-c-syntax-style-warning
    ;; preprocessor.lisp
-   #:*with-c-syntax-include-pathname-list*
+   #:*with-c-syntax-find-include-file-function-list*
+   #:find-asdf-system-relative-file
    #:preprocessor
    #:preprocessing-number
    #:preprocessing-number-p

@@ -4,6 +4,7 @@
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
   :depends-on (#:alexandria #:yacc #:named-readtables
                             #:cl-ppcre #:trivial-gray-streams #:asdf
+                            #:split-sequence
                             ;; for libc implementation (TODO: split libc defsystem from core?)
                             #:float-features #:floating-point-contractions)
   :serial t

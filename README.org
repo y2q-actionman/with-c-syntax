@@ -253,7 +253,7 @@ Please see these docstrings or comments:
 - Comments around [[https://github.com/y2q-actionman/with-c-syntax/blob/master/src/reader.lisp#L561][with-c-syntax-readtable]]
 - Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L5][*with-c-syntax-reader-level*]]
 - Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L90][*with-c-syntax-reader-case*]]
-- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/a4af8ce536282028d1958a6d9763042060a188b1/src/preprocessor.lisp#L14-L18][*with-c-syntax-include-pathname-list*]]
+- Variable *with-c-syntax-find-include-file-function-list*
 
 * Further Information
 What this macro does is only expanding a list of symbols to a Lisp form.
