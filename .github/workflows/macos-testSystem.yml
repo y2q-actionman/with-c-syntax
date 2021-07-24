@@ -1,0 +1,57 @@
+# From http://3bb.cc/blog/2020/09/11/github-ci/
+
+name: macos-testSystem
+
+on:
+  push:
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: ${{ matrix.lisp }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 'sbcl-bin/2.0.5' is for Quicklisp build.
+        lisp: [sbcl-bin/2.0.5, sbcl-bin, ccl]
+
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: cache .roswell
+        id: cache-dot-roswell
+        uses: actions/cache@v1
+        with:
+          path: ~/.roswell
+          key: ${{ runner.os }}-dot-roswell-${{ matrix.lisp }}-${{ hashFiles('**/*.asd') }}
+          restore-keys: |
+            ${{ runner.os }}-dot-roswell-${{ matrix.lisp }}-
+            ${{ runner.os }}-dot-roswell-
+
+      - name: install roswell
+        shell: bash
+        env:
+          LISP: ${{ matrix.lisp }}
+        run: curl -L https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | sh -x
+
+      - name: run lisp
+        continue-on-error: true
+        shell: bash
+        run: |
+          ros -e '(format t "~a:~a on ~a~%...~%~%" (lisp-implementation-type) (lisp-implementation-version) (machine-type))'
+
+      - name: update ql dist if we have one cached
+        shell: bash
+        run: ros -e "(ql:update-all-dists :prompt nil)"
+
+      - name: Load trivial-backtrace to cache it
+        shell: sh
+        run: ros -e "(ql:quickload :trivial-backtrace)"
+
+      - name: Quickload and run asdf:test-system
+        shell: sh
+        run: |
+          ros -e '(ql:quickload :trivial-backtrace)' -e '(handler-bind ((error (lambda (e) (format t "Caught error ~a" e) (trivial-backtrace:print-backtrace e) (uiop:quit 123)))) (ql:quickload :with-c-syntax-test) (asdf:test-system :with-c-syntax))'

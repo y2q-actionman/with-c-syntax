@@ -5,7 +5,7 @@
   :depends-on (#:alexandria #:yacc #:named-readtables
                             #:cl-ppcre #:trivial-gray-streams #:asdf
                             ;; for libc implementation (TODO: split libc defsystem from core?)
-                            #:osicat #:float-features #:floating-point-contractions)
+                            #:float-features #:floating-point-contractions)
   :serial t
   :components ((:file "package")
 	       (:module "src"
@@ -39,7 +39,7 @@
                  (:file "assert" :depends-on ("util"))
                  (:file "ctype" :depends-on ("util"))
                  (:file "errno" :depends-on ("util"))
-                 (:file "fenv" :depends-on ("util"))
+                 (:file "fenv" :depends-on ("util" "float"))
                  (:file "float" :depends-on ("util"))
                  (:file "iso646" :depends-on ("util"))
                  (:file "limits" :depends-on ("util"))

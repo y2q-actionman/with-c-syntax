@@ -4,7 +4,7 @@
 
 ;;; TODO
 ;;; - strcoll
-;;; - strerror ; use osicat
+;;; - strerror ; use osicat?
 ;;; - strxfrm
 
 (defun resize-string (string size)

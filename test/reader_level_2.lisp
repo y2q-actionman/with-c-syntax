@@ -793,7 +793,10 @@ O 10\\
     xxx.E3 = 3E-3L-3L;
     return xxx.E3;
     }#)
-  (is.equal.wcs (+ 42 0d1 0.1f-1 0.1f0 1)
+  (is.equal.wcs (+ 42 0d1
+                   (coerce 0.1f-1 'double-float) ; Coerce them for double-float arithmetics.
+                   (coerce 0.1f0 'double-float)
+                   1)
     #2{
     struct hoge {
        int e;
@@ -966,7 +969,10 @@ O 10\\
     xxx.P3 = 0x3E -3L-0x3.P-3L;
     return xxx.P3;
     }#)
-  (is.equal.wcs (+ 42 0d1 (* 0.0625f0 (expt 2 -1)) 0.0625f0 1)
+  (is.equal.wcs (+ 42 0d1
+                   (* (coerce 0.0625f0 'double-float) (expt 2 -1))
+                   (coerce 0.0625f0 'double-float) ; Coerce them for double-float arithmetics.
+                   1)
     #2{
     struct hoge {
        int p;

@@ -26,7 +26,7 @@
   is (|fpclassify| (10.0) == FP_NORMAL);
   is (|fpclassify| (0.0) == FP_ZERO);
   is (|fpclassify| (least-negative-double-float) == FP_SUBNORMAL);
-  is (|fpclassify| (double-float-nan) == FP_NAN);
+  is (|fpclassify| (NAN) == FP_NAN);
   }#)
 
 (test test-isfinite
@@ -36,7 +36,7 @@
   is (|isfinite| (10.0));
   is (|isfinite| (0.0));
   is (|isfinite| (least-negative-double-float));
-  is (! |isfinite| (double-float-nan));
+  is (! |isfinite| (NAN));
   }#)
 
 (test test-isinf
@@ -46,7 +46,7 @@
   is (! |isinf| (10.0));
   is (! |isinf| (0.0));
   is (! |isinf| (least-negative-double-float));
-  is (! |isinf| (double-float-nan));
+  is (! |isinf| (NAN));
   }#)
 
 (test test-isnan
@@ -56,7 +56,7 @@
   is (! |isnan| (10.0));
   is (! |isnan| (0.0));
   is (! |isnan| (least-negative-double-float));
-  is (|isnan| (double-float-nan));
+  is (|isnan| (NAN));
   }#)
 
 (test test-isnormal
@@ -66,7 +66,7 @@
   is (|isnormal| (10.0));
   is (! |isnormal| (0.0));
   is (! |isnormal| (least-negative-double-float));
-  is (! |isnormal| (double-float-nan));
+  is (! |isnormal| (NAN));
   }#)
 
 (test test-signbit
@@ -81,7 +81,7 @@
   } else {
     is (|signbit| (-0.0));
   }
-  check-errno (|signbit| (double-float-nan), nil);
+  check-errno (|signbit| (NAN), nil);
   }#)
 
 (test test-math-acos
@@ -91,11 +91,11 @@
   is.float-equal (|acos| (0.5), PI / 3);
   is.float-equal (|acos| (0), PI / 2);
   // ; Specials
-  check-errno (is (|acos| (1.0001) == double-float-nan), EDOM);
-  check-errno (is (|acos| (-1.00000001010) == double-float-nan), EDOM);
-  check-errno (is (|acos| (double-float-positive-infinity) == double-float-nan), EDOM);
-  check-errno (is (|acos| (double-float-negative-infinity) == double-float-nan), EDOM);
-  check-errno (is (float-nan-p (|acos| (double-float-nan))), nil);
+  check-errno (is (|acos| (1.0001) == NAN), EDOM);
+  check-errno (is (|acos| (-1.00000001010) == NAN), EDOM);
+  check-errno (is (|acos| (double-float-positive-infinity) == NAN), EDOM);
+  check-errno (is (|acos| (double-float-negative-infinity) == NAN), EDOM);
+  check-errno (is (float-nan-p (|acos| (NAN))), nil);
   }#)
 
 (test test-math-asin
@@ -106,11 +106,11 @@
   is.float-equal (|asin| (1.0), PI / 2);
   // ; Specials
   is (|asin| (-0.0) == -0.0);
-  check-errno (is (|asin| (1.0001) == double-float-nan), EDOM);
-  check-errno (is (|asin| (-1.00000001010) == double-float-nan), EDOM);
-  check-errno (is (|asin| (double-float-positive-infinity) == double-float-nan), EDOM);
-  check-errno (is (|asin| (double-float-negative-infinity) == double-float-nan), EDOM);
-  check-errno (is (float-nan-p (|asin| (double-float-nan))), nil);
+  check-errno (is (|asin| (1.0001) == NAN), EDOM);
+  check-errno (is (|asin| (-1.00000001010) == NAN), EDOM);
+  check-errno (is (|asin| (double-float-positive-infinity) == NAN), EDOM);
+  check-errno (is (|asin| (double-float-negative-infinity) == NAN), EDOM);
+  check-errno (is (float-nan-p (|asin| (NAN))), nil);
   }#)
 
 (test test-math-atan
@@ -122,7 +122,7 @@
   check-errno (is (|atan| (-0.0) == -0.0), nil);
   check-errno (is.float-equal (|atan| (double-float-positive-infinity), PI / 2), nil);
   check-errno (is.float-equal (|atan| (double-float-negative-infinity), -PI / 2), nil);
-  check-errno (is (float-nan-p (|atan| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|atan| (NAN))), nil);
   }#)
 
 (test test-math-atan2
@@ -149,8 +149,8 @@
   check-errno (is (|atan2| (-9999, double-float-negative-infinity) == - PI), nil);
   check-errno (is (|atan2| (9999, double-float-positive-infinity) == 0.0), nil);
   check-errno (is (|atan2| (-9999, double-float-positive-infinity) == -0.0), nil);
-  check-errno (is (float-nan-p (|atan2| (double-float-nan, 1))), nil);
-  check-errno (is (float-nan-p (|atan2| (1, double-float-nan))), nil);
+  check-errno (is (float-nan-p (|atan2| (NAN, 1))), nil);
+  check-errno (is (float-nan-p (|atan2| (1, NAN))), nil);
   }#)
 
 (test test-math-cos
@@ -163,7 +163,7 @@
   is (|cos| (-0.0) == 1.0);
   check-errno (is (float-nan-p (|cos| (double-float-positive-infinity))), EDOM);
   check-errno (is (float-nan-p (|cos| (double-float-negative-infinity))), EDOM);
-  check-errno (is (float-nan-p (|cos| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|cos| (NAN))), nil);
   }#)
 
 (test test-math-sin
@@ -176,7 +176,7 @@
   is (|sin| (-0.0) == -0.0);
   check-errno (is (float-nan-p (|sin| (double-float-positive-infinity))), EDOM);
   check-errno (is (float-nan-p (|sin| (double-float-negative-infinity))), EDOM);
-  check-errno (is (float-nan-p (|sin| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|sin| (NAN))), nil);
   }#)
 
 (test test-math-tan
@@ -211,7 +211,7 @@
   is (|tan| (-0.0) == -0.0);
   check-errno (is (float-nan-p (|tan| (double-float-positive-infinity))), EDOM);
   check-errno (is (float-nan-p (|tan| (double-float-negative-infinity))), EDOM);
-  check-errno (is (float-nan-p (|tan| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|tan| (NAN))), nil);
   }#)
 
 (test test-math-acosh
@@ -225,7 +225,7 @@
   check-errno (is (float-nan-p (|acosh| (0.9))), EDOM);
   check-errno (is (|acosh| (1.0) == 0.0), nil);
   check-errno (is (|acosh| (double-float-positive-infinity) == double-float-positive-infinity), nil);
-  check-errno (is (float-nan-p (|acosh| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|acosh| (NAN))), nil);
   }#)
 
 (test test-math-asinh
@@ -237,7 +237,7 @@
   check-errno (is (|asinh| (-0.0) == -0.0), nil);
   check-errno (is (|asinh| (double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|asinh| (double-float-negative-infinity) == double-float-negative-infinity), nil);
-  check-errno (is (float-nan-p (|asinh| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|asinh| (NAN))), nil);
   }#)
 
 (test test-math-atanh
@@ -253,7 +253,7 @@
   check-errno (is (float-nan-p (|atanh| (1.1))), EDOM);
   check-errno (is (float-nan-p (|atanh| (-1.1))), EDOM);
   check-errno (is (float-nan-p (|atanh| (double-float-negative-infinity))), EDOM);
-  is (float-nan-p (|atanh| (double-float-nan)));
+  is (float-nan-p (|atanh| (NAN)));
   }#)
 
 (test test-math-cosh
@@ -266,7 +266,7 @@
   check-errno (is (|cosh| (-0.0) == 1.0), nil);
   check-errno (is (|cosh| (double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|cosh| (double-float-negative-infinity) == double-float-positive-infinity), nil);
-  check-errno (is (float-nan-p (|cosh| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|cosh| (NAN))), nil);
   }#)
 
 (test test-math-sinh
@@ -279,7 +279,7 @@
   check-errno (is (|sinh| (-0.0) == -0.0), nil);
   check-errno (is (|sinh| (double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|sinh| (double-float-negative-infinity) == double-float-negative-infinity), nil);
-  check-errno (is (float-nan-p (|sinh| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|sinh| (NAN))), nil);
   }#)
 
 (test test-math-tanh
@@ -291,7 +291,7 @@
   check-errno (is (|tanh| (-0.0) == -0.0), nil);
   check-errno (is (|tanh| (double-float-positive-infinity) == 1.0), nil);
   check-errno (is (|tanh| (double-float-negative-infinity) == -1.0), nil);
-  check-errno (is (float-nan-p (|tanh| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|tanh| (NAN))), nil);
   }#)
 
 (test test-math-exp
@@ -305,7 +305,7 @@
 //  check-errno (is(|exp|(most-negative-double-float) == 0.0), ERANGE);
   check-errno (is(|exp|(double-float-positive-infinity) == HUGE_VAL), nil);
   check-errno (is(|exp|(double-float-negative-infinity) == 0.0), nil);
-  check-errno (is (float-nan-p (|exp|(double-float-nan))), nil);
+  check-errno (is (float-nan-p (|exp|(NAN))), nil);
   }#)
 
 (test test-math-exp2
@@ -316,7 +316,7 @@
   check-errno (is (|exp2|(most-negative-double-float) == 0.0), ERANGE);
   check-errno (is (|exp2|(double-float-positive-infinity) == HUGE_VAL), nil);
   check-errno (is (|exp2|(double-float-negative-infinity) == 0.0), nil);
-  check-errno (is (float-nan-p (|exp2|(double-float-nan))), nil);
+  check-errno (is (float-nan-p (|exp2|(NAN))), nil);
   }#)
 
 (test test-math-expm1
@@ -330,7 +330,7 @@
   check-errno (is (|expm1|(most-negative-double-float) == -1.0), ERANGE);
 //   check-errno (is (|expm1|(double-float-positive-infinity) == HUGE_VAL), nil);
   check-errno (is (|expm1|(double-float-negative-infinity) == -1.0), nil, :alternate-errno, ERANGE);
-  check-errno (is (float-nan-p (|expm1|(double-float-nan))), nil);
+  check-errno (is (float-nan-p (|expm1|(NAN))), nil);
   }#)
 
 (test test-math-frexp*-and-ldexp
@@ -357,9 +357,14 @@
   is (d == double-float-positive-infinity);
   check-errno (values (d, e) = frexp* (double-float-negative-infinity), nil);
   is (d == double-float-negative-infinity);
-  check-errno (values (d, e) = frexp* (double-float-nan), nil);
+  check-errno (values (d, e) = frexp* (NAN), nil);
   is (float-nan-p (d));
 
+  if (member (:ccl, *features*)) {
+    warn ("Skipping some tests for ldexp() on CCL.");
+    return t;
+  }
+  
   // ; Specials (|ldexp|)
   check-errno (is (|ldexp| (0.0, most-positive-fixnum) == 0.0), nil);
   check-errno (is (|ldexp| (-0.0, most-negative-fixnum) == -0.0), nil);
@@ -368,7 +373,7 @@
   check-errno (is (|ldexp| (double-float-positive-infinity, most-negative-fixnum) == double-float-positive-infinity), nil);
   check-errno (is (|ldexp| (double-float-negative-infinity, -1) == double-float-negative-infinity), nil);
   check-errno (is (|ldexp| (double-float-negative-infinity, 0) == double-float-negative-infinity), nil);
-  is (float-nan-p (|ldexp| (double-float-nan, 0)));
+  is (float-nan-p (|ldexp| (NAN, 0)));
   }#)
 
 (test test-math-ilogb
@@ -380,7 +385,7 @@
   check-errno (is (|ilogb| (0.0) == FP_ILOGB0), EDOM, :alternate-errno, nil);
   check-errno (is (|ilogb| (double-float-positive-infinity) == INT_MAX), EDOM);
   check-errno (is (|ilogb| (double-float-negative-infinity) == INT_MAX), EDOM);
-  check-errno (is (|ilogb| (double-float-nan) == FP_ILOGBNAN), EDOM);
+  check-errno (is (|ilogb| (NAN) == FP_ILOGBNAN), EDOM);
   }#)
 
 (test test-math-log
@@ -388,9 +393,9 @@
   is.float-equal (|log| (|exp| (2.0)), 2);
   check-errno (is (|log|(1.0) == 0.0), nil);
 //  check-errno (is (|log|(0.0) == -HUGE_VAL), ERANGE);
-  check-errno (is (|log|(-1.0) == double-float-nan), EDOM);
-  check-errno (is (|log|(-HUGE_VAL) == double-float-nan), EDOM);
-  check-errno (is (|log|(double-float-nan) == double-float-nan), nil);
+  check-errno (is (|log|(-1.0) == NAN), EDOM);
+  check-errno (is (|log|(-HUGE_VAL) == NAN), EDOM);
+  check-errno (is (|log|(NAN) == NAN), nil);
   }#)
 
 (test test-math-log10
@@ -398,10 +403,10 @@
   is.float-equal (|log10| (100.0), 2);
   check-errno (is (|log10|(1.0) == 0.0), nil);
 //   check-errno (is (|log10|(0.0) == -HUGE_VAL), ERANGE);
-  check-errno (is (|log10|(-1.0) == double-float-nan), EDOM);
-  check-errno (is (|log10|(-HUGE_VAL) == double-float-nan), EDOM);
+  check-errno (is (|log10|(-1.0) == NAN), EDOM);
+  check-errno (is (|log10|(-HUGE_VAL) == NAN), EDOM);
   check-errno (is (|log10|(HUGE_VAL) == double-float-positive-infinity), nil);
-  check-errno (is (|log10|(double-float-nan) == double-float-nan), nil);
+  check-errno (is (|log10|(NAN) == NAN), nil);
   }#)
 
 (test test-math-log1p
@@ -410,10 +415,10 @@
   check-errno (is (|log1p|(0.0) == 0.0), nil);
   is (|log1p|(-0.5) < 0);
   // check-errno (is (|log1p|(-1.0) == -HUGE_VAL), ERANGE);
-  check-errno (is (|log1p|(-2.0)) == double-float-nan, EDOM);
-  check-errno (is (|log1p|(-HUGE_VAL) == double-float-nan), EDOM);
+  check-errno (is (|log1p|(-2.0)) == NAN, EDOM);
+  check-errno (is (|log1p|(-HUGE_VAL) == NAN), EDOM);
   check-errno (is (|log1p|(HUGE_VAL) == double-float-positive-infinity), nil);
-  check-errno (is (|log1p|(double-float-nan) == double-float-nan), nil);
+  check-errno (is (|log1p|(NAN) == NAN), nil);
   }#)
 
 (test test-math-log2
@@ -421,10 +426,10 @@
   is.float-equal (|log2| (8.0), 3);
   check-errno (is (|log2|(1.0) == 0.0), nil);
   // check-errno (is (|log2|(0.0) == -HUGE_VAL), ERANGE);
-  check-errno (is (|log2|(-1.0) == double-float-nan), EDOM);
-  check-errno (is (|log2|(-HUGE_VAL) == double-float-nan), EDOM);
+  check-errno (is (|log2|(-1.0) == NAN), EDOM);
+  check-errno (is (|log2|(-HUGE_VAL) == NAN), EDOM);
   check-errno (is (|log2|(HUGE_VAL) == double-float-positive-infinity), nil);
-  check-errno (is (|log2|(double-float-nan) == double-float-nan), nil);
+  check-errno (is (|log2|(NAN) == NAN), nil);
   }#)
 
 (test test-math-logb
@@ -438,7 +443,7 @@
   check-errno (is (|logb| (0.0) == `(float FP_ILOGB0 0d0)), EDOM, :alternate-errno, nil);
   check-errno (is (|logb| (double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|logb| (double-float-negative-infinity) == double-float-negative-infinity), nil);
-  check-errno (float-nan-p (|logb| (double-float-nan)), nil);
+  check-errno (float-nan-p (|logb| (NAN)), nil);
   }#)
 
 (test test-math-modf*
@@ -470,7 +475,7 @@
 //  is (rem == 0.0);
 //  is (quot == double-float-negative-infinity);
   
-//  check-errno (values (rem, quot) = modf* (double-float-nan), nil);
+//  check-errno (values (rem, quot) = modf* (NAN), nil);
 //  is (float-nan-p (rem));
 //  is (float-nan-p (quot));
   }#)
@@ -479,6 +484,11 @@
   #{
   is.float-equal (|scalbn| (2.0, 2), 8.0);
   is.float-equal (|scalbn| (-2.0, -2), -.5);
+
+  if (member (:ccl, *features*)) {
+    warn ("Skipping some tests for scalbn() on CCL.");
+    return t;
+  }
   
   // ; Specials
   check-errno (is (|scalbn| (0.0, most-positive-fixnum) == 0.0), nil);
@@ -488,7 +498,7 @@
   check-errno (is (|scalbn| (double-float-positive-infinity, most-negative-fixnum) == double-float-positive-infinity), nil);
   check-errno (is (|scalbn| (double-float-negative-infinity, -1) == double-float-negative-infinity), nil);
   check-errno (is (|scalbn| (double-float-negative-infinity, 0) == double-float-negative-infinity), nil);
-  check-errno (is (float-nan-p (|scalbn| (double-float-nan, 1))), nil);
+  check-errno (is (float-nan-p (|scalbn| (NAN, 1))), nil);
   }#)
 
 (test test-math-cbrt
@@ -501,7 +511,7 @@
   is (|cbrt| (0.0) == 0.0);
   is (|cbrt| (-0.0) == -0.0);
   check-errno (is (|cbrt| (double-float-positive-infinity) == double-float-positive-infinity), nil);
-  check-errno (is (|cbrt| (double-float-nan) == double-float-nan), nil);
+  check-errno (is (|cbrt| (NAN) == NAN), nil);
   
   // ; FIXME: cbrt(-1.0) may return a complex. Under implementation...
   check-errno (tmp = |cbrt| (-1.0), nil);
@@ -522,7 +532,7 @@
   // ; I use '==' (which is `eql'), because (float-equal +Inf +Inf) is false.
   is (|fabs|(double-float-negative-infinity) == double-float-positive-infinity);
   is (|fabs|(double-float-positive-infinity) == double-float-positive-infinity);
-  is (float-nan-p (|fabs|(double-float-nan)));
+  is (float-nan-p (|fabs|(NAN)));
   }#)
 
 (test test-math-hypot
@@ -540,8 +550,8 @@
   
   is (|hypot| (double-float-negative-infinity, 0) == double-float-positive-infinity);
   is (|hypot| (0, double-float-positive-infinity) == double-float-positive-infinity);
-  // is (|hypot| (double-float-nan, double-float-positive-infinity) == double-float-positive-infinity);
-  is (|hypot| (-1, double-float-nan) == double-float-nan);
+  // is (|hypot| (NAN, double-float-positive-infinity) == double-float-positive-infinity);
+  is (|hypot| (-1, NAN) == NAN);
   }#)
 
 (test test-math-pow
@@ -567,17 +577,17 @@
   
   check-errno (is (|pow| (least-positive-double-float, 810.0) == 0d0), ERANGE);
   
-  check-errno (is (float-nan-p (|pow| (2, double-float-nan))), nil);
-  check-errno (is (float-nan-p (|pow| (double-float-nan, -42))), nil, :alternate-errno, EDOM);
+  check-errno (is (float-nan-p (|pow| (2, NAN))), nil);
+  check-errno (is (float-nan-p (|pow| (NAN, -42))), nil, :alternate-errno, EDOM);
   
 //  check-errno (is (|pow| (1, double-float-positive-infinity) == 1.0), nil);
 //  check-errno (is (|pow| (1, double-float-negative-infinity) == 1.0), nil);
-//  check-errno (is (|pow| (1, double-float-nan) == 1.0), nil);
+//  check-errno (is (|pow| (1, NAN) == 1.0), nil);
 
   check-errno (is (|pow| (1, 0) == 1.0), nil);
 //  check-errno (is (|pow| (double-float-positive-infinity, 0) == 1.0), nil);
 //  check-errno (is (|pow| (double-float-negative-infinity, 0) == 1.0), nil);
-//  check-errno (is (|pow| (double-float-nan, 0) == 1.0), nil);
+//  check-errno (is (|pow| (NAN, 0) == 1.0), nil);
   
   check-errno (is (|pow| (0, 1) == 0d0), nil);
   check-errno (is (|pow| (-0d0, 101) == -0d0), nil);
@@ -639,9 +649,9 @@
   // check-errno (is (|pow| (0.0, -2) == double-float-positive-infinity), ERANGE);
   // check-errno (is (|pow| (-0.0, -2.5) == double-float-positive-infinity), ERANGE);
 
-  is (|pow| (double-float-nan, 2) == double-float-nan);
-  is (|pow| (-1, double-float-nan) == double-float-nan);
-  is (|pow| (double-float-nan, double-float-nan) == double-float-nan);
+  is (|pow| (NAN, 2) == NAN);
+  is (|pow| (-1, NAN) == NAN);
+  is (|pow| (NAN, NAN) == NAN);
   }#)
 
 (test test-math-sqrt
@@ -653,7 +663,7 @@
   check-errno (is (|sqrt| (double-float-positive-infinity) == double-float-positive-infinity),nil);
   check-errno (is (float-nan-p (|sqrt| (-2.1))), EDOM);
   check-errno (is (float-nan-p (|sqrt| (double-float-negative-infinity))), EDOM);
-  check-errno (is (float-nan-p (|sqrt| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|sqrt| (NAN))), nil);
   }#)
 
 (test test-math-ceil
@@ -665,7 +675,7 @@
   check-errno (is (|ceil| (-0.0) == -0.0), nil);
   check-errno (is (|ceil|(double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|ceil|(double-float-negative-infinity) == double-float-negative-infinity), nil);
-  check-errno (is (float-nan-p (|ceil| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|ceil| (NAN))), nil);
   }#)
 
 (test test-math-floor
@@ -677,7 +687,7 @@
   check-errno (is (|floor| (-0.0) == -0.0), nil);
   check-errno (is (|floor|(double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|floor|(double-float-negative-infinity) == double-float-negative-infinity), nil);
-  check-errno (is (float-nan-p (|floor| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|floor| (NAN))), nil);
   }#)
 
 (test test-math-round
@@ -692,7 +702,7 @@
   check-errno (is (|round| (-0.0) == -0.0), nil);
   check-errno (is (|round| (double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|round| (double-float-negative-infinity) == double-float-negative-infinity), nil);
-  check-errno (is (float-nan-p (|round| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|round| (NAN))), nil);
   */
   }#)
 
@@ -708,7 +718,7 @@
   check-errno (is (|lround| (-0.0) == 0), nil);
   is (|lround| (double-float-positive-infinity) != double-float-positive-infinity);
   is (|lround| (double-float-negative-infinity) != double-float-negative-infinity);
-  is (! float-nan-p (|lround| (double-float-nan)));
+  is (! float-nan-p (|lround| (NAN)));
   */
   }#)
 
@@ -723,7 +733,7 @@
   check-errno (is (|trunc| (-0.0) == -0.0), nil);
   check-errno (is (|trunc| (double-float-positive-infinity) == double-float-positive-infinity), nil);
   check-errno (is (|trunc| (double-float-negative-infinity) == double-float-negative-infinity), nil);
-  check-errno (is (float-nan-p (|trunc| (double-float-nan))), nil);
+  check-errno (is (float-nan-p (|trunc| (NAN))), nil);
   }#)
 
 (test test-math-fmod
@@ -739,8 +749,8 @@
   is.float-equal (|fmod|(-0.0, 2.0), -0.0);
   check-errno (is (float-nan-p (|fmod|(99.0, 0.0))), EDOM);
   check-errno (is (float-nan-p (|fmod|(double-float-positive-infinity, 10.0))), EDOM);
-  check-errno (is (float-nan-p (|fmod|(double-float-nan, 1.0))), nil);
-  check-errno (is (float-nan-p (|fmod|(1.0, double-float-nan))), nil);
+  check-errno (is (float-nan-p (|fmod|(NAN, 1.0))), nil);
+  check-errno (is (float-nan-p (|fmod|(1.0, NAN))), nil);
   }#)
 
 (test test-math-remainder
@@ -757,8 +767,8 @@
   check-errno (is (float-nan-p (|remainder|(99.0, 0.0))), EDOM);
   check-errno (is (float-nan-p (|remainder|(double-float-positive-infinity, 10.0))),
                   EDOM);
-  check-errno (is (float-nan-p (|remainder|(double-float-nan, 1.0))), nil);
-  check-errno (is (float-nan-p (|remainder|(1.0, double-float-nan))), nil);
+  check-errno (is (float-nan-p (|remainder|(NAN, 1.0))), nil);
+  check-errno (is (float-nan-p (|remainder|(1.0, NAN))), nil);
   }#)
 
 (test test-math-remquo*
@@ -787,8 +797,8 @@
   check-errno (is (float-nan-p (remquo* (double-float-negative-infinity, 2.0))), EDOM);
   check-errno (is (float-nan-p (remquo* (10.0, +0.0))), EDOM);
   check-errno (is (float-nan-p (remquo* (999.0, -0.0))), EDOM);
-  check-errno (is (float-nan-p (remquo* (double-float-nan, +1.0))), nil);
-  check-errno (is (float-nan-p (remquo* (1.0, double-float-nan))), nil);
+  check-errno (is (float-nan-p (remquo* (NAN, +1.0))), nil);
+  check-errno (is (float-nan-p (remquo* (1.0, NAN))), nil);
   }#)
 
 ;;; FIXME: I have |NAN| and |nan| in Libc package. So this code misses which to use.
@@ -811,8 +821,8 @@
 
   is (|copysign| (double-float-positive-infinity, double-float-negative-infinity)
                == double-float-negative-infinity);
-  is (float-nan-p (|copysign| (double-float-nan, -1)));
-  check-errno (|copysign| (1, double-float-nan), nil);
+  is (float-nan-p (|copysign| (NAN, -1)));
+  check-errno (|copysign| (1, NAN), nil);
   }#)
 
 ;; This test assumes double-float is the Binary64 of IEEE-754.
@@ -878,9 +888,9 @@
                   nil);
 
   // ; NaN
-  check-errno (is (float-nan-p (|nextafter|(double-float-nan, double-float-nan))), nil);
-  check-errno (is (float-nan-p (|nextafter|(double-float-nan, 1.0))), nil);
-  check-errno (is (float-nan-p (|nextafter|(1.0, double-float-nan))), nil);
+  check-errno (is (float-nan-p (|nextafter|(NAN, NAN))), nil);
+  check-errno (is (float-nan-p (|nextafter|(NAN, 1.0))), nil);
+  check-errno (is (float-nan-p (|nextafter|(1.0, NAN))), nil);
   }#)
 
 (test test-math-nexttoward
@@ -908,7 +918,7 @@
   is (|fdim|(double-float-positive-infinity, 1.0) == double-float-positive-infinity);
   check-errno (is (|fdim|(most-positive-double-float, most-negative-double-float) == HUGE_VAL),
                   ERANGE);
-  check-errno (is (float-nan-p (|fdim|(-1.0, double-float-nan))), nil);
+  check-errno (is (float-nan-p (|fdim|(-1.0, NAN))), nil);
   }#)
 
 (test test-math-fmax
@@ -916,9 +926,9 @@
   is (|fmax|(3.125, 2.0) == 3.125);
   is (|fmax|(double-float-negative-infinity, 2.0) == 2.0);
   is (|fmax|(double-float-positive-infinity, 2.0) == double-float-positive-infinity);
-  is (|fmax|(double-float-nan, 1.0) == 1.0);
-  is (|fmax|(-1.0, double-float-nan) == -1.0);
-  is (float-nan-p (|fmax|(double-float-nan, double-float-nan)));
+  is (|fmax|(NAN, 1.0) == 1.0);
+  is (|fmax|(-1.0, NAN) == -1.0);
+  is (float-nan-p (|fmax|(NAN, NAN)));
   }#)
 
 (test test-math-fmin
@@ -926,9 +936,9 @@
   is (|fmin|(3.125, 2.0) == 2.0);
   is (|fmin|(double-float-negative-infinity, 2.0) == double-float-negative-infinity);
   is (|fmin|(double-float-positive-infinity, 2.0) == 2.0);
-  is (|fmin|(double-float-nan, 1.0) == 1.0);
-  is (|fmin|(-1.0, double-float-nan) == -1.0);
-  is (float-nan-p (|fmin|(double-float-nan, double-float-nan)));
+  is (|fmin|(NAN, 1.0) == 1.0);
+  is (|fmin|(-1.0, NAN) == -1.0);
+  is (float-nan-p (|fmin|(NAN, NAN)));
   }#)
 
 (test test-isgreater
@@ -936,9 +946,9 @@
   is (|isgreater|(1.0, -1.0));
   is (! |isgreater|(1.0, 1.0));
   is (! |isgreater|(1.0, 9.0));
-  is (! |isgreater|(double-float-nan, 1.0));
-  is (! |isgreater|(1.0, double-float-nan));
-  is (! |isgreater|(double-float-nan, double-float-nan));
+  is (! |isgreater|(NAN, 1.0));
+  is (! |isgreater|(1.0, NAN));
+  is (! |isgreater|(NAN, NAN));
   }#)
 
 (test test-isgreaterequal
@@ -946,9 +956,9 @@
   is (|isgreaterequal|(1.0, -1.0));
   is (|isgreaterequal|(1.0, 1.0));
   is (! |isgreaterequal|(1.0, 9.0));
-  is (! |isgreaterequal|(double-float-nan, 1.0));
-  is (! |isgreaterequal|(1.0, double-float-nan));
-  is (! |isgreaterequal|(double-float-nan, double-float-nan));
+  is (! |isgreaterequal|(NAN, 1.0));
+  is (! |isgreaterequal|(1.0, NAN));
+  is (! |isgreaterequal|(NAN, NAN));
   }#)
 
 (test test-isless
@@ -956,9 +966,9 @@
   is (! |isless|(1.0, -1.0));
   is (! |isless|(1.0, 1.0));
   is (|isless|(1.0, 9.0));
-  is (! |isless|(double-float-nan, 1.0));
-  is (! |isless|(1.0, double-float-nan));
-  is (! |isless|(double-float-nan, double-float-nan));
+  is (! |isless|(NAN, 1.0));
+  is (! |isless|(1.0, NAN));
+  is (! |isless|(NAN, NAN));
   }#)
 
 (test test-islessequal
@@ -966,9 +976,9 @@
   is (! |islessequal|(1.0, -1.0));
   is (|islessequal|(1.0, 1.0));
   is (|islessequal|(1.0, 9.0));
-  is (! |islessequal|(double-float-nan, 1.0));
-  is (! |islessequal|(1.0, double-float-nan));
-  is (! |islessequal|(double-float-nan, double-float-nan));
+  is (! |islessequal|(NAN, 1.0));
+  is (! |islessequal|(1.0, NAN));
+  is (! |islessequal|(NAN, NAN));
   }#)
 
 (test test-islessgreater
@@ -976,9 +986,9 @@
   is (|islessgreater|(1.0, -1.0));
   is (! |islessgreater|(1.0, 1.0));
   is (|islessgreater|(1.0, 9.0));
-  is (! |islessgreater|(double-float-nan, 1.0));
-  is (! |islessgreater|(1.0, double-float-nan));
-  is (! |islessgreater|(double-float-nan, double-float-nan));
+  is (! |islessgreater|(NAN, 1.0));
+  is (! |islessgreater|(1.0, NAN));
+  is (! |islessgreater|(NAN, NAN));
   }#)
 
 (test test-isunordered
@@ -986,7 +996,7 @@
   is (! |isunordered|(1.0, -1.0));
   is (! |isunordered|(1.0, 1.0));
   is (! |isunordered|(1.0, 9.0));
-  is (|isunordered|(double-float-nan, 1.0));
-  is (|isunordered|(1.0, double-float-nan));
-  is (|isunordered|(double-float-nan, double-float-nan));
+  is (|isunordered|(NAN, 1.0));
+  is (|isunordered|(1.0, NAN));
+  is (|isunordered|(NAN, NAN));
   }#)
