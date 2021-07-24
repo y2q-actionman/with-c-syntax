@@ -22,38 +22,44 @@
   )
 
 (test test-pp-null-directive
-  (is.equal.wcs #1="# and newline immediately after."
-    #2{
-    #
-    return `#1# \;
-    }#)
-  (is.equal.wcs #2="#, spaces and newline."
-    #2{
-    #  
-    return `#2# \;
-    }#)
-  (is.equal.wcs #3="#, line comment, and newline."
-    #2{
-    # // comment
-    return `#3# \;
-    }#)
-  (is.equal.wcs #4="#, block comment, and newline."
-    #2{
-    # /* comment */   
-    return `#4# \;
-    }#)
-  (is.equal.wcs #5="#, long block comment, and newline."
-    #2{
-    # /* comment
-    */   
-    return `#5# \;
-    }#)
-  (is.equal.wcs #6="#, long block comment, line comment, and newline."
-    #2{
-    # /* comment
-    */// extra comment
-    `#6#
-    }#))
+  (let ((str "# and newline immediately after."))
+    (is.equal.wcs str
+      #2{
+      #
+      return str \;
+      }#))
+  (let ((str "#, spaces and newline."))
+    (is.equal.wcs str
+      #2{
+      #  
+      return str \;
+      }#))
+  (let ((str "#, line comment, and newline."))
+    (is.equal.wcs str
+      #2{
+      # // comment
+      return str \;
+      }#))
+  (let ((str "#, block comment, and newline."))
+    (is.equal.wcs str
+      #2{
+      # /* comment */   
+      return str \;
+      }#))
+  (let ((str "#, long block comment, and newline."))
+    (is.equal.wcs str
+      #2{
+      # /* comment
+      */   
+      return str \;
+      }#))
+  (let ((str "#, long block comment, line comment, and newline."))
+    (is.equal.wcs str
+      #2{
+      # /* comment
+      */// extra comment
+      str
+      }#)))
 
 (test test-pp-if-syntax-errors
   (signals.macroexpand.wcs ()
