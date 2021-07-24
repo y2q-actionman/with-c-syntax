@@ -755,7 +755,7 @@ returns NIL."
                  :reader pp-state-reader-level)
    (readtable-case :initarg :readtable-case :type keyword
                    :accessor pp-state-readtable-case)
-   (process-digraph? :initarg :process-digraph? :initform nil :type boolean
+   (process-digraph? :initarg :process-digraph? :initform nil
                      :reader pp-state-process-digraph?)
    (file-pathname :initarg :file-pathname :initform nil
                   :accessor pp-state-file-pathname)
@@ -1248,9 +1248,10 @@ returns NIL."
                                                         :identifier-list identifier-list :variadicp variadicp
                                                         :replacement-list rest-token-list))))
         (t
-         (unless (eq next-token +whitespace-marker+)
+         (unless (or (null directive-token-list)
+                     (eq next-token +whitespace-marker+))
            (warn 'with-c-syntax-style-warning
-                 :format-control "C99 requires whitespace after the macro name."))
+                 :message "C99 requires whitespace after the macro name."))
          (add-local-preprocessor-macro state identifier
                                        (make-instance 'object-like-macro
                                                       :name identifier
