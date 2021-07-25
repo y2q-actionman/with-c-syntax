@@ -689,6 +689,22 @@ If not, returns a next token by `cl:read' after unreading CHAR."
              #+ccl nil
              #-ccl recursive-p))))))))
 
+(defun pp-operator-name-equal-p (token name readtable-case)
+  (let ((readtable-case (or readtable-case (readtable-case *readtable*))))
+    (and (symbolp token)
+         (ecase readtable-case
+           ((:upcase :downcase)
+            (string-equal token name))
+           ((:preserve :invert)
+            (string= token name))))))
+
+(defun process-reader-pragma (token-list)
+  ;; TODO:
+  ;; See `process-with-c-syntax-pragma'.
+  (switch ((first token-list) :test 'string=)
+    (otherwise          ; Not for reader. Pass it to the preprocessor.
+     (progn))))
+
 (defun tokenize-source (level stream end-with-bracet-sharp readtable-case)
   "Tokenize C source by doing translation phase 1, 2, and 3.
  LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
