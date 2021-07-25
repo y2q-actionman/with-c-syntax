@@ -1348,6 +1348,7 @@ returns NIL."
                     :format-control "Unsyntactic pragma '#pragma ~A ~A'"
                     :format-arguments (list :WITH_C_SYNTAX token1))))
       (switch (token1 :test 'token-equal-p)
+        ;; Reader pragmas are also processed by `process-reader-pragma'.
         ;; TODO: Add pragma for reader-level and in-package, for included file. These parameters are should saved into the include-stack.
         ;; TODO: included file's default reader-level == 2 and readtable-case = :preserve, for reading (real) C source.
         ;; ("INCLUSION_READER_LEVEL")
