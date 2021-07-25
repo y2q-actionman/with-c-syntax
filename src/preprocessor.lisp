@@ -437,7 +437,7 @@
                                       (symbol-name token2))
                          token2))
 
-(defun intern-conc-pp-number (str1 str2 package)
+(defun intern-conc-pp-number (str1 str2 &optional (package *package*))
   (let* ((conc (concatenate 'string str1 str2)))
     (handler-case
         (read-preprocessing-number-from-string conc)
