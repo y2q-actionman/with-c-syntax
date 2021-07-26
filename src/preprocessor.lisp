@@ -438,7 +438,7 @@
                                       (symbol-name token2))
                          token2))
 
-(defun intern-conc-pp-number (str1 str2 package)
+(defun intern-conc-pp-number (str1 str2 &optional (package *package*))
   (let* ((conc (concatenate 'string str1 str2)))
     (handler-case
         (read-preprocessing-number-from-string conc)
@@ -883,9 +883,7 @@ returns NIL."
         (setf if-section-skip-reason if-section-obj)))))
 
 (defun pp-defined-operator-p (token readtable-case)
-  (ecase readtable-case
-    ((:upcase :invert) (token-equal-p token "DEFINED"))
-    ((:downcase :preserve) (token-equal-p token "defined"))))
+  (pp-operator-name-equal-p token "defined" readtable-case))
 
 (defun expand-defined-operator (token-list macro-alist readtable-case
                                 process-digraph? directive-symbol)
@@ -1351,6 +1349,7 @@ returns NIL."
                     :format-control "Unsyntactic pragma '#pragma ~A ~A'"
                     :format-arguments (list :WITH_C_SYNTAX token1))))
       (switch (token1 :test 'token-equal-p)
+        ;; Reader pragmas are also processed by `process-reader-pragma'.
         ;; TODO: Add pragma for reader-level and in-package, for included file. These parameters are should saved into the include-stack.
         ;; TODO: included file's default reader-level == 2 and readtable-case = :preserve, for reading (real) C source.
         ;; ("INCLUSION_READER_LEVEL")
@@ -1468,27 +1467,24 @@ returns NIL."
             (process-preprocessing-directive directive-symbol token-list state)
             (raise-pp-error)))))))
 
-(define-constant +pragma-operator-name+ "_Pragma"
-  :test 'equal)
-
-(defun pragma-operator-p (token)
-  (token-equal-p token +pragma-operator-name+))
+(defun pp-pragma-operator-p (token readtable-case)
+  (pp-operator-name-equal-p token :|_Pragma| readtable-case))
 
 (defun preprocessor-loop-do-pragma-operator (state)
   (with-preprocessor-state-slots (state)
-    (unless (token-equal-p (pop-preprocessor-directive-token token-list +pragma-operator-name+) "(")
+    (unless (token-equal-p (pop-preprocessor-directive-token token-list :|_Pragma|) "(")
       (error 'preprocess-error
              :format-control "~A should be followed by '('"
-             :format-arguments (list +pragma-operator-name+)))
-    (let ((pragma-string (pop-preprocessor-directive-token token-list +pragma-operator-name+)))
+             :format-arguments (list :|_Pragma|)))
+    (let ((pragma-string (pop-preprocessor-directive-token token-list :|_Pragma|)))
       (unless (stringp pragma-string)
         (error 'preprocess-error
                :format-control "~A argument '~A' is not a string."
-               :format-arguments (list +pragma-operator-name+ pragma-string)))
-      (unless (token-equal-p (pop-preprocessor-directive-token token-list +pragma-operator-name+) ")")
+               :format-arguments (list :|_Pragma| pragma-string)))
+      (unless (token-equal-p (pop-preprocessor-directive-token token-list :|_Pragma|) ")")
         (error 'preprocess-error
                :format-control "~A should be ended by ')'"
-               :format-arguments (list +pragma-operator-name+)))
+               :format-arguments (list :|_Pragma|)))
       (let ((pragma-tokens
               (with-input-from-string (stream pragma-string)
                 (tokenize-source (pp-state-reader-level state)
@@ -1546,7 +1542,7 @@ returns NIL."
             (cond
               ((eq token :end-of-preprocessor-macro-scope)
                (pop macro-alist))
-              ((pragma-operator-p token)
+              ((pp-pragma-operator-p token (pp-state-readtable-case state))
                (preprocessor-loop-do-pragma-operator state))
               ;; Part of translation Phase 4 -- preprocessor macro
               ((preprocessor-macro-exists-p macro-alist token)

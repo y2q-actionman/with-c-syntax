@@ -689,6 +689,22 @@ If not, returns a next token by `cl:read' after unreading CHAR."
              #+ccl nil
              #-ccl recursive-p))))))))
 
+(defun pp-operator-name-equal-p (token name readtable-case)
+  (let ((readtable-case (or readtable-case (readtable-case *readtable*))))
+    (and (symbolp token)
+         (ecase readtable-case
+           ((:upcase :downcase)
+            (string-equal token name))
+           ((:preserve :invert)
+            (string= token name))))))
+
+(defun process-reader-pragma (token-list)
+  ;; TODO:
+  ;; See `process-with-c-syntax-pragma'.
+  (switch ((first token-list) :test 'string=)
+    (otherwise          ; Not for reader. Pass it to the preprocessor.
+     (progn))))
+
 (defun tokenize-source (level stream end-with-bracet-sharp readtable-case)
   "Tokenize C source by doing translation phase 1, 2, and 3.
  LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
@@ -705,10 +721,13 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       with cp-stream = (make-instance 'physical-source-input-stream
                                       :stream stream :target-readtable c-readtable
                                       :phase-2 process-backslash-newline)
-      with keep-whitespace = keep-whitespace-default
-      
+      with in-directive-line = nil
+      with directive-tokens-rev = nil
+      with in-pragma-operator = nil
+
       for token = (handler-case
-                      (read-preprocessing-token cp-stream c-readtable keep-whitespace
+                      (read-preprocessing-token cp-stream c-readtable
+                                                (or in-directive-line keep-whitespace-default)
                                                 end-with-bracet-sharp)
                     (end-of-file (e)
                       (if end-with-bracet-sharp
@@ -717,11 +736,37 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       do (cond
            ((eq token +wcs-end-marker+)
             (loop-finish))
+           ;; See directives.
            ((and (symbolp token)
                  (or (string= token "#") (string= token "%:")))
-            (setf keep-whitespace t))
+            (setf in-directive-line t))
+           (in-directive-line
+            (push token directive-tokens-rev))
            ((eq token +newline-marker+)
-            (setf keep-whitespace keep-whitespace-default)))
+            (setf in-directive-line nil)
+            ;; Process pragmas affecting reader.
+            (let ((tokens
+                    (nreverse (shiftf directive-tokens-rev nil))))
+              (when (and (pp-operator-name-equal-p (first tokens) "pragma" readtable-case)
+                         (pp-operator-name-equal-p (second tokens) "WITH_C_SYNTAX" readtable-case))
+                (nthcdr 2 (process-reader-pragma tokens)))))
+           ;; See _Pragma() operator
+           ((and (symbolp token)
+                 (pp-operator-name-equal-p token "_Pragma" readtable-case))
+            (setf in-pragma-operator 0))
+           (in-pragma-operator
+            (incf in-pragma-operator)
+            (case in-pragma-operator
+              (1 (progn))               ; should be '('
+              (2 (when (and (stringp token)
+                            (search "WITH_C_SYNTAX" token))
+                   (let ((tokens (with-input-from-string (stream token)
+                                   (tokenize-source level stream nil readtable-case))))
+                     (nthcdr 1 (process-reader-pragma tokens)))))
+              (3 (setf in-pragma-operator nil)) ; should be ')'
+              (otherwise
+               (warn 'with-c-syntax-warning :format-arguments "Unexpected tokenize-source state.")
+               (setf in-pragma-operator nil)))))
       collect token into token-list
       finally
          (return (values token-list c-readtable)))))
