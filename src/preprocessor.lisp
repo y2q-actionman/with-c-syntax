@@ -100,8 +100,9 @@
 
 (defmethod cl:print-object ((macro-definition function-like-macro) stream)
   (print-unreadable-object (macro-definition stream :type t :identity t)
-    (princ (macro-definition-name macro-definition) stream)
-    (princ (or (function-like-macro-identifier-list macro-definition) "()") stream)))
+    (format stream "~A~:A"
+            (macro-definition-name macro-definition)
+            (function-like-macro-identifier-list macro-definition))))
 
 (defmethod cl:initialize-instance :before ((macro-definition function-like-macro)
                                            &rest args &key identifier-list variadicp replacement-list)
