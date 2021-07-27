@@ -420,23 +420,20 @@
        (warn 'with-c-syntax-style-warning
              :message (format nil "## operand '~A' and '~A' belong different packages. The package of '~A' is used."
                               token1 token2 token1)))
-     (intern-to-its-package (concatenate 'string (symbol-name token1) (symbol-name token2))
-                            token1))))
+     (intern (concatenate 'string (symbol-name token1) (symbol-name token2))))))
 
 (defun stringify-conced-integer (int)
   (with-standard-io-syntax
     (princ-to-string int)))
 
 (defmethod concatenate-token ((token1 symbol) (token2 integer))
-  (intern-to-its-package (concatenate 'string (symbol-name token1)
-                                      (stringify-conced-integer token2))
-                         token1))
+  (intern (concatenate 'string (symbol-name token1)
+                       (stringify-conced-integer token2))))
 
 (defmethod concatenate-token ((token1 integer) (token2 symbol))
-  (intern-to-its-package (concatenate 'string
-                                      (stringify-conced-integer token1)
-                                      (symbol-name token2))
-                         token2))
+  (intern (concatenate 'string
+                       (stringify-conced-integer token1)
+                       (symbol-name token2))))
 
 (defun intern-conc-pp-number (str1 str2 &optional (package *package*))
   (let* ((conc (concatenate 'string str1 str2)))
@@ -449,33 +446,27 @@
   ;; Firstly I thought this can implement with numeric operatons, but
   ;; how to treat '10 ## -10' ?
   (intern-conc-pp-number (stringify-conced-integer token1)
-                         (stringify-conced-integer token2)
-                         *package*))
+                         (stringify-conced-integer token2)))
 
 (defmethod concatenate-token ((token1 preprocessing-number) (token2 preprocessing-number))
   (intern-conc-pp-number (preprocessing-number-string token1)
-                         (preprocessing-number-string token2)
-                         *package*))
+                         (preprocessing-number-string token2)))
 
 (defmethod concatenate-token ((token1 preprocessing-number) (token2 symbol))
   (intern-conc-pp-number (preprocessing-number-string token1)
-                         (symbol-name token2)
-                         (symbol-package token2)))
+                         (symbol-name token2)))
 
 (defmethod concatenate-token ((token1 symbol) (token2 preprocessing-number))
   (intern-conc-pp-number (symbol-name token1)
-                         (preprocessing-number-string token2)
-                         (symbol-package token1)))
+                         (preprocessing-number-string token2)))
                          
 (defmethod concatenate-token ((token1 preprocessing-number) (token2 integer))
   (intern-conc-pp-number (preprocessing-number-string token1)
-                         (stringify-conced-integer token2)
-                         *package*))
+                         (stringify-conced-integer token2)))
 
 (defmethod concatenate-token ((token1 integer) (token2 preprocessing-number))
   (intern-conc-pp-number (stringify-conced-integer token1)
-                         (preprocessing-number-string token2)
-                         *package*))
+                         (preprocessing-number-string token2)))
 
 (defun split-list-at (list pos)
   (loop with target = '#:unspecific
@@ -663,10 +654,6 @@ alist of preprocessor macro definitions.  PP-STATE is a
 
 ;;; Identifier split.
 
-(defun intern-to-its-package (name symbol)
-  "`intern' NAME into the package of SYMBOL."
-  (intern name (symbol-package symbol)))
-
 (defun find-operator-on-prefix (operator symbol)
   "This function tries to find OPERATOR in front of SYMBOL.
 If found, it returns T and list of of splited symbols.  If not found,
@@ -677,7 +664,7 @@ it returns NIL."
     (if found
 	(values t
 		(list operator
-		      (intern-to-its-package suffix symbol))))))
+		      (intern suffix))))))
 
 (defun find-operator-on-suffix (operator symbol)
   "This function tries to find OPERATOR in back of SYMBOL.
@@ -687,9 +674,7 @@ it returns NIL."
 	(op-name (symbol-name operator)))
     (if (ends-with-subseq op-name sym-name)
 	(values t
-                (list (intern-to-its-package
-		       (subseq sym-name 0 (- (length sym-name) (length op-name)))
-		       symbol)
+                (list (intern (subseq sym-name 0 (- (length sym-name) (length op-name))))
 		      operator)))))
 
 (defun earmuff-lengthes (string earmuff-char)
@@ -1099,12 +1084,15 @@ returns NIL."
 
 (defclass saved-include-state ()
   ((if-section-stack :initarg :if-section-stack
-                     :reader saved-include-state-if-section-stack)))
+                     :reader saved-include-state-if-section-stack)
+   (package :initarg :package :type package
+            :reader saved-include-state-package)))
 
 (defmethod push-include-state ((state preprocessor-state))
   (with-preprocessor-state-slots (state)
     (let ((i-state (make-instance 'saved-include-state
-                                  :if-section-stack if-section-stack)))
+                                  :if-section-stack if-section-stack
+                                  :package *package*)))
       (push i-state include-stack))))
 
 (defmethod pop-include-state ((state preprocessor-state))
@@ -1114,7 +1102,9 @@ returns NIL."
                    (saved-include-state-if-section-stack i-state))
         (error 'preprocess-error
                :format-control "#if section does not end in included file ~A"
-               :format-arguments (list file-pathname))))))
+               :format-arguments (list file-pathname)))
+      (setf *package* (saved-include-state-package i-state))
+      i-state)))
 
 (defun find-include-<header>-file (header-name &key (errorp t))
   "Finds a file specified by #include <...> style header-name with
@@ -1350,6 +1340,16 @@ returns NIL."
                     :format-arguments (list :WITH_C_SYNTAX token1))))
       (switch (token1 :test 'token-equal-p)
         ;; Reader pragmas are also processed by `process-reader-pragma'.
+        ("IN_PACKAGE"
+         (let* ((package-name (pop-preprocessor-directive-token directive-token-list
+                                                                directive-symbol))
+                (package (find-package package-name)))
+           (unless package
+             (error 'preprocess-error
+                    :format-control "No package named '~A'."
+                    :format-arguments (list package-name)))
+           (check-no-preprocessor-token directive-token-list directive-symbol)
+           (setf *package* package)))
         ;; TODO: Add pragma for reader-level and in-package, for included file. These parameters are should saved into the include-stack.
         ;; TODO: included file's default reader-level == 2 and readtable-case = :preserve, for reading (real) C source.
         ;; ("INCLUSION_READER_LEVEL")
@@ -1364,6 +1364,7 @@ returns NIL."
              (error 'preprocess-error
                     :format-control "Bad argument for pragma '#pragma WITH_C_SYNTAX ~A ~A'"
                     :format-arguments (list token1 token2)))
+           (check-no-preprocessor-token directive-token-list directive-symbol)
            (setf (pp-state-readtable-case state)
                  (find-symbol (string token2) :keyword))))
         (otherwise
@@ -1609,6 +1610,7 @@ Current workings are below:
                           :readtable-case readtable-case
                           :file-pathname input-file-pathname 
                           :process-digraph? process-digraph))
+         (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (pp-state
            (preprocessor-loop pp-state)))
     (nreverse (pp-state-result-list pp-state))))

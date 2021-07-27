@@ -699,16 +699,26 @@ If not, returns a next token by `cl:read' after unreading CHAR."
             (string= token name))))))
 
 (defun process-reader-pragma (token-list)
-  ;; TODO:
-  ;; See `process-with-c-syntax-pragma'.
+  "Process pragmas affects with-c-syntax readers.
+ See `process-with-c-syntax-pragma' for preprocessor pragmas. "
   (switch ((first token-list) :test 'string=)
+    ("IN_PACKAGE"
+     (let* ((package-name (second token-list))
+            (package (find-package package-name)))
+       (unless package
+         (error 'with-c-syntax-reader-error
+                :format-control "No package named '~A'"
+                :format-arguments (list package-name)))
+       (setf *package* package)))
+    ;; TODO: reader level, reader case pragmas.
     (otherwise          ; Not for reader. Pass it to the preprocessor.
-     (progn))))
+     nil)))
 
 (defun tokenize-source (level stream end-with-bracet-sharp readtable-case)
   "Tokenize C source by doing translation phase 1, 2, and 3.
  LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
+         (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (*previous-syntax* *readtable*)
          (*second-unread-char* nil)
          (c-readtable (make-c-readtable level readtable-case))
@@ -724,6 +734,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       with in-directive-line = nil
       with directive-tokens-rev = nil
       with in-pragma-operator = nil
+      with pragma-operator-content = nil
 
       for token = (handler-case
                       (read-preprocessing-token cp-stream c-readtable
@@ -758,12 +769,14 @@ If not, returns a next token by `cl:read' after unreading CHAR."
             (incf in-pragma-operator)
             (case in-pragma-operator
               (1 (progn))               ; should be '('
-              (2 (when (and (stringp token)
-                            (search "WITH_C_SYNTAX" token))
-                   (let ((tokens (with-input-from-string (stream token)
+              (2 (setf pragma-operator-content token))
+              (3                        ; should be ')'
+               (setf in-pragma-operator nil)
+               (when (and (stringp pragma-operator-content)
+                          (search "WITH_C_SYNTAX" pragma-operator-content))
+                   (let ((tokens (with-input-from-string (stream pragma-operator-content)
                                    (tokenize-source level stream nil readtable-case))))
                      (nthcdr 1 (process-reader-pragma tokens)))))
-              (3 (setf in-pragma-operator nil)) ; should be ')'
               (otherwise
                (warn 'with-c-syntax-warning :format-arguments "Unexpected tokenize-source state.")
                (setf in-pragma-operator nil)))))
