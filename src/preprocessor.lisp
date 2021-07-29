@@ -1145,8 +1145,12 @@ returns NIL."
                               stream nil
                               :preserve)))
          (end-tokens
-           (list :end-of-inclusion +newline-marker+
-                 '|#| '|pragma| :WITH_C_SYNTAX :SET_READTABLE_CASE readtable-case +newline-marker+))
+           (list
+            ;; I once used #pragma for marking the end of inclusion,
+            ;; but I changed it to a special token because #pragma
+            ;; should be ignored by #if sections.
+            :end-of-inclusion +newline-marker+
+            '|#| '|pragma| :WITH_C_SYNTAX :SET_READTABLE_CASE readtable-case +newline-marker+))
          (end-line-tokens
            (if (pp-state-file-pathname state)
                (list '|#| line-sym (pp-state-line-number state) (pp-state-file-pathname state) +newline-marker+)
@@ -1421,21 +1425,18 @@ returns NIL."
     (return-from process-preprocessing-directive nil))
   (let ((first-token
           (pop-preprocessor-directive-token directive-token-list directive-symbol)))
-    (flet ((process-unknown-pragma ()
-             (with-preprocessor-state-slots (state)
-               (unless if-section-skip-reason
-                 (warn 'with-c-syntax-style-warning
-                       :message (format nil "'#pragma ~{~A~^ ~}' was ignored."
-                                        (delete +whitespace-marker+ directive-token-list))))
-               (return-from process-preprocessing-directive nil))))
-      (switch (first-token :test 'token-equal-p)
-        ("WITH_C_SYNTAX"
-         (process-with-c-syntax-pragma directive-symbol directive-token-list state))
-        ("STDC"
-         (process-stdc-pragma directive-symbol directive-token-list state))
-        ;; TODO: #pragma once
-        (otherwise
-         (process-unknown-pragma))))))
+    (switch (first-token :test 'token-equal-p)
+      ("WITH_C_SYNTAX"
+       (process-with-c-syntax-pragma directive-symbol directive-token-list state))
+      ("STDC"
+       (process-stdc-pragma directive-symbol directive-token-list state))
+      ;; TODO: #pragma once
+      (otherwise
+       (with-preprocessor-state-slots (state)
+         (warn 'with-c-syntax-style-warning
+               :message (format nil "pragma '~A ~{~A~^ ~}' was ignored."
+                                first-token
+                                (remove-whitespace-marker directive-token-list))))))))
 
 ;;; Preprocessor loop helpers.
 

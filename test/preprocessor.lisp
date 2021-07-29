@@ -673,6 +673,20 @@
       STR_EXPAND(CAT(%:,%:))
       }#)))
 
+;;; pragma
+
+(test test-pp-unknown-pragma
+  (signals.macroexpand.wcs (with-c-syntax-style-warning)
+    #2{
+    #pragma unknown-pragma
+    t
+    }#)
+  (signals.macroexpand.wcs (with-c-syntax-style-warning)
+    #2{
+    _Pragma("unknown-pragma") 
+    t
+    }#))
+
 ;;; Examples in C standard.
 
 (test test-pp-6.10.3.3-example
