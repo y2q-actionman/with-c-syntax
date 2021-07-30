@@ -687,6 +687,25 @@
     t
     }#))
 
+(test test-pp-stdc-pragma
+  (signals.macroexpand.wcs ()
+    #2{
+    #pragma STDC unknown pragma
+    }#)
+  (is.equal.wcs t
+    #2{
+    #pragma STDC FP_CONTRACT DEFAULT
+    #pragma STDC FENV_ACCESS DEFAULT
+    #pragma STDC CX_LIMITED_RANGE DEFAULT
+    t
+    }#)
+  (signals.macroexpand.wcs ()
+    #2{
+    #pragma STDC FP_CONTRACT HOGE
+    }#)
+  ;; TODO: Add ON/OFF test if implemented them.
+  )
+
 ;;; Examples in C standard.
 
 (test test-pp-6.10.3.3-example
