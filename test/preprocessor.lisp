@@ -699,6 +699,13 @@
     #pragma STDC CX_LIMITED_RANGE DEFAULT
     t
     }#)
+  (is.equal.wcs t
+    #2{
+    _Pragma("STDC FP_CONTRACT DEFAULT")
+    _Pragma ("STDC FENV_ACCESS DEFAULT")
+    _Pragma ( "STDC CX_LIMITED_RANGE DEFAULT" )
+    t
+    }#)
   (signals.macroexpand.wcs ()
     #2{
     #pragma STDC FP_CONTRACT HOGE
