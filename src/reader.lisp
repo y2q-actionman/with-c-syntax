@@ -652,42 +652,41 @@ If not, returns a next token by `cl:read' after unreading CHAR."
            (unread-char c stream)
            (return (values c cnt))))
 
-(defun read-preprocessing-token (stream c-readtable keep-whitespace recursive-p)
+(defun read-preprocessing-token (stream keep-whitespace recursive-p)
   "Reads a token from STREAM until EOF or '}#' found. Newline is read
  as `+newline-marker+'."
-  (let ((*readtable* c-readtable))
-    (cond
-      (*second-unread-char*
-       (assert (not (c-whitespace-p *second-unread-char*)))
-       (read-after-unread (shiftf *second-unread-char* nil) stream t nil recursive-p))
-      (t
-       (multiple-value-bind (first-char whitespaces)
-           (skip-c-whitespace stream)
-         (cond
-           ((and keep-whitespace (plusp whitespaces))
-            +whitespace-marker+)
-           ((eql first-char #\newline)
-            ;; Preserve newline to preprocessor.
-            (read-char stream)
-            +newline-marker+)
-           ((eql first-char #\})
-            ;; This path is required for SBCL.
-            ;; On Allegro, it is not needed. '}' reader macro (`read-right-curly-bracket') works good.
-            (read-char stream)
-            (cond ((eql (peek-char nil stream t) #\#)
-                   (read-char stream)
-                   +wcs-end-marker+)
-                  (t
-                   (intern "}")))) ; Intern it into the current `*package*'.
-           (t
-            (read-preserving-whitespace
-             stream t :eof
-             ;; KLUDGE: CCL-1.12's `read-preserving-whitespace' does
-             ;; not saves whitespaces if recursive-p is true. To
-             ;; correctly tokenize C source, I must set it to nil.
-             ;; https://github.com/Clozure/ccl/blob/2ae800e12e3686dd639da370eaa1a8380c85d774/level-1/l1-reader.lisp#L2962-L2963
-             #+ccl nil
-             #-ccl recursive-p))))))))
+  (cond
+    (*second-unread-char*
+     (assert (not (c-whitespace-p *second-unread-char*)))
+     (read-after-unread (shiftf *second-unread-char* nil) stream t nil recursive-p))
+    (t
+     (multiple-value-bind (first-char whitespaces)
+         (skip-c-whitespace stream)
+       (cond
+         ((and keep-whitespace (plusp whitespaces))
+          +whitespace-marker+)
+         ((eql first-char #\newline)
+          ;; Preserve newline to preprocessor.
+          (read-char stream)
+          +newline-marker+)
+         ((eql first-char #\})
+          ;; This path is required for SBCL.
+          ;; On Allegro, it is not needed. '}' reader macro (`read-right-curly-bracket') works good.
+          (read-char stream)
+          (cond ((eql (peek-char nil stream t) #\#)
+                 (read-char stream)
+                 +wcs-end-marker+)
+                (t
+                 (intern "}")))) ; Intern it into the current `*package*'.
+         (t
+          (read-preserving-whitespace
+           stream t :eof
+           ;; KLUDGE: CCL-1.12's `read-preserving-whitespace' does
+           ;; not saves whitespaces if recursive-p is true. To
+           ;; correctly tokenize C source, I must set it to nil.
+           ;; https://github.com/Clozure/ccl/blob/2ae800e12e3686dd639da370eaa1a8380c85d774/level-1/l1-reader.lisp#L2962-L2963
+           #+ccl nil
+           #-ccl recursive-p)))))))
 
 (defun pp-operator-name-equal-p (token name readtable-case)
   (let ((readtable-case (or readtable-case (readtable-case *readtable*))))
@@ -697,6 +696,31 @@ If not, returns a next token by `cl:read' after unreading CHAR."
             (string-equal token name))
            ((:preserve :invert)
             (string= token name))))))
+
+(defun parse-in-with-c-syntax-readtable-parameter (token)
+  (flet ((raise-bad-arg-error ()
+           (error 'with-c-syntax-reader-error
+                  :format-control "Pragma IN_WITH_C_SYNTAX_READTABLE does not accept ~S"
+                  :format-arguments (list token))))
+    (typecase token
+      (symbol
+       (switch (token :test 'string-equal)
+         (:upcase :upcase)
+         (:downcase :downcase)
+         (:preserve :preserve)
+         (:invert :invert)
+         (otherwise
+          (raise-bad-arg-error))))
+      (integer token)                     ; reader level.
+      (preprocessing-number               ; reader level.
+       (let ((num (parse-preprocessing-number token)))
+         (unless (integerp num)
+           (raise-bad-arg-error))
+         num))
+      (otherwise
+       (raise-bad-arg-error)))))
+
+(defvar *current-with-c-syntax-reader-level* nil)
 
 (defun process-reader-pragma (token-list)
   "Process pragmas affects with-c-syntax readers.
@@ -710,7 +734,20 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                 :format-control "No package named '~A'"
                 :format-arguments (list package-name)))
        (setf *package* package)))
-    ;; TODO: reader level, reader case pragmas.
+    ("IN_WITH_C_SYNTAX_READTABLE"
+     (let* ((arg1-token (second token-list))
+            (arg1 (parse-in-with-c-syntax-readtable-parameter arg1-token))
+            (arg2-token (third token-list))
+            (arg2 (if arg2-token
+                      (parse-in-with-c-syntax-readtable-parameter arg2-token)))
+            (new-level (cond ((integerp arg1) arg1)
+                             ((integerp arg2) arg2)
+                             (t *current-with-c-syntax-reader-level*)))
+            (new-case (cond ((keywordp arg1) arg1)
+                            ((keywordp arg2) arg2)
+                            (t (readtable-case *readtable*)))))
+       (setf *readtable*
+             (make-c-readtable new-level new-case))))
     (otherwise          ; Not for reader. Pass it to the preprocessor.
      nil)))
 
@@ -721,7 +758,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
          (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (*previous-syntax* *readtable*)
          (*second-unread-char* nil)
-         (c-readtable (make-c-readtable level readtable-case))
+         (*current-with-c-syntax-reader-level* level)
+         (*readtable* (make-c-readtable level readtable-case))
          (keep-whitespace-default (>= level 2))
          (process-backslash-newline
            (case *with-c-syntax-reader-process-backslash-newline*
@@ -729,7 +767,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
              (otherwise *with-c-syntax-reader-process-backslash-newline*))))
     (loop
       with cp-stream = (make-instance 'physical-source-input-stream
-                                      :stream stream :target-readtable c-readtable
+                                      :stream stream :target-readtable *readtable*
                                       :phase-2 process-backslash-newline)
       with in-directive-line = nil
       with directive-tokens-rev = nil
@@ -737,7 +775,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       with pragma-operator-content = nil
 
       for token = (handler-case
-                      (read-preprocessing-token cp-stream c-readtable
+                      (read-preprocessing-token cp-stream
                                                 (or in-directive-line keep-whitespace-default)
                                                 end-with-bracet-sharp)
                     (end-of-file (e)
@@ -782,7 +820,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                (setf in-pragma-operator nil)))))
       collect token into token-list
       finally
-         (return (values token-list c-readtable)))))
+         (return (values token-list *readtable*)))))
 
 (defun read-in-c-syntax (stream char n)
   "Called by '#{' reader macro of `with-c-syntax-readtable'.
