@@ -642,6 +642,16 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   '+whitespace-marker+
   "Used for saving whitespace chars from reader to preprocessor, for preprocessor directives.")
 
+(defun remove-whitespace-marker (token-list)
+  (remove-if (lambda (x) (or (eql x +whitespace-marker+)
+                             (eql x +newline-marker+)))
+             token-list))
+
+(defun delete-whitespace-marker (token-list)
+  (delete-if (lambda (x) (or (eql x +whitespace-marker+)
+                             (eql x +newline-marker+)))
+             token-list))
+
 (defun skip-c-whitespace (stream)
   "Skips C whitespaces except newline."
   (loop for c = (read-char stream)
@@ -739,12 +749,12 @@ If not, returns a next token by `cl:read' after unreading CHAR."
  See `process-with-c-syntax-pragma' for preprocessor pragmas. "
   (switch ((first token-list) :test 'string=)
     ("IN_PACKAGE"
-     (let* ((package-name (second token-list))
-            (package (find-package package-name)))
+     (let* ((package-designator (second token-list))
+            (package (find-package package-designator)))
        (unless package
          (error 'with-c-syntax-reader-error
                 :format-control "No package named '~A'"
-                :format-arguments (list package-name)))
+                :format-arguments (list package-designator)))
        (setf *package* package)))
     ("IN_WITH_C_SYNTAX_READTABLE"
      (multiple-value-bind (new-level new-case)
@@ -793,15 +803,18 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                  (or (string= token "#") (string= token "%:")))
             (setf in-directive-line t))
            (in-directive-line
-            (push token directive-tokens-rev))
-           ((eq token +newline-marker+)
-            (setf in-directive-line nil)
-            ;; Process pragmas affecting reader.
-            (let ((tokens
-                    (nreverse (shiftf directive-tokens-rev nil))))
-              (when (and (pp-operator-name-equal-p (first tokens) "pragma" readtable-case)
-                         (pp-operator-name-equal-p (second tokens) "WITH_C_SYNTAX" readtable-case))
-                (nthcdr 2 (process-reader-pragma tokens)))))
+            (cond
+              ((not (eq token +newline-marker+))
+               (push token directive-tokens-rev))
+              (t
+               (setf in-directive-line nil)
+               ;; Process pragmas affecting reader.
+               (let ((tokens
+                       (delete-whitespace-marker   
+                        (nreverse (shiftf directive-tokens-rev nil)))))
+                 (when (and (pp-operator-name-equal-p (first tokens) "pragma" readtable-case)
+                            (pp-operator-name-equal-p (second tokens) "WITH_C_SYNTAX" readtable-case))
+                   (process-reader-pragma (nthcdr 2 tokens)))))))
            ;; See _Pragma() operator
            ((and (symbolp token)
                  (pp-operator-name-equal-p token "_Pragma" readtable-case))
@@ -817,7 +830,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                           (search "WITH_C_SYNTAX" pragma-operator-content))
                    (let ((tokens (with-input-from-string (stream pragma-operator-content)
                                    (tokenize-source level stream nil readtable-case))))
-                     (nthcdr 1 (process-reader-pragma tokens)))))
+                     (process-reader-pragma (nthcdr 1 tokens)))))
               (otherwise
                (warn 'with-c-syntax-warning :format-arguments "Unexpected tokenize-source state.")
                (setf in-pragma-operator nil)))))

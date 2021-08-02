@@ -138,16 +138,6 @@
       (when-let ((entry (assoc symbol macro-alist)))
         (not (eql (cdr entry) :macro-suppressed)))))
 
-(defun remove-whitespace-marker (token-list)
-  (remove-if (lambda (x) (or (eql x +whitespace-marker+)
-                             (eql x +newline-marker+)))
-             token-list))
-
-(defun delete-whitespace-marker (token-list)
-  (delete-if (lambda (x) (or (eql x +whitespace-marker+)
-                             (eql x +newline-marker+)))
-             token-list))
-
 (defun delete-consecutive-whitespace-marker (token-list)
   (loop for cons = token-list then next
         for next = (cond
@@ -1353,13 +1343,13 @@ returns NIL."
       (switch (token1 :test 'token-equal-p)
         ;; Reader pragmas are also processed by `process-reader-pragma'.
         ("IN_PACKAGE"
-         (let* ((package-name (pop-preprocessor-directive-token directive-token-list
-                                                                directive-symbol))
-                (package (find-package package-name)))
+         (let* ((package-designator
+                  (pop-preprocessor-directive-token directive-token-list directive-symbol))
+                (package (find-package package-designator)))
            (unless package
              (error 'preprocess-error
                     :format-control "No package named '~A'."
-                    :format-arguments (list package-name)))
+                    :format-arguments (list package-designator)))
            (check-no-preprocessor-token directive-token-list directive-symbol)
            (setf *package* package)))
         ("IN_WITH_C_SYNTAX_READTABLE"
