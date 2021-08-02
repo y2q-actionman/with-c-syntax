@@ -738,7 +738,7 @@ returns NIL."
 
 (defclass preprocessor-state () 
   ((reader-level :initarg :reader-level :initform 2 :type integer
-                 :reader pp-state-reader-level)
+                 :accessor pp-state-reader-level)
    (readtable-case :initarg :readtable-case :type keyword
                    :accessor pp-state-readtable-case)
    (process-digraph? :initarg :process-digraph? :initform nil
@@ -1086,13 +1086,19 @@ returns NIL."
   ((if-section-stack :initarg :if-section-stack
                      :reader saved-include-state-if-section-stack)
    (package :initarg :package :type package
-            :reader saved-include-state-package)))
+            :reader saved-include-state-package)
+   (reader-level :initarg :reader-level :type integer
+                 :reader saved-include-state-reader-level)
+   (readtable-case :initarg :readtable-case :type keyword
+                   :reader saved-include-state-readtable-case)))
 
 (defmethod push-include-state ((state preprocessor-state))
   (with-preprocessor-state-slots (state)
     (let ((i-state (make-instance 'saved-include-state
                                   :if-section-stack if-section-stack
-                                  :package *package*)))
+                                  :package *package*
+                                  :reader-level (pp-state-reader-level state)
+                                  :readtable-case (pp-state-readtable-case state))))
       (push i-state include-stack))))
 
 (defmethod pop-include-state ((state preprocessor-state))
@@ -1103,7 +1109,9 @@ returns NIL."
         (error 'preprocess-error
                :format-control "#if section does not end in included file ~A"
                :format-arguments (list file-pathname)))
-      (setf *package* (saved-include-state-package i-state))
+      (setf *package* (saved-include-state-package i-state)
+            (pp-state-reader-level state) (saved-include-state-reader-level i-state)
+            (pp-state-readtable-case state) (saved-include-state-readtable-case i-state))
       i-state)))
 
 (defun find-include-<header>-file (header-name &key (errorp t))
@@ -1354,6 +1362,23 @@ returns NIL."
                     :format-arguments (list package-name)))
            (check-no-preprocessor-token directive-token-list directive-symbol)
            (setf *package* package)))
+        ("IN_WITH_C_SYNTAX_READTABLE"
+         (let* ((token2
+                  (pop-preprocessor-directive-token directive-token-list directive-symbol))
+                (token3
+                  (if (preprocessor-token-exists-p directive-token-list)
+                      (pop-preprocessor-directive-token directive-token-list directive-symbol))))
+           (multiple-value-bind (new-level new-case arg1 arg2)
+               (parse-in-with-c-syntax-readtable-parameters token2 token3)
+             (when (or arg1 arg2)
+               (error 'preprocess-error
+                      :format-control "Bad argument for '#pragma WITH_C_SYNTAX ~A: ~A ~@[~A~]'"
+                      :format-arguments (list token1 token2 token3)))
+             (check-no-preprocessor-token directive-token-list directive-symbol)
+             (when new-level
+               (setf (pp-state-reader-level state) new-level))
+             (when new-case
+               (setf (pp-state-readtable-case state) new-case)))))
         ;; TODO: Add pragma for reader-level and in-package, for included file. These parameters are should saved into the include-stack.
         ;; TODO: included file's default reader-level == 2 and readtable-case = :preserve, for reading (real) C source.
         ;; ("INCLUSION_READER_LEVEL")

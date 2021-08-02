@@ -697,7 +697,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
            ((:preserve :invert)
             (string= token name))))))
 
-(defun parse-in-with-c-syntax-readtable-parameter (token)
+(defun parse-in-with-c-syntax-readtable-parameter-token (token)
   (flet ((raise-bad-arg-error ()
            (error 'with-c-syntax-reader-error
                   :format-control "Pragma IN_WITH_C_SYNTAX_READTABLE does not accept ~S"
@@ -722,6 +722,18 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 
 (defvar *current-with-c-syntax-reader-level* nil)
 
+(defun parse-in-with-c-syntax-readtable-parameters (token1 token2)
+  (let* ((arg1 (parse-in-with-c-syntax-readtable-parameter-token token1))
+         (arg2 (if token2
+                   (parse-in-with-c-syntax-readtable-parameter-token token2)))
+         (new-level (cond ((integerp arg1) (shiftf arg1 nil))
+                          ((integerp arg2) (shiftf arg2 nil))
+                          (t *current-with-c-syntax-reader-level*)))
+         (new-case (cond ((keywordp arg1) (shiftf arg1 nil))
+                         ((keywordp arg2) (shiftf arg2 nil))
+                         (t (readtable-case *readtable*)))))
+    (values new-level new-case arg1 arg2)))
+
 (defun process-reader-pragma (token-list)
   "Process pragmas affects with-c-syntax readers.
  See `process-with-c-syntax-pragma' for preprocessor pragmas. "
@@ -735,17 +747,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                 :format-arguments (list package-name)))
        (setf *package* package)))
     ("IN_WITH_C_SYNTAX_READTABLE"
-     (let* ((arg1-token (second token-list))
-            (arg1 (parse-in-with-c-syntax-readtable-parameter arg1-token))
-            (arg2-token (third token-list))
-            (arg2 (if arg2-token
-                      (parse-in-with-c-syntax-readtable-parameter arg2-token)))
-            (new-level (cond ((integerp arg1) arg1)
-                             ((integerp arg2) arg2)
-                             (t *current-with-c-syntax-reader-level*)))
-            (new-case (cond ((keywordp arg1) arg1)
-                            ((keywordp arg2) arg2)
-                            (t (readtable-case *readtable*)))))
+     (multiple-value-bind (new-level new-case)
+         (parse-in-with-c-syntax-readtable-parameters (second token-list) (third token-list))
        (setf *readtable*
              (make-c-readtable new-level new-case))))
     (otherwise          ; Not for reader. Pass it to the preprocessor.
