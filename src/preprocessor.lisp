@@ -1148,7 +1148,7 @@ returns NIL."
             ;; but I changed it to a special token because #pragma
             ;; should be ignored by #if sections.
             :end-of-inclusion +newline-marker+
-            '|#| '|pragma| :WITH_C_SYNTAX :SET_READTABLE_CASE readtable-case +newline-marker+))
+            '|#| pragma-sym :WITH_C_SYNTAX :SET_READTABLE_CASE readtable-case +newline-marker+))
          (end-line-tokens
            (if (pp-state-file-pathname state)
                (list '|#| line-sym (pp-state-line-number state) (pp-state-file-pathname state) +newline-marker+)
