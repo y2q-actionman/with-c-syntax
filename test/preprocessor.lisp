@@ -396,10 +396,10 @@
     (delete-file "/tmp/tmp.h")))
   
 (test test-pp-include-2
-  (is.equal.wcs 10
+  (is.equal.wcs 9999
     #2{
     #include <iso646.h>
-    return 10 or 9999;
+    return 10 and 9999;
     }#)
   (signals.macroexpand.wcs (with-c-syntax.core::preprocess-include-file-error)
     #2{
