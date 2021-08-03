@@ -388,7 +388,7 @@
          (let ((form
                  '#2{
                  #include "/tmp/tmp.h"
-                 return `|hoge|; // This is with-c-syntax.test::hoge.
+                 return hoge; // This is with-c-syntax.test::hoge.
                  }#))
            (is (= (let ((*package* (find-package '#:with-c-syntax.test)))
                     (eval form))

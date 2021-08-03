@@ -1129,26 +1129,20 @@ returns NIL."
          (line-sym (ecase readtable-case
                      ((:upcase :invert) '|LINE|)
                      ((:downcase :preserve) '|line|)))
-         (pragma-sym (ecase readtable-case
-                       ((:upcase :invert) '|PRAGMA|)
-                       ((:downcase :preserve) '|pragma|)))
          (start-line-tokens
-           (list
-            '|#| pragma-sym :WITH_C_SYNTAX :SET_READTABLE_CASE :preserve +newline-marker+
-            '|#| '|line| 1 header-name +newline-marker+))
+           (list '|#| line-sym 1 header-name +newline-marker+))
          (main-tokens
-           ;; Included file is read at reader level == 2 and readtable-case == :preserve at default.
+           ;; Included file is read at same reader level and same readtable-case.
            (with-open-file (stream header-name)
-             (tokenize-source 2 ; FIXME: See the value set by the #pragma.
+             (tokenize-source (pp-state-reader-level state)
                               stream nil
-                              :preserve)))
+                              (pp-state-readtable-case state))))
          (end-tokens
            (list
             ;; I once used #pragma for marking the end of inclusion,
             ;; but I changed it to a special token because #pragma
             ;; should be ignored by #if sections.
-            :end-of-inclusion +newline-marker+
-            '|#| pragma-sym :WITH_C_SYNTAX :SET_READTABLE_CASE readtable-case +newline-marker+))
+            :end-of-inclusion +newline-marker+))
          (end-line-tokens
            (if (pp-state-file-pathname state)
                (list '|#| line-sym (pp-state-line-number state) (pp-state-file-pathname state) +newline-marker+)
@@ -1369,23 +1363,6 @@ returns NIL."
                (setf (pp-state-reader-level state) new-level))
              (when new-case
                (setf (pp-state-readtable-case state) new-case)))))
-        ;; TODO: Add pragma for reader-level and in-package, for included file. These parameters are should saved into the include-stack.
-        ;; TODO: included file's default reader-level == 2 and readtable-case = :preserve, for reading (real) C source.
-        ;; ("INCLUSION_READER_LEVEL")
-        ;; ("INCLUSION_READTABLE_CASE")
-        ;; ("INCLUSION_PACKAGE")
-        ;; TODO: These pragmas works when next '#include' appears. These are NOT for the file the pragma written.
-        ;; I should warn when no '#include' appears even if these pragma used.
-        ("SET_READTABLE_CASE"
-         (let ((token2 (pop-preprocessor-directive-token directive-token-list directive-symbol)))
-           (unless (member token2 '(:upcase :downcase :preserve :invert)
-                           :test 'token-equal-p)
-             (error 'preprocess-error
-                    :format-control "Bad argument for pragma '#pragma WITH_C_SYNTAX ~A ~A'"
-                    :format-arguments (list token1 token2)))
-           (check-no-preprocessor-token directive-token-list directive-symbol)
-           (setf (pp-state-readtable-case state)
-                 (find-symbol (string token2) :keyword))))
         (otherwise
          (raise-unsyntactic-wcs-pragma-error))))))
 
