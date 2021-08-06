@@ -751,11 +751,10 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     ("IN_PACKAGE"
      (let* ((package-designator (second token-list))
             (package (find-package package-designator)))
-       (unless package
-         (error 'with-c-syntax-reader-error
-                :format-control "No package named '~A'"
-                :format-arguments (list package-designator)))
-       (setf *package* package)))
+       (if package
+           (setf *package* package)
+           (warn 'with-c-syntax-style-warning
+                 :message (format nil "No package named '~A'" package-designator)))))
     ("IN_WITH_C_SYNTAX_READTABLE"
      (multiple-value-bind (new-level new-case)
          (parse-in-with-c-syntax-readtable-parameters (second token-list) (third token-list))

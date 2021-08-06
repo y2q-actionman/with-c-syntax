@@ -719,22 +719,11 @@
     #pragma WITH_C_SYNTAX IN_PACKAGE "CL-USER"
     return quote (foo);
     }#)
-  ;; (signals.macroexpand.wcs ()
-  ;;   #2{
-  ;;   #pragma STDC unknown pragma
-  ;;   }#)
-  ;; (is.equal.wcs t
-  ;;   #2{
-  ;;   _Pragma("STDC FP_CONTRACT DEFAULT")
-  ;;   _Pragma ("STDC FENV_ACCESS DEFAULT")
-  ;;   _Pragma ( "STDC CX_LIMITED_RANGE DEFAULT" )
-  ;;   t
-  ;;   }#)
-  ;; (signals.macroexpand.wcs ()
-  ;;   #2{
-  ;;   #pragma STDC FP_CONTRACT HOGE
-  ;;   }#)
-  ;; TODO: Add ON/OFF test if implemented them.
+  (signals.macroexpand.wcs ()
+    #2{
+    #pragma WITH_C_SYNTAX IN_PACKAGE
+    }#)
+  ;; TODO: WITH_C_SYNTAX readtable pragma tests
   )
 
 ;;; Examples in C standard.
