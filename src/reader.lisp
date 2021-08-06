@@ -833,9 +833,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
               (otherwise
                (warn 'with-c-syntax-warning :format-arguments "Unexpected tokenize-source state.")
                (setf in-pragma-operator nil)))))
-      collect token into token-list
-      finally
-         (return (values token-list *readtable*)))))
+      collect token)))
 
 (defun read-in-c-syntax (stream char n)
   "Called by '#{' reader macro of `with-c-syntax-readtable'.
@@ -843,16 +841,18 @@ Inside '#{' and '}#', the reader uses completely different syntax, and
 the result is wrapped with `with-c-syntax'.
  See `*with-c-syntax-reader-level*' and `*with-c-syntax-reader-case*'."
   (assert (char= char #\{))
-  (let ((level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2))
-        (input-file-pathname (ignore-errors (namestring stream))))
-    (multiple-value-bind (tokens readtable)
-        (tokenize-source level stream t *with-c-syntax-reader-case*)
-      ;; TODO: Move these parameters to #pragma?
-      `(with-c-syntax (:reader-level ,level
-                       ;; Capture the readtable-case used for reading inside '#{ ... }#'.
-                       :readtable-case ,(readtable-case readtable)
-                       :input-file-pathname ,input-file-pathname)
-         ,@tokens))))
+  (let* ((level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2))
+         (input-file-pathname (ignore-errors (namestring stream)))
+         (tokens
+           (tokenize-source level stream t *with-c-syntax-reader-case*)))
+    ;; TODO: Move these parameters to #pragma?
+    `(with-c-syntax (:reader-level ,level
+                     ;; Capture the readtable-case used for reading inside '#{ ... }#'.
+                     ;; FIXME: cleanup this handling, seeing `make-c-readtable'.
+                     :readtable-case ,(or *with-c-syntax-reader-case*
+                                          (readtable-case *readtable*))
+                     :input-file-pathname ,input-file-pathname)
+       ,@tokens)))
 
 (defreadtable with-c-syntax-readtable
   (:merge :standard)

@@ -785,22 +785,17 @@
      #include "test/test-pp-6.10.3.5-example-3.h"
      p() i[q()] = { q(1), r(2,3), r(4,), r(,5), r(,) };
      }#)
-    ;; FIXME: cleanup these compicated reader-case handlings!
-    (let ((*with-c-syntax-reader-case* :preserve)
-          (*readtable* (copy-readtable)))
-      (setf (readtable-case *readtable*) :preserve)
-      #.(setf *with-c-syntax-reader-case* :preserve)
-      #.(setf (readtable-case *readtable*) :preserve)
-      (IS.WCS.PP.EQUAL
-       #2{
-       char c[2][6] = { "hello", "" }   ;
-       }#
-       #2{
-       #include "test/test-pp-6.10.3.5-example-3.h"
-       char c[2][6] = { str(hello), str() } ;
-       }#)
-      #.(SETF (READTABLE-CASE *READTABLE*) :UPCASE)
-      #.(setf *with-c-syntax-reader-case* nil))
+    ;; This test must see readtable-case handlings.
+    (is.wcs.pp.equal
+     #2{
+     #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+     char c[2][6] = { "hello", "" };
+     }#
+     #2{
+     #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+     #include "test/test-pp-6.10.3.5-example-3.h"
+     char c[2][6] = { str(hello), str() };
+     }#)
     t))
 
 (test test-pp-6.10.3.5-example-4
