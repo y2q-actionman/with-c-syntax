@@ -824,22 +824,16 @@
     ;; One reason to use `+whitespace-marker+' is for this example.
     ;;   See MCPP's cpp-test.html#2.7.2
     ;; TODO: FIXME: Use #include
-    ;; FIXME: cleanup these compicated reader-case handlings!
-    (let ((*with-c-syntax-reader-case* :preserve)
-          (*readtable* (copy-readtable)))
-      (setf (readtable-case *readtable*) :preserve)
-      #.(setf *with-c-syntax-reader-case* :preserve)
-      #.(setf (readtable-case *readtable*) :preserve)
-      (IS.WCS.PP.EQUAL
-       #2{
-       /* #include */ "vers2.h"
-       }#
-       #2{
-       #include "test/test-pp-6.10.3.5-example-4.h"
-       /* #include */ xstr(INCFILE(2).h)
-       }#)
-      #.(SETF (READTABLE-CASE *READTABLE*) :UPCASE)
-      #.(setf *with-c-syntax-reader-case* nil))
+    (is.wcs.pp.equal
+     #2{
+     #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+     /* #include */ "vers2.h"
+     }#
+     #2{
+     #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+     #include "test/test-pp-6.10.3.5-example-4.h"
+     /* #include */ xstr(INCFILE(2).h)
+     }#)
     (is.wcs.pp.equal
      #2{
      "hello";
