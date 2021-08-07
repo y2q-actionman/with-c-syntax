@@ -713,10 +713,14 @@
   ;; TODO: Add ON/OFF test if implemented them.
   )
 
+(defpackage test-with-c-syntax-pragma-package
+  (:use :cl)
+  (:intern #:foo))
+
 (test test-with-c-syntax-pragma
-  (is.equal.wcs 'cl-user::foo
+  (is.equal.wcs 'test-with-c-syntax-pragma-package::foo
     #2{
-    #pragma WITH_C_SYNTAX IN_PACKAGE "CL-USER"
+    #pragma WITH_C_SYNTAX IN_PACKAGE "TEST-WITH-C-SYNTAX-PRAGMA-PACKAGE"
     return quote (foo);
     }#)
   (signals.macroexpand.wcs ()
@@ -758,98 +762,101 @@
     }#))
 
 (test test-pp-6.10.3.5-example-3
-  (let ((*package* (find-package '#:with-c-syntax.test))) ; This affects #include. FIXME: I should add pragma for change package.
-    (is.wcs.pp.equal
-     #2{
-     f(2 * (y+1)) + f(2 * (f(2 * (z[0])))) % f(2 * (0)) + t(1) ;
-     }#
-     #2{
-     #include "test/test-pp-6.10.3.5-example-3.h"
-     f(y+1) + f(f(z)) % t(t(g)(0) + t)(1) ;
-     }#)
-    (is.wcs.pp.equal
-     #2{
-     f(2 * (2+(3,4)-0,1)) \| f(2 * (~ 5)) & f(2 * (0,1))^m(0,1);
-     }#
-     #2{
-     #include "test/test-pp-6.10.3.5-example-3.h"
-     // (
-     g(x+(3,4)-w) \| h 5) & m
-     	 (f)^m(m);
-     }#)
-    (is.wcs.pp.equal
-     #2{
-     int i[] = { 1, 23, 4, 5,  };
-     }#
-     #2{
-     #include "test/test-pp-6.10.3.5-example-3.h"
-     p() i[q()] = { q(1), r(2,3), r(4,), r(,5), r(,) };
-     }#)
-    ;; This test must see readtable-case handlings.
-    (is.wcs.pp.equal
-     #2{
-     #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
-     char c[2][6] = { "hello", "" };
-     }#
-     #2{
-     #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
-     #include "test/test-pp-6.10.3.5-example-3.h"
-     char c[2][6] = { str(hello), str() };
-     }#)
-    t))
+  (is.wcs.pp.equal
+   #2{
+   f(2 * (y+1)) + f(2 * (f(2 * (z[0])))) % f(2 * (0)) + t(1);
+   }#
+   #2{
+   #include "test/test-pp-6.10.3.5-example-3.h"
+   f(y+1) + f(f(z)) % t(t(g)(0) + t)(1);
+   }#)
+  (is.wcs.pp.equal
+   #2{
+   f(2 * (2+(3,4)-0,1)) \| f(2 * (~ 5)) & f(2 * (0,1))^m(0,1);
+   }#
+   #2{
+   #include "test/test-pp-6.10.3.5-example-3.h"
+   // (
+   g(x+(3,4)-w) \| h 5) & m
+   	 (f)^m(m);
+   }#)
+  (is.wcs.pp.equal
+   #2{
+   int i[] = { 1, 23, 4, 5,  };
+   }#
+   #2{
+   #include "test/test-pp-6.10.3.5-example-3.h"
+   p() i[q()] = { q(1), r(2,3), r(4,), r(,5), r(,) };
+   }#)
+  ;; This test must see readtable-case handlings.
+  (is.wcs.pp.equal
+   #2{
+   #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+   char c[2][6] = { "hello", "" };
+   }#
+   #2{
+   #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+   #include "test/test-pp-6.10.3.5-example-3.h"
+   char c[2][6] = { str(hello), str() };
+   }#))
 
 (test test-pp-6.10.3.5-example-4
-  (let ((*package* (find-package '#:with-c-syntax.test))) ; This affects #include. FIXME: I should add pragma for change package.
-    (is.wcs.pp.equal
-     #2{
-     printf("x1= %d, x2= %s", x1, x2);
-     }#
-     #2{
-     #include "test/test-pp-6.10.3.5-example-4.h"
-     debug(1, 2);
-     }#)
-    ;; TODO: FIXME: Handling or '\' char is different between C and Lisp.
-    #+()
-    (is.wcs.pp.equal
-     #2{
-     fputs("strncmp(\"abc\\0d\", \"abc\", '\\4') == 0: @\n",
-           s);
-     }#
-     #2{
-     #include "test/test-pp-6.10.3.5-example-4.h"
-     fputs(str(strncmp("abc\0d", "abc", '\4') // this goes away
-                      == 0) str(: @\n), s);
-     }#)
-    ;; This is a problematic example, pointed by MCPP.
-    ;; One reason to use `+whitespace-marker+' is for this example.
-    ;;   See MCPP's cpp-test.html#2.7.2
-    ;; TODO: FIXME: Use #include
-    (is.wcs.pp.equal
-     #2{
-     #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
-     /* #include */ "vers2.h"
-     }#
-     #2{
-     #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
-     #include "test/test-pp-6.10.3.5-example-4.h"
-     /* #include */ xstr(INCFILE(2).h)
-     }#)
-    (is.wcs.pp.equal
-     #2{
-     "hello";
-     }#
-     #2{
-     #include "test/test-pp-6.10.3.5-example-4.h"
-     glue(HIGH, LOW);
-     }#)
-    (is.wcs.pp.equal
-     #2{
-     "hello, world"
-     }#
-     #2{
-     #include "test/test-pp-6.10.3.5-example-4.h"
-     xglue(HIGH, LOW)
-     }#)))
+  (is.wcs.pp.equal
+   #2{
+   printf("x1= %d, x2= %s", x1, x2);
+   }#
+   #2{
+   #include "test/test-pp-6.10.3.5-example-4.h"
+   debug(1, 2);
+   }#)
+  ;; TODO: FIXME: Handling or '\' char is different between C and Lisp.
+  (is.wcs.pp.equal
+   ;; #2{
+   ;; #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+   ;; fputs("strncmp(\"abc\\0d\", \"abc\", '\\4') == 0: @\n",
+   ;;       s);
+   ;; }#
+   #2{
+   #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+   fputs("strncmp(\"abc\0d\", \"abc\", '\4') == 0: @n",
+         s);
+   }#
+   #2{
+   #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+   #include "test/test-pp-6.10.3.5-example-4.h"
+   fputs(str(strncmp("abc\0d", "abc", '\4') // this goes away
+                    == 0) str(: @\n), s);
+   }#)
+  ;; This is a problematic example, pointed by MCPP.
+  ;; One reason to use `+whitespace-marker+' is for this example.
+  ;;   See MCPP's cpp-test.html#2.7.2
+  ;; TODO: FIXME: Use #include
+  (is.wcs.pp.equal
+   #2{
+   #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+   /* #include */ "vers2.h"
+   }#
+   #2{
+   #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+   #include "test/test-pp-6.10.3.5-example-4.h"
+   /* #include */ xstr(INCFILE(2).h)
+   }#)
+  (is.wcs.pp.equal
+   #2{
+   "hello";
+   }#
+   #2{
+   #include "test/test-pp-6.10.3.5-example-4.h"
+   glue(HIGH, LOW);
+   }#)
+  (is.wcs.pp.equal
+   #2{
+   "hello, world"
+   }#
+   #2{
+   #include "test/test-pp-6.10.3.5-example-4.h"
+   xglue(HIGH, LOW)
+   }#))
 
 (test test-pp-6.10.3.5-example-5
   (is.wcs.pp.equal
@@ -897,41 +904,49 @@ a /* other stuff on this line */ )
     }#))
 
 (test test-pp-6.10.3.5-example-7
-  (let ((*package* (find-package '#:with-c-syntax.test))) ; This affects #include. FIXME: I should add pragma for change package.
-    (is.wcs.pp.equal
-     #2{
-     fprintf(stderr,  "Flag" );
-     }#
-     #2{
-     #include "test/test-pp-6.10.3.5-example-7.h"
-     debug("Flag");
-     }#)
-    (is.wcs.pp.equal
-     #2{
-     fprintf(stderr,  "X = %d\n", x );
-     }#
-     #2{
-     #include "test/test-pp-6.10.3.5-example-7.h"
-     debug("X = %d\n", x);    
-     }#)
-    (is.wcs.pp.equal
-     #2{
-     // puts( "the first, second, and third items." ); // should be it.
-     puts( "THE FIRST, SECOND, AND THIRD ITEMS." ); // because of :upcase.
-     }#
-     #2{
-     #include "test/test-pp-6.10.3.5-example-7.h"
-     showlist(The first, second, and third items.);     
-     }#)
-    (is.wcs.pp.equal
-     #2{
-     // puts() argument is different,because of :upcase.
-     ((x>y)?puts("X>Y"):
-                      printf("x is %d but y is %d", x, y));
-     }#
-     #2{
-     #include "test/test-pp-6.10.3.5-example-7.h"
-     report(x>y, "x is %d but y is %d", x, y);
-     }#)))
+  (is.wcs.pp.equal
+   #2{
+   fprintf(stderr,  "Flag" );
+   }#
+   #2{
+   #include "test/test-pp-6.10.3.5-example-7.h"
+   debug("Flag");
+   }#)
+  (is.wcs.pp.equal
+   #2{
+   fprintf(stderr,  "X = %d\n", x );
+   }#
+   #2{
+   #include "test/test-pp-6.10.3.5-example-7.h"
+   debug("X = %d\n", x);    
+   }#)
+  (is.wcs.pp.equal
+   #2{
+   puts( "THE FIRST, SECOND, AND THIRD ITEMS." ); // because of :upcase.
+   }#
+   #2{
+   #include "test/test-pp-6.10.3.5-example-7.h"
+   showlist(The first, second, and third items.);     
+   }#)
+  (is.wcs.pp.equal
+   #2{
+   #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+   puts( "The first, second, and third items." ); // should be it.
+   }#
+   #2{
+   #pragma WITH_C_SYNTAX IN_WITH_C_SYNTAX_READTABLE preserve
+   #include "test/test-pp-6.10.3.5-example-7.h"
+   showlist(The first, second, and third items.);     
+   }#)
+  (is.wcs.pp.equal
+   #2{
+   // puts() argument is different,because of :upcase.
+   ((x>y)?puts("X>Y"):
+                    printf("x is %d but y is %d", x, y));
+   }#
+   #2{
+   #include "test/test-pp-6.10.3.5-example-7.h"
+   report(x>y, "x is %d but y is %d", x, y);
+   }#))
 
 ;;; TODO: add symbol-interning tests

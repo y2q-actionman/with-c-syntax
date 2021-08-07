@@ -138,11 +138,15 @@
       (when-let ((entry (assoc symbol macro-alist)))
         (not (eql (cdr entry) :macro-suppressed)))))
 
+(defun whitespace-like-token-p (token)
+  (or (eq token +whitespace-marker+)
+      (eq token +newline-marker+)))
+
 (defun delete-consecutive-whitespace-marker (token-list)
   (loop for cons = token-list then next
         for next = (cond
-                     ((and (eql (first cons) +whitespace-marker+)
-                           (eql (second cons) +whitespace-marker+))
+                     ((and (whitespace-like-token-p (first cons))
+                           (whitespace-like-token-p (second cons)))
                       (setf (cdr cons) (cddr cons))
                       cons)
                      (t
@@ -167,8 +171,7 @@
       (typep token 'macro-definition)))
 
 (defun macro-control-marker-p (token)
-  (or (eql token +whitespace-marker+)
-      (eql token +newline-marker+)
+  (or (whitespace-like-token-p token)
       (macro-scoping-marker-p token)))
 
 (defun collect-one-macro-argument (token-list macro-alist)
@@ -209,8 +212,7 @@
   (let ((args-start
           (loop for token-cons on token-list
                 as token = (car token-cons)
-                if (or (eql token +whitespace-marker+)
-                       (eql token +newline-marker+)) 
+                if (whitespace-like-token-p token) 
                   do (progn)
                 else if (typep token 'macro-definition)
                        do (push (cons (macro-definition-name token) :macro-suppressed)
@@ -331,8 +333,10 @@
                   result-alist))))
        (return result-alist)))
 
-(defgeneric stringify-separator-required-p (prev-token)
+(defgeneric stringification-separator-required-p (prev-token)
   (:method ((prev-token (eql +whitespace-marker+)))
+    nil)
+  (:method ((prev-token (eql +newline-marker+)))
     nil)
   (:method ((prev-token string))
     nil)
@@ -359,12 +363,11 @@
           do (cond
                ((macro-scoping-marker-p i)
                 (setf i prev))         ; Keeps prev.
-               ((or (eq i +whitespace-marker+)
-                    (eq i +newline-marker+))
-                (unless (eq prev +whitespace-marker+)
+               ((whitespace-like-token-p i)
+                (unless (whitespace-like-token-p prev)
                   (write-char #\space out)))
                ((preprocessing-number-p i)
-                (when (stringify-separator-required-p prev)
+                (when (stringification-separator-required-p prev)
                   (write-char #\space out))
                 (princ (preprocessing-number-string i) out))
                ((characterp i)
@@ -379,7 +382,7 @@
                ((symbolp i)
                 (assert (not (macro-control-marker-p i)))
                 (when (and (not (find-punctuator (symbol-name i) t))
-                           (stringify-separator-required-p prev))
+                           (stringification-separator-required-p prev))
                   (write-char #\space out))
                 (princ i out))
                (t
@@ -519,7 +522,7 @@
   (loop
     for token-cons on replacement-list
     as token = (first token-cons)
-    as next-token-cons = (if (eql (second token-cons) +whitespace-marker+)
+    as next-token-cons = (if (whitespace-like-token-p (second token-cons))
                              (cddr token-cons)
                              (cdr token-cons))
     as macro-arg-alist-cons = (if after-concatenation
@@ -528,7 +531,7 @@
     as after-concatenation = nil
     if (or (token-equal-p (car next-token-cons) "##") ; Concatenation.
            (and process-digraph? (token-equal-p (car next-token-cons) "%:%:")))
-      nconc (let* ((token2-cons (if (eql (second next-token-cons) +whitespace-marker+)
+      nconc (let* ((token2-cons (if (whitespace-like-token-p (second next-token-cons))
                                     (cddr next-token-cons)
                                     (cdr next-token-cons)))
                    (token2 (if (endp token2-cons)
@@ -781,7 +784,7 @@ returns NIL."
 
 (defun preprocessor-token-exists-p (token-list)
   (loop for token in token-list
-        thereis (not (eq token +whitespace-marker+))))
+        thereis (not (whitespace-like-token-p token))))
 
 (defun token-equal-p (token name)
   (and (symbolp token)

@@ -90,10 +90,10 @@
 
 (defmacro is.wcs.pp.equal (c-form-1 c-form-2)
   `(is (with-c-syntax.core::replacement-list-equal
-        (macroexpand '(with-c-syntax (:preprocess :preprocess-only)
-                       ,c-form-1))
-        (macroexpand '(with-c-syntax (:preprocess :preprocess-only)
-                       ,c-form-2)))))
+        ',(macroexpand `(with-c-syntax (:preprocess :preprocess-only)
+                          ,c-form-1))
+        ',(macroexpand `(with-c-syntax (:preprocess :preprocess-only)
+                          ,c-form-2)))))
 
 ;;; some utils
 
