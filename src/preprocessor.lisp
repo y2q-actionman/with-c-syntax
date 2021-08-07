@@ -727,7 +727,8 @@ returns NIL."
 ;;; preprocessor-state object held in the main loop.
 
 (defclass preprocessor-state () 
-  ((reader-level :initarg :reader-level :initform 2 :type integer
+  ((reader-level :initarg :reader-level :initform +with-c-syntax-default-reader-level+
+                 :type integer
                  :accessor pp-state-reader-level)
    (readtable-case :initarg :readtable-case :type keyword
                    :accessor pp-state-readtable-case)
