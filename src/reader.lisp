@@ -622,7 +622,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 
 (defun make-c-readtable (level readtable-case)
   "Returns a readtable for tokenize C source. See `*with-c-syntax-reader-level*'."
-  (let* ((c-readtable-name
+  (let* ((level (alexandria:clamp level 0 2))
+         (c-readtable-name
            (ecase level
              (0 'c-reader-level-0)
              (1 'c-reader-level-1)
@@ -841,7 +842,7 @@ Inside '#{' and '}#', the reader uses completely different syntax, and
 the result is wrapped with `with-c-syntax'.
  See `*with-c-syntax-reader-level*' and `*with-c-syntax-reader-case*'."
   (assert (char= char #\{))
-  (let* ((level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2))
+  (let* ((level (or n *with-c-syntax-reader-level*))
          (input-file-pathname (ignore-errors (namestring stream)))
          (tokens
            (tokenize-source level stream t *with-c-syntax-reader-case*)))
