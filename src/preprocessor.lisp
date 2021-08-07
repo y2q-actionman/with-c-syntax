@@ -1533,7 +1533,7 @@ returns NIL."
         (t
          (typecase token
            (symbol
-            (cond
+            (mv-cond-let (it it-2)
               ((eq token :end-of-preprocessor-macro-scope)
                (pop macro-alist))
               ((pp-pragma-operator-p token (pp-state-readtable-case state))
@@ -1550,23 +1550,19 @@ returns NIL."
                               (append expansion-list ; Rescan the expansion results.
                                       rest-tokens))))))
 	      ;; Intern punctuators, includes digraphs.
-              ((when-let ((punctuator (find-punctuator (symbol-name token) process-digraph?)))
-                 (push punctuator result-list)))
+              ((find-punctuator (symbol-name token) process-digraph?)
+               (push it result-list))
 	      ;; Intern keywords.
-              ((when-let ((c-terminal
-                           (find-c-terminal (symbol-name token) (pp-state-readtable-case state))))
-                 (push c-terminal result-list)))
+              ((find-c-terminal (symbol-name token) (pp-state-readtable-case state))
+               (push it result-list))
               ;; with-c-syntax specific: Try to split the token.
-              ((when (and
-                      (<= (pp-state-reader-level state) 1)
-                      (not (or (boundp token)
-                               (fboundp token)
-                               (find-c-terminal (symbol-name token)
-                                                (pp-state-readtable-case state)))))
-                 (multiple-value-bind (splited-p results) (preprocessor-try-split token)
-	           (if splited-p
-	               (setf token-list (nconc results token-list))
-                       nil))))          ; fallthrough
+              ((and (<= (pp-state-reader-level state) 1)
+                    (not (or (boundp token)
+                             (fboundp token)
+                             (find-c-terminal (symbol-name token)
+                                              (pp-state-readtable-case state))))
+                    (preprocessor-try-split token))
+               (setf token-list (nconc it-2 token-list)))
               (t
                (push token result-list))))
            (string
