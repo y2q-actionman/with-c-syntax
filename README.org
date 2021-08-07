@@ -248,7 +248,7 @@ I'm now working to fix it.
 Please see these docstrings or comments:
 
 - Macro [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/with-c-syntax.lisp#L38][with-c-syntax]]
-- Comments around [[https://github.com/y2q-actionman/with-c-syntax/blob/master/src/reader.lisp#L561][with-c-syntax-readtable]]
+- Comments around [[https://github.com/y2q-actionman/with-c-syntax/blob/8a66c39fb88a2110287494ecda5ee602ebc4947b/src/reader.lisp#L784-L788][with-c-syntax-readtable]]
 - Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L5][*with-c-syntax-reader-level*]]
 - Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L90][*with-c-syntax-reader-case*]]
 
