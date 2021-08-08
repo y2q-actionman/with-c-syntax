@@ -748,7 +748,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 (defun process-reader-pragma (token-list)
   "Process pragmas affects with-c-syntax readers.
  See `process-with-c-syntax-pragma' for preprocessor pragmas. "
-  (switch ((first token-list) :test 'string=)
+  (switch ((first token-list) :test 'string=) ; FIXME: should I see readtable-case?
     ("IN_PACKAGE"
      (let* ((package-designator (second token-list))
             (package (find-package package-designator)))

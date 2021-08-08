@@ -610,7 +610,7 @@ alist of preprocessor macro definitions.  PP-STATE is a
  Returns four values:
  1. A list of tokens made by expansion.
  2. A list, tail of REST-TOKEN-LIST, left after collecting function-like macro arguments.
- 3. An alist derived from MACRO-ALISR changed after expansion.
+ 3. An alist derived from MACRO-ALIST changed after expansion.
  4. A boolean tells whether TOKEN is a function-like-macro but
     REST-TOKEN-LIST is not a form of invocation."
   (when-let ((predefined-macro
@@ -1202,14 +1202,14 @@ returns NIL."
       do (error 'preprocess-error
                 :format-control "Macro identifier-list accepts only a symbol, '~A' appeared."
                 :format-arguments (list i))
-    until (string= i ")")
-    if (string= i "...")
+    until (token-equal-p i ")")
+    if (token-equal-p i "...")
       do (setf variadicp t)
     else if variadicp
            do (error 'preprocess-error
                      :format-control "Macro identifier-list has an extra identifier '~A' after '...'"
                      :format-arguments (list i))
-    else if (or (string= i ",")
+    else if (or (token-equal-p i ",")
                 (eql i +whitespace-marker+))
            do (progn)
     else
