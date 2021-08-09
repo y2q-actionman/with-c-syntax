@@ -112,6 +112,7 @@
    #:pseudo-pointer-dereference
    #:pseudo-pointer-invalidate
    ;; reader.lisp
+   #:*previous-readtable*
    #:+newline-marker+                   ; for test code.
    #:+whitespace-marker+                ; for test code.
    #:with-c-syntax-readtable

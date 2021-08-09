@@ -254,6 +254,7 @@ Please see these docstrings or comments:
 - Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L5][*with-c-syntax-reader-level*]]
 - Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L90][*with-c-syntax-reader-case*]]
 - Variable *with-c-syntax-find-include-file-function-list*
+- Variable *previous-readtable*
 
 * Further Information
 What this macro does is only expanding a list of symbols to a Lisp form.

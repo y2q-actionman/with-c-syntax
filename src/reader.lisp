@@ -41,7 +41,7 @@ In level 1, these reader macros are installed.
   (e.g. Use '|A B C|' instead of 'a| |b| |c').
 - '{', '}', '[', ']' :: These become a terminating character, and read
   as a symbol.
-- '`' :: '`' reads a next s-exp in `*previous-syntax*' readtable. This
+- '`' :: '`' reads a next s-exp in `*previous-readtable*' readtable. This
   works as an escape from '#{' and '}#'. The 'backquote' functionality
   is lost.
 - '.' :: Reads a solely '.' as a symbol. The 'consing dot'
@@ -110,7 +110,7 @@ wrapping `with-c-syntax' form.
 When this is nil, the `readtable-case' of the current `*readtable*' at
 '#{' is used." )
 
-(defvar *previous-syntax* (copy-readtable nil)
+(defvar *previous-readtable* (named-readtables:find-readtable :standard)
   "Holds the readtable used by #\` syntax.
 This is bound by '#{' read macro to the `*readtable*' at that time.")
 
@@ -119,13 +119,13 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
  for implementing '...' and '%:%:'.")
 
 
-(defun read-in-previous-syntax (stream char)
-  (when (eq *readtable* *previous-syntax*)
+(defun read-in-previous-readtable (stream char)
+  (when (eq *readtable* *previous-readtable*)
     (error 'with-c-syntax-reader-error
            :stream stream
-           :format-control "read-in-previous-syntax used recursively by char ~C"
+           :format-control "read-in-previous-readtable used recursively by char ~C"
            :format-arguments (list char)))
-  (let ((*readtable* *previous-syntax*))
+  (let ((*readtable* *previous-readtable*))
     (read-preserving-whitespace stream t nil t)))
 
 (defun read-single-character-symbol (stream char)
@@ -554,7 +554,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (:macro-char #\[ #'read-single-character-symbol)
   (:macro-char #\] #'read-single-character-symbol)
   ;; for accessing normal syntax.
-  (:macro-char #\` #'read-in-previous-syntax)
+  (:macro-char #\` #'read-in-previous-readtable)
   ;; Disables 'consing dots', with replacement of ()
   (:macro-char #\. #'read-lonely-single-symbol t)
   ;; Enable C comments.
@@ -574,7 +574,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   )
 
 (defreadtable c-reader-level-2
-  (:macro-char #\` #'read-in-previous-syntax) ; for accessing normal syntax.
+  (:macro-char #\` #'read-in-previous-readtable) ; for accessing normal syntax.
   (:macro-char #\' #'read-single-quote) ; Character constant, overwrites `quote'.
   (:macro-char #\" #'read-double-quote) ; String literal.
   (:macro-char #\L #'read-L t)  ; 'L' prefix for character and string.
@@ -769,7 +769,6 @@ If not, returns a next token by `cl:read' after unreading CHAR."
  LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
          (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
-         (*previous-syntax* *readtable*)
          (*second-unread-char* nil)
          (*current-with-c-syntax-reader-level* level)
          (*readtable* (make-c-readtable level readtable-case))
@@ -844,6 +843,7 @@ the result is wrapped with `with-c-syntax'.
   (assert (char= char #\{))
   (let* ((level (or n *with-c-syntax-reader-level*))
          (input-file-pathname (ignore-errors (namestring stream)))
+         (*previous-readtable* *readtable*)
          (tokens
            (tokenize-source level stream t *with-c-syntax-reader-case*)))
     ;; TODO: Move these parameters to #pragma?
