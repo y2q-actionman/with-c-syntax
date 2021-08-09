@@ -1603,6 +1603,7 @@ Current workings are below:
                           :readtable-case readtable-case
                           :file-pathname input-file-pathname 
                           :process-digraph? process-digraph))
+         (*readtable* (make-c-readtable reader-level readtable-case))
          (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (pp-state
            (preprocessor-loop pp-state)))

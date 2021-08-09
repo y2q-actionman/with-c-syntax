@@ -635,6 +635,28 @@ If not, returns a next token by `cl:read' after unreading CHAR."
           new-readtable)
         c-readtable)))
 
+(defun get-c-readtable-level (readtable)
+  "Calculate the readtable-level (described in
+ `*with-c-syntax-reader-level*' docstring) of the READTABLE. If
+ READTABLE is not for C syntax, returns NIL."
+  (mv-cond-let (macro-func non-terminating-p)
+    ((get-macro-character #\0 readtable)
+     (cond ((and (eql macro-func #'read-preprocessing-number)
+                 (eq non-terminating-p t))
+            2)
+           ((and (eql macro-func #'read-0x-numeric-literal)
+                 (eq non-terminating-p t))
+            1)
+           (t
+            nil)))
+    ((get-macro-character #\: readtable)
+     (if (and (eql macro-func #'read-lonely-single-symbol)
+              (eq non-terminating-p t))
+         0
+         nil))
+    (t
+     nil)))
+
 (defconstant +newline-marker+
   '+newline-marker+
   "Used for saving newline chars from reader to preprocessor.")
@@ -731,15 +753,18 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       (otherwise
        (raise-bad-arg-error)))))
 
-(defvar *current-with-c-syntax-reader-level* nil)
-
 (defun parse-in-with-c-syntax-readtable-parameters (token1 token2)
   (let* ((arg1 (parse-in-with-c-syntax-readtable-parameter-token token1))
          (arg2 (if token2
                    (parse-in-with-c-syntax-readtable-parameter-token token2)))
          (new-level (cond ((integerp arg1) (shiftf arg1 nil))
                           ((integerp arg2) (shiftf arg2 nil))
-                          (t *current-with-c-syntax-reader-level*)))
+                          (t (let ((lv (get-c-readtable-level *readtable*)))
+                               (unless lv 
+                                 (error 'with-c-syntax-reader-error
+                                        :format-control "Readtable ~A is not for C syntax."
+                                        :format-arguments (list lv)))
+                               lv))))
          (new-case (cond ((keywordp arg1) (shiftf arg1 nil))
                          ((keywordp arg2) (shiftf arg2 nil))
                          (t (readtable-case *readtable*)))))
@@ -770,7 +795,6 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
          (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (*second-unread-char* nil)
-         (*current-with-c-syntax-reader-level* level)
          (*readtable* (make-c-readtable level readtable-case))
          (keep-whitespace-default (>= level 2))
          (process-backslash-newline
