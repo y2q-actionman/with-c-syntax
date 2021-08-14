@@ -83,8 +83,7 @@
         	#:define-parser
                 #:parse-with-lexer
 		#:yacc-parse-error)
-  (:import-from #:named-readtables
-                #:defreadtable #:find-readtable)
+  (:use #:named-readtables)
   (:export
    ;; util.lisp
    #:+nul-character+

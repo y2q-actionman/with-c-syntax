@@ -531,6 +531,18 @@ If not, returns a next token by `cl:read' after unreading CHAR."
         (let ((*readtable* (copy-readtable nil))) ; Use the standard syntax.
           (read-after-unread c0 stream t nil t)))))
 
+(defmacro define-c-syntax-reader-for-each-case-mode (base-readtable-name)
+  (check-type base-readtable-name symbol)
+  (loop with case-modes = '(:upcase :downcase :preserve :invert)
+        for mode in case-modes
+        as name = (format-symbol :with-c-syntax.core "~A-~A" base-readtable-name mode)
+        collect `(defreadtable ,name
+                   (:merge ,base-readtable-name)
+                   (:case ,mode))
+          into bodies
+        finally
+           (return `(progn ,@bodies))))
+
 (defreadtable c-reader-level-0
   (:merge :standard)
   (:macro-char #\} #'read-right-curly-bracket t)
@@ -540,6 +552,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (:macro-char #\, #'read-single-character-symbol)
   ;; Enables solely ':' as a symbol.
   (:macro-char #\: #'read-lonely-single-symbol t))
+
+(define-c-syntax-reader-for-each-case-mode c-reader-level-0)
 
 (defreadtable c-reader-level-1
   (:merge c-reader-level-0)
@@ -572,6 +586,8 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (:dispatch-macro-char #\# #\u #'read-sharp-as-dispatching-macro) ; #u(ndef)
   ;; #p(ragma) is conflict with the pathname syntax.
   )
+
+(define-c-syntax-reader-for-each-case-mode c-reader-level-1)
 
 (defreadtable c-reader-level-2
   (:macro-char #\` #'read-in-previous-readtable) ; for accessing normal syntax.
@@ -620,20 +636,33 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   ;;   How to be '\' treated?
   )
 
-(defun make-c-readtable (level readtable-case)
+(define-c-syntax-reader-for-each-case-mode c-reader-level-2)
+
+(defgeneric find-c-readtable-name (level readtable-case)
+  (:documentation "Finds a readtable name by arguments. See `find-c-readtable'."))
+
+(defmacro define-find-c-readtable-name-methods (base-readtable-name level)
+  (check-type base-readtable-name symbol)
+  (check-type level integer)
+  (loop with case-modes = '(nil :upcase :downcase :preserve :invert)
+        for mode in case-modes
+        as name = (format-symbol :with-c-syntax.core "~A~@[-~A~]"
+                                 base-readtable-name mode)
+        collect `(defmethod find-c-readtable-name
+                     ((level (eql ,level)) (readtable-case (eql ,mode)))
+                   ',name)
+          into bodies
+        finally
+           (return `(progn ,@bodies))))
+
+(define-find-c-readtable-name-methods c-reader-level-0 0)
+(define-find-c-readtable-name-methods c-reader-level-1 1)
+(define-find-c-readtable-name-methods c-reader-level-2 2)
+
+(defun find-c-readtable (level readtable-case)
   "Returns a readtable for tokenize C source. See `*with-c-syntax-reader-level*'."
-  (let* ((level (alexandria:clamp level 0 2))
-         (c-readtable-name
-           (ecase level
-             (0 'c-reader-level-0)
-             (1 'c-reader-level-1)
-             (2 'c-reader-level-2)))
-         (c-readtable (find-readtable c-readtable-name)))
-    (if readtable-case
-        (let ((new-readtable (copy-readtable c-readtable)))
-          (setf (readtable-case new-readtable) readtable-case)
-          new-readtable)
-        c-readtable)))
+  (let ((name (find-c-readtable-name level readtable-case)))
+    (find-readtable name)))
 
 (defun get-c-readtable-level (readtable)
   "Calculate the readtable-level (described in
@@ -785,7 +814,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
      (multiple-value-bind (new-level new-case)
          (parse-in-with-c-syntax-readtable-parameters (second token-list) (third token-list))
        (setf *readtable*
-             (make-c-readtable new-level new-case))))
+             (find-c-readtable new-level new-case))))
     (otherwise          ; Not for reader. Pass it to the preprocessor.
      nil)))
 
@@ -795,7 +824,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
          (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (*second-unread-char* nil)
-         (*readtable* (make-c-readtable level readtable-case))
+         (*readtable* (find-c-readtable level readtable-case))
          (keep-whitespace-default (>= level 2))
          (process-backslash-newline
            (case *with-c-syntax-reader-process-backslash-newline*
