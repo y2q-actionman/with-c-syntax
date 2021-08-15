@@ -883,9 +883,6 @@ returns NIL."
                  (not eval-result))
         (setf if-section-skip-reason if-section-obj)))))
 
-(defun pp-defined-operator-p (token readtable-case)
-  (pp-operator-name-equal-p token "defined" readtable-case))
-
 (defun expand-defined-operator (token-list macro-alist readtable-case
                                 process-digraph? directive-symbol)
   (loop while (preprocessor-token-exists-p token-list)  ; FIXME: this is too slow..
@@ -1486,9 +1483,6 @@ returns NIL."
                                                  (pp-state-readtable-case state))))
             (process-preprocessing-directive directive-symbol token-list state)
             (raise-pp-error)))))))
-
-(defun pp-pragma-operator-p (token readtable-case)
-  (pp-operator-name-equal-p token :|_Pragma| readtable-case))
 
 (defun preprocessor-loop-do-pragma-operator (state)
   (with-preprocessor-state-slots (state)

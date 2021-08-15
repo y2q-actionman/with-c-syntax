@@ -16,14 +16,14 @@
              for upcased = (string-upcase (symbol-name sym))
              collect `(setf (symbol-value (find-symbol ,upcased ',upcased-package-name))
                             ',sym))
-     (defun ,finder-function-name (name readtable-case)
+     (defun ,finder-function-name (string readtable-case)
        ,@(if docstring `(,docstring))
        (ecase readtable-case
          ((:upcase :invert)
-          (if-let ((up-sym (find-symbol name ',upcased-package-name)))
+          (if-let ((up-sym (find-symbol string ',upcased-package-name)))
             (symbol-value up-sym)))
          ((:downcase :preserve)
-          (find-symbol name ',package-name))))))
+          (find-symbol string ',package-name))))))
 
 (define-case-aware-find-symbol find-c-terminal
   #:with-c-syntax.syntax)
@@ -41,15 +41,15 @@
 (defun pp-pragma-directive-p (token readtable-case)
   (and (symbolp token)
        (eq 'with-c-syntax.preprocessor-directive:|pragma|
-           (find-preprocessor-directive token readtable-case))))
+           (find-preprocessor-directive (string token) readtable-case))))
+|#
 
 (defun pp-defined-operator-p (token readtable-case)
   (and (symbolp token)
        (eq 'with-c-syntax.preprocess-operator:|defined|
-           (find-pp-operator-name token readtable-case))))
+           (find-pp-operator-name (string token) readtable-case))))
 
 (defun pp-pragma-operator-p (token readtable-case)
   (and (symbolp token)
        (eq 'with-c-syntax.preprocess-operator:|_Pragma|
-           (find-pp-operator-name token readtable-case))))
-|#
+           (find-pp-operator-name (string token) readtable-case))))
