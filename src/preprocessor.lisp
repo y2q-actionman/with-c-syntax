@@ -1439,19 +1439,21 @@ returns NIL."
           :message "#pragma does not have any arguments.")
     (return-from process-preprocessing-directive nil))
   (let ((first-token
-          (pop-preprocessor-directive-token directive-token-list directive-symbol)))
-    (switch (first-token :test 'token-equal-p)
-      ("WITH_C_SYNTAX"
-       (process-with-c-syntax-pragma directive-symbol directive-token-list state))
-      ("STDC"
-       (process-stdc-pragma directive-symbol directive-token-list state))
-      ;; TODO: #pragma once
-      (otherwise
-       (with-preprocessor-state-slots (state)
-         (warn 'with-c-syntax-style-warning
-               :message (format nil "pragma '~A ~{~A~^ ~}' was ignored."
-                                first-token
-                                (remove-whitespace-marker directive-token-list))))))))
+          (pop-preprocessor-directive-token directive-token-list directive-symbol))
+        (readtable-case (pp-state-readtable-case state)))
+    (cond ((pp-with-c-syntax-pragma-p first-token readtable-case)
+           (process-with-c-syntax-pragma directive-symbol directive-token-list state))
+          ((pp-stdc-pragma-p first-token readtable-case)
+           (process-stdc-pragma directive-symbol directive-token-list state))
+          ((pp-once-pragma-p first-token readtable-case)
+           (warn 'with-c-syntax-style-warning
+                 :message "Sorry, '#pragma once' is under implementation."))
+          (t
+           (with-preprocessor-state-slots (state)
+             (warn 'with-c-syntax-style-warning
+                   :message (format nil "pragma '~A ~{~A~^ ~}' was ignored."
+                                    first-token
+                                    (remove-whitespace-marker directive-token-list))))))))
 
 ;;; Preprocessor loop helpers.
 

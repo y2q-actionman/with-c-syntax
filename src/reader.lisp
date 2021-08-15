@@ -750,15 +750,6 @@ If not, returns a next token by `cl:read' after unreading CHAR."
            #+ccl nil
            #-ccl recursive-p)))))))
 
-(defun pp-operator-name-equal-p (token name readtable-case)
-  (let ((readtable-case (or readtable-case (readtable-case *readtable*))))
-    (and (symbolp token)
-         (ecase readtable-case
-           ((:upcase :downcase)
-            (string-equal token name))
-           ((:preserve :invert)
-            (string= token name))))))
-
 (defun parse-in-with-c-syntax-readtable-parameter-token (token)
   (flet ((raise-bad-arg-error ()
            (error 'with-c-syntax-reader-error
@@ -865,7 +856,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                        (delete-whitespace-marker   
                         (nreverse (shiftf directive-tokens-rev nil)))))
                  (when (and (pp-pragma-directive-p (first tokens) (readtable-case *readtable*))
-                            (pp-operator-name-equal-p (second tokens) "WITH_C_SYNTAX" readtable-case))
+                            (pp-with-c-syntax-pragma-p (second tokens) (readtable-case *readtable*)))
                    (process-reader-pragma (nthcdr 2 tokens)))))))
            ;; See _Pragma() operator
            ((and (symbolp token)

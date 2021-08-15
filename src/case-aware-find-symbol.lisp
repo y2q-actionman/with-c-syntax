@@ -34,6 +34,9 @@
 (define-case-aware-find-symbol find-pp-operator-name
   #:with-c-syntax.preprocess-operator)
 
+(define-case-aware-find-symbol find-pragma-name
+  #:with-c-syntax.pragma-name)
+
 
 (defmacro define-case-aware-token-p-function (function-name find-symbol-function symbol)
   `(defun ,function-name (token readtable-case)
@@ -52,3 +55,15 @@
 (define-case-aware-token-p-function pp-pragma-operator-p
   find-pp-operator-name
   with-c-syntax.preprocess-operator:|_Pragma|)
+
+(define-case-aware-token-p-function pp-stdc-pragma-p
+  find-pragma-name
+  with-c-syntax.pragma-name:|STDC|)
+
+(define-case-aware-token-p-function pp-with-c-syntax-pragma-p
+  find-pragma-name
+  with-c-syntax.pragma-name:|WITH_C_SYNTAX|)
+
+(define-case-aware-token-p-function pp-once-pragma-p
+  find-pragma-name
+  with-c-syntax.pragma-name:|once|)

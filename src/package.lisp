@@ -71,6 +71,10 @@
   (:use)
   (:export "defined" "_Pragma"))
 
+(defpackage #:with-c-syntax.pragma-name
+  (:use)
+  (:export "STDC" "WITH_C_SYNTAX" "once"))
+
 (defpackage #:with-c-syntax.predefined-macro
   (:use)
   (:export #:__DATE__ #:__FILE__ #:__LINE__ #:__STDC__
