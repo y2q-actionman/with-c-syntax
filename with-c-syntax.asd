@@ -17,8 +17,9 @@
 		 (:file "condition" :depends-on ("package"))
                  (:file "physical-source" ; Translation Phase 1,2
                   :depends-on ("condition"))
+		 (:file "case-aware-find-symbol" :depends-on ("condition"))
                  (:file "reader"        ; Translation Phase 3
-                  :depends-on ("physical-source"))
+                  :depends-on ("physical-source" "case-aware-find-symbol"))
                  (:file "struct" :depends-on ("package"))
                  (:file "typedef" :depends-on ("package"))
                  (:file "pseudo-pointer" :depends-on ("util" "condition"))
@@ -27,6 +28,7 @@
 		  :depends-on ("lexer" "struct" "typedef" "pseudo-pointer"))
                  (:file "preprocessor"  ; Translation Phase 4,(5),6
                   :depends-on ("util" "condition" "reader"
+                               "case-aware-find-symbol"
                                "lexer" "compiler")) ; Uses compiler for implementing '#if'
                  (:file "predefined-macro" :depends-on ("preprocessor"))
                  (:file "with-c-syntax" ; Entry Point

@@ -27,6 +27,28 @@
  Each function should take one argument and returns a pathname, or nil if failed.
  See `find-include-<header>-file'.")
 
+;;; C punctuators.
+
+(defun find-punctuator (name process-digraph?)
+  (when-let (punctuator (find-symbol name '#:with-c-syntax.punctuator))
+    (when-let (replace (find-digraph-replacement punctuator)) ; Check digraph
+      (unless (eq process-digraph? :no-warn)
+        (warn 'with-c-syntax-style-warning
+              :message (format nil "Digraph sequence '~A' (means ~A) found."
+                               punctuator replace)))
+      (when process-digraph?
+        (setf punctuator replace)))
+    punctuator))
+
+(defun find-digraph-replacement (punctuator)
+  (case punctuator
+    (with-c-syntax.punctuator:|<:| 'with-c-syntax.syntax:[)
+    (with-c-syntax.punctuator:|:>| 'with-c-syntax.syntax:])
+    (with-c-syntax.punctuator:|<%| 'with-c-syntax.syntax:{)
+    (with-c-syntax.punctuator:|%>| 'with-c-syntax.syntax:})
+    (with-c-syntax.punctuator:|%:| 'with-c-syntax.punctuator:|#|)
+    (with-c-syntax.punctuator:|%:%:| 'with-c-syntax.punctuator:|##|)))
+
 ;;; Preprocessor macro expansion
 
 (defun va-args-identifier-p (token)

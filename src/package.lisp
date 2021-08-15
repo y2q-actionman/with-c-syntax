@@ -67,6 +67,10 @@
    #:|if| #:|ifdef| #:|ifndef| #:|elif| #:|else| #:|endif| #:|include|
    #:|define| #:|undef| #:|line| #:|error| #:|pragma|))
 
+(defpackage #:with-c-syntax.preprocess-operator
+  (:use)
+  (:export "defined" "_Pragma"))
+
 (defpackage #:with-c-syntax.predefined-macro
   (:use)
   (:export #:__DATE__ #:__FILE__ #:__LINE__ #:__STDC__
