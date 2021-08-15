@@ -35,21 +35,20 @@
   #:with-c-syntax.preprocess-operator)
 
 
-#|
-;;; Under implementation.
+(defmacro define-case-aware-token-p-function (function-name find-symbol-function symbol)
+  `(defun ,function-name (token readtable-case)
+     (and (symbolp token)
+          (eq (,find-symbol-function (string token) readtable-case)
+              ',symbol))))
 
-(defun pp-pragma-directive-p (token readtable-case)
-  (and (symbolp token)
-       (eq 'with-c-syntax.preprocessor-directive:|pragma|
-           (find-preprocessor-directive (string token) readtable-case))))
-|#
+(define-case-aware-token-p-function pp-pragma-directive-p
+  find-preprocessor-directive
+  with-c-syntax.preprocessor-directive:|pragma|)
 
-(defun pp-defined-operator-p (token readtable-case)
-  (and (symbolp token)
-       (eq 'with-c-syntax.preprocess-operator:|defined|
-           (find-pp-operator-name (string token) readtable-case))))
+(define-case-aware-token-p-function pp-defined-operator-p
+  find-pp-operator-name
+  with-c-syntax.preprocess-operator:|defined|)
 
-(defun pp-pragma-operator-p (token readtable-case)
-  (and (symbolp token)
-       (eq 'with-c-syntax.preprocess-operator:|_Pragma|
-           (find-pp-operator-name (string token) readtable-case))))
+(define-case-aware-token-p-function pp-pragma-operator-p
+  find-pp-operator-name
+  with-c-syntax.preprocess-operator:|_Pragma|)
