@@ -18,16 +18,17 @@
                  (:file "physical-source" ; Translation Phase 1,2
                   :depends-on ("condition"))
 		 (:file "case-aware-find-symbol" :depends-on ("condition"))
+		 (:file "pp-number" :depends-on ("condition")) ; cl-ppcre is used only here.
                  (:file "reader"        ; Translation Phase 3
-                  :depends-on ("physical-source" "case-aware-find-symbol"))
+                  :depends-on ("physical-source" "case-aware-find-symbol" "pp-number"))
                  (:file "struct" :depends-on ("package"))
                  (:file "typedef" :depends-on ("package"))
                  (:file "pseudo-pointer" :depends-on ("util" "condition"))
-                 (:file "lexer" :depends-on ("util" "reader" "typedef"))
+                 (:file "lexer" :depends-on ("util" "pp-number" "reader" "typedef"))
                  (:file "compiler"      ; Translation Phase 7
 		  :depends-on ("lexer" "struct" "typedef" "pseudo-pointer"))
                  (:file "preprocessor"  ; Translation Phase 4,(5),6
-                  :depends-on ("util" "condition" "reader"
+                  :depends-on ("util" "condition" "pp-number" "reader"
                                "case-aware-find-symbol"
                                "lexer" "compiler")) ; Uses compiler for implementing '#if'
                  (:file "predefined-macro" :depends-on ("preprocessor"))
