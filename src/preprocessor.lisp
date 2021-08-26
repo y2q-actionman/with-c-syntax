@@ -1564,7 +1564,8 @@ returns NIL."
               ((find-c-terminal (symbol-name token) (readtable-case *readtable*))
                (push it result-list))
               ;; with-c-syntax specific: Try to split the token.
-              ((and (<= (get-c-readtable-level *readtable*) 1) ; FIXME: cache current level for speed up.
+              ((and (let ((level (get-c-readtable-level *readtable*))) ; FIXME: cache current level for speed up.
+                      (and level (<= level 1)))  
                     (not (or (boundp token)
                              (fboundp token)
                              (find-c-terminal (symbol-name token)
