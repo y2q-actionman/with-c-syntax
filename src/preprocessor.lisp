@@ -752,12 +752,7 @@ returns NIL."
 ;;; preprocessor-state object held in the main loop.
 
 (defclass preprocessor-state () 
-  ((reader-level :initarg :reader-level :initform +with-c-syntax-default-reader-level+
-                 :type integer
-                 :accessor pp-state-reader-level)
-   (readtable-case :initarg :readtable-case :type keyword
-                   :accessor pp-state-readtable-case)
-   (process-digraph? :initarg :process-digraph? :initform nil
+  ((process-digraph? :initarg :process-digraph? :initform nil
                      :reader pp-state-process-digraph?)
    (file-pathname :initarg :file-pathname :initform nil
                   :accessor pp-state-file-pathname)
@@ -776,10 +771,7 @@ returns NIL."
    (if-section-skip-reason :initform nil
                            :accessor pp-state-if-section-skip-reason)
    (include-stack :initform nil
-                  :accessor pp-state-include-stack))
-  (:default-initargs
-   :readtable-case (or *with-c-syntax-reader-case*
-                       (readtable-case *readtable*))))
+                  :accessor pp-state-include-stack)))
 
 ;; TODO: reduce its usage
 (defmacro with-preprocessor-state-slots ((state) &body body)
@@ -917,7 +909,7 @@ returns NIL."
   (with-preprocessor-state-slots (state)
     (let* ((expansion
              (expand-defined-operator directive-token-list macro-alist
-                                      (pp-state-readtable-case state) 
+                                      (readtable-case *readtable*)
                                       process-digraph? directive-symbol))
            (expansion
              (expand-each-preprocessor-macro-in-list expansion macro-alist state))
@@ -1100,18 +1092,15 @@ returns NIL."
                      :reader saved-include-state-if-section-stack)
    (package :initarg :package :type package
             :reader saved-include-state-package)
-   (reader-level :initarg :reader-level :type integer
-                 :reader saved-include-state-reader-level)
-   (readtable-case :initarg :readtable-case :type keyword
-                   :reader saved-include-state-readtable-case)))
+   (readtable :initarg :readtable :type readtable
+              :reader saved-include-state-readtable)))
 
 (defmethod push-include-state ((state preprocessor-state))
   (with-preprocessor-state-slots (state)
     (let ((i-state (make-instance 'saved-include-state
                                   :if-section-stack if-section-stack
                                   :package *package*
-                                  :reader-level (pp-state-reader-level state)
-                                  :readtable-case (pp-state-readtable-case state))))
+                                  :readtable *readtable*)))
       (push i-state include-stack))))
 
 (defmethod pop-include-state ((state preprocessor-state))
@@ -1123,8 +1112,7 @@ returns NIL."
                :format-control "#if section does not end in included file ~A"
                :format-arguments (list file-pathname)))
       (setf *package* (saved-include-state-package i-state)
-            (pp-state-reader-level state) (saved-include-state-reader-level i-state)
-            (pp-state-readtable-case state) (saved-include-state-readtable-case i-state))
+            *readtable* (saved-include-state-readtable i-state) )
       i-state)))
 
 (defun find-include-<header>-file (header-name &key (errorp t))
@@ -1148,7 +1136,7 @@ returns NIL."
       (find-include-<header>-file header-name :errorp errorp)))
 
 (defun tokenize-included-source-file (header-name state)
-  (let* ((readtable-case (pp-state-readtable-case state))
+  (let* ((readtable-case (readtable-case *readtable*))
          (line-sym (ecase readtable-case
                      ((:upcase :invert) '|LINE|)
                      ((:downcase :preserve) '|line|)))
@@ -1157,9 +1145,9 @@ returns NIL."
          (main-tokens
            ;; Included file is read at same reader level and same readtable-case.
            (with-open-file (stream header-name)
-             (tokenize-source (pp-state-reader-level state)
+             (tokenize-source (get-c-readtable-level *readtable*)
                               stream nil
-                              (pp-state-readtable-case state))))
+                              (readtable-case *readtable*))))
          (end-tokens
            (list
             ;; I once used #pragma for marking the end of inclusion,
@@ -1351,7 +1339,7 @@ returns NIL."
 
 ;;; #pragma
 
-(defun process-with-c-syntax-pragma (directive-symbol directive-token-list state)
+(defun process-with-c-syntax-pragma (directive-symbol directive-token-list)
   (let ((token1 (pop-preprocessor-directive-token directive-token-list directive-symbol)))
     (flet ((raise-unsyntactic-wcs-pragma-error ()
              (error 'preprocess-error
@@ -1382,10 +1370,8 @@ returns NIL."
                       :format-control "Bad argument for '#pragma WITH_C_SYNTAX ~A: ~A ~@[~A~]'"
                       :format-arguments (list token1 token2 token3)))
              (check-no-preprocessor-token directive-token-list directive-symbol)
-             (when new-level
-               (setf (pp-state-reader-level state) new-level))
-             (when new-case
-               (setf (pp-state-readtable-case state) new-case)))))
+             (setf *readtable*
+                   (find-c-readtable new-level new-case)))))
         (otherwise
          (raise-unsyntactic-wcs-pragma-error))))))
 
@@ -1440,9 +1426,9 @@ returns NIL."
     (return-from process-preprocessing-directive nil))
   (let ((first-token
           (pop-preprocessor-directive-token directive-token-list directive-symbol))
-        (readtable-case (pp-state-readtable-case state)))
+        (readtable-case (readtable-case *readtable*)))
     (cond ((pp-with-c-syntax-pragma-p first-token readtable-case)
-           (process-with-c-syntax-pragma directive-symbol directive-token-list state))
+           (process-with-c-syntax-pragma directive-symbol directive-token-list))
           ((pp-stdc-pragma-p first-token readtable-case)
            (process-stdc-pragma directive-symbol directive-token-list state))
           ((pp-once-pragma-p first-token readtable-case)
@@ -1482,7 +1468,7 @@ returns NIL."
             (raise-pp-error))
           (if-let ((directive-symbol
                     (find-preprocessor-directive (symbol-name directive-token)
-                                                 (pp-state-readtable-case state))))
+                                                 (readtable-case *readtable*))))
             (process-preprocessing-directive directive-symbol token-list state)
             (raise-pp-error)))))))
 
@@ -1503,9 +1489,9 @@ returns NIL."
                :format-arguments (list :|_Pragma|)))
       (let ((pragma-tokens
               (with-input-from-string (stream pragma-string)
-                (tokenize-source (pp-state-reader-level state)
+                (tokenize-source (get-c-readtable-level *readtable*)
                                  stream nil
-                                 (pp-state-readtable-case state)))))
+                                 (readtable-case *readtable*)))))
         (process-preprocessing-directive 'with-c-syntax.preprocessor-directive:|pragma|
                                          pragma-tokens
                                          state)))))
@@ -1558,7 +1544,7 @@ returns NIL."
             (mv-cond-let (it it-2)
               ((eq token :end-of-preprocessor-macro-scope)
                (pop macro-alist))
-              ((pp-pragma-operator-p token (pp-state-readtable-case state))
+              ((pp-pragma-operator-p token (readtable-case *readtable*))
                (preprocessor-loop-do-pragma-operator state))
               ;; Part of translation Phase 4 -- preprocessor macro
               ((preprocessor-macro-exists-p macro-alist token)
@@ -1575,14 +1561,14 @@ returns NIL."
               ((find-punctuator (symbol-name token) process-digraph?)
                (push it result-list))
 	      ;; Intern keywords.
-              ((find-c-terminal (symbol-name token) (pp-state-readtable-case state))
+              ((find-c-terminal (symbol-name token) (readtable-case *readtable*))
                (push it result-list))
               ;; with-c-syntax specific: Try to split the token.
-              ((and (<= (pp-state-reader-level state) 1)
+              ((and (<= (get-c-readtable-level *readtable*) 1) ; FIXME: cache current level for speed up.
                     (not (or (boundp token)
                              (fboundp token)
                              (find-c-terminal (symbol-name token)
-                                              (pp-state-readtable-case state))))
+                                              (readtable-case *readtable*))))
                     (preprocessor-try-split token))
                (setf token-list (nconc it-2 token-list)))
               (t
@@ -1617,8 +1603,6 @@ Current workings are below:
   (let* ((pp-state
            (make-instance 'preprocessor-state
                           :token-list token-list
-                          :reader-level reader-level
-                          :readtable-case readtable-case
                           :file-pathname input-file-pathname 
                           :process-digraph? process-digraph))
          (*readtable* (find-c-readtable reader-level readtable-case))
