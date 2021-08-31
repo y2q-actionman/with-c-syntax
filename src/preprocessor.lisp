@@ -875,9 +875,9 @@ returns NIL."
                  (not eval-result))
         (setf if-section-skip-reason if-section-obj)))))
 
-(defun expand-defined-operator (token-list macro-alist readtable-case
-                                process-digraph? directive-symbol)
-  (loop while (preprocessor-token-exists-p token-list)  ; FIXME: this is too slow..
+(defun expand-defined-operator (token-list macro-alist process-digraph? directive-symbol)
+  (loop with readtable-case = (readtable-case *readtable*)
+        while (preprocessor-token-exists-p token-list)  ; FIXME: this is too slow..
         collect
         (let ((token (pop-preprocessor-directive-token token-list directive-symbol :errorp nil)))
           (cond
@@ -909,7 +909,6 @@ returns NIL."
   (with-preprocessor-state-slots (state)
     (let* ((expansion
              (expand-defined-operator directive-token-list macro-alist
-                                      (readtable-case *readtable*)
                                       process-digraph? directive-symbol))
            (expansion
              (expand-each-preprocessor-macro-in-list expansion macro-alist state))
