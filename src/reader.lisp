@@ -734,15 +734,10 @@ If not, returns a next token by `cl:read' after unreading CHAR."
          (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (*second-unread-char* nil)
          (*readtable* (find-c-readtable level readtable-case))
-         (keep-whitespace-default (>= level 2))
-         (process-backslash-newline
-           (case *with-c-syntax-reader-process-backslash-newline*
-             (:auto (>= level +with-c-syntax-default-reader-level+))
-             (otherwise *with-c-syntax-reader-process-backslash-newline*))))
+         (keep-whitespace-default (>= level 2)))
     (loop
       with cp-stream = (make-instance 'physical-source-input-stream
-                                      :stream stream :target-readtable *readtable*
-                                      :phase-2 process-backslash-newline)
+                                      :stream stream :target-readtable *readtable*)
       with in-directive-line = nil
       with directive-tokens-rev = nil
       with in-pragma-operator = nil
