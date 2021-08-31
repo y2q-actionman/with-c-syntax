@@ -876,12 +876,11 @@ returns NIL."
         (setf if-section-skip-reason if-section-obj)))))
 
 (defun expand-defined-operator (token-list macro-alist process-digraph? directive-symbol)
-  (loop with readtable-case = (readtable-case *readtable*)
-        while (preprocessor-token-exists-p token-list)  ; FIXME: this is too slow..
+  (loop while (preprocessor-token-exists-p token-list)  ; FIXME: this is too slow..
         collect
         (let ((token (pop-preprocessor-directive-token token-list directive-symbol :errorp nil)))
           (cond
-            ((pp-defined-operator-p token readtable-case)
+            ((pp-defined-operator-p token)
              (let* ((next-token
                       (pop-preprocessor-directive-token token-list directive-symbol))
                     (param
@@ -1424,13 +1423,12 @@ returns NIL."
           :message "#pragma does not have any arguments.")
     (return-from process-preprocessing-directive nil))
   (let ((first-token
-          (pop-preprocessor-directive-token directive-token-list directive-symbol))
-        (readtable-case (readtable-case *readtable*)))
-    (cond ((pp-with-c-syntax-pragma-p first-token readtable-case)
+          (pop-preprocessor-directive-token directive-token-list directive-symbol)))
+    (cond ((pp-with-c-syntax-pragma-p first-token)
            (process-with-c-syntax-pragma directive-symbol directive-token-list))
-          ((pp-stdc-pragma-p first-token readtable-case)
+          ((pp-stdc-pragma-p first-token)
            (process-stdc-pragma directive-symbol directive-token-list state))
-          ((pp-once-pragma-p first-token readtable-case)
+          ((pp-once-pragma-p first-token)
            (warn 'with-c-syntax-style-warning
                  :message "Sorry, '#pragma once' is under implementation."))
           (t
@@ -1543,7 +1541,7 @@ returns NIL."
             (mv-cond-let (it it-2)
               ((eq token :end-of-preprocessor-macro-scope)
                (pop macro-alist))
-              ((pp-pragma-operator-p token (readtable-case *readtable*))
+              ((pp-pragma-operator-p token)
                (preprocessor-loop-do-pragma-operator state))
               ;; Part of translation Phase 4 -- preprocessor macro
               ((preprocessor-macro-exists-p macro-alist token)

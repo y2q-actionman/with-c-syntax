@@ -39,7 +39,7 @@
 
 
 (defmacro define-case-aware-token-p-function (function-name find-symbol-function symbol)
-  `(defun ,function-name (token readtable-case)
+  `(defun ,function-name (token &optional (readtable-case (readtable-case *readtable*)))
      (and (symbolp token)
           (eq (,find-symbol-function (string token) readtable-case)
               ',symbol))))

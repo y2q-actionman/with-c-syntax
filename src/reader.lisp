@@ -773,12 +773,12 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                (let ((tokens
                        (delete-whitespace-marker   
                         (nreverse (shiftf directive-tokens-rev nil)))))
-                 (when (and (pp-pragma-directive-p (first tokens) (readtable-case *readtable*))
-                            (pp-with-c-syntax-pragma-p (second tokens) (readtable-case *readtable*)))
+                 (when (and (pp-pragma-directive-p (first tokens))
+                            (pp-with-c-syntax-pragma-p (second tokens)))
                    (process-reader-pragma (nthcdr 2 tokens)))))))
            ;; See _Pragma() operator
            ((and (symbolp token)
-                 (pp-pragma-operator-p token (readtable-case *readtable*)))
+                 (pp-pragma-operator-p token))
             (setf in-pragma-operator 0))
            (in-pragma-operator
             (incf in-pragma-operator)
