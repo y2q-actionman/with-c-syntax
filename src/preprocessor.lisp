@@ -1464,8 +1464,7 @@ returns NIL."
           (unless (symbolp directive-token)
             (raise-pp-error))
           (if-let ((directive-symbol
-                    (find-preprocessor-directive (symbol-name directive-token)
-                                                 (readtable-case *readtable*))))
+                    (find-preprocessor-directive (symbol-name directive-token))))
             (process-preprocessing-directive directive-symbol token-list state)
             (raise-pp-error)))))))
 
@@ -1558,15 +1557,14 @@ returns NIL."
               ((find-punctuator (symbol-name token) process-digraph?)
                (push it result-list))
 	      ;; Intern keywords.
-              ((find-c-terminal (symbol-name token) (readtable-case *readtable*))
+              ((find-c-terminal (symbol-name token))
                (push it result-list))
               ;; with-c-syntax specific: Try to split the token.
               ((and (let ((level (get-c-readtable-level *readtable*))) ; FIXME: cache current level for speed up.
                       (and level (<= level 1)))  
                     (not (or (boundp token)
                              (fboundp token)
-                             (find-c-terminal (symbol-name token)
-                                              (readtable-case *readtable*))))
+                             (find-c-terminal (symbol-name token))))
                     (preprocessor-try-split token))
                (setf token-list (nconc it-2 token-list)))
               (t

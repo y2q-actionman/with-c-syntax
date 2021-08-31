@@ -16,7 +16,7 @@
              for upcased = (string-upcase (symbol-name sym))
              collect `(setf (symbol-value (find-symbol ,upcased ',upcased-package-name))
                             ',sym))
-     (defun ,finder-function-name (string readtable-case)
+     (defun ,finder-function-name (string &optional (readtable-case (readtable-case *readtable*)))
        ,@(if docstring `(,docstring))
        (ecase readtable-case
          ((:upcase :invert)
