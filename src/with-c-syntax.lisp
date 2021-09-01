@@ -62,14 +62,10 @@ tries to parse again."
     (t
      (ecase preprocess
        (:preprocess-only
-        (preprocessor body :reader-level reader-level
-                           :readtable-case readtable-case
-                           :input-file-pathname input-file-pathname))
+        (preprocessor body reader-level readtable-case input-file-pathname))
        (t
         `(with-c-syntax (:preprocess nil :return ,return :try-add-{} ,try-add-{})
-           ,@(preprocessor body :reader-level reader-level
-                                :readtable-case readtable-case
-                                :input-file-pathname input-file-pathname)))
+           ,@(preprocessor body reader-level readtable-case input-file-pathname)))
        ((nil)
         (expand-c-syntax body
 		         try-add-{}

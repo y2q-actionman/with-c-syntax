@@ -1574,12 +1574,8 @@ returns NIL."
             (push token result-list)))
          (incf tokens-in-line))))))
 
-(defun preprocessor (token-list
-                     &key (reader-level *with-c-syntax-reader-level*)
-                       (readtable-case (or *with-c-syntax-reader-case*
-                                           (readtable-case *readtable*)))
-                       (input-file-pathname nil)
-                     (process-digraph *with-c-syntax-preprocessor-process-digraph*))
+(defun preprocessor (token-list reader-level readtable-case input-file-pathname
+                     &key (process-digraph *with-c-syntax-preprocessor-process-digraph*))
   "This function preprocesses TOKEN-LIST before parsing.
 
 Current workings are below:

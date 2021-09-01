@@ -803,17 +803,17 @@ the result is wrapped with `with-c-syntax'.
   (let* ((level (or n *with-c-syntax-reader-level*))
          (readtable-case (or *with-c-syntax-reader-case*
                              (readtable-case *readtable*)))
+         (readtable (find-c-readtable level readtable-case))
          (input-file-pathname (ignore-errors (namestring stream)))
          (*previous-readtable* *readtable*)
-         (*readtable* (find-c-readtable level readtable-case))
          (tokens
-           (tokenize-source stream t *readtable*)))
+           (tokenize-source stream t readtable)))
     ;; TODO: Move these parameters to #pragma?
-    `(with-c-syntax (:reader-level ,level
-                     ;; Capture the readtable-case used for reading inside '#{ ... }#'.
-                     ;; FIXME: cleanup this handling, seeing `make-c-readtable'.
-                     :readtable-case ,(or *with-c-syntax-reader-case*
-                                          (readtable-case *readtable*))
+    `(with-c-syntax (;; Capture the readtable parameters used inside '#{ ... }#'.
+                     ;; (I thought passing the readtable parameter directly would be simple,
+                     ;;  but `make-load-form' definition for readtables was required to do so.)
+                     :reader-level ,level
+                     :readtable-case ,readtable-case
                      :input-file-pathname ,input-file-pathname)
        ,@tokens)))
 
