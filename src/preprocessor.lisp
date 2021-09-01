@@ -1143,9 +1143,7 @@ returns NIL."
          (main-tokens
            ;; Included file is read at same reader level and same readtable-case.
            (with-open-file (stream header-name)
-             (tokenize-source (get-c-readtable-level *readtable*)
-                              stream nil
-                              (readtable-case *readtable*))))
+             (tokenize-source stream nil)))
          (end-tokens
            (list
             ;; I once used #pragma for marking the end of inclusion,
@@ -1485,9 +1483,7 @@ returns NIL."
                :format-arguments (list :|_Pragma|)))
       (let ((pragma-tokens
               (with-input-from-string (stream pragma-string)
-                (tokenize-source (get-c-readtable-level *readtable*)
-                                 stream nil
-                                 (readtable-case *readtable*)))))
+                (tokenize-source stream nil))))
         (process-preprocessing-directive 'with-c-syntax.preprocessor-directive:|pragma|
                                          pragma-tokens
                                          state)))))

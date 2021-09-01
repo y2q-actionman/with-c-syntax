@@ -730,13 +730,12 @@ If not, returns a next token by `cl:read' after unreading CHAR."
     (otherwise          ; Not for reader. Pass it to the preprocessor.
      nil)))
 
-(defun tokenize-source (level stream end-with-bracet-sharp readtable-case)
+(defun tokenize-source (stream end-with-bracket-sharp &optional (*readtable* *readtable*))
   "Tokenize C source by doing translation phase 1, 2, and 3.
- LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
+ `*readtable*' must be bound to the C syntax readtable, got by `find-c-readtable'."
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
          (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (*second-unread-char* nil)
-         (*readtable* (find-c-readtable level readtable-case))
          (keep-whitespace-default (>= (get-c-readtable-level *readtable*) 2)))
     (loop
       with cp-stream = (make-instance 'physical-source-input-stream
@@ -749,9 +748,9 @@ If not, returns a next token by `cl:read' after unreading CHAR."
       for token = (handler-case
                       (read-preprocessing-token cp-stream
                                                 (or in-directive-line keep-whitespace-default)
-                                                end-with-bracet-sharp)
+                                                end-with-bracket-sharp)
                     (end-of-file (e)
-                      (if end-with-bracet-sharp
+                      (if end-with-bracket-sharp
                           (error e)
                           (loop-finish))))
       do (cond
@@ -788,7 +787,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                (when (and (stringp pragma-operator-content)
                           (search "WITH_C_SYNTAX" pragma-operator-content))
                    (let ((tokens (with-input-from-string (stream pragma-operator-content)
-                                   (tokenize-source level stream nil readtable-case))))
+                                   (tokenize-source stream nil))))
                      (process-reader-pragma (nthcdr 1 tokens)))))
               (otherwise
                (warn 'with-c-syntax-warning :format-arguments "Unexpected tokenize-source state.")
@@ -802,10 +801,13 @@ the result is wrapped with `with-c-syntax'.
  See `*with-c-syntax-reader-level*' and `*with-c-syntax-reader-case*'."
   (assert (char= char #\{))
   (let* ((level (or n *with-c-syntax-reader-level*))
+         (readtable-case (or *with-c-syntax-reader-case*
+                             (readtable-case *readtable*)))
          (input-file-pathname (ignore-errors (namestring stream)))
          (*previous-readtable* *readtable*)
+         (*readtable* (find-c-readtable level readtable-case))
          (tokens
-           (tokenize-source level stream t *with-c-syntax-reader-case*)))
+           (tokenize-source stream t *readtable*)))
     ;; TODO: Move these parameters to #pragma?
     `(with-c-syntax (:reader-level ,level
                      ;; Capture the readtable-case used for reading inside '#{ ... }#'.
