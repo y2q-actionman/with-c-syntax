@@ -634,7 +634,10 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 
 (defun read-preprocessing-token (stream keep-whitespace recursive-p)
   "Reads a token from STREAM until EOF or '}#' found. Newline is read
- as `+newline-marker+'."
+ as `+newline-marker+'.
+ If KEEP-WHITESPACE is nil, whitespaces except newlines are
+ ignored. (This feature is intended to suppress `+whitespace-marker+'
+ in the macro expansion, for debugging.)"
   (cond
     (*second-unread-char*
      (assert (not (c-whitespace-p *second-unread-char*)))
@@ -734,7 +737,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
          (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (*second-unread-char* nil)
          (*readtable* (find-c-readtable level readtable-case))
-         (keep-whitespace-default (>= level 2)))
+         (keep-whitespace-default (>= (get-c-readtable-level *readtable*) 2)))
     (loop
       with cp-stream = (make-instance 'physical-source-input-stream
                                       :stream stream :target-readtable *readtable*)
