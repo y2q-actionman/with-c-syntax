@@ -66,8 +66,7 @@ tries to parse again."
                            :readtable-case readtable-case
                            :input-file-pathname input-file-pathname))
        (t
-        `(with-c-syntax (:preprocess nil :return ,return :try-add-{} ,try-add-{}
-                         :readtable-case ,readtable-case)
+        `(with-c-syntax (:preprocess nil :return ,return :try-add-{} ,try-add-{})
            ,@(preprocessor body :reader-level reader-level
                                 :readtable-case readtable-case
                                 :input-file-pathname input-file-pathname)))
