@@ -1134,8 +1134,7 @@ returns NIL."
       (find-include-<header>-file header-name :errorp errorp)))
 
 (defun tokenize-included-source-file (header-name state)
-  (let* ((readtable-case (readtable-case *readtable*))
-         (line-sym (ecase readtable-case
+  (let* ((line-sym (ecase (readtable-case *readtable*)
                      ((:upcase :invert) '|LINE|)
                      ((:downcase :preserve) '|line|)))
          (start-line-tokens
