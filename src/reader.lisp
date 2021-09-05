@@ -586,23 +586,13 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   "Calculate the readtable-level (described in
  `*with-c-syntax-reader-level*' docstring) of the READTABLE. If
  READTABLE is not for C syntax, returns NIL."
-  (mv-cond-let (macro-func non-terminating-p)
-    ((get-macro-character #\0 readtable)
-     (cond ((and (eql macro-func #'read-preprocessing-number)
-                 (eq non-terminating-p t))
-            2)
-           ((and (eql macro-func #'read-0x-numeric-literal)
-                 (eq non-terminating-p t))
-            1)
-           (t
-            nil)))
-    ((get-macro-character #\: readtable)
-     (if (and (eql macro-func #'read-lonely-single-symbol)
-              (eq non-terminating-p t))
-         0
-         nil))
-    (t
-     nil)))
+  (switch ((get-macro-character #\0 readtable))
+    (#'read-preprocessing-number 2)
+    (#'read-0x-numeric-literal 1)
+    (otherwise
+     (switch ((get-macro-character #\: readtable))
+       (#'read-lonely-single-symbol 0)
+       (otherwise nil)))))
 
 (defconstant +newline-marker+
   '+newline-marker+
@@ -736,13 +726,18 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
          (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (*second-unread-char* nil)
-         (keep-whitespace-default (>= (get-c-readtable-level *readtable*) 2)))
+         (c-readtable-level (or (get-c-readtable-level *readtable*)
+                                (error 'with-c-syntax-reader-error
+                                       :stream stream
+                                       :format-control "Current readtable ~S is not for C syntax."
+                                       :format-arguments *readtable*)))
+         (keep-whitespace-default (>= c-readtable-level 2)))
     (loop
       with cp-stream = (make-instance 'physical-source-input-stream
                                       :stream stream :target-readtable *readtable*)
       with in-directive-line = nil
       with directive-tokens-rev = nil
-      with in-pragma-operator = nil
+      with in-pragma-operator of-type (or null integer) = nil
       with pragma-operator-content = nil
 
       for token = (handler-case
