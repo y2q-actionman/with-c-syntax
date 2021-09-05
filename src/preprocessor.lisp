@@ -1592,6 +1592,7 @@ Current workings are below:
                           :token-list token-list
                           :file-pathname input-file-pathname 
                           :process-digraph? process-digraph))
+         (*previous-readtable* *readtable*)
          (*readtable* (find-c-readtable reader-level readtable-case))
          (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (pp-state
