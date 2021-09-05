@@ -522,71 +522,78 @@
                 +placemaker-token+
                 (copy-list token-list)))))
 
-(defun expand-concatenate-operator (token1 token2 macro-arg-alist)
-  (flet ((expand-arg-token (token)
-           (if-let ((entry (assoc token macro-arg-alist)))
-             (pp-macro-argument-token-list (cdr entry))
-             (list token))))
-    (multiple-value-bind (t1-before t1-token t1-after)
-        (split-concatenate-operator-left-operand (expand-arg-token token1))
-      (multiple-value-bind (t2-before t2-token t2-after)
-          (split-concatenate-operator-right-operand (expand-arg-token token2))
-        (values
-         (nconc t1-before t1-after)
-         (concatenate-token t1-token t2-token)
-         (nconc t2-before t2-after))))))
+(defun expand-concatenate-operator (token1-list token2-list)
+  (multiple-value-bind (t1-before t1-token t1-after)
+      (split-concatenate-operator-left-operand token1-list)
+    (multiple-value-bind (t2-before t2-token t2-after)
+        (split-concatenate-operator-right-operand token2-list)
+      (values
+       (nconc t1-before t1-after)
+       (concatenate-token t1-token t2-token)
+       (nconc t2-before t2-after)))))
 
 (defun expand-macro-replacement-list (replacement-list macro-arg-alist process-digraph?)
-  (when (or (token-equal-p (first replacement-list) "##")
-            (and process-digraph? (token-equal-p (first replacement-list) "%:%:")))
-    (error 'preprocess-error
-           :format-control "The first operand of '##' does not exists."))
   (loop
+    with rev-expansion = nil
     for token-cons on replacement-list
     as token = (first token-cons)
     as next-token-cons = (if (whitespace-like-token-p (second token-cons))
                              (cddr token-cons)
                              (cdr token-cons))
-    as macro-arg-alist-cons = (if after-concatenation
-                                  nil
-                                  (assoc token macro-arg-alist))
-    as after-concatenation = nil
-    if (or (token-equal-p (car next-token-cons) "##") ; Concatenation.
-           (and process-digraph? (token-equal-p (car next-token-cons) "%:%:")))
-      nconc (let* ((token2-cons (if (whitespace-like-token-p (second next-token-cons))
-                                    (cddr next-token-cons)
-                                    (cdr next-token-cons)))
-                   (token2 (if (endp token2-cons)
-                               (error 'preprocess-error
-                                      :format-control "The second operand of '##' does not exists.")
-                               (car token2-cons))))
-              (multiple-value-bind (before-token-list conc-result after-token-list)
-                  (expand-concatenate-operator token token2 macro-arg-alist)
-                (setf after-concatenation t)
-                (setf token-cons
-                      (list* :loop-on-clause-dummy
-                             conc-result ; The result is re-examined, for 'a ## b ## c'.
-                             (nconc after-token-list
-                                    (rest token2-cons)))) ; removes token2 
-                before-token-list))
-        into expansion
+    as macro-arg-alist-cons = (assoc token macro-arg-alist)
+    
+    if (or (token-equal-p token "##") ; Concatenation.
+           (and process-digraph? (token-equal-p token "%:%:")))
+      do (let* ((token1-list
+                  (loop
+                    initially
+                       (when (null rev-expansion)
+                         (error 'preprocess-error
+                                :format-control "The first operand of '##' does not exists."))
+                    with ret = nil
+                    for i = (pop rev-expansion)
+                    while i
+                    do (push i ret)
+                    while (macro-control-marker-p i)
+                    finally (return ret)))
+                (token2-list
+                  (if (endp next-token-cons)
+                      (error 'preprocess-error
+                             :format-control "The second operand of '##' does not exists.")
+                      (let ((token2 (car next-token-cons)))
+                        (if-let ((entry (assoc token2 macro-arg-alist)))
+                          (pp-macro-argument-token-list (cdr entry))
+                          (list token2))))))
+           (multiple-value-bind (before-token-list conc-result after-token-list)
+               (expand-concatenate-operator token1-list token2-list)
+             (setf token-cons
+                   (list* :loop-on-clause-dummy
+                          (nconc after-token-list
+                                 (rest next-token-cons)))) ; removes token2
+             (nreconcf rev-expansion before-token-list)
+             (push conc-result rev-expansion)))
     else if (or (token-equal-p token "#") ; Stringify.
                 (and process-digraph? (token-equal-p token "%:")))
-           do (when (endp next-token-cons)
-                (error 'preprocess-error
-                       :format-control "The second operand of '#' does not exists."))
-              (setf token-cons (list* :loop-on-clause-dummy (cdr next-token-cons)))
-           and collect (expand-stringify-operator (car next-token-cons) macro-arg-alist)
-                 into expansion
+           do (cond
+                ((endp next-token-cons)
+                 (error 'preprocess-error
+                        :format-control "The second operand of '#' does not exists."))
+                ((token-equal-p (car next-token-cons) "##")
+                 ;; Special case. See `with-c-syntax.test::test-pp-6.10.3.3-example'.
+                 (push token rev-expansion))
+                (t
+                 (setf token-cons (list* :loop-on-clause-dummy (cdr next-token-cons)))
+                 (push (expand-stringify-operator (car next-token-cons) macro-arg-alist)
+                       rev-expansion)))
     else if macro-arg-alist-cons        ; Replacement
-           append (pp-macro-argument-token-list-expansion (cdr macro-arg-alist-cons))
-             into expansion
-    else if (eq token +placemaker-token+)
-           do (progn) ; Placemaker-token should not be left after macro expansion. 
-    else 
-      collect token into expansion
+           do (revappendf rev-expansion
+                          (pp-macro-argument-token-list-expansion (cdr macro-arg-alist-cons)))
+    else
+      do (push token rev-expansion)
     finally
-       (return (delete-consecutive-whitespace-marker expansion))))
+       (return (delete-consecutive-whitespace-marker
+                (delete +placemaker-token+ ; Placemaker-token should not be left after macro expansion. 
+                        (nreverse rev-expansion))))))
 
 (defun expand-function-like-macro (macro-definition rest-token-list macro-alist pp-state)
   (multiple-value-bind (macro-arg-list tail-of-rest-token-list new-macro-alist)

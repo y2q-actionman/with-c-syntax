@@ -544,6 +544,16 @@
       EXPAND_STR(CAT3(1 ,. , 2))
       }#)))
 
+(test test-pp-concatenate
+  (is.equal.wcs "x+y+z"
+    #2{
+    #define xyz "x+y+z"
+    #define xy "x_y"
+    #define yz "y_z"
+    #define CAT3(x,y,xy) x##y##xy
+    CAT3(x,y,z)
+    }#))
+
 (test test-pp-weird-rescan
   ;; From mcpp-2.7.2 cpp-test.html#2.7.6
   (is.wcs.pp.equal
