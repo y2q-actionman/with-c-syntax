@@ -1,10 +1,5 @@
 (in-package #:with-c-syntax.core)
 
-(defvar *with-c-syntax-preprocessor-process-digraph* nil
-  "Determines whether preprocessor replaces digraphs.
- If this is true, replacement occurs but `with-c-syntax-style-warning' is signalled.
- If this is `:no-warn', replacement occurs and the style-warning is not signalled.")
-
 (defun find-asdf-system-relative-file (base name)
   "See `find-with-c-syntax-default-include-file'"
   (let* ((name-list (if (listp name)
@@ -26,28 +21,6 @@
   "List of functions used for searching include files with '#include <...>' style.
  Each function should take one argument and returns a pathname, or nil if failed.
  See `find-include-<header>-file'.")
-
-;;; C punctuators.
-
-(defun find-punctuator (name process-digraph?)
-  (when-let (punctuator (find-symbol name '#:with-c-syntax.punctuator))
-    (when-let (replace (find-digraph-replacement punctuator)) ; Check digraph
-      (unless (eq process-digraph? :no-warn)
-        (warn 'with-c-syntax-style-warning
-              :message (format nil "Digraph sequence '~A' (means ~A) found."
-                               punctuator replace)))
-      (when process-digraph?
-        (setf punctuator replace)))
-    punctuator))
-
-(defun find-digraph-replacement (punctuator)
-  (case punctuator
-    (with-c-syntax.punctuator:|<:| 'with-c-syntax.syntax:[)
-    (with-c-syntax.punctuator:|:>| 'with-c-syntax.syntax:])
-    (with-c-syntax.punctuator:|<%| 'with-c-syntax.syntax:{)
-    (with-c-syntax.punctuator:|%>| 'with-c-syntax.syntax:})
-    (with-c-syntax.punctuator:|%:| 'with-c-syntax.punctuator:|#|)
-    (with-c-syntax.punctuator:|%:%:| 'with-c-syntax.punctuator:|##|)))
 
 ;;; Preprocessor macro expansion
 
@@ -535,7 +508,7 @@
        (concatenate-token t1-token t2-token)
        (nconc t2-before t2-after)))))
 
-(defun expand-macro-replacement-list (replacement-list macro-arg-alist process-digraph?)
+(defun expand-macro-replacement-list (replacement-list macro-arg-alist)
   (loop
     with rev-expansion = nil
     for token-cons on replacement-list
@@ -546,7 +519,7 @@
     as macro-arg-alist-cons = (assoc token macro-arg-alist)
     
     if (or (token-equal-p token "##") ; Concatenation.
-           (and process-digraph? (token-equal-p token "%:%:")))
+           (and *with-c-syntax-preprocessor-process-digraph* (token-equal-p token "%:%:")))
       do (let* ((token1-list
                   (loop
                     initially
@@ -576,7 +549,7 @@
              (nreconcf rev-expansion before-token-list)
              (push conc-result rev-expansion)))
     else if (or (token-equal-p token "#") ; Stringify.
-                (and process-digraph? (token-equal-p token "%:")))
+                (and *with-c-syntax-preprocessor-process-digraph* (token-equal-p token "%:")))
            do (cond
                 ((endp next-token-cons)
                  (error 'preprocess-error
@@ -607,8 +580,7 @@
             (make-macro-arguments-alist macro-definition macro-arg-list)))
       (values 
        (expand-macro-replacement-list (macro-definition-replacement-list macro-definition)
-                                      macro-arg-alist
-                                      (pp-state-process-digraph? pp-state))
+                                      macro-arg-alist)
        tail-of-rest-token-list
        new-macro-alist))))
 
@@ -620,8 +592,7 @@
 
 (defun expand-object-like-macro (macro-definition pp-state)
   (expand-macro-replacement-list (macro-definition-replacement-list macro-definition)
-                                 nil
-                                 (pp-state-process-digraph? pp-state)))
+                                 nil))
 
 (defun expand-predefined-macro (predefined-macro pp-state)
   (cond ((boundp predefined-macro)
@@ -762,9 +733,7 @@ returns NIL."
 ;;; preprocessor-state object held in the main loop.
 
 (defclass preprocessor-state () 
-  ((process-digraph? :initarg :process-digraph? :initform nil
-                     :reader pp-state-process-digraph?)
-   (file-pathname :initarg :file-pathname :initform nil
+  ((file-pathname :initarg :file-pathname :initform nil
                   :accessor pp-state-file-pathname)
    (token-list :initarg :token-list :type list
                :accessor pp-state-token-list)
@@ -785,8 +754,7 @@ returns NIL."
 
 ;; TODO: reduce its usage
 (defmacro with-preprocessor-state-slots ((state) &body body)
-  `(with-accessors ((process-digraph? pp-state-process-digraph?)
-                    (file-pathname pp-state-file-pathname)
+  `(with-accessors ((file-pathname pp-state-file-pathname)
                     (token-list pp-state-token-list)
                     (result-list pp-state-result-list)
                     (line-number pp-state-line-number)
@@ -885,7 +853,7 @@ returns NIL."
                  (not eval-result))
         (setf if-section-skip-reason if-section-obj)))))
 
-(defun expand-defined-operator (token-list macro-alist process-digraph? directive-symbol)
+(defun expand-defined-operator (token-list macro-alist directive-symbol)
   (loop while (preprocessor-token-exists-p token-list)  ; FIXME: this is too slow..
         collect
         (let ((token (pop-preprocessor-directive-token token-list directive-symbol :errorp nil)))
@@ -905,7 +873,7 @@ returns NIL."
 	                         :format-arguments (list r-paren?)))))
                           next-token)))
                (when (or (not (symbolp param))
-                         (find-punctuator (symbol-name param) process-digraph?))
+                         (find-punctuator (symbol-name param)))
                  (error
                   'preprocess-error
 	          :format-control "'defined' operator takes only identifiers. '~A' was passed."
@@ -918,13 +886,13 @@ returns NIL."
   (with-preprocessor-state-slots (state)
     (let* ((expansion
              (expand-defined-operator directive-token-list macro-alist
-                                      process-digraph? directive-symbol))
+                                      directive-symbol))
            (expansion
              (expand-each-preprocessor-macro-in-list expansion macro-alist state))
            (expansion
              (remove-if #'macro-scoping-marker-p expansion)) ; TODO: move to the next lexer?
            (lexer
-             (pp-if-expression-lexer expansion process-digraph?))
+             (pp-if-expression-lexer expansion))
            (parsed-form
              (handler-case
                  (with-c-compilation-unit (nil t)
@@ -1451,7 +1419,7 @@ returns NIL."
   (with-preprocessor-state-slots (state)
     (and (zerop tokens-in-line)
          (or (token-equal-p token "#")
-             (and process-digraph? (token-equal-p token "%:"))))))
+             (and *with-c-syntax-preprocessor-process-digraph* (token-equal-p token "%:"))))))
 
 (defun preprocessor-loop-do-directives (state)
   "Process preprocessor directives. This is tranlation phase 4."
@@ -1559,7 +1527,7 @@ returns NIL."
                               (append expansion-list ; Rescan the expansion results.
                                       rest-tokens))))))
 	      ;; Intern punctuators, includes digraphs.
-              ((find-punctuator (symbol-name token) process-digraph?)
+              ((find-punctuator (symbol-name token))
                (push it result-list))
 	      ;; Intern keywords.
               ((find-c-terminal (symbol-name token))
@@ -1583,8 +1551,7 @@ returns NIL."
             (push token result-list)))
          (incf tokens-in-line))))))
 
-(defun preprocessor (token-list reader-level readtable-case input-file-pathname
-                     &key (process-digraph *with-c-syntax-preprocessor-process-digraph*))
+(defun preprocessor (token-list reader-level readtable-case input-file-pathname)
   "This function preprocesses TOKEN-LIST before parsing.
 
 Current workings are below:
@@ -1600,8 +1567,7 @@ Current workings are below:
   (let* ((pp-state
            (make-instance 'preprocessor-state
                           :token-list token-list
-                          :file-pathname input-file-pathname 
-                          :process-digraph? process-digraph))
+                          :file-pathname input-file-pathname))
          (*previous-readtable* *readtable*)
          (*readtable* (find-c-readtable reader-level readtable-case))
          (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.

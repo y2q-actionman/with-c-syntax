@@ -1,8 +1,36 @@
 (in-package #:with-c-syntax.core)
 
+;;; C punctuators.
+
+(defvar *with-c-syntax-preprocessor-process-digraph* nil
+  "Determines whether preprocessor replaces digraphs.
+ If this is true, replacement occurs but `with-c-syntax-style-warning' is signalled.
+ If this is `:no-warn', replacement occurs and the style-warning is not signalled.")
+
+(defun find-punctuator (name
+                        &optional (process-digraph? *with-c-syntax-preprocessor-process-digraph*))
+  (when-let (punctuator (find-symbol name '#:with-c-syntax.punctuator))
+    (when-let (replace (find-digraph-replacement punctuator)) ; Check digraph
+      (unless (eq process-digraph? :no-warn)
+        (warn 'with-c-syntax-style-warning
+              :message (format nil "Digraph sequence '~A' (means ~A) found."
+                               punctuator replace)))
+      (when process-digraph?
+        (setf punctuator replace)))
+    punctuator))
+
+(defun find-digraph-replacement (punctuator)
+  (case punctuator
+    (with-c-syntax.punctuator:|<:| 'with-c-syntax.syntax:[)
+    (with-c-syntax.punctuator:|:>| 'with-c-syntax.syntax:])
+    (with-c-syntax.punctuator:|<%| 'with-c-syntax.syntax:{)
+    (with-c-syntax.punctuator:|%>| 'with-c-syntax.syntax:})
+    (with-c-syntax.punctuator:|%:| 'with-c-syntax.punctuator:|#|)
+    (with-c-syntax.punctuator:|%:%:| 'with-c-syntax.punctuator:|##|)))
+
 ;;; Lexer for '#if' preprocessor-directive.
 
-(defun pp-if-expression-lexer (token-list process-digraph?)
+(defun pp-if-expression-lexer (token-list)
   #'(lambda ()
       (if
        (null token-list)
@@ -13,7 +41,7 @@
             (values 'lisp-expression nil))
            (symbol
             (mv-cond-let (cond-var)
-              ((find-punctuator (symbol-name token) process-digraph?)
+              ((find-punctuator (symbol-name token))
                (values cond-var cond-var))
               (t
                ;; In C99, remaining identifiers are replaced to 0.
