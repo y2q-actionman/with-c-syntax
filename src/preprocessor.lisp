@@ -340,7 +340,7 @@
   (:method ((prev-token preprocessing-number))
     t)
   (:method ((prev-token symbol))
-    (not (find-punctuator (symbol-name prev-token) t))))
+    (not (find-punctuator (symbol-name prev-token) :no-warn))))
 
 (defun expand-stringify-operator (token macro-arg-alist)
   (unless (symbolp token)
@@ -376,7 +376,7 @@
                 (princ "\"" out))
                ((symbolp i)
                 (assert (not (macro-control-marker-p i)))
-                (when (and (not (find-punctuator (symbol-name i) t))
+                (when (and (not (find-punctuator (symbol-name i) :no-warn))
                            (stringification-separator-required-p prev))
                   (write-char #\space out))
                 (princ i out))
