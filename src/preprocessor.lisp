@@ -701,7 +701,7 @@ returns NIL."
   (mv-cond-let (found trimed)
     ;; -- Operator precedence 1 --
     ;; TODO: add '.' and '->' operator.
-    ((find-operator-on-suffix 'with-c-syntax.syntax:++ symbol))
+    ((find-operator-on-suffix 'with-c-syntax.syntax:++ symbol)) ; FIXME: what to do on '+constant++ 1' ?
     ((find-operator-on-suffix 'with-c-syntax.syntax:-- symbol))
     ;; -- Operator precedence 2 --
     ((find-operator-on-prefix 'with-c-syntax.syntax:++ symbol))

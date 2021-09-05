@@ -1103,6 +1103,7 @@ This is not intended for calling directly. The `va_start' macro uses this."
 	 (ex-code
 	   `(block nil
 	      (tagbody
+                 ;; TODO: setjmp() traversal support here?
 		 ,@(butlast stat-codes)
 		 ,ex-last-code))))
     (expand-toplevel :statement
