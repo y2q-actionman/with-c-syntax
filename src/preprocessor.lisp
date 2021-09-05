@@ -484,7 +484,7 @@
                          (preprocessing-number-string token2)))
 
 (defun split-list-at (list pos)
-  (loop with target = '#:unspecific
+  (loop with target = '#0=#:unspecific
         for count from 0
         for i in list
         if (< count pos)
@@ -494,6 +494,9 @@
         else
           collect i into after
         finally
+           (when (eq target '#0#)
+             (error "split-list-at POS '~D' is out-of-range of LIST ~A."
+                    pos list))
            (return (values before target after))))
 
 (defun split-concatenate-operator-left-operand (token-list)
