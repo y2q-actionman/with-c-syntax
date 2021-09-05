@@ -5,9 +5,8 @@
 syntax into Common Lisp. (Yes, this package is not for practical
 coding, I think.)
 
-At this stage, this package has almost all features of ISO C 90
-freestanding implementation. (The lacking part is the full
-implementation of the C Preprocessor.)
+At this stage, this package has all features of ISO C 90 freestanding
+implementation.
 
 * News
 ** 2021-9-5
