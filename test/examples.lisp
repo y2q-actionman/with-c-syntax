@@ -358,3 +358,34 @@ int my-cl-max-test (x, y, z) {
    EXPAND_STR(CAT(1,.2))
    }#))
 
+#{
+#define TEST_MACRO_DEFINITION
+
+int test-macro-defined-p () {
+#ifdef TEST_MACRO_DEFINITION
+  return t;
+#else
+  return nil;
+#endif
+}
+}#
+
+(defun see-features-example ()
+  #{
+  #if `(member :sbcl *features* :test 'eq)
+  format(nil, "I am SBCL: ~A", lisp-implementation-version());
+  #elif `(member :allegro *features* :test 'eq)
+  format(nil, "I am ALLEGRO: ~A", lisp-implementation-version());
+  #else
+  "Under implementation";
+  #endif
+  }#)
+
+(test test-readme-conditional-inclusion
+  (is (test-macro-defined-p))
+  (is (equal
+       (see-features-example)
+       #+sbcl (format nil "I am SBCL: ~A" (lisp-implementation-version))
+       #+allegro (format nil "I am ALLEGRO: ~A" (lisp-implementation-version))
+       #-(or sbcl allegro) "Under implementation"
+       )))

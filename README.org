@@ -228,8 +228,6 @@ However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/bl
 
 ** C Preprocessor
 
-*** =#if= and =*features*=
-
 *** C Macros
 
     =#define= can be used. This is a well-known MAX macro example.
@@ -283,9 +281,59 @@ However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/bl
 
     (Yes, you can use these transformation more freely in Lisp macro!)
 
+*** Conditional Inclusion
+
+    =#if= family is supported. Simple example:
+
+    #+begin_src lisp
+      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+      #{
+      #define TEST_MACRO_DEFINITION
+
+      int test-macro-defined-p () {
+      #ifdef TEST_MACRO_DEFINITION
+	return t;
+      #else
+	return nil;
+      #endif
+      }
+      }#
+
+      (test-macro-defined-p) ; => t
+    #+end_src
+
+    =#if= also works as expected. It can evaluate any Lisp expressions
+    using =`= syntax. This feature enables to use =*features*= by
+    =#if= conditionals:
+
+    #+begin_src lisp
+      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+      (defun see-features-example ()
+	#{
+	#if `(member :sbcl *features* :test 'eq)
+	format(nil, "I am SBCL: ~A", lisp-implementation-version());
+	#elif `(member :allegro *features* :test 'eq)
+	format(nil, "I am ALLEGRO: ~A", lisp-implementation-version());
+	#else
+	"Under implementation";
+	#endif
+	}#)
+
+      (see-features-example)
+      ;; On SBCL
+      ;; => "I am SBCL: 2.1.7"
+      ;; On Allegro
+      ;; => "I am ALLEGRO: 10.1 [64-bit Mac OS X (Intel) *SMP*] (Jul 6, 2018 18:44)"
+      ;; On other implementations
+      ;; => "Under implementation"
+    #+end_src
+
 *** =#include=
 
     
+*** pragmas    
    
 
 * How to load
