@@ -22,7 +22,7 @@ In level 0, these reader macros are installed.
 - ':' :: Reads a solely ':' as a symbol. Not a solely one (like
          `cl:cons') works as a normal package marker.
 
-Level 0 is almost comatible with the standard syntax. However, we need
+Level 0 is almost compatible with the standard syntax. However, we need
 many escapes for using C operators.
 
 
@@ -41,7 +41,7 @@ In level 1, these reader macros are installed.
   (e.g. Use '|A B C|' instead of 'a| |b| |c').
 - '{', '}', '[', ']' :: These become a terminating character, and read
   as a symbol.
-- '`' :: '`' reads a next s-exp in `*previous-syntax*' readtable. This
+- '`' :: '`' reads a next s-exp in `*previous-readtable*' readtable. This
   works as an escape from '#{' and '}#'. The 'backquote' functionality
   is lost.
 - '.' :: Reads a solely '.' as a symbol. The 'consing dot'
@@ -92,7 +92,8 @@ And, these characters are changed:
 - Digit characters (0,1,2,3,4,5,6,7,8,9) are read as a C numeric
   literals.
 - The single-quote (') works as a character literal of C. The `quote'
-  functionality is lost.
+  functionality is lost. (This prevents the Lisp syntax extremely, so
+  enabled only in level 2).
 
 In this level, there is no compatibilities between symbols of Common
 Lisp.  Especially, for denoting a symbol consists of terminating
@@ -109,7 +110,7 @@ wrapping `with-c-syntax' form.
 When this is nil, the `readtable-case' of the current `*readtable*' at
 '#{' is used." )
 
-(defvar *previous-syntax* (copy-readtable nil)
+(defvar *previous-readtable* (named-readtables:find-readtable :standard)
   "Holds the readtable used by #\` syntax.
 This is bound by '#{' read macro to the `*readtable*' at that time.")
 
@@ -118,14 +119,14 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
  for implementing '...' and '%:%:'.")
 
 
-(defun read-in-previous-syntax (stream char)
-  (when (eq *readtable* *previous-syntax*)
+(defun read-in-previous-readtable (stream char)
+  (when (eq *readtable* *previous-readtable*)
     (error 'with-c-syntax-reader-error
            :stream stream
-           :format-control "read-in-previous-syntax used recursively by char ~C"
+           :format-control "read-in-previous-readtable used recursively by char ~C"
            :format-arguments (list char)))
-  (let ((*readtable* *previous-syntax*))
-    (read stream t nil t)))
+  (let ((*readtable* *previous-readtable*))
+    (read-preserving-whitespace stream t nil t)))
 
 (defun read-single-character-symbol (stream char)
   (declare (ignore stream))
@@ -137,7 +138,7 @@ This is bound by '#{' read macro to the `*readtable*' at that time.")
     (declare (dynamic-extent buf))
     (with-input-from-string (buf-stream buf)
       (with-open-stream (conc-stream (make-concatenated-stream buf-stream stream))
-        (read conc-stream eof-error-p eof-value recursive-p)))))
+        (read-preserving-whitespace conc-stream eof-error-p eof-value recursive-p)))))
 
 (defun read-lonely-single-symbol (stream char)
   "If the next character in STREAM is terminating, returns a symbol made of CHAR.
@@ -161,17 +162,18 @@ If not, returns a next token by `cl:read' after unreading CHAR."
 (defconstant +wcs-end-marker+ '}#)
 
 (defun read-right-curly-bracket (stream char)
+  (assert (char= char #\}))
   (case (peek-char nil stream nil nil t)
     (#\#                                ; '}#'
      (read-char stream t nil t)
      +wcs-end-marker+)
     (t
-     (read-single-character-symbol stream char))))
+     (intern "}"))))
 
 (defun read-slash-comment (stream char
                            &optional (next-function #'read-lonely-single-symbol))
   ;; We count skipped newlines into the stream
-  ;; (`physical-source-input-stream'), for __LINE__.
+  ;; (`physical-source-input-stream')  or return it, for __LINE__.
   (case (peek-char nil stream nil nil t)
     (#\/
      (read-line stream t nil t)
@@ -187,12 +189,14 @@ If not, returns a next token by `cl:read' after unreading CHAR."
        if (eql c #\newline)
          count it into newlines
        finally
+          (adjust-newline-gap stream newlines)
           (return
-            (cond ((zerop newlines)
-                   (values))
-                  (t
-                   (adjust-newline-gap stream (1- newlines))
-                   +newline-marker+)))))
+            (cond
+              ((eql #\newline (skip-c-whitespace stream))
+               (read-char stream t nil t)
+               +newline-marker+)
+              (t
+               (values))))))
     (otherwise
      (funcall next-function stream char))))
 
@@ -320,7 +324,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (let ((next (peek-char nil stream nil nil t)))
     (cond ((and next
                 (digit-char-p next 10))
-           (read-numeric-literal stream char))
+           (read-preprocessing-number stream char))
           ((eql next #\.)
            (read-char stream t nil t)
            (cond ((eql #\. (peek-char nil stream nil nil t))
@@ -330,7 +334,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                   (setf *second-unread-char* #\.) ; We can't use `unread-char' because `peek-char' was used above.
                   (intern "."))))
           (t
-           (read-single-character-symbol stream char)))))
+           (intern ".")))))
 
 (defun read-single-or-compound-assign (stream char)
   (case (peek-char nil stream nil nil t)
@@ -338,7 +342,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
      (read-char stream t nil t)
      (symbolicate char #\=))
     (otherwise
-     (read-single-character-symbol stream char))))
+     (symbolicate char))))
 
 (defun read-plus-like-symbol (stream char)
   "For '+', '&', '|'. They may be '+', '++', or '+='"
@@ -416,7 +420,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
      (read-char stream t nil t)
      (intern ":>"))                     ; digraph ':>'
     (t
-     (read-single-character-symbol stream char))))
+     (intern ":"))))
 
 (defun read-sharp (stream char)
   (assert (char= char #\#))
@@ -425,210 +429,15 @@ If not, returns a next token by `cl:read' after unreading CHAR."
      (read-char stream t nil t)
      (intern "##"))
     (t
-     (read-single-character-symbol stream char))))
+     (intern "#"))))
 
-(defun read-preprocessing-number (stream c0)
-  "Reads a preprocessing number token, defined in
-  \"6.4.8 Preprocessing numbers\" in ISO/IEC 9899:1999."
-  ;; pp-number:
-  ;;   digit
-  ;;   . digit
-  ;;   pp-number digit
-  ;;   pp-number identifier-nondigit
-  ;;   pp-number e sign
-  ;;   pp-number E sign
-  ;;   pp-number p sign
-  ;;   pp-number P sign
-  ;;   pp-number .
-  (with-output-to-string (out)
-    (write-char c0 out)                 ; Write the first char.
-    (loop for char = (read-char stream nil nil t)
-          while char
-          if (or (alphanumericp char)
-                 (char= char #\_)
-                 (char= char #\.))
-            do (write-char char out)
-               (case char
-                 ((#\e #\E #\p #\P)
-                  (let ((next (peek-char nil stream nil nil t)))
-                    (case next
-                      ((#\+ #\-)
-                       (read-char stream t nil t)
-                       (write-char next out))))))
-          else
-            if (char= char #\\)  ; May be an universal-character-name.
-              do (let ((esc (read-char stream t nil t)))
-                   (case esc
-                     (#\u
-                      (write-char (read-universal-character-name stream 4) out))
-                     (#\U
-                      (write-char (read-universal-character-name stream 8) out))
-                     (otherwise
-                      (error 'with-c-syntax-reader-error
-                             :stream stream
-                             :format-control "Bad escaped character in number: ~C."
-                             :format-arguments (list esc)))))
-          else
-            do (unread-char char stream)
-               (loop-finish))))
-
-(defun find-numeric-literal-type (pp-number-string)
-  "Looks PP-NUMBER-STRING and returns its radix (integer) and type (:float or :integer)."
-  (flet ((find-decimal-float-marker ()
-           (find-if (lambda (c) (member c '(#\. #\e #\E))) pp-number-string))
-         (find-hexadecimal-float-marker ()
-           (find-if (lambda (c) (member c '(#\. #\p #\P))) pp-number-string)))
-    ;; See prefix.
-    (case (char pp-number-string 0)
-      (#\.
-       (values 10 t)) ; fractional-constant, a part of decimal-floating-constant.
-      (#\0
-       (if (length= 1 pp-number-string) ; '0'
-           (values 8 nil)
-           (case (char pp-number-string 1)
-             ((#\b #\B)                 ; binary-constant. Since C23.
-              (values 2 nil))
-             ((#\x #\X) ; hexadecimal-constant or hexadecimal-floating-constant.
-              (values 16 (find-hexadecimal-float-marker)))
-             (otherwise
-              ;; May be octal (like '007' or '0u'), or decimal float ('0.').
-              (if (find-decimal-float-marker)
-                  (values 10 t)
-                  (values 8 nil))))))
-      ((#\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9) ; decimal-constant or decimal-floating-constant
-       (values 10 (find-decimal-float-marker)))
-      (otherwise       ; This is a bug of `read-preprocessing-number'.
-       (error 'with-c-syntax-reader-error
-              ; FIXME: :stream stream
-              :format-control "~A contains an unknown prefix as a numeric constant."
-              :format-arguments (list pp-number-string))))))
-
-(defun number-prefix-length (radix)
-  (ecase radix
-    ((10 8) 0)
-    ((2 16) 2)))
-
-(defun read-integer-constant (pp-number-string radix)
-  (let ((string (make-array (length pp-number-string)
-                            :element-type 'character :fill-pointer 0))
-        (integer-suffix-exists nil)
-        (index nil))
-    (with-input-from-string (stream pp-number-string :start (number-prefix-length radix)
-                                                     :index index)
-      (loop for c = (read-char stream nil nil)
-            while c
-            do (cond
-                 ((digit-char-p c radix)
-                  (vector-push c string))
-                 ((member c '(#\u #\U #\l #\L)) ; Integer suffixes
-                  (setf integer-suffix-exists t)
-                  (unread-char c stream)
-                  (loop-finish))
-                 (t
-                  (error 'with-c-syntax-reader-error
-                         ; FIXME: :stream stream
-                         :format-control "Integer constant '~A' contains invalid char '~C' (radix ~D)."
-                         :format-arguments (list pp-number-string c radix))))))
-    (let ((integer-type (list '|int|)))
-      (when integer-suffix-exists
-        (flet ((suffix-to-numeric-type (l-suffix u-suffix)
-                 "See `+numeric-types-alist+'"
-                 `(,@(ecase (length l-suffix)
-                       (0 nil)
-                       (1 '(|long|))
-                       (2 '(|long| |long|)))
-                   ,@(if u-suffix
-                         '(|unsigned|)))))
-          (or
-           (cl-ppcre:register-groups-bind (l-suffix)
-               ("^[uU](|[lL]|ll|LL)$" pp-number-string :start index :sharedp t)
-             (setf integer-type
-                   (suffix-to-numeric-type l-suffix t)))
-           (cl-ppcre:register-groups-bind (l-suffix u-suffix)
-               ("^([lL]|ll|LL)([uU]?)$" pp-number-string :start index :sharedp t)
-             (setf integer-type
-                   (suffix-to-numeric-type l-suffix (not (length= 0 u-suffix)))))
-           (error 'with-c-syntax-reader-error
-                  ; FIXME: :stream stream
-                  :format-control "Integer constant '~A' contains invalid suffix '~A' (radix ~D)."
-                  :format-arguments (list pp-number-string (subseq pp-number-string index))))))
-      (values
-       (parse-integer string :radix radix)
-       integer-type))))
-
-(defun find-lisp-type-by-c-floating-suffix (suffix)
-  (cond ((or (null suffix) (string= suffix "")) 'double-float)
-        ((string-equal suffix "f") 'single-float)
-        ((string-equal suffix "l") 'long-float)
-        (t (assert nil () "Unknown float suffix ~A" suffix))))
-
-(defun read-decimal-floating-constant (pp-number-string)
-  ;; See '6.4.4.2 Floating Constants' in ISO/IEC 9899:1999.
-  (flet ((read-decimal-float (fractional exponent suffix)
-           (let ((lisp-float-string
-                   (format nil "~A~C~A"
-                           fractional
-                           (ecase (find-lisp-type-by-c-floating-suffix suffix)
-                             (single-float #\f)
-                             (double-float #\d)
-                             (long-float #\l))
-                           exponent)))
-             (with-standard-io-syntax
-               (read-from-string lisp-float-string)))))
-    (or
-     (cl-ppcre:register-groups-bind (fractional exponent suffix)
-         ("^([0-9]*\\.[0-9]+|[0-9]+\\.)(?:[eE]([+-]?[0-9]+)|(?:))([flFL]?)$"
-          pp-number-string :sharedp t)
-       (read-decimal-float fractional
-                           (if (or (null exponent) (string= exponent ""))
-                               "0"
-                               exponent)
-                           suffix))
-     (cl-ppcre:register-groups-bind (fractional exponent suffix)
-         ("^([0-9]+)[eE]([+-]?[0-9]+)([flFL]?)$"
-          pp-number-string :sharedp t)
-       (read-decimal-float fractional exponent suffix))
-     (error 'with-c-syntax-reader-error
-            ; FIXME: :stream stream
-            :format-control "Decimal floating constant '~A' cannot be read."
-            :format-arguments (list pp-number-string)))))
-
-(defun read-hexadecimal-floating-constant (pp-number-string)
-  ;; See '6.4.4.2 Floating Constants' in ISO/IEC 9899:1999.
-  (flet ((read-hex-float (int-part frac-part exponent suffix)
-           (let* ((prototype (coerce 1 (find-lisp-type-by-c-floating-suffix suffix)))
-                  (significand-string (format nil "~A~A" int-part frac-part)) ; scales frac-part to integer.
-                  (significand-int (parse-integer significand-string :radix 16))
-                  (frac-part-length (length frac-part))
-                  (exp-num (+ (if exponent (parse-integer exponent :radix 10) 0)
-                              (* -4 frac-part-length)))) ; Decrease exponent corresponding to the scaling above.
-             ;; Inverse of `integer-decode-float'. See the Hyperspec.
-             (scale-float (float significand-int prototype)
-                          exp-num))))
-    (or
-     (cl-ppcre:register-groups-bind (int-part frac-part exponent suffix)
-         ("^0[xX]([0-9a-fA-F]*)\\.([0-9a-fA-F]+)[pP]([+-]?[0-9]+)([flFL]?)$"
-          pp-number-string :sharedp t)
-       (read-hex-float int-part frac-part exponent suffix))
-     (cl-ppcre:register-groups-bind (int-part exponent suffix)
-         ("^0[xX]([0-9a-fA-F]+)\\.?[pP]([+-]?[0-9]+)([flFL]?)$"
-          pp-number-string :sharedp t)
-       (read-hex-float int-part "" exponent suffix))
-     (error 'with-c-syntax-reader-error
-            ; FIXME: :stream stream
-            :format-control "Hexadecimal floating constant '~A' cannot be read."
-            :format-arguments (list pp-number-string)))))
-
-(defun read-numeric-literal (stream c0)
-  "Read a C numeric literal."
-  (let ((pp-number (read-preprocessing-number stream c0)))
-    (multiple-value-bind (radix floatp)
-        (find-numeric-literal-type pp-number)
-      (if floatp
-          (ecase radix
-            (10 (read-decimal-floating-constant pp-number))
-            (16 (read-hexadecimal-floating-constant pp-number)))
-          (read-integer-constant pp-number radix)))))
+(defun read-sharp-as-dispatching-macro (stream char num-arg)
+  (when num-arg
+    (error 'with-c-syntax-reader-error
+           :stream stream
+           :format-control "Preprocessor-directive like '#' syntax does not take a numeric arg."))
+  (unread-char char stream)
+  (intern "#"))
 
 (defun read-0x-numeric-literal (stream c0)
   "Read hexadecimal numeric literal of C."
@@ -636,114 +445,204 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   (let ((next (peek-char nil stream nil nil t)))
     (if (and next
              (char-equal next #\x))
-        (read-numeric-literal stream c0)
+        (read-preprocessing-number stream c0)
         (let ((*readtable* (copy-readtable nil))) ; Use the standard syntax.
           (read-after-unread c0 stream t nil t)))))
 
-(defun install-c-reader (readtable level)
-  "Inserts reader macros for C reader. Called by '#{' reader macro.
- See `*with-c-syntax-reader-level*'."
-  (check-type level integer)
-  (when (>= level 0)
-    (set-macro-character #\} #'read-right-curly-bracket t readtable)
-    ;; Vertical tab is a whitespace in C. (Allegro CL 10.0 is already so).
-    (set-syntax-from-char +vertical-tab-character+ #\space readtable)
-    ;; Comma is read as a symbol.
-    (set-macro-character #\, #'read-single-character-symbol nil readtable)
-    ;; Enables solely ':' as a symbol.
-    (set-macro-character #\: #'read-lonely-single-symbol t readtable))
-  (when (>= level 1)
-    ;; Treats '0x' numeric literal specially.
-    (set-macro-character #\0 #'read-0x-numeric-literal t readtable)
-    ;; Reads '||' and solely '|' as a symbol.
-    ;; FIXME: Should I use Lisp escape for a symbol like '|assert|'?
-    (set-macro-character #\| #'read-solely-bar t readtable)
-    ;; brackets
-    (set-macro-character #\{ #'read-single-character-symbol nil readtable)
-    (set-macro-character #\} #'read-right-curly-bracket nil readtable)
-    (set-macro-character #\[ #'read-single-character-symbol nil readtable)
-    (set-macro-character #\] #'read-single-character-symbol nil readtable)
-    ;; for accessing normal syntax.
-    (set-macro-character #\` #'read-in-previous-syntax nil readtable)
-    ;; Disables 'consing dots', with replacement of ()
-    (set-macro-character #\. #'read-lonely-single-symbol t readtable)
-    ;; Enable C comments.
-    (set-macro-character #\/ #'read-slash-comment t readtable)
-    ;; Destroying CL standard syntax -- overwrite standard macro chars.
-    (set-macro-character #\" #'read-double-quote nil readtable)
-    (set-macro-character #\; #'read-single-character-symbol nil readtable)
-    (set-macro-character #\( #'read-single-character-symbol nil readtable)
-    (set-macro-character #\) #'read-single-character-symbol nil readtable))
-  (when (>= level 2)
-    ;; Character constant, overwrites `quote'.
-    ;; (The overwriting prevents Lisp syntax extremely, so enables only in level 2).
-    (set-macro-character #\' #'read-single-quote nil readtable)
-    ;; 'L' prefix for character and string.
-    (set-macro-character #\L #'read-L t readtable)
-    ;; C punctuators.
-    ;;   Already in Level 0 -- ,
-    ;;   Already in Level 1 -- [ ] { } ( ) ;
-    (set-macro-character #\. #'read-dot nil readtable) ; . ...
-    (set-macro-character #\- #'read-minus nil readtable) ; -> -- - -=
-    (set-macro-character #\+ #'read-plus-like-symbol nil readtable) ; ++ + +=
-    (set-macro-character #\& #'read-plus-like-symbol nil readtable) ; & && &=
-    (set-macro-character #\* #'read-single-or-compound-assign nil readtable) ; * *=
-    (set-macro-character #\~ #'read-single-character-symbol nil readtable) ; ~
-    (set-macro-character #\! #'read-single-or-compound-assign nil readtable) ; ! !=
-    (set-macro-character #\/ #'read-slash nil readtable) ; / /= and comments.
-    (set-macro-character #\% #'read-% nil readtable) ; % %= %> %: %:%:
-    (set-macro-character #\< #'read-< nil readtable) ; << < <= <<= <: <%
-    (set-macro-character #\> #'read-shift nil readtable) ; >> > >= >>=
-    (set-macro-character #\= #'read-single-or-compound-assign nil readtable) ; == =
-    (set-macro-character #\^ #'read-single-or-compound-assign nil readtable) ; ^ ^=
-    (set-macro-character #\| #'read-plus-like-symbol nil readtable) ; | || |=
-    (set-macro-character #\? #'read-single-character-symbol nil readtable) ; ?
-    (set-macro-character #\: #'read-colon nil readtable) ; : :>
-    (set-macro-character #\# #'read-sharp nil readtable) ; # ##
-    ;; Numeric litrals.
-    (set-macro-character #\0 #'read-numeric-literal t readtable)
-    (set-macro-character #\1 #'read-numeric-literal t readtable)
-    (set-macro-character #\2 #'read-numeric-literal t readtable)
-    (set-macro-character #\3 #'read-numeric-literal t readtable)
-    (set-macro-character #\4 #'read-numeric-literal t readtable)
-    (set-macro-character #\5 #'read-numeric-literal t readtable)
-    (set-macro-character #\6 #'read-numeric-literal t readtable)
-    (set-macro-character #\7 #'read-numeric-literal t readtable)
-    (set-macro-character #\8 #'read-numeric-literal t readtable)
-    (set-macro-character #\9 #'read-numeric-literal t readtable))
+(defmacro define-c-syntax-reader-for-each-case-mode (base-readtable-name)
+  (check-type base-readtable-name symbol)
+  (loop with case-modes = '(:upcase :downcase :preserve :invert)
+        for mode in case-modes
+        as name = (format-symbol :with-c-syntax.core "~A-~A" base-readtable-name mode)
+        collect `(defreadtable ,name
+                   (:merge ,base-readtable-name)
+                   (:case ,mode))
+          into bodies
+        finally
+           (return `(progn ,@bodies))))
+
+(defreadtable c-reader-level-0
+  (:merge :standard)
+  (:macro-char #\} #'read-right-curly-bracket t)
+  ;; Vertical tab is a whitespace in C. (Allegro CL 10.0 is already so).
+  (:syntax-from :standard #\space +vertical-tab-character+)
+  ;; Comma is read as a symbol.
+  (:macro-char #\, #'read-single-character-symbol)
+  ;; Enables solely ':' as a symbol.
+  (:macro-char #\: #'read-lonely-single-symbol t))
+
+(define-c-syntax-reader-for-each-case-mode c-reader-level-0)
+
+(defreadtable c-reader-level-1
+  (:merge c-reader-level-0)
+  ;; Treats '0x' numeric literal specially.
+  (:macro-char #\0 #'read-0x-numeric-literal t)
+  ;; Reads '||' and solely '|' as a symbol.
+  ;; FIXME: Should I use Lisp escape for a symbol like '|assert|'?
+  (:macro-char #\| #'read-solely-bar t)
+  ;; brackets
+  (:macro-char #\{ #'read-single-character-symbol)
+  (:macro-char #\} #'read-right-curly-bracket)
+  (:macro-char #\[ #'read-single-character-symbol)
+  (:macro-char #\] #'read-single-character-symbol)
+  ;; for accessing normal syntax.
+  (:macro-char #\` #'read-in-previous-readtable)
+  ;; Disables 'consing dots', with replacement of ()
+  (:macro-char #\. #'read-dot t)                       ; . ...
+  ;; Enable C comments.
+  (:macro-char #\/ #'read-slash-comment t)
+  ;; Destroying CL standard syntax -- overwrite standard macro chars.
+  (:macro-char #\" #'read-double-quote)
+  (:macro-char #\; #'read-single-character-symbol)
+  (:macro-char #\( #'read-single-character-symbol)
+  (:macro-char #\) #'read-single-character-symbol)
+  ;; Preprocessor directives
+  (:dispatch-macro-char #\# #\d #'read-sharp-as-dispatching-macro) ; #d(efine)
+  (:dispatch-macro-char #\# #\e #'read-sharp-as-dispatching-macro) ; #e(rror|lif|lse|ndif)
+  (:dispatch-macro-char #\# #\i #'read-sharp-as-dispatching-macro) ; #i(nclude|f|fdef|fndef)
+  (:dispatch-macro-char #\# #\l #'read-sharp-as-dispatching-macro) ; #l(ine)
+  (:dispatch-macro-char #\# #\u #'read-sharp-as-dispatching-macro) ; #u(ndef)
+  ;; #p(ragma) is conflict with the pathname syntax.
+  )
+
+(define-c-syntax-reader-for-each-case-mode c-reader-level-1)
+
+(defreadtable c-reader-level-2
+  (:macro-char #\` #'read-in-previous-readtable) ; for accessing normal syntax.
+  (:macro-char #\' #'read-single-quote) ; Character constant, overwrites `quote'.
+  (:macro-char #\" #'read-double-quote) ; String literal.
+  (:macro-char #\L #'read-L t)  ; 'L' prefix for character and string.
+  ;; C punctuators.
+  (:macro-char #\, #'read-single-character-symbol)
+  (:macro-char #\( #'read-single-character-symbol)
+  (:macro-char #\) #'read-single-character-symbol)
+  (:macro-char #\{ #'read-single-character-symbol)
+  (:macro-char #\} #'read-right-curly-bracket)
+  (:macro-char #\[ #'read-single-character-symbol)
+  (:macro-char #\] #'read-single-character-symbol)
+  (:macro-char #\; #'read-single-character-symbol)
+  (:macro-char #\. #'read-dot)                       ; . ...
+  (:macro-char #\- #'read-minus)                     ; -> -- - -=
+  (:macro-char #\+ #'read-plus-like-symbol)          ; ++ + +=
+  (:macro-char #\& #'read-plus-like-symbol)          ; & && &=
+  (:macro-char #\* #'read-single-or-compound-assign) ; * *=
+  (:macro-char #\~ #'read-single-character-symbol)   ; ~
+  (:macro-char #\! #'read-single-or-compound-assign) ; ! !=
+  (:macro-char #\/ #'read-slash)        ; / /= and comments.
+  (:macro-char #\% #'read-%)            ; % %= %> %: %:%:
+  (:macro-char #\< #'read-<)            ; << < <= <<= <: <%
+  (:macro-char #\> #'read-shift)        ; >> > >= >>=
+  (:macro-char #\= #'read-single-or-compound-assign) ; == =
+  (:macro-char #\^ #'read-single-or-compound-assign) ; ^ ^=
+  (:macro-char #\| #'read-plus-like-symbol)          ; | || |=
+  (:macro-char #\? #'read-single-character-symbol)   ; ?
+  (:macro-char #\: #'read-colon)                     ; : :>
+  (:macro-char #\# #'read-sharp)                     ; # ##
+  ;; Numeric litrals.
+  (:macro-char #\0 #'read-preprocessing-number t)
+  (:macro-char #\1 #'read-preprocessing-number t)
+  (:macro-char #\2 #'read-preprocessing-number t)
+  (:macro-char #\3 #'read-preprocessing-number t)
+  (:macro-char #\4 #'read-preprocessing-number t)
+  (:macro-char #\5 #'read-preprocessing-number t)
+  (:macro-char #\6 #'read-preprocessing-number t)
+  (:macro-char #\7 #'read-preprocessing-number t)
+  (:macro-char #\8 #'read-preprocessing-number t)
+  (:macro-char #\9 #'read-preprocessing-number t)
   ;; TODO: C99 support?
   ;; - An identifier begins with '\u' (universal character)
   ;;   How to be '\' treated?
-  readtable)
+  )
 
+(define-c-syntax-reader-for-each-case-mode c-reader-level-2)
+
+(defgeneric find-c-readtable-name (level readtable-case)
+  (:documentation "Finds a readtable name by arguments. See `find-c-readtable'."))
+
+(defmacro define-find-c-readtable-name-methods (base-readtable-name level)
+  (check-type base-readtable-name symbol)
+  (check-type level integer)
+  (loop with case-modes = '(nil :upcase :downcase :preserve :invert)
+        for mode in case-modes
+        as name = (format-symbol :with-c-syntax.core "~A~@[-~A~]"
+                                 base-readtable-name mode)
+        collect `(defmethod find-c-readtable-name
+                     ((level (eql ,level)) (readtable-case (eql ,mode)))
+                   ',name)
+          into bodies
+        finally
+           (return `(progn ,@bodies))))
+
+(define-find-c-readtable-name-methods c-reader-level-0 0)
+(define-find-c-readtable-name-methods c-reader-level-1 1)
+(define-find-c-readtable-name-methods c-reader-level-2 2)
+
+(defun find-c-readtable (level readtable-case)
+  "Returns a readtable for tokenize C source. See `*with-c-syntax-reader-level*'."
+  (let ((name (find-c-readtable-name level readtable-case)))
+    (find-readtable name)))
+
+(defun get-c-readtable-level (readtable)
+  "Calculate the readtable-level (described in
+ `*with-c-syntax-reader-level*' docstring) of the READTABLE. If
+ READTABLE is not for C syntax, returns NIL."
+  (switch ((get-macro-character #\0 readtable))
+    (#'read-preprocessing-number 2)
+    (#'read-0x-numeric-literal 1)
+    (otherwise
+     (switch ((get-macro-character #\: readtable))
+       (#'read-lonely-single-symbol 0)
+       (otherwise nil)))))
 
 (defconstant +newline-marker+
   '+newline-marker+
-  "Used for saving newline chars from reader to preprocessor")
+  "Used for saving newline chars from reader to preprocessor.")
+
+(defconstant +whitespace-marker+
+  '+whitespace-marker+
+  "Used for saving whitespace chars from reader to preprocessor, for preprocessor directives.")
+
+(defun remove-whitespace-marker (token-list)
+  (remove-if (lambda (x) (or (eql x +whitespace-marker+)
+                             (eql x +newline-marker+)))
+             token-list))
+
+(defun delete-whitespace-marker (token-list)
+  (delete-if (lambda (x) (or (eql x +whitespace-marker+)
+                             (eql x +newline-marker+)))
+             token-list))
 
 (defun skip-c-whitespace (stream)
   "Skips C whitespaces except newline."
   (loop for c = (read-char stream)
         while (and (not (eql #\newline c))
                    (c-whitespace-p c))
+        count c into cnt
         finally
            (unread-char c stream)
-           (return c)))
+           (return (values c cnt))))
 
-(defun read-preprocessing-token (stream c-readtable)
+(defun read-preprocessing-token (stream keep-whitespace recursive-p)
   "Reads a token from STREAM until EOF or '}#' found. Newline is read
- as `+newline-marker+'."
-  (let ((*readtable* c-readtable))
-    (cond
-      (*second-unread-char*
-       (assert (not (c-whitespace-p *second-unread-char*)))
-       (read-after-unread (shiftf *second-unread-char* nil) stream t nil t))
-      (t
-       (case (skip-c-whitespace stream)
-         (#\newline                ; Preserve newline to preprocessor.
+ as `+newline-marker+'.
+ If KEEP-WHITESPACE is nil, whitespaces except newlines are
+ ignored. (This feature is intended to suppress `+whitespace-marker+'
+ in the macro expansion, for debugging.)"
+  (cond
+    (*second-unread-char*
+     (assert (not (c-whitespace-p *second-unread-char*)))
+     (read-after-unread (shiftf *second-unread-char* nil) stream t nil recursive-p))
+    (t
+     (multiple-value-bind (first-char whitespaces)
+         (skip-c-whitespace stream)
+       (cond
+         ((and keep-whitespace (plusp whitespaces))
+          +whitespace-marker+)
+         ((eql first-char #\newline)
+          ;; Preserve newline to preprocessor.
           (read-char stream)
           +newline-marker+)
-         (#\}
+         ((eql first-char #\})
           ;; This path is required for SBCL.
           ;; On Allegro, it is not needed. '}' reader macro (`read-right-curly-bracket') works good.
           (read-char stream)
@@ -753,33 +652,142 @@ If not, returns a next token by `cl:read' after unreading CHAR."
                 (t
                  (intern "}")))) ; Intern it into the current `*package*'.
          (t
-          (read stream t :eof t)))))))
+          (read-preserving-whitespace
+           stream t :eof
+           ;; KLUDGE: CCL-1.12's `read-preserving-whitespace' does
+           ;; not saves whitespaces if recursive-p is true. To
+           ;; correctly tokenize C source, I must set it to nil.
+           ;; https://github.com/Clozure/ccl/blob/2ae800e12e3686dd639da370eaa1a8380c85d774/level-1/l1-reader.lisp#L2962-L2963
+           #+ccl nil
+           #-ccl recursive-p)))))))
 
-(defun tokenize-source (level stream)
+(defun parse-in-with-c-syntax-readtable-parameter-token (token)
+  (flet ((raise-bad-arg-error ()
+           (error 'with-c-syntax-reader-error
+                  :format-control "Pragma IN_WITH_C_SYNTAX_READTABLE does not accept ~S"
+                  :format-arguments (list token))))
+    (typecase token
+      (symbol
+       (switch (token :test 'string-equal)
+         (:upcase :upcase)
+         (:downcase :downcase)
+         (:preserve :preserve)
+         (:invert :invert)
+         (otherwise
+          (raise-bad-arg-error))))
+      (integer token)                     ; reader level.
+      (preprocessing-number               ; reader level.
+       (let ((num (parse-preprocessing-number token)))
+         (unless (integerp num)
+           (raise-bad-arg-error))
+         num))
+      (otherwise
+       (raise-bad-arg-error)))))
+
+(defun parse-in-with-c-syntax-readtable-parameters (token1 token2)
+  (let* ((arg1 (parse-in-with-c-syntax-readtable-parameter-token token1))
+         (arg2 (if token2
+                   (parse-in-with-c-syntax-readtable-parameter-token token2)))
+         (new-level (cond ((integerp arg1) (shiftf arg1 nil))
+                          ((integerp arg2) (shiftf arg2 nil))
+                          (t (let ((lv (get-c-readtable-level *readtable*)))
+                               (unless lv 
+                                 (error 'with-c-syntax-reader-error
+                                        :format-control "Readtable ~A is not for C syntax."
+                                        :format-arguments (list lv)))
+                               lv))))
+         (new-case (cond ((keywordp arg1) (shiftf arg1 nil))
+                         ((keywordp arg2) (shiftf arg2 nil))
+                         (t (readtable-case *readtable*)))))
+    (values new-level new-case arg1 arg2)))
+
+(defun process-reader-pragma (token-list)
+  "Process pragmas affects with-c-syntax readers.
+ See `process-with-c-syntax-pragma' for preprocessor pragmas. "
+  (switch ((first token-list) :test 'string=) ; FIXME: should I see readtable-case?
+    ("IN_PACKAGE"
+     (let* ((package-designator (second token-list))
+            (package (find-package package-designator)))
+       (if package
+           (setf *package* package)
+           (warn 'with-c-syntax-style-warning
+                 :message (format nil "No package named '~A'" package-designator)))))
+    ("IN_WITH_C_SYNTAX_READTABLE"
+     (multiple-value-bind (new-level new-case)
+         (parse-in-with-c-syntax-readtable-parameters (second token-list) (third token-list))
+       (setf *readtable*
+             (find-c-readtable new-level new-case))))
+    (otherwise          ; Not for reader. Pass it to the preprocessor.
+     nil)))
+
+(defun tokenize-source (stream end-with-bracket-sharp &optional (*readtable* *readtable*))
   "Tokenize C source by doing translation phase 1, 2, and 3.
- LEVEL is the reader level described in `*with-c-syntax-reader-level*'"
+ `*readtable*' must be bound to the C syntax readtable, got by `find-c-readtable'."
   (let* ((*read-default-float-format* 'double-float) ; In C, floating literal w/o suffix is double.
-         (*previous-syntax* *readtable*)
+         (*package* *package*) ; Preserve `*package*' variable because it may be changed by pragmas.
          (*second-unread-char* nil)
-         (c-readtable (copy-readtable nil))
-         (process-backslash-newline
-           (case *with-c-syntax-reader-process-backslash-newline*
-             (:auto (>= level +with-c-syntax-default-reader-level+))
-             (otherwise *with-c-syntax-reader-process-backslash-newline*))))
-    (install-c-reader c-readtable level)
-    (when *with-c-syntax-reader-case*
-      (setf (readtable-case c-readtable) *with-c-syntax-reader-case*))
+         (c-readtable-level (or (get-c-readtable-level *readtable*)
+                                (error 'with-c-syntax-reader-error
+                                       :stream stream
+                                       :format-control "Current readtable ~S is not for C syntax."
+                                       :format-arguments *readtable*)))
+         (keep-whitespace-default (>= c-readtable-level 2)))
     (loop
       with cp-stream = (make-instance 'physical-source-input-stream
-                                      :stream stream :target-readtable c-readtable
-                                      :phase-2 process-backslash-newline)
-      for token = (read-preprocessing-token cp-stream c-readtable)
-      if (eq token +wcs-end-marker+)
-        do (loop-finish)
-      unless (eq token +newline-marker+) ; TODO: FIXME: Brings this newlines to preprocessor.
-        collect token into token-list
-      finally
-         (return (values token-list c-readtable)))))
+                                      :stream stream :target-readtable *readtable*)
+      with in-directive-line = nil
+      with directive-tokens-rev = nil
+      with in-pragma-operator of-type (or null integer) = nil
+      with pragma-operator-content = nil
+
+      for token = (handler-case
+                      (read-preprocessing-token cp-stream
+                                                (or in-directive-line keep-whitespace-default)
+                                                end-with-bracket-sharp)
+                    (end-of-file (e)
+                      (if end-with-bracket-sharp
+                          (error e)
+                          (loop-finish))))
+      do (cond
+           ((eq token +wcs-end-marker+)
+            (loop-finish))
+           ;; See directives.
+           ((and (symbolp token)
+                 (or (string= token "#") (string= token "%:")))
+            (setf in-directive-line t))
+           (in-directive-line
+            (cond
+              ((not (eq token +newline-marker+))
+               (push token directive-tokens-rev))
+              (t
+               (setf in-directive-line nil)
+               ;; Process pragmas affecting reader.
+               (let ((tokens
+                       (delete-whitespace-marker   
+                        (nreverse (shiftf directive-tokens-rev nil)))))
+                 (when (and (pp-pragma-directive-p (first tokens))
+                            (pp-with-c-syntax-pragma-p (second tokens)))
+                   (process-reader-pragma (nthcdr 2 tokens)))))))
+           ;; See _Pragma() operator
+           ((and (symbolp token)
+                 (pp-pragma-operator-p token))
+            (setf in-pragma-operator 0))
+           (in-pragma-operator
+            (incf in-pragma-operator)
+            (case in-pragma-operator
+              (1 (progn))               ; should be '('
+              (2 (setf pragma-operator-content token))
+              (3                        ; should be ')'
+               (setf in-pragma-operator nil)
+               (when (and (stringp pragma-operator-content)
+                          (search "WITH_C_SYNTAX" pragma-operator-content))
+                   (let ((tokens (with-input-from-string (stream pragma-operator-content)
+                                   (tokenize-source stream nil))))
+                     (process-reader-pragma (nthcdr 1 tokens)))))
+              (otherwise
+               (warn 'with-c-syntax-warning :format-arguments "Unexpected tokenize-source state.")
+               (setf in-pragma-operator nil)))))
+      collect token)))
 
 (defun read-in-c-syntax (stream char n)
   "Called by '#{' reader macro of `with-c-syntax-readtable'.
@@ -787,13 +795,22 @@ Inside '#{' and '}#', the reader uses completely different syntax, and
 the result is wrapped with `with-c-syntax'.
  See `*with-c-syntax-reader-level*' and `*with-c-syntax-reader-case*'."
   (assert (char= char #\{))
-  (let ((level (alexandria:clamp (or n *with-c-syntax-reader-level*) 0 2)))
-    (multiple-value-bind (tokens readtable)
-        (tokenize-source level stream)
-      `(with-c-syntax (:readtable-case
-                       ;; Capture the readtable-case used for reading inside '#{ ... }#'.
-                       ,(readtable-case readtable))
-         ,@tokens))))
+  (let* ((level (or n *with-c-syntax-reader-level*))
+         (readtable-case (or *with-c-syntax-reader-case*
+                             (readtable-case *readtable*)))
+         (readtable (find-c-readtable level readtable-case))
+         (input-file-pathname (ignore-errors (namestring stream)))
+         (*previous-readtable* *readtable*)
+         (tokens
+           (tokenize-source stream t readtable)))
+    ;; TODO: Move these parameters to #pragma?
+    `(with-c-syntax (;; Capture the readtable parameters used inside '#{ ... }#'.
+                     ;; (I thought passing the readtable parameter directly would be simple,
+                     ;;  but `make-load-form' definition for readtables was required to do so.)
+                     :reader-level ,level
+                     :readtable-case ,readtable-case
+                     :input-file-pathname ,input-file-pathname)
+       ,@tokens)))
 
 (defreadtable with-c-syntax-readtable
   (:merge :standard)

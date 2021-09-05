@@ -11,9 +11,9 @@
 ;;; Standard Characters of Common Lisp. (see CLHS 2.1.3)
 ;;; Yes, it is very good, yes.
 
-(defvar *with-c-syntax-reader-process-backslash-newline* :auto
+(defvar *with-c-syntax-reader-process-backslash-newline* t
   "Determines #{ }# reader deletes backslash-newline sequence.
- Deletion occurs if this is T, or :auto and reader level >= 1.")
+ Deletion occurs if this is true.")
 
 (defclass physical-source-input-stream
     (trivial-gray-streams:fundamental-character-input-stream)
@@ -36,10 +36,10 @@
    ;; switches
    (target-readtable :type readtable
                      :initarg :target-readtable)
-   (process-phase-1 :initarg :phase-1 :initform nil)
-   (process-phase-2 :initarg :phase-2 :initform t))
-  (:default-initargs
-   :phase-1 *with-c-syntax-reader-process-trigraph*)
+   (process-phase-1 :initarg :phase-1
+                    :initform *with-c-syntax-reader-process-trigraph*)
+   (process-phase-2 :initarg :phase-2
+                    :initform *with-c-syntax-reader-process-backslash-newline*))
   (:documentation "An input stream for doing translation phase 1
   (replacing trigraph) and translation phase 2 (deleting
   backslash-newline sequence)."))

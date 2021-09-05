@@ -22,7 +22,14 @@
 	       (:file "libc_assert" :depends-on ("util"))
 	       (:file "libc_ctype" :depends-on ("util"))
 	       (:file "libc_math" :depends-on ("util"))
-	       (:file "libc_string" :depends-on ("util")))
+	       (:file "libc_string" :depends-on ("util"))
+               (:module "include"
+                :components
+                ((:module "test"
+                  :components
+                  ((:static-file "test-pp-6.10.3.5-example-3.h")
+                   (:static-file "test-pp-6.10.3.5-example-4.h")
+                   (:static-file "test-pp-6.10.3.5-example-7.h"))))))
   :perform (prepare-op :before (o c)
              (set (find-symbol* '#:*tests* '#:1am) '()))
   :perform (test-op (o s)

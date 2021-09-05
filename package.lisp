@@ -3,7 +3,9 @@
 (defpackage #:with-c-syntax
   (:use)
   (:export #:with-c-syntax
+           #:*with-c-syntax-find-include-file-function-list*
            #:with-c-syntax-readtable
+           #:*previous-readtable*
 	   #:*with-c-syntax-reader-level*
 	   #:*with-c-syntax-reader-case*)
   (:documentation

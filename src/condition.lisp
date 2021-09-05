@@ -15,6 +15,24 @@
   (:documentation
    "Used in the preprocessor."))
 
+(define-condition preprocess-if-expression-parse-error (preprocess-error)
+  ((yacc-error :initarg :yacc-error))
+  (:report
+   (lambda (condition stream)
+     (format stream "with-c-syntax preprocess error at parsing if expression. yacc error is~%~A"
+             (slot-value condition 'yacc-error))))
+  (:documentation
+   "Used when an error occurred at the parser."))
+
+(define-condition preprocess-include-file-error (preprocess-error file-error)
+  ()
+  (:report
+   (lambda (condition stream)
+     (format stream "with-c-syntax preprocessor failed to include file ~A"
+             (file-error-pathname condition))))
+  (:documentation
+   "Used when an error occurred at the parser."))
+
 (define-condition lexer-error (with-c-syntax-error)
   ((token :initarg :token
           :reader lexer-error-token))
@@ -26,12 +44,11 @@
    "Used in the lexer."))
 
 (define-condition with-c-syntax-parse-error (with-c-syntax-error)
-  ((yacc-error :initarg :yacc-error
-               :reader with-c-syntax-parse-error-yacc-error))
+  ((yacc-error :initarg :yacc-error))
   (:report
    (lambda (condition stream)
      (format stream "with-c-syntax parse error. yacc error is~%~A"
-             (with-c-syntax-parse-error-yacc-error condition))))
+             (slot-value condition 'yacc-error))))
   (:documentation
    "Used when an error occurred at the parser."))
 
@@ -98,13 +115,7 @@
 (define-condition with-c-syntax-warning (simple-warning)
   ()
   (:documentation
-   "* Class Precedence List
-with-c-syntax-warning, simple-warning, ...
-
-* Description
-The type ~with-c-syntax-warning~ consists of all warnings in the
-with-c-syntax system.
-"))
+   "The root type of all warnings in the with-c-syntax system."))
 
 (define-condition with-c-syntax-style-warning (style-warning)
   ((message :initarg :message :reader with-c-syntax-style-warning-message))

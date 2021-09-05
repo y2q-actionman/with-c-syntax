@@ -4,6 +4,15 @@
   (when (fboundp 'trivial-cltl2:compiler-let)
     (pushnew :with-c-syntax-test-use-compiler-let *features*)))
 
+(defun find-with-c-syntax-test-include-file (name)
+  (find-asdf-system-relative-file '(:with-c-syntax-test . "include") name))
+
+(eval-when (:load-toplevel :execute)
+  (pushnew 'find-with-c-syntax-test-include-file
+           *with-c-syntax-find-include-file-function-list*))
+
+;;; Testing normal notations.
+
 (defmacro define-is.*.wcs (name eql-operator-name &key (use-option nil))
   `(defmacro ,name (,@ (if use-option '(option) nil)
 		       val &body body)
@@ -19,25 +28,8 @@
 (define-is.*.wcs is.equal.wcs.option
   equal :use-option t)
 
-(defmacro signals.macroexpand.wcs ((&optional (condition 'with-c-syntax-error)) &body body)
-  `(signals ,condition
-     (macroexpand '(with-c-syntax () ,@Body))))
-
-(defmacro signals.wcs ((&optional (condition 'with-c-syntax-error)) &body body)
-  `(signals ,condition
-     (with-c-syntax () ,@Body)))
-
-(defmacro is.wcs.reader (forms-in-wcs string)
-  (with-gensyms (op options body)
-    `(destructuring-bind (,op ,options &body ,body)
-         (let ((*readtable* (find-readtable 'with-c-syntax:with-c-syntax-readtable)))
-           (read-from-string ,string))
-       (declare (ignore ,options))
-       (assert (eq ,op 'with-c-syntax))
-       (is (equal ,forms-in-wcs ,body)))))
-
 #+ccl
-(defun %signals.wcs.reader-ccl (expected fn)
+(defun %signals-ccl (expected fn)
   "KLUDGE: `1am:signals' catch CCL's internal condition,
   `ccl::parse-unknown-type'.  This code tries to ignore it."
   (flet ((handler (condition)
@@ -46,21 +38,64 @@
                   )
                  ((typep condition expected)
                   (1am::passed)
-                  (return-from %signals.wcs.reader-ccl (values)))
+                  (return-from %signals-ccl (values)))
                  (t (error "Expected to signal ~s, but got ~s:~%~a"
                            expected (type-of condition) condition)))))
     (handler-bind ((condition #'handler))
       (funcall fn)))
   (error "Expected to signal ~s, but got nothing." expected))
 
+#+ccl
+(defmacro signals-ccl (condition &body body)
+  "See `%signals-ccl'"
+  `(%signals-ccl ',condition (lambda () ,@body)))
+
+(defmacro signals.macroexpand.wcs ((&optional (condition 'with-c-syntax-error)) &body body)
+  `(#+ccl signals-ccl #-ccl signals
+    ,condition
+    (macroexpand '(with-c-syntax () ,@Body))))
+
+(defmacro signals.wcs ((&optional (condition 'with-c-syntax-error)) &body body)
+  `(#+ccl signals-ccl #-ccl signals
+    ,condition
+    (with-c-syntax () ,@Body)))
+
+;;; Testing Readers
+
+(defmacro is.wcs.reader (expected-token-list string)
+  (with-gensyms (op options body)
+    `(destructuring-bind (,op ,options &body ,body)
+         (let ((*readtable* (find-readtable 'with-c-syntax:with-c-syntax-readtable))
+               (*package* (find-package '#:with-c-syntax.test)))
+           (read-from-string ,string))
+       (declare (ignore ,options))
+       (assert (eq ,op 'with-c-syntax))
+       (is (tree-equal ,expected-token-list ,body
+                       :test (lambda (x y)
+                               (typecase y
+                                 (preprocessing-number
+                                  (equal x (parse-preprocessing-number y)))
+                                 (otherwise
+                                  (equal x y)))))))))
+
 (defmacro signals.wcs.reader ((&optional (condition 'with-c-syntax-error)) string)
   (let ((body
           `(let ((*readtable* (find-readtable 'with-c-syntax:with-c-syntax-readtable)))
              (read-from-string ,string))))
-    #-ccl
-    `(signals ,condition ,body)
-    #+ccl
-    `(%signals.wcs.reader-ccl ',condition (lambda () ,body))))
+    `(#+ccl signals-ccl #-ccl signals
+      ,condition
+      ,body)))
+
+;;; Testing Preprocessors
+
+(defmacro is.wcs.pp.equal (c-form-1 c-form-2)
+  `(is (with-c-syntax.core::replacement-list-equal
+        ',(macroexpand `(with-c-syntax (:preprocess :preprocess-only)
+                          ,c-form-1))
+        ',(macroexpand `(with-c-syntax (:preprocess :preprocess-only)
+                          ,c-form-2)))))
+
+;;; some utils
 
 (defmacro muffle-unused-code-warning (&body body)
   "Muffles `sb-ext:code-deletion-note' of SBCL. For other
@@ -87,3 +122,14 @@ implementation, this is just `progn'"
      (unwind-protect (progn ,@body)
        (mapcar #'makunbound ',symbols)
        (mapcar #'fmakunbound ',symbols))))
+
+(defmacro with-making-include-file ((stream pathname)
+                                    (&body make-file-contents-forms)
+                                    &body body)
+  "Used for testing #include"
+  `(unwind-protect
+        (progn
+          (with-open-file (,stream ,pathname :direction :output :if-exists :supersede)
+            ,@make-file-contents-forms)
+          ,@body)
+     (delete-file ,pathname)))

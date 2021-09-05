@@ -5,10 +5,7 @@
 (defmacro |va_start| (ap last)
   `(setf ,ap (get-variadic-arguments ,last)))
 
-;;; FIXME: This is the only point using `define-preprocessor-function'. I want to remove this..
-(define-preprocessor-function |va_arg| ((ap) (type))
-  (declare (ignore type))		; TODO: FIXME: use this.
-  `(pop ,ap))
+;;; TODO: define 'va_arg' here or stdarg.h.
 
 (defmacro |va_end| (ap)
   `(setf ,ap nil))

@@ -69,34 +69,16 @@ on its ~return~ argument.
 (defvar *wcs-expanding-environment* nil
   "`with-c-syntax' bind this to `&environment' argument.")
 
-;;; Lexer
-(defun list-lexer (list &aux (syntax-package (find-package '#:with-c-syntax.syntax)))
-  #'(lambda ()
-      (let ((value (pop list)))
-        (typecase value
-          (null
-           (if list
-               (values 'id nil)
-               (values nil nil)))
-          (symbol
-           (cond ((eql (symbol-package value) syntax-package)
-                  ;; They must be belongs this package.
-                  ;; (done by the preprocessor)
-                  (values value value))
-                 ((gethash value *typedef-names*)
-                  (values 'typedef-id value))
-                 (t
-                  (values 'id value))))
-          (integer
-           (values 'int-const value))
-          (character
-           (values 'char-const value))
-          (float
-           (values 'float-const value))
-          (string
-           (values 'string value))
-          (otherwise
-           (values 'lisp-expression value))))))
+(defmacro with-c-compilation-unit ((entry-form return-last?) ; Move to compiler?
+				   &body body)
+  "Establishes variable bindings for a new compilation."
+  `(let ((*struct-specs* (copy-hash-table *struct-specs*))
+         (*typedef-names* (copy-hash-table *typedef-names*))
+         (*dynamic-binding-requested* nil)
+         (*function-pointer-ids* nil)
+         (*toplevel-entry-form* ,entry-form)
+	 (*return-last-statement* ,return-last?))
+     ,@body))
 
 ;;; Declarations
 (defstruct decl-specs
@@ -1121,12 +1103,16 @@ This is not intended for calling directly. The `va_start' macro uses this."
 	 (ex-code
 	   `(block nil
 	      (tagbody
+                 ;; TODO: setjmp() traversal support here?
 		 ,@(butlast stat-codes)
 		 ,ex-last-code))))
     (expand-toplevel :statement
 		     (stat-declarations stat)
 		     nil
 		     `(,ex-code))))
+
+(defun expand-toplevel-const-exp (exp)
+  (expand-toplevel :statement nil nil `(,exp)))
 
 (defun expand-translation-unit (units)
   (loop for u in units
@@ -1140,7 +1126,7 @@ This is not intended for calling directly. The `va_start' macro uses this."
 				`(,*toplevel-entry-form*)))))
 
 ;;; The parser
-(define-parser *expression-parser*
+(define-parser *expression-parser*      ; TODO: Rename?
   (:muffle-conflicts t)         ; for 'dangling else'.
   ;; http://www.cs.man.ac.uk/~pjj/bnf/c_syntax.bnf
   (:terminals
@@ -1167,7 +1153,9 @@ This is not intended for calling directly. The `va_start' macro uses this."
    (iteration-stat
     (lambda (st) (expand-toplevel-stat st)))
    (jump-stat
-    (lambda (st) (expand-toplevel-stat st))))
+    (lambda (st) (expand-toplevel-stat st)))
+   (const-exp                           ; For preprocessor.
+    (lambda (exp) (expand-toplevel-const-exp exp))))
 
 
   (translation-unit

@@ -3,7 +3,8 @@
   :license "WTFPL"
   :author "YOKOTA Yuki <y2q.actionman@gmail.com>"
   :depends-on (#:alexandria #:yacc #:named-readtables
-                            #:cl-ppcre #:trivial-gray-streams
+                            #:cl-ppcre #:trivial-gray-streams #:asdf
+                            #:split-sequence
                             ;; for libc implementation (TODO: split libc defsystem from core?)
                             #:float-features #:floating-point-contractions)
   :serial t
@@ -14,15 +15,25 @@
                 ((:file "package")
 		 (:file "util" :depends-on ("package"))
 		 (:file "condition" :depends-on ("package"))
+                 (:file "physical-source" ; Translation Phase 1,2
+                  :depends-on ("condition"))
+		 (:file "case-aware-find-symbol" :depends-on ("condition"))
+		 (:file "pp-number" :depends-on ("condition")) ; cl-ppcre is used only here.
+                 (:file "reader"        ; Translation Phase 3
+                  :depends-on ("physical-source" "case-aware-find-symbol" "pp-number"))
                  (:file "struct" :depends-on ("package"))
                  (:file "typedef" :depends-on ("package"))
                  (:file "pseudo-pointer" :depends-on ("util" "condition"))
-                 (:file "preprocessor" :depends-on ("condition"))
-                 (:file "compiler"
-		  :depends-on ("struct" "typedef" "pseudo-pointer" "preprocessor"))
-                 (:file "with-c-syntax" :depends-on ("compiler"))
-                 (:file "physical-source" :depends-on ("package"))
-                 (:file "reader" :depends-on ("with-c-syntax" "physical-source"))))
+                 (:file "lexer" :depends-on ("util" "pp-number" "reader" "typedef"))
+                 (:file "compiler"      ; Translation Phase 7
+		  :depends-on ("lexer" "struct" "typedef" "pseudo-pointer"))
+                 (:file "preprocessor"  ; Translation Phase 4,(5),6
+                  :depends-on ("util" "condition" "pp-number" "reader"
+                               "case-aware-find-symbol"
+                               "lexer" "compiler")) ; Uses compiler for implementing '#if'
+                 (:file "predefined-macro" :depends-on ("preprocessor"))
+                 (:file "with-c-syntax" ; Entry Point
+                  :depends-on ("preprocessor" "compiler"))))
                (:module "libc"
 		:serial nil	
                 :components
@@ -39,5 +50,11 @@
                  (:file "math" :depends-on ("util" "errno" "fenv" "float"))
                  (:file "stdarg" :depends-on ("util"))
                  (:file "stddef" :depends-on ("util"))
-		 (:file "string" :depends-on ("util")))))
+		 (:file "string" :depends-on ("util"))))
+               (:module "include"
+                :serial nil
+                :components
+                ((:static-file "iso646.h")
+                 (:static-file "stdarg.h")
+                 (:static-file "stddef.h"))))
   :in-order-to ((test-op (test-op #:with-c-syntax-test))))

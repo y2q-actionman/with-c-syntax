@@ -323,3 +323,97 @@ void 99-bottles-of-beer (filename) {
 		       (+ mac-os-x-99b-file-size 200))))))
       (when (probe-file output-path)
 	(delete-file output-path)))))
+
+(test test-readme-inline-usage
+  (is (null (assert (= 100 #{ 98 - 76 + 54 + 3 + 21 }#))))
+  (is (null (assert #2{ 1+2+3-4+5+6+78+9 == 100 }#)))
+  (let ((*standard-output* (make-broadcast-stream)))
+    (is (princ #{ 0x1.fffp+1 }#))))
+
+#{
+#define MY_MAX(x, y) ((x)>(y) ? (x) : (y))
+
+int my-max-test (x, y) {
+  return MY_MAX (x, y);
+}
+}#
+
+#{
+#define MY_CL_MAX(x, ...) cl:max(x, __VA_ARGS__)
+
+int my-cl-max-test (x, y, z) {
+  return MY_CL_MAX (x, y, z);
+}
+}#
+
+(test test-readme-define-usage
+  (is (= (my-max-test -1 1) 1))
+  (is (= (my-cl-max-test -1 9999 1) 9999))
+  (string=
+   "1.2"
+   #2{
+   #define STR(x) #x
+   #define EXPAND_STR(x) STR(x) 
+   #define CAT(x,y) x##y
+   EXPAND_STR(CAT(1,.2))
+   }#))
+
+#{
+#define TEST_MACRO_DEFINITION
+
+int test-macro-defined-p () {
+#ifdef TEST_MACRO_DEFINITION
+  return t;
+#else
+  return nil;
+#endif
+}
+}#
+
+(defun see-features-example ()
+  #{
+  #if `(member :sbcl *features* :test 'eq)
+  format(nil, "I am SBCL: ~A", lisp-implementation-version());
+  #elif `(member :allegro *features* :test 'eq)
+  format(nil, "I am ALLEGRO: ~A", lisp-implementation-version());
+  #else
+  "Under implementation";
+  #endif
+  }#)
+
+(test test-readme-conditional-inclusion
+  (is (test-macro-defined-p))
+  (is (equal
+       (see-features-example)
+       #+sbcl (format nil "I am SBCL: ~A" (lisp-implementation-version))
+       #+allegro (format nil "I am ALLEGRO: ~A" (lisp-implementation-version))
+       #-(or sbcl allegro) "Under implementation"
+       )))
+
+;;; The `test-readme-include' example is very difficult to run. Making
+;;; a file to be compiled in the compilation time causes many compile
+;;; errors..
+
+(defpackage temp-package
+  (:use :cl)
+  (:export #:bar))
+
+(eval-when (:execute)
+  (with-making-include-file (stream "/tmp/tmp.h")
+      (format stream "const int foo = 100;")
+    (defun return-foo ()
+      #{
+      #include "/tmp/tmp.h"
+      return foo;
+      }#))
+
+  (with-making-include-file (stream "/tmp/tmp.h")
+      (format stream "const int bar = 123;")
+    #2{
+    _Pragma("WITH_C_SYNTAX IN_PACKAGE \"TEMP-PACKAGE\"")
+    #include "/tmp/tmp.h"
+    }#)
+
+  (test test-readme-include
+    (is (eql (return-foo) 100))
+    (is (eql temp-package:bar 123))))

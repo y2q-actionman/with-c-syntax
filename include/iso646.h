@@ -1,0 +1,11 @@
+#define and	`with-c-syntax.syntax:&&
+#define and_eq	`with-c-syntax.syntax:&= 
+#define bitand	`with-c-syntax.syntax:&
+#define bitor	`with-c-syntax.syntax:\|
+#define compl	`with-c-syntax.syntax:~
+#define not	`with-c-syntax.syntax:!
+#define not_eq	`with-c-syntax.syntax:!= 
+#define or	`with-c-syntax.syntax:\|\|
+#define or_eq	`with-c-syntax.syntax:\|= 
+#define xor	`with-c-syntax.syntax:^
+#define xor_eq	`with-c-syntax.syntax:^= 

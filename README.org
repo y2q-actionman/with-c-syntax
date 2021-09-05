@@ -10,15 +10,18 @@ freestanding implementation. (The lacking part is the full
 implementation of the C Preprocessor.)
 
 * News
+** 2021-9-5
+   C Preprocessor is added. See examples below.
+   
 ** 2021-5-24
-   - C Numeric Literals are added. (Inspired by [[https://github.com/akanouras][@akanouras]]. See [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
-     Hexadecimal floating number syntax may be a only practical
-     feature of this package. (Try =#{ 0x1.fffp+1; }#=)
+   C Numeric Literals are added. (Inspired by [[https://github.com/akanouras][@akanouras]]. See [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
+   Hexadecimal floating number syntax may be a only practical feature
+   of this package. (Try =#{ 0x1.fffp+1; }#=)
    
 ** 2019-4-25
-- I added some special handlings around =++=, =*=, etc.
+- Some special handlings around =++=, =*=, etc are added.
   The *Duff's Device* example becomes prettier.
-- I added a new  example, *C in Lisp in C in Lisp*. (+unholy mixture..+)
+- Added a new example, *C in Lisp in C in Lisp*. (+unholy mixture..+)
 
 * Examples
 ** Hello, World
@@ -50,6 +53,31 @@ NIL
 
 This example shows you can call a Lisp function (~cl:format~) with C syntax.
 
+** Inline usage.
+
+   This macro can be used like a normal lisp expression. You can use
+   it whenever C-like syntax is wanted.
+
+   #+begin_src lisp
+     (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+     (assert (= 100 #{ 98 - 76 + 54 + 3 + 21 }#)) ; => T
+
+     ;;; Reader macro parameter '2' means to split C operators even inside Lisp symbols.
+     (assert #2{ 1+2+3-4+5+6+78+9 == 100 }#) ; => T
+   #+end_src
+
+   Because this macro supports C numeric literals, Using hexadecimal
+   floating number syntax may be a only practical feature of this
+   package.
+
+   #+begin_src lisp
+     (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+     (princ #{ 0x1.fffp+1 }#)
+     ;; => 3.99951171875d0
+   #+end_src
+   
 ** Summing from 1 to 100.
 
 #+BEGIN_SRC lisp
@@ -198,23 +226,173 @@ I used =`= for using =with-open-file= in Lisp syntax.
 (You can use any Lisp operators including =with-open-file= in =with-c-syntax= style.
 However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/blob/e3e9ae2f1f29115f30141e3ada33372e2ce6b65d/test/libc_string.lisp#L143][An example exists in my test code]].)
 
+** C Preprocessor
+
+*** C Macros
+
+    =#define= can be used. This is a well-known MAX macro example.
+
+    #+begin_src lisp
+      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+      #{
+      #define MY_MAX(x, y) ((x)>(y) ? (x) : (y))
+
+      int my-max-test (x, y) {
+	return MY_MAX (x, y);
+      }
+      }#
+
+      (my-max-test -1 1) ; => 1
+    #+end_src
+
+    But you know Common Lisp already has [[http://www.lispworks.com/documentation/HyperSpec/Body/f_max_m.htm][CL:MAX]]. We can use it directly:
+    
+    #+begin_src lisp
+      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+      #{
+      #define MY_CL_MAX(x, ...) cl:max(x, __VA_ARGS__)
+
+      int my-cl-max-test (x, y, z) {
+	return MY_CL_MAX (x, y, z);
+      }
+      }#
+
+      (my-cl-max-test -1 9999 0) ; => 1
+    #+end_src
+
+    =#= (stringify) and =##= (concatenate) operator can be used, but
+    only in Level 2 syntax (because it conflicts with standard Lisp
+    '#' syntax.)
+
+    #+begin_src lisp
+      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+      (string=
+       "1.2"
+       #2{
+       #define STR(x) #x
+       #define EXPAND_STR(x) STR(x) 
+       #define CAT(x,y) x##y
+       EXPAND_STR(CAT(1,.2))
+       }#)
+    #+end_src
+
+    (Yes, you can use these transformation more freely in Lisp macro!)
+
+*** Conditional Inclusion
+
+    =#if= family is supported. Simple example:
+
+    #+begin_src lisp
+      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+      #{
+      #define TEST_MACRO_DEFINITION
+
+      int test-macro-defined-p () {
+      #ifdef TEST_MACRO_DEFINITION
+	return t;
+      #else
+	return nil;
+      #endif
+      }
+      }#
+
+      (test-macro-defined-p) ; => t
+    #+end_src
+
+    =#if= also works as expected. It can evaluate any Lisp expressions
+    using =`= syntax. This feature enables to use =*features*= by
+    =#if= conditionals:
+
+    #+begin_src lisp
+      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+      (defun see-features-example ()
+	#{
+	#if `(member :sbcl *features* :test 'eq)
+	format(nil, "I am SBCL: ~A", lisp-implementation-version());
+	#elif `(member :allegro *features* :test 'eq)
+	format(nil, "I am ALLEGRO: ~A", lisp-implementation-version());
+	#else
+	"Under implementation";
+	#endif
+	}#)
+
+      (see-features-example)
+      ;; On SBCL
+      ;; => "I am SBCL: 2.1.7"
+      ;; On Allegro
+      ;; => "I am ALLEGRO: 10.1 [64-bit Mac OS X (Intel) *SMP*] (Jul 6, 2018 18:44)"
+      ;; On other implementations
+      ;; => "Under implementation"
+    #+end_src
+
+*** =#include=
+
+    =#include= works as you know:
+
+    #+begin_src lisp
+      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+      (with-open-file (stream "/tmp/tmp.h" :direction :output :if-exists :supersede)
+	(format stream "const int foo = 100;"))
+
+      (defun return-foo ()
+	#{
+	#include "/tmp/tmp.h"
+	return foo;
+	}#)
+
+      (return-foo) ; => 100
+    #+end_src
+
+    When using =#include=, it can be a problem which package the
+    symbol is interned in.  It can be changed with the with-c-syntax
+    specific pragma [fn:1].
+
+    #+begin_src lisp
+      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+      (with-open-file (stream "/tmp/tmp.h" :direction :output :if-exists :supersede)
+	;; _Pragma() can be embedded in the included file.
+	(format stream "const int bar = 123;"))
+
+      (defpackage temp-package
+	(:use :cl)
+	(:export #:bar))
+
+      #2{
+      _Pragma("WITH_C_SYNTAX IN_PACKAGE \"TEMP-PACKAGE\"")
+      #include "/tmp/tmp.h"
+      }#
+
+      temp-package:bar ; => 123
+    #+end_src
+
+    (But in the Lisp world, you already have =read=, =eval=, and =load=...)
+
 * How to load
 
 ** Loading by quicklisp
 
-+This library is quicklisp-ready.+
+This library is quicklisp-ready on [[http://blog.quicklisp.org/2021/08/august-2021-quicklisp-dist-update-now.html][August 2021 dist]].
 
-Due to [[https://github.com/y2q-actionman/with-c-syntax/issues/15][Mathematical Errors]], this is removed at [[http://blog.quicklisp.org/2021/07/june-2021-quicklisp-dist-update-now.html][June 2021]].
-I'm now working to fix it.
+#+BEGIN_SRC lisp
+(ql:quickload "with-c-syntax")
+#+END_SRC
 
 ** or, Loading manually
 
 *** Libraries depending on
-- cl-yacc :: As a parser for C syntax
-- alexandria :: as utilities.
+- cl-yacc :: As a parser for C syntax.
+- alexandria :: Many utilities.
 - named-readtables :: For exporting '#{' reader syntax.
 - cl-ppcre :: For parsing numeric constants.
 - trivial-gray-streams :: For implementing translation phase 1 and 2 correctly.
+- asdf :: For using system-relative pathname, implementing =#include <...>=
 
 **** by libc
 - float-features :: For math.h, dealing NaN and Infinities.
@@ -247,10 +425,12 @@ I'm now working to fix it.
 * API
 Please see these docstrings or comments:
 
-- Macro [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/with-c-syntax.lisp#L38][with-c-syntax]]
-- Comments around [[https://github.com/y2q-actionman/with-c-syntax/blob/8a66c39fb88a2110287494ecda5ee602ebc4947b/src/reader.lisp#L784-L788][with-c-syntax-readtable]]
-- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L5][*with-c-syntax-reader-level*]]
-- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L90][*with-c-syntax-reader-case*]]
+- Macro [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/with-c-syntax.lisp#L15-L52][with-c-syntax]]
+- Comments around [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L792-L820][with-c-syntax-readtable]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L5-L100][*with-c-syntax-reader-level*]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L102-L111][*with-c-syntax-reader-case*]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L113-L115][*previous-readtable*]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/preprocessor.lisp#L19-L23][*with-c-syntax-find-include-file-function-list*]]
 
 * Further Information
 What this macro does is only expanding a list of symbols to a Lisp form.
@@ -270,3 +450,9 @@ the extent permitted by applicable law. You can redistribute it
 and/or modify it under the terms of the Do What The Fuck You Want
 To Public License, Version 2, as published by Sam Hocevar. See
 the COPYING file for more details.
+
+* Footnotes
+
+[fn:1] In this example, I used =_Pragma()= operator instead of '#pragma' notation because =#p= is
+already used by the standard syntax. Level 2 syntax only supports
+that. See =*with-c-syntax-reader-case*= docstring for reader levels.

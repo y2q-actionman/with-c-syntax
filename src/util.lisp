@@ -37,6 +37,21 @@
   "Calls nreconc with reversed order args. A helper for `nreconcf'."
   (nreconc list tail))
 
+(defmacro mv-cond-let ((&optional (var1 (gensym)) &rest rest-vars)
+                       &body clauses)
+  "This is like the famous 'COND-LET', but takes multiple values."
+  (if (endp clauses)
+      nil
+      (let* ((clause1 (first clauses))
+             (clause1-cond (first clause1))
+             (clause1-body (or (rest clause1)
+                               `((values ,var1 ,@rest-vars)))))
+        `(multiple-value-bind (,var1 ,@rest-vars) ,clause1-cond
+	   (declare (ignorable ,@rest-vars))
+	   (if ,var1
+	       (progn ,@clause1-body)
+	       (mv-cond-let (,var1 ,@rest-vars) ,@(rest clauses)))))))
+
 ;;; Characters
 ;;; these definitions are used by '#{ }#' reader and libc (<ctype.h>).
 

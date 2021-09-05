@@ -124,6 +124,8 @@
 	}))
     (is (not (boundp 'xxx)))))
 
+(in-readtable with-c-syntax-readtable)
+
 (declaim (ftype function sumn))
 (test test-trans-fdefinition-varargs
   (signals.wcs ()
@@ -131,6 +133,8 @@
     |va_start| \( ap \, cnt \) \;)
   (with-testing-wcs-bind (sumn)
     (with-c-syntax ()
+      #{
+      #include <stdarg.h>
       int sumn \( int cnt \, |...| \) {
          int i \, ret = 0 \;
          |va_list| ap \;
@@ -138,13 +142,14 @@
          |va_start| \( ap \, cnt \) \;
 
          for \( i = 0 \; i < cnt \; i ++ \) {
-           ret += |va_arg| \( ap \, int \) \;
+           ret += va_arg \( ap \, int \) \;
          }
 
          |va_end| \( ap \) \;
 
          return ret \;
-      })
+      }
+      }#)
     (is (fboundp 'sumn))
     (is (= 0 (sumn 0)))
     (is (= 3 (sumn 3 1 1 1)))

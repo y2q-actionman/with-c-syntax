@@ -472,11 +472,9 @@
   (is.equal.wcs nil
     { int x \( int hoge \, short \, void * \) \; })
   (signals.macroexpand.wcs ()
-    (is.equal.wcs nil
-      { int x \( hoge \, int \, int piyo \) \; }))
+    { int x \( hoge \, int \, int piyo \) \; })
   (signals.macroexpand.wcs ()
-    (is.equal.wcs nil
-      { int x \( int \, fuga \, int piyo \) \; })))
+    { int x \( int \, fuga \, int piyo \) \; }))
 
 (test test-initializer-simple
   ;; uses init-declarator
@@ -658,7 +656,15 @@
     return int_t \;
     })
   t)
-;; removal of 'typedef guard' is tested at test-preprocessor
+
+(test test-typedef-hack ()
+  ;; Tests removal of 'typedef guard'
+  (is.equal.wcs 1
+    {
+    typedef int int_t \;
+    int_t x = 1 \;
+    return x \;
+    }))
 
 (test test-lisptype-decls
   (is.equal.wcs '(1 2 3)

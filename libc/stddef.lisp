@@ -15,4 +15,5 @@ both when `intern' the libc package."
 (add-typedef '|ptrdiff_t| 'fixnum)
 (add-typedef '|size_t| 'fixnum)
 (add-typedef '|wchar_t| 'fixnum)
-(define-preprocessor-constant |offsetof| 'with-c-syntax.core::|__offsetof|)
+
+;;; 'offsetof' is implemented in 'include/stddef.h'.
