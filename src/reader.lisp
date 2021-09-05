@@ -488,7 +488,7 @@ If not, returns a next token by `cl:read' after unreading CHAR."
   ;; for accessing normal syntax.
   (:macro-char #\` #'read-in-previous-readtable)
   ;; Disables 'consing dots', with replacement of ()
-  (:macro-char #\. #'read-lonely-single-symbol t)
+  (:macro-char #\. #'read-dot t)                       ; . ...
   ;; Enable C comments.
   (:macro-char #\/ #'read-slash-comment t)
   ;; Destroying CL standard syntax -- overwrite standard macro chars.

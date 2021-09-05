@@ -329,3 +329,32 @@ void 99-bottles-of-beer (filename) {
   (is (null (assert #2{ 1+2+3-4+5+6+78+9 == 100 }#)))
   (let ((*standard-output* (make-broadcast-stream)))
     (is (princ #{ 0x1.fffp+1 }#))))
+
+#{
+#define MY_MAX(x, y) ((x)>(y) ? (x) : (y))
+
+int my-max-test (x, y) {
+  return MY_MAX (x, y);
+}
+}#
+
+#{
+#define MY_CL_MAX(x, ...) cl:max(x, __VA_ARGS__)
+
+int my-cl-max-test (x, y, z) {
+  return MY_CL_MAX (x, y, z);
+}
+}#
+
+(test test-readme-define-usage
+  (is (= (my-max-test -1 1) 1))
+  (is (= (my-cl-max-test -1 9999 1) 9999))
+  (string=
+   "1.2"
+   #2{
+   #define STR(x) #x
+   #define EXPAND_STR(x) STR(x) 
+   #define CAT(x,y) x##y
+   EXPAND_STR(CAT(1,.2))
+   }#))
+
