@@ -16,9 +16,9 @@ implementation of the C Preprocessor.)
      feature of this package. (Try =#{ 0x1.fffp+1; }#=)
    
 ** 2019-4-25
-- I added some special handlings around =++=, =*=, etc.
+- Some special handlings around =++=, =*=, etc are added.
   The *Duff's Device* example becomes prettier.
-- I added a new  example, *C in Lisp in C in Lisp*. (+unholy mixture..+)
+- Added a new example, *C in Lisp in C in Lisp*. (+unholy mixture..+)
 
 * Examples
 ** Hello, World
@@ -202,10 +202,11 @@ However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/bl
 
 ** Loading by quicklisp
 
-+This library is quicklisp-ready.+
+This library is quicklisp-ready on [[http://blog.quicklisp.org/2021/08/august-2021-quicklisp-dist-update-now.html][August 2021 dist]].
 
-Due to [[https://github.com/y2q-actionman/with-c-syntax/issues/15][Mathematical Errors]], this is removed at [[http://blog.quicklisp.org/2021/07/june-2021-quicklisp-dist-update-now.html][June 2021]].
-I'm now working to fix it.
+#+BEGIN_SRC lisp
+(ql:quickload "with-c-syntax")
+#+END_SRC
 
 ** or, Loading manually
 
@@ -220,7 +221,6 @@ I'm now working to fix it.
 **** by libc
 - float-features :: For math.h, dealing NaN and Infinities.
 - floating-point-contractions :: For math.h, to implement some functions.
-- osicat
 
 **** by test codes
 - 1am :: As a testing framework.
@@ -249,12 +249,12 @@ I'm now working to fix it.
 * API
 Please see these docstrings or comments:
 
-- Macro [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/with-c-syntax.lisp#L38][with-c-syntax]]
-- Comments around [[https://github.com/y2q-actionman/with-c-syntax/blob/master/src/reader.lisp#L561][with-c-syntax-readtable]]
-- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L5][*with-c-syntax-reader-level*]]
-- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/4fa6d565636ff422ae528c48c0fc3f979f372f84/src/reader.lisp#L90][*with-c-syntax-reader-case*]]
-- Variable *with-c-syntax-find-include-file-function-list*
-- Variable *previous-readtable*
+- Macro [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/with-c-syntax.lisp#L15-L52][with-c-syntax]]
+- Comments around [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L792-L820][with-c-syntax-readtable]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L5-L100][*with-c-syntax-reader-level*]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L102-L111][*with-c-syntax-reader-case*]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L113-L115][*previous-readtable*]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/preprocessor.lisp#L19-L23][*with-c-syntax-find-include-file-function-list*]]
 
 * Further Information
 What this macro does is only expanding a list of symbols to a Lisp form.
