@@ -122,3 +122,14 @@ implementation, this is just `progn'"
      (unwind-protect (progn ,@body)
        (mapcar #'makunbound ',symbols)
        (mapcar #'fmakunbound ',symbols))))
+
+(defmacro with-making-include-file ((stream pathname)
+                                    (&body make-file-contents-forms)
+                                    &body body)
+  "Used for testing #include"
+  `(unwind-protect
+        (progn
+          (with-open-file (,stream ,pathname :direction :output :if-exists :supersede)
+            ,@make-file-contents-forms)
+          ,@body)
+     (delete-file ,pathname)))

@@ -332,9 +332,47 @@ However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/bl
 
 *** =#include=
 
-    
-*** pragmas    
-   
+    =#include= works as you know:
+
+    #+begin_src lisp
+      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+      (with-open-file (stream "/tmp/tmp.h" :direction :output :if-exists :supersede)
+	(format stream "const int foo = 100;"))
+
+      (defun return-foo ()
+	#{
+	#include "/tmp/tmp.h"
+	return foo;
+	}#)
+
+      (return-foo) ; => 100
+    #+end_src
+
+    When using =#include=, it can be a problem which package the
+    symbol is interned in.  It can be changed with the with-c-syntax
+    specific pragma [fn:1].
+
+    #+begin_src lisp
+      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+      (with-open-file (stream "/tmp/tmp.h" :direction :output :if-exists :supersede)
+	;; _Pragma() can be embedded in the included file.
+	(format stream "const int bar = 123;"))
+
+      (defpackage temp-package
+	(:use :cl)
+	(:export #:bar))
+
+      #2{
+      _Pragma("WITH_C_SYNTAX IN_PACKAGE \"TEMP-PACKAGE\"")
+      #include "/tmp/tmp.h"
+      }#
+
+      temp-package:bar ; => 123
+    #+end_src
+
+    (But in the Lisp world, you already have =read=, =eval=, and =load=...)
 
 * How to load
 
@@ -412,3 +450,9 @@ the extent permitted by applicable law. You can redistribute it
 and/or modify it under the terms of the Do What The Fuck You Want
 To Public License, Version 2, as published by Sam Hocevar. See
 the COPYING file for more details.
+
+* Footnotes
+
+[fn:1] In this example, I used =_Pragma()= operator instead of '#pragma' notation because =#p= is
+already used by the standard syntax. Level 2 syntax only supports
+that. See =*with-c-syntax-reader-case*= docstring for reader levels.

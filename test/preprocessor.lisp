@@ -381,19 +381,16 @@
 ;;; #include
 
 (test test-pp-include
-  (unwind-protect
-       (progn
-         (with-open-file (out "/tmp/tmp.h" :direction :output :if-exists :supersede)
-           (format out "int hoge = 100;"))
-         (let ((form
-                 '#2{
-                 #include "/tmp/tmp.h"
-                 return hoge; // This is with-c-syntax.test::hoge.
-                 }#))
-           (is (= (let ((*package* (find-package '#:with-c-syntax.test)))
-                    (eval form))
-                  100))))
-    (delete-file "/tmp/tmp.h")))
+  (with-making-include-file (out "/tmp/tmp.h")
+      ((format out "int hoge = 100;"))
+    (let ((form
+            '#2{
+            #include "/tmp/tmp.h"
+            return hoge         ; // This is with-c-syntax.test::hoge.
+            }#))
+      (is (= (let ((*package* (find-package '#:with-c-syntax.test)))
+               (eval form))
+             100)))))
   
 (test test-pp-include-2
   (is.equal.wcs 9999
