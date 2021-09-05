@@ -50,6 +50,31 @@ NIL
 
 This example shows you can call a Lisp function (~cl:format~) with C syntax.
 
+** Inline usage.
+
+   This macro can be used like a normal lisp expression. You can use
+   it whenever C-like syntax is wanted.
+
+   #+begin_src lisp
+     (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+     (assert (= 100 #{ 98 - 76 + 54 + 3 + 21 }#)) ; => T
+
+     ;;; Reader macro parameter '2' means to split C operators even inside Lisp symbols.
+     (assert #2{ 1+2+3-4+5+6+78+9 == 100 }#) ; => T
+   #+end_src
+
+   Because this macro supports C numeric literals, Using hexadecimal
+   floating number syntax may be a only practical feature of this
+   package.
+
+   #+begin_src lisp
+     (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+     (princ #{ 0x1.fffp+1 }#)
+     ;; => 3.99951171875d0
+   #+end_src
+   
 ** Summing from 1 to 100.
 
 #+BEGIN_SRC lisp

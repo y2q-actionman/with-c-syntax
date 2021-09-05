@@ -323,3 +323,9 @@ void 99-bottles-of-beer (filename) {
 		       (+ mac-os-x-99b-file-size 200))))))
       (when (probe-file output-path)
 	(delete-file output-path)))))
+
+(test test-readme-inline-usage
+  (is (null (assert (= 100 #{ 98 - 76 + 54 + 3 + 21 }#))))
+  (is (null (assert #2{ 1+2+3-4+5+6+78+9 == 100 }#)))
+  (let ((*standard-output* (make-broadcast-stream)))
+    (is (princ #{ 0x1.fffp+1 }#))))
