@@ -390,8 +390,14 @@ int test-macro-defined-p () {
        #-(or sbcl allegro) "Under implementation"
        )))
 
-;;; This example is very difficult to run. Making a file to be
-;;; compiled in the compilation time causes many compile errors..
+;;; The `test-readme-include' example is very difficult to run. Making
+;;; a file to be compiled in the compilation time causes many compile
+;;; errors..
+
+(defpackage temp-package
+  (:use :cl)
+  (:export #:bar))
+
 (eval-when (:execute)
   (with-making-include-file (stream "/tmp/tmp.h")
       (format stream "const int foo = 100;")
@@ -403,9 +409,6 @@ int test-macro-defined-p () {
 
   (with-making-include-file (stream "/tmp/tmp.h")
       (format stream "const int bar = 123;")
-    (defpackage temp-package
-      (:use :cl)
-      (:export #:bar))
     #2{
     _Pragma("WITH_C_SYNTAX IN_PACKAGE \"TEMP-PACKAGE\"")
     #include "/tmp/tmp.h"
