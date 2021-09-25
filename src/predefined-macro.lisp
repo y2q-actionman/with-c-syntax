@@ -15,9 +15,8 @@
             (aref +pp-date-month-name+ month) date year)))
 
 (defun with-c-syntax.predefined-macro:__FILE__ (state)
-  (let ((file-pathname (pp-state-file-pathname state)))
-    (if file-pathname
-        (namestring file-pathname))))
+  (if-let ((file-pathname (pp-state-file-pathname state)))
+    (namestring file-pathname)))
 
 (defun with-c-syntax.predefined-macro:__LINE__ (state)
   (pp-state-line-number state))
