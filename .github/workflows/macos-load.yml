@@ -1,9 +1,8 @@
-# From http://3bb.cc/blog/2020/09/11/github-ci/
-
-name: macos-testSystem
+name: macos-load
 
 on:
   push:
+    branches: [ master ]
   pull_request:
     branches: [ master ]
 
@@ -13,23 +12,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 'sbcl-bin/2.0.5' is for Quicklisp build.
-        lisp: [sbcl-bin/2.0.5, sbcl-bin, ccl]
+        lisp: [sbcl-bin, ccl]
 
     runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v2
-
-      - name: cache .roswell
-        id: cache-dot-roswell
-        uses: actions/cache@v1
-        with:
-          path: ~/.roswell
-          key: ${{ runner.os }}-dot-roswell-${{ matrix.lisp }}-${{ hashFiles('**/*.asd') }}
-          restore-keys: |
-            ${{ runner.os }}-dot-roswell-${{ matrix.lisp }}-
-            ${{ runner.os }}-dot-roswell-
 
       - name: install roswell
         shell: bash
