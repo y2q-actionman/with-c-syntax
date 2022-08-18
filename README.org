@@ -416,7 +416,9 @@ This library is quicklisp-ready on [[http://blog.quicklisp.org/2021/08/august-20
 
 *** CI
 
-    [[https://github.com/y2q-actionman/with-c-syntax/actions/workflows/linux-testSystem.yml/badge.svg]]
+    [[https://github.com/y2q-actionman/with-c-syntax/actions/workflows/linux-sbcl-testSystem.yml/badge.svg]]
+    [[https://github.com/y2q-actionman/with-c-syntax/actions/workflows/linux-load.yml/badge.svg]]
+    [[https://github.com/y2q-actionman/with-c-syntax/actions/workflows/macos-load.yml/badge.svg]]
     
     There are Github Actions to run the test above.
     I wrote current recipes referring the example of [[https://github.com/neil-lindquist/CI-Utils][CI-Utils]].
