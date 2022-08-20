@@ -1,13 +1,32 @@
 (in-package #:with-c-syntax.core)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun _-symbol-p (obj)
+    "Returns T if OBJ is a symbol and starts with '_' character."
+    (and (symbolp obj)
+         (starts-with #\_ (symbol-name obj))))
+
+  (defun collect-_-symbol-in-lambda-list (lambda-list)
+    "Collects symbols starting with '_' character in LAMBDA-LIST."
+    (multiple-value-bind (required optionals rest keywords allow-other-keys? auxs)
+        (parse-ordinary-lambda-list lambda-list)
+      (declare (ignore allow-other-keys?))
+      (let ((_-in-required (remove-if-not #'_-symbol-p required))
+            (_-in-optionals (remove-if-not #'_-symbol-p
+                                           (mapcar #'first optionals)))
+            (_-in-rest (if (_-symbol-p rest) (list rest) nil))
+            (_-in-keywords (remove-if-not #'_-symbol-p
+                                          (mapcar #'cadar ; (second (first x))
+                                                  keywords)))
+            (_-in-auxs (remove-if-not #'_-symbol-p
+                                      (mapcar #'first auxs))))
+        (nconc _-in-required _-in-optionals _-in-rest _-in-keywords _-in-auxs)))))
+
 (defmacro lambda-ignoring-_ (lambda-list &body body)
   "Works like `cl:lambda' macro except automatically `declare's
  `ignore' for required parameters beginning with '_' character."
   (let ((ignored-parameters
-          (loop for i in lambda-list
-                when (and (symbolp i)
-                          (starts-with #\_ (symbol-name i)))
-                  collect i)))
+          (collect-_-symbol-in-lambda-list lambda-list)))
     (unless ignored-parameters
       (warn "No ignored parameters in: ~A" lambda-list))
     (multiple-value-bind (body decls doc)
