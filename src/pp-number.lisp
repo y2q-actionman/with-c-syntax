@@ -73,8 +73,7 @@
            (with-input-from-string (in string :index index)
              (handler-bind
                  ((with-c-syntax-reader-error
-                      (lambda (&optional _condition)
-                        (declare (ignore _condition))
+                      (lambda-ignoring-_ (_condition)
                         (when junk-allowed
                           (return-from read-preprocessing-number-from-string
                             (values nil index))))))
