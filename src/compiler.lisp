@@ -643,10 +643,9 @@ Returns (values var-init var-type)."
   (continue-statements nil) ; list of (go 'continue), should be rewrited
   (case-label-list nil))    ; alist of (<gensym> . :exp <case-exp>)
 
-(defun merge-stat (s1 s2 &key (empty-code nil))
-  (make-stat :code (if empty-code nil
-		       (append (stat-code s1)
-			       (stat-code s2)))
+(defun merge-stat (s1 s2)
+  (make-stat :code (append (stat-code s1)
+			   (stat-code s2))
 	     :declarations (append (stat-declarations s1)
 				   (stat-declarations s2))
 	     :break-statements (append (stat-break-statements s1)
@@ -659,7 +658,7 @@ Returns (values var-init var-type)."
 (defun expand-if-statement (exp then-stat
 			     &optional (else-stat nil))
   (let* ((stat (if else-stat
-		   (merge-stat then-stat else-stat :empty-code t)
+		   (merge-stat then-stat else-stat)
 		   then-stat))
 	 (else-tag (gensym "if-else-")) ; TODO: remove this if not else-stat?
 	 (end-tag (gensym "if-end-")))
@@ -676,11 +675,13 @@ Returns (values var-init var-type)."
   ;; Because of rewriting, the list of '(go ...)' must be fresh.
   (let ((ret (list 'go (gensym "unresolved-break-"))))
     (make-stat :code (list ret)
-	       :break-statements (list ret))))
+	       :break-statements (list ret)))) ; Shares '(go <>)' form with above `:code' slot..
 
 (defun rewrite-break-statements (sym stat)
   (let ((ret (shiftf (stat-break-statements stat) nil)))
     (dolist (i ret ret)
+      ;; Because `:break-statements' shares '(go <>)' with `:code',
+      ;; rewriting the cdr of '(go <>)' will affects `:code'.
       (setf (second i) sym))))
 
 (defun make-stat-unresolved-continue ()
@@ -974,7 +975,7 @@ This is not intended for calling directly. The `va_start' macro uses this."
 
 (defun expand-toplevel (mode decls fdefs code)
   "This is a final compilation phase. Makes a toplevel form.
-~mode~ is one of :statement or :translation-unit"
+MODE is one of `:statement' or `:translation-unit'"
   (let (;; used for :statement
         lexical-binds
         dynamic-extent-vars
