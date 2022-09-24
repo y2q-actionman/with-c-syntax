@@ -37,7 +37,7 @@
   (declare (ignorable args))
   (when (va-args-identifier-p name)
     (error 'preprocess-error
-	   :format-control "Macro name '__VA_ARGS__' is now allowed as an user defined macro.")))
+	   :format-control "Macro name '__VA_ARGS__' is not allowed as an user defined macro.")))
 
 (defmethod cl:initialize-instance :after ((macro-definition macro-definition) &rest args)
   (declare (ignorable args))
@@ -778,7 +778,7 @@ returns NIL."
   (loop for token in token-list
         thereis (not (whitespace-like-token-p token))))
 
-(defun token-equal-p (token name)
+(defun token-equal-p (token name) ; TODO: move to the top of this file. TODO: rename to 'token-name-equal-p'
   (and (symbolp token)
        (string= token name)))
 
