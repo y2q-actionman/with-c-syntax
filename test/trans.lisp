@@ -113,6 +113,27 @@
     (is (= 4 (inc-a)))
     (is (= 0 (reset-a)))))
 
+(test test-trans-decl-static-dependent-global
+  (with-testing-wcs-bind (xxx yyy zzz qqq test-global-vars)
+    (with-c-syntax ()
+      static const int xxx = 100 \;
+      const int yyy = \( xxx + 100 \) \;
+      const static int zzz = \( yyy + 100 \) \;
+      int qqq = \( zzz + 100 \) \;
+
+      int test-global-vars \( \) {
+        is \( xxx == 100 \) \;
+        is \( yyy == 200 \) \;
+        is \( zzz == 300 \) \;
+        is \( qqq == 400 \) \;
+        return T \;
+      })
+    (funcall 'test-global-vars)
+    (is (not (boundp 'xxx)))
+    (is (= yyy 200))
+    (is (not (boundp 'zzz)))
+    (is (= qqq 400))))
+
 (test test-stmt-static
   ;; This is `:statement' expansion. Anyway, the storage of `xxx' expanded into toplevel form.
   (with-testing-wcs-bind (xxx)
