@@ -165,22 +165,22 @@ int *array-2* [] = {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
 		arr1))))
 
 (test test-auto-return
-  (is (= 100 (with-c-syntax (:return :auto)
+  (is (= 100 (with-c-syntax ()
 	       100 \;)))
-  (is (= 1 (with-c-syntax (:return :auto)
+  (is (= 1 (with-c-syntax ()
 	     int i = 1 \; i \;)))
-  (is (= 3 (with-c-syntax (:return :auto)
+  (is (= 3 (with-c-syntax ()
 	     1 \; 2 \; 3 \;)))
   
   ;; can be expanded, but does not works (`return' or other ways required.)
-  (is (= 4 (with-c-syntax (:return :auto)
+  (is (= 4 (with-c-syntax ()
 	     if \( 10 \) return 4 \;)))
-  (is (= 5 (with-c-syntax (:return :auto)
+  (is (= 5 (with-c-syntax ()
 	     ;; FIXME
 	     ;; `nil' cannot be directly used, we must quote it..
 	     if \( 'nil \) 4 \; else return 5 \;)))
   (is (eq (readtable-case *readtable*)
-	  (with-c-syntax (:return :auto)
+	  (with-c-syntax ()
 	    switch \( (readtable-case *readtable*) \) {
 	    case :upcase \: return :upcase \;
 	    case :downcase \: return :downcase \;
@@ -189,14 +189,14 @@ int *array-2* [] = {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
 	    default \: return "unknown!" \;
 	    })))
   (let ((tmp 0))
-    (with-c-syntax (:return :auto)
+    (with-c-syntax ()
       int i \;
       for \( i = 0 \; i <= 100 \; ++ i \)
       tmp += i \;
       )
     (is (= tmp 5050)))
   (is (= 5050
-	 (with-c-syntax (:return :auto)
+	 (with-c-syntax ()
 	   int i = 0 \, j = 0 \;
 	   next_loop \:
 	   if \( i > 100 \) return j \;

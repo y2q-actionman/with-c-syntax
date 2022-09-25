@@ -1,14 +1,14 @@
 (in-package #:with-c-syntax.core)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun expand-c-syntax (body try-add-{} entry-form return-last?)
+  (defun expand-c-syntax (body try-add-{} return-last?)
     (handler-case
-	(with-c-compilation-unit (entry-form return-last?)
+	(with-c-compilation-unit (return-last?)
 	  (parse-with-lexer (list-lexer body) *expression-parser*))
       (yacc-parse-error (condition)
 	(if (and try-add-{}
 		 (not (starts-with '{ body)))
-	    (expand-c-syntax `({ ,@body }) nil entry-form return-last?) ; retry
+	    (expand-c-syntax `({ ,@body }) nil return-last?) ; retry
 	    (error 'with-c-syntax-parse-error
 		   :yacc-error condition))))))
 
@@ -43,10 +43,6 @@ If RETURN is `:auto', returns the last form's value if BODY is a
 compound statement. (If BODY is a compilation unit, this returns NIL
 now, but this behavior may be changed.)
 
-If RETURN is any other value, its valus is inserted after the
-compilation result translation units. (This feature is intended to
-access 'static' variables.)
-
 If TRY-ADD-{} is t and an error occurred at parsing, `with-c-syntax'
 adds '{' and '}' into the head and tail of FORM respectively, and
 tries to parse again."
@@ -69,5 +65,4 @@ tries to parse again."
        ((nil)
         (expand-c-syntax body
 		         try-add-{}
-		         (if (eq return :auto) nil return)
 		         (eq return :auto)))))))

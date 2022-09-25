@@ -89,11 +89,14 @@
 
 (declaim (ftype function inc-a reset-a))
 (test test-trans-decl-static
-  (with-testing-wcs-bind (xxx)
-    (is.equal.wcs.option (:return xxx)
-	99
-      static int xxx = 99 \; )
-    (is (not (boundp 'xxx))))
+  (with-testing-wcs-bind (xxx func)
+    (with-c-syntax ()
+      static int xxx = 99 \;
+      int func \( \) {
+        return xxx \;
+      })
+    (is (not (boundp 'xxx)))
+    (is (= (funcall 'func) 99)))
   (with-testing-wcs-bind (xxx reset-a inc-a)
     (with-c-syntax ()
       static int xxx = 0 \;
@@ -177,13 +180,18 @@
     (is (= 10 (sumn 4 1 2 3 4)))))
 
 (test test-trans-fdefinition-and-storage-class
-  (with-testing-wcs-bind (s-func)
-    (is.equal.wcs.option (:return (s-func 1 2))
-        3
+  (with-testing-wcs-bind (s-func g-func)
+    (with-c-syntax ()
       static int s-func \( x \, y \)
       int x \, y \;
-      { return x + y \; })
-    (is (not (fboundp 's-func)))))
+      { return x + y \; }
+
+      int g-func \( \) {
+        return s-func \( 1 \, 2 \) \;
+      })
+    (is (not (fboundp 's-func)))
+    (is (fboundp 'g-func))
+    (is (= (funcall 'g-func) 3))))
 
 (declaim (ftype function accumulator))
 (test test-trans-func-local-static

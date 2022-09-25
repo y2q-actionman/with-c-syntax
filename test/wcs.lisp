@@ -29,8 +29,8 @@
 (test test-wcs-option-combine
   (is (equal
        1
-       (with-c-syntax (:return xxx)
-	 (with-c-syntax ()
-	   static int xxx = 1 \;))))
+       (with-c-syntax (:preprocess t)   ; override
+	 (with-c-syntax (:preprocess :preprocess-only)
+	   { static int xxx = 1 \; return xxx \; }))))
   ;; TODO: add keyword arg combination test more!
   )

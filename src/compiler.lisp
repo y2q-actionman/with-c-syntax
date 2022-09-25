@@ -33,24 +33,6 @@ At the beginning of ~with-c-syntax~, it binds this variable to nil.
 ~with-c-compilation-unit~.
 ")
 
-(defvar *toplevel-entry-form* nil
-  "* Value Type
-a list
-
-* Description
-Holds a form inserted as an entry point.
-
-This is used only when compiling a translation unit. Not used for
-other cases.
-
-* Notes
-At the beginning of ~with-c-syntax~, it binds this variable depending
-on its ~return~ argument.
-
-* Affected By
-~with-c-compilation-unit~.
-")
-
 (defvar *return-last-statement* t
   "* Value Type
 a boolean
@@ -69,14 +51,13 @@ on its ~return~ argument.
 (defvar *wcs-expanding-environment* nil
   "`with-c-syntax' bind this to `&environment' argument.")
 
-(defmacro with-c-compilation-unit ((entry-form return-last?) ; Move to compiler?
+(defmacro with-c-compilation-unit ((return-last?) ; Move to compiler?
 				   &body body)
   "Establishes variable bindings for a new compilation."
   `(let ((*struct-specs* (copy-hash-table *struct-specs*))
          (*typedef-names* (copy-hash-table *typedef-names*))
          (*dynamic-binding-requested* nil)
          (*function-pointer-ids* nil)
-         (*toplevel-entry-form* ,entry-form)
 	 (*return-last-statement* ,return-last?))
      ,@body))
 
@@ -1123,7 +1104,7 @@ MODE is one of `:statement' or `:translation-unit'"
      finally
        (return (expand-toplevel :translation-unit
                                 decls fdefs
-				`(,*toplevel-entry-form*)))))
+				nil))))
 
 ;;; The parser
 (define-parser *expression-parser*      ; TODO: Rename?
