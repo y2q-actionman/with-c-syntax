@@ -837,112 +837,120 @@ This is not intended for calling directly. The va_start macro uses this."
                              ',(decl-specs-lisp-type return))))))
 
 ;;; Toplevel
-(defun expand-toplevel-init-decls (mode dspecs init-decls
-                                   dynamic-established-syms)
+(defun expand-init-decls (mode decl-specs init-decls dynamic-established-syms)
   "A part of `expand-toplevel'."
-  (loop with storage-class = (or (decl-specs-storage-class dspecs)
-				 (ecase mode
-				   (:statement '|auto|)
-				   (:translation-unit '|global|)))
-     with qualifiers = (decl-specs-qualifier dspecs)
-     with lexical-binds = nil
-     with dynamic-extent-vars = nil
-     with special-vars = nil
-     with global-defs = nil
-     with typedef-names = nil
-     with funcptr-syms = nil
-     with sym-macro-defs = nil
-     with toplevel-defs = nil
+  (let ((storage-class
+          (or (decl-specs-storage-class decl-specs)
+	      (ecase mode
+		(:statement '|auto|)
+		(:translation-unit '|global|))))
+        (qualifiers (decl-specs-qualifier decl-specs)))
+    ;; Check preconditions.
+    (when (member '|volatile| qualifiers)
+      (warn 'with-c-syntax-style-warning
+	    :message "'volatile' qualifier is currently ignored"))
+    (case storage-class
+      (|auto|
+       (when (eq mode :translation-unit)
+         (error 'compile-error
+                :format-control "At top level, 'auto' variables are not accepted (~S)."
+                :format-arguments (list init-decls))))
+      (|register|
+       (when (eq mode :translation-unit)
+         (error 'compile-error
+                :format-control "At top level, 'register' variables are not accepted (~S)."
+                :format-arguments (list init-decls))))
+      (|global|
+       (when (eq mode :statement)
+         (error 'compile-error
+                :format-control "In internal scope, no global vars cannot be defined (~S)."
+                :format-arguments (list init-decls)))))
+    ;; Main loop.
+    (loop
+      with lexical-binds = nil
+      with dynamic-extent-vars = nil
+      with special-vars = nil
+      with global-defs = nil
+      with typedef-names = nil
+      with funcptr-syms = nil
+      with sym-macro-defs = nil
+      with toplevel-defs = nil
 
-     initially
-       (when (member '|volatile| qualifiers)
-	 (warn 'with-c-syntax-style-warning
-	       :message "'volatile' qualifier is currently ignored"))
+      for i in init-decls
+      as name = (init-declarator-lisp-name i)
+      as init = (init-declarator-lisp-initform i)
 
-     for i in init-decls
-     as name = (init-declarator-lisp-name i)
-     as init = (init-declarator-lisp-initform i)
-
-     ;; function declarations
-     if (subtypep (init-declarator-lisp-type i) 'function)
-     do (unless (or (null init) (zerop init))
-          (error 'compile-error
-                 :format-control "A function cannot have initializer (~S = ~S)."
-                 :format-arguments (list name init)))
-     else do
-     ;; variables
-       (when (member name *dynamic-binding-requested*)
-         (push name dynamic-established-syms))
-       (when (member name *function-pointer-ids*)
-         (push name funcptr-syms))
-       (ecase storage-class
-         (|auto|			; 'auto' vars
-          (when (eq mode :translation-unit)
-            (error 'compile-error
-                   :format-control "At top level, 'auto' variables are not accepted (~S)."
+      ;; function declarations
+      if (subtypep (init-declarator-lisp-type i) 'function)
+        do (unless (or (null init) (zerop init))
+             (error 'compile-error
+                    :format-control "A function cannot have initializer (~S = ~S)."
+                    :format-arguments (list name init)))
+      else do
+        ;; variables
+        (when (member name *dynamic-binding-requested*)
+          (push name dynamic-established-syms))
+        (when (member name *function-pointer-ids*)
+          (push name funcptr-syms))
+        (ecase storage-class
+          (|auto|
+           (assert (eq mode :statement))
+           (push `(,name ,init) lexical-binds))
+          (|register|
+           (assert (eq mode :statement))
+           (push `(,name ,init) lexical-binds)
+           (when (member name dynamic-established-syms :test #'eq)
+             (warn 'with-c-syntax-warning
+                   :format-control "Variable ~A is 'register', but its pointer is taken."
                    :format-arguments (list name)))
-          (push `(,name ,init) lexical-binds))
-         (|register|			; 'register' vars
-          (when (eq mode :translation-unit)
-            (error 'compile-error
-                   :format-control "At top level, 'register' variables are not accepted (~S)."
-                   :format-arguments (list name)))
-          (push `(,name ,init) lexical-binds)
-          (when (member name dynamic-established-syms :test #'eq)
-            (warn 'with-c-syntax-warning
-                  :format-control "Variable ~A is 'register', but its pointer is taken."
-                  :format-arguments (list name)))
-          (push name dynamic-extent-vars))
-         (|extern|			; 'extern' vars.
-          (unless (or (null init) (zerop init))
-            (error 'compile-error
-                   :format-control  "An 'extern' variable cannot have initializer (~S = ~S)."
-                   :format-arguments (list name init))))
-         (|global|			; 'global' vars.
-          (when (eq mode :statement)
-            (error 'compile-error
-                   :format-control "In internal scope, no global vars cannot be defined (~S)."
-                   :format-arguments (list name)))
-	  (if (constantp init *wcs-expanding-environment*)
-	      (push `(defparameter ,name ,init
-			 "generated by with-c-syntax, for global")
-		      toplevel-defs)
-	      ;; Temporary use a lexical value, for initializing correctly
-	      ;; with static vars which are lexically bound.
+           (push name dynamic-extent-vars))
+          (|extern|
+           (unless (or (null init) (zerop init))
+             (error 'compile-error
+                    :format-control "An 'extern' variable cannot have initializer (~S = ~S)."
+                    :format-arguments (list name init))))
+          (|global|
+	   (if (constantp init *wcs-expanding-environment*)
+	       (push `(defparameter ,name ,init
+			"generated by with-c-syntax, for global")
+                     toplevel-defs)
+	       ;; Temporary use a lexical value, for initializing correctly
+	       ;; with static vars which are lexically bound.
 	      (let ((init-sym (gensym (format nil "global-var-~A-tmp-" name))))
 		(push `(,init-sym ,init) lexical-binds)
 		(push `(defparameter ,name ,init-sym
 			 "generated by with-c-syntax, for global and initialized by lexical variables.")
 		      global-defs)))
-	  (push name special-vars))
-         (|static|			; 'static' vars.
-	  (ecase mode
-	    (:statement
-             ;; To make initialization only once, use a cons made by `load-time-value' for a storage.
-             ;; (In old code, I tried to use `defvar' for that.
-             ;;  See https://github.com/y2q-actionman/with-c-syntax/blob/4a2e437ac500ce0dbd5c00dfe4c13b9a8cfd13b4/src/compiler.lisp#L919-L932 )
-	     (let ((st-sym (gensym (format nil "static-var-~A-storage-" name))))
-               (push `(,st-sym (load-time-value (cons ,init nil))) lexical-binds)
-               (push `(,name (car ,st-sym)) sym-macro-defs)))
-	    (:translation-unit
-	     ;; lexically bound
-	     (push `(,name ,init) lexical-binds))))
-         (|typedef|			; 'typedef' vars
-          (push name typedef-names)
-	  (when (eq mode :translation-unit)
-	    (push `(add-typedef ',name ,(find-typedef name))
-		  toplevel-defs))))
-     finally
-       (return
-         (values (nreverse lexical-binds)
-                 (nreverse dynamic-extent-vars)
-                 (nreverse special-vars)
-                 (nreverse global-defs)
-		 (nreverse sym-macro-defs)
-                 (nreverse typedef-names)
-                 (nreverse funcptr-syms)
-                 dynamic-established-syms
-		 (nreverse toplevel-defs)))))
+           (push name special-vars))
+          (|static|
+	   (ecase mode
+	     (:statement
+              ;; To make initialization only once, use a cons made by
+              ;; `load-time-value' for a storage.
+              ;; (In old code, I tried to use `defvar' for that.
+              ;;  See https://github.com/y2q-actionman/with-c-syntax/blob/4a2e437ac500ce0dbd5c00dfe4c13b9a8cfd13b4/src/compiler.lisp#L919-L932 )
+	      (let ((st-sym (gensym (format nil "static-var-~A-storage-" name))))
+                (push `(,st-sym (load-time-value (cons ,init nil))) lexical-binds)
+                (push `(,name (car ,st-sym)) sym-macro-defs)))
+	     (:translation-unit
+	      ;; lexically bound
+	      (push `(,name ,init) lexical-binds))))
+          (|typedef|
+           (push name typedef-names)
+	   (when (eq mode :translation-unit)
+	     (push `(add-typedef ',name ,(find-typedef name))
+		   toplevel-defs))))
+      finally
+         (return
+           (values (nreverse lexical-binds)
+                   (nreverse dynamic-extent-vars)
+                   (nreverse special-vars)
+                   (nreverse global-defs)
+		   (nreverse sym-macro-defs)
+                   (nreverse typedef-names)
+                   (nreverse funcptr-syms)
+                   dynamic-established-syms
+		   (nreverse toplevel-defs))))))
 
 (defmacro wcs-toplevel-let* (bindings &body body)
   "Works like `LET*' except if BINDINGS was empty this macro is expanded to `locally'.
@@ -1013,8 +1021,8 @@ MODE is one of `:statement' or `:translation-unit'"
                                 typedef-names-1 funcptr-syms-1
                                 dynamic-established-syms-1
 				toplevel-defs-1)
-             (expand-toplevel-init-decls mode dspecs init-decls
-                                         cleanup-dynamic-established-syms)
+             (expand-init-decls mode dspecs init-decls
+                                cleanup-dynamic-established-syms)
 	   (assert (subsetp dynamic-extent-vars-1 lexical-binds-1
 			    :test (lambda (dv lv)
 				    (eql dv (car lv)))))
