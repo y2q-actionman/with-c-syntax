@@ -816,7 +816,7 @@ This is not intended for calling directly. The va_start macro uses this."
                     :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
                     :format-arguments (list K&R-param-ids param-ids)))))
     (let ((varargs-sym (gensym "varargs-"))
-          (body (expand-toplevel-stat body :return-last-statement nil))) 
+          (body (expand-toplevel-stat body nil))) 
       (make-function-definition
        :func-name func-name
        :storage-class storage-class
@@ -1085,7 +1085,7 @@ MODE is one of `:statement' or `:translation-unit'"
          do (deletef *function-pointer-ids*
                      sym :test #'eq :count 1)))))
 
-(defun expand-toplevel-stat (stat &key (return-last-statement *return-last-statement*))
+(defun expand-toplevel-stat (stat return-last-statement)
   (let* ((stat-codes (stat-code stat))
 	 (last-form (lastcar stat-codes))
 	 (ex-last-code
@@ -1144,16 +1144,16 @@ MODE is one of `:statement' or `:translation-unit'"
     ;; I require `lambda' for avoiding `eval-when' around `expand-translation-unit'
     (lambda (us) (expand-translation-unit us)))
    (labeled-stat
-    (lambda (st) (expand-toplevel-stat st)))
+    (lambda (st) (expand-toplevel-stat st *return-last-statement*)))
    ;; exp-stat is not included, because it is grammatically ambiguous.
    (compound-stat
-    (lambda (st) (expand-toplevel-stat st)))
+    (lambda (st) (expand-toplevel-stat st *return-last-statement*)))
    (selection-stat
-    (lambda (st) (expand-toplevel-stat st)))
+    (lambda (st) (expand-toplevel-stat st nil)))
    (iteration-stat
-    (lambda (st) (expand-toplevel-stat st)))
+    (lambda (st) (expand-toplevel-stat st nil)))
    (jump-stat
-    (lambda (st) (expand-toplevel-stat st)))
+    (lambda (st) (expand-toplevel-stat st nil)))
    (const-exp                           ; For preprocessor.
     (lambda (exp) (expand-toplevel-const-exp exp))))
 
