@@ -456,31 +456,15 @@
   (intern-conc-pp-number (stringify-conced-integer token1)
                          (preprocessing-number-string token2)))
 
-(defun split-list-at (list pos)
-  (loop with target = '#0=#:unspecific
-        for count from 0
-        for i in list
-        if (< count pos)
-          collect i into before
-        else if (= count pos)
-               do (setf target i)
-        else
-          collect i into after
-        finally
-           (when (eq target '#0#)
-             (error "split-list-at POS '~D' is out-of-range of LIST ~A."
-                    pos list))
-           (return (values before target after))))
-
 (defun split-concatenate-operator-left-operand (token-list)
   (let ((last-token-pos
           (position-if-not #'macro-control-marker-p token-list :from-end t)))
     (if last-token-pos
-        (multiple-value-bind (before last-token after)
-            (split-list-at token-list last-token-pos)
-          (values before
-                  last-token
-                  (delete-whitespace-marker after)))
+        (multiple-value-bind (head rest)
+            (split-list-at last-token-pos token-list)
+          (values head
+                  (first rest)
+                  (remove-whitespace-marker (rest rest))))
         (values (copy-list token-list)
                 +placemaker-token+
                 nil))))
@@ -489,11 +473,11 @@
   (let ((first-token-pos
           (position-if-not #'macro-control-marker-p token-list)))
     (if first-token-pos
-        (multiple-value-bind (before first-token after)
-            (split-list-at token-list first-token-pos)
-          (values (delete-whitespace-marker before)
-                  first-token
-                  after))
+        (multiple-value-bind (head rest)
+            (split-list-at first-token-pos token-list)
+          (values (delete-whitespace-marker head)
+                  (first rest)
+                  (copy-list (rest rest))))
         (values nil
                 +placemaker-token+
                 (copy-list token-list)))))

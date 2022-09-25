@@ -56,6 +56,17 @@
   "Calls nreconc with reversed order args. A helper for `nreconcf'."
   (nreconc list tail))
 
+(defun split-list-at (n list)
+  "Return first N elements and rests of LIST."
+  (loop
+    initially
+       (when (zerop n)
+         (return (values nil list))) 
+    repeat n
+    for i on list
+    collect (car i) into head
+    finally (return (values head (cdr i)))))
+
 (defmacro mv-cond-let ((&optional (var1 (gensym)) &rest rest-vars)
                        &body clauses)
   "This is like the famous 'COND-LET', but takes multiple values."
