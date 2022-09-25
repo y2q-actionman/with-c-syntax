@@ -24,7 +24,7 @@
 
 (defmacro lambda-ignoring-_ (lambda-list &body body)
   "Works like `cl:lambda' macro except automatically `declare's
- `ignore' for required parameters beginning with '_' character."
+ `ignore' for parameters beginning with '_' character."
   (let ((ignored-parameters
           (collect-_-symbol-in-lambda-list lambda-list)))
     (unless ignored-parameters
