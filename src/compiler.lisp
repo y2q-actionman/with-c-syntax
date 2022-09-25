@@ -660,7 +660,7 @@ Returns (values var-init var-type)."
   (let* ((stat (if else-stat
 		   (merge-stat then-stat else-stat)
 		   then-stat))
-	 (else-tag (gensym "if-else-")) ; TODO: remove this if not else-stat?
+	 (else-tag (gensym "if-else-"))
 	 (end-tag (gensym "if-end-")))
     (setf (stat-code stat)
 	  `((unless ,exp (go ,else-tag))
