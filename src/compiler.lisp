@@ -756,7 +756,7 @@ Returns (values var-init var-type)."
 		  `(,switch-end-tag))))
     stat))
 
-;;; Translation Unit -- function definitions
+;;; Function definitions
 (defstruct function-definition
   "Represents a function definition."
   func-name
@@ -771,7 +771,7 @@ with-c-syntax.  If this is called outside of a variadic function, an
 error is signaled.  When defining a variadic function, a local macro
 has same name is established.
 
-This is not intended for calling directly. The `va_start' macro uses this."
+This is not intended for calling directly. The va_start macro uses this."
   (declare (ignore last-argument-name))
   '(error 'runtime-error
     :format-control "Trying to get a variadic args list out of a variadic func."))
