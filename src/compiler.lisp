@@ -816,7 +816,7 @@ This is not intended for calling directly. The `va_start' macro uses this."
                     :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
                     :format-arguments (list K&R-param-ids param-ids)))))
     (let ((varargs-sym (gensym "varargs-"))
-          (body (expand-toplevel-stat body))) 
+          (body (expand-toplevel-stat body :return-last-statement nil))) 
       (make-function-definition
        :func-name func-name
        :storage-class storage-class
@@ -1086,18 +1086,18 @@ MODE is one of `:statement' or `:translation-unit'"
          do (deletef *function-pointer-ids*
                      sym :test #'eq :count 1)))))
 
-(defun expand-toplevel-stat (stat)
+(defun expand-toplevel-stat (stat &key (return-last-statement *return-last-statement*))
   (let* ((stat-codes (stat-code stat))
 	 (last-form (lastcar stat-codes))
 	 (ex-last-code
-	  (if (and *return-last-statement*
+	  (if (and return-last-statement
 		   (typecase last-form
 		     (symbol
 		      ;; uninterned symbols (gensym) are assumed as C labels.
 		      (symbol-package last-form))
 		     (list
 		      ;; Don't wrap form if `return' already exists.
-		      (not (eq (first last-form) 'return)))
+		      (not (starts-with 'return last-form)))
 		     (otherwise t)))
 	      `(return ,last-form)
 	      last-form))
