@@ -879,7 +879,7 @@ returns NIL."
              (pp-if-expression-lexer expansion))
            (parsed-form
              (handler-case
-                 (with-c-compilation-unit (t)
+                 (with-c-compilation-unit ()
                    (parse-with-lexer lexer *expression-parser*))
                (yacc-parse-error (condition)
                  (error 'preprocess-if-expression-parse-error :yacc-error condition))))

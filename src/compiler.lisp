@@ -33,32 +33,16 @@ At the beginning of ~with-c-syntax~, it binds this variable to nil.
 ~with-c-compilation-unit~.
 ")
 
-(defvar *return-last-statement* t
-  "* Value Type
-a boolean
-
-* Description
-Specifies which to return the last form's value of compound statements.
-
-* Notes
-At the beginning of ~with-c-syntax~, it binds this variable depending
-on its ~return~ argument.
-
-* Affected By
-~with-c-compilation-unit~.
-")
-
 (defvar *wcs-expanding-environment* nil
   "`with-c-syntax' bind this to `&environment' argument.")
 
-(defmacro with-c-compilation-unit ((return-last?) ; Move to compiler?
+(defmacro with-c-compilation-unit (() ; Move to compiler?
 				   &body body)
   "Establishes variable bindings for a new compilation."
   `(let ((*struct-specs* (copy-hash-table *struct-specs*))
          (*typedef-names* (copy-hash-table *typedef-names*))
          (*dynamic-binding-requested* nil)
-         (*function-pointer-ids* nil)
-	 (*return-last-statement* ,return-last?))
+         (*function-pointer-ids* nil))
      ,@body))
 
 ;;; Declarations
@@ -1125,10 +1109,10 @@ MODE is one of `:statement' or `:translation-unit'"
     ;; I require `lambda' for avoiding `eval-when' around `expand-translation-unit'
     (lambda (us) (expand-translation-unit us)))
    (labeled-stat
-    (lambda (st) (expand-toplevel-stat st *return-last-statement*)))
+    (lambda (st) (expand-toplevel-stat st t)))
    ;; exp-stat is not included, because it is grammatically ambiguous.
    (compound-stat
-    (lambda (st) (expand-toplevel-stat st *return-last-statement*)))
+    (lambda (st) (expand-toplevel-stat st t)))
    (selection-stat
     (lambda (st) (expand-toplevel-stat st nil)))
    (iteration-stat

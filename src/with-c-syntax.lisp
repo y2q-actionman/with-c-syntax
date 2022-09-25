@@ -1,14 +1,14 @@
 (in-package #:with-c-syntax.core)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun expand-c-syntax (body try-add-{} return-last?)
+  (defun expand-c-syntax (body try-add-{})
     (handler-case
-	(with-c-compilation-unit (return-last?)
+	(with-c-compilation-unit ()
 	  (parse-with-lexer (list-lexer body) *expression-parser*))
       (yacc-parse-error (condition)
 	(if (and try-add-{}
 		 (not (starts-with '{ body)))
-	    (expand-c-syntax `({ ,@body }) nil return-last?) ; retry
+	    (expand-c-syntax `({ ,@body }) nil) ; retry
 	    (error 'with-c-syntax-parse-error
 		   :yacc-error condition))))))
 
@@ -18,12 +18,14 @@
                             (readtable-case (or *with-c-syntax-reader-case*
                                                 (readtable-case *readtable*)))
                             (input-file-pathname nil)
-                            (return :auto)
 			    (try-add-{} t))
 			 &environment *wcs-expanding-environment*
 			 &body body)
   "This macro is a entry point of the with-c-syntax system. BODY will be
 interpreted as C syntax, executed, and return values.
+
+This macro returns the last form's value if BODY is a compound
+statement, or returns NIL if BODY is a compilation unit.
 
 PREPROCESS specifies how to do preprocess. If nil, this macro compiles
 BODY without preprocessing. If t, preprocesses and compiles BODY. If
@@ -38,10 +40,6 @@ was read.  This affects how to intern C keywords by the preprocessor.
 
 INPUT-FILE-PATHNAME is passed to the preprocessor and used when
 '__FILE__' macro was used.
-
-If RETURN is `:auto', returns the last form's value if BODY is a
-compound statement. (If BODY is a compilation unit, this returns NIL
-now, but this behavior may be changed.)
 
 If TRY-ADD-{} is t and an error occurred at parsing, `with-c-syntax'
 adds '{' and '}' into the head and tail of FORM respectively, and
@@ -60,9 +58,8 @@ tries to parse again."
        (:preprocess-only
         (preprocessor body reader-level readtable-case input-file-pathname))
        (t
-        `(with-c-syntax (:preprocess nil :return ,return :try-add-{} ,try-add-{})
+        `(with-c-syntax (:preprocess nil :try-add-{} ,try-add-{})
            ,@(preprocessor body reader-level readtable-case input-file-pathname)))
        ((nil)
         (expand-c-syntax body
-		         try-add-{}
-		         (eq return :auto)))))))
+		         try-add-{}))))))
