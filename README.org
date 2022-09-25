@@ -8,20 +8,6 @@ coding, I think.)
 At this stage, this package has all features of ISO C 90 freestanding
 implementation.
 
-* News
-** 2021-9-5
-   C Preprocessor is added. See examples below.
-   
-** 2021-5-24
-   C Numeric Literals are added. (Inspired by [[https://github.com/akanouras][@akanouras]]. See [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
-   Hexadecimal floating number syntax may be a only practical feature
-   of this package. (Try =#{ 0x1.fffp+1; }#=)
-   
-** 2019-4-25
-- Some special handlings around =++=, =*=, etc are added.
-  The *Duff's Device* example becomes prettier.
-- Added a new example, *C in Lisp in C in Lisp*. (+unholy mixture..+)
-
 * Examples
 ** Hello, World
 
@@ -229,149 +215,163 @@ However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/bl
 
 *** C Macros
 
-    =#define= can be used. This is a well-known MAX macro example.
+=#define= can be used. This is a well-known MAX macro example.
 
-    #+begin_src lisp
-      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+#+begin_src lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
 
-      #{
-      #define MY_MAX(x, y) ((x)>(y) ? (x) : (y))
+  #{
+  #define MY_MAX(x, y) ((x)>(y) ? (x) : (y))
 
-      int my-max-test (x, y) {
-	return MY_MAX (x, y);
-      }
-      }#
+  int my-max-test (x, y) {
+  return MY_MAX (x, y);
+  }
+  }#
 
-      (my-max-test -1 1) ; => 1
-    #+end_src
+  (my-max-test -1 1) ; => 1
+#+end_src
 
-    But you know Common Lisp already has [[http://www.lispworks.com/documentation/HyperSpec/Body/f_max_m.htm][CL:MAX]]. We can use it directly:
+But you know Common Lisp already has [[http://www.lispworks.com/documentation/HyperSpec/Body/f_max_m.htm][CL:MAX]]. We can use it directly:
     
-    #+begin_src lisp
-      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+#+begin_src lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
 
-      #{
-      #define MY_CL_MAX(x, ...) cl:max(x, __VA_ARGS__)
+  #{
+  #define MY_CL_MAX(x, ...) cl:max(x, __VA_ARGS__)
 
-      int my-cl-max-test (x, y, z) {
-	return MY_CL_MAX (x, y, z);
-      }
-      }#
+  int my-cl-max-test (x, y, z) {
+  return MY_CL_MAX (x, y, z);
+  }
+  }#
 
-      (my-cl-max-test -1 9999 0) ; => 1
-    #+end_src
+  (my-cl-max-test -1 9999 0) ; => 1
+#+end_src
 
-    =#= (stringify) and =##= (concatenate) operator can be used, but
-    only in Level 2 syntax (because it conflicts with standard Lisp
-    '#' syntax.)
+=#= (stringify) and =##= (concatenate) operator can be used, but
+only in Level 2 syntax (because it conflicts with standard Lisp
+'#' syntax.)
 
-    #+begin_src lisp
-      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+#+begin_src lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
 
-      (string=
-       "1.2"
-       #2{
-       #define STR(x) #x
-       #define EXPAND_STR(x) STR(x) 
-       #define CAT(x,y) x##y
-       EXPAND_STR(CAT(1,.2))
-       }#)
-    #+end_src
+  (string=
+   "1.2"
+   #2{
+   #define STR(x) #x
+   #define EXPAND_STR(x) STR(x) 
+   #define CAT(x,y) x##y
+   EXPAND_STR(CAT(1,.2))
+   }#)
+#+end_src
 
-    (Yes, you can use these transformation more freely in Lisp macro!)
+(Yes, you can use these transformation more freely in Lisp macro!)
 
 *** Conditional Inclusion
 
-    =#if= family is supported. Simple example:
+=#if= family is supported. Simple example:
 
-    #+begin_src lisp
-      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+#+begin_src lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
 
-      #{
-      #define TEST_MACRO_DEFINITION
+  #{
+  #define TEST_MACRO_DEFINITION
 
-      int test-macro-defined-p () {
-      #ifdef TEST_MACRO_DEFINITION
-	return t;
-      #else
-	return nil;
-      #endif
-      }
-      }#
+  int test-macro-defined-p () {
+  #ifdef TEST_MACRO_DEFINITION
+  return t;
+  #else
+  return nil;
+  #endif
+  }
+  }#
 
-      (test-macro-defined-p) ; => t
-    #+end_src
+  (test-macro-defined-p) ; => t
+#+end_src
 
-    =#if= also works as expected. It can evaluate any Lisp expressions
-    using =`= syntax. This feature enables to use =*features*= by
-    =#if= conditionals:
+=#if= also works as expected. It can evaluate any Lisp expressions
+using =`= syntax. This feature enables to use =*features*= by
+=#if= conditionals:
 
-    #+begin_src lisp
-      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+#+begin_src lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
 
-      (defun see-features-example ()
-	#{
-	#if `(member :sbcl *features* :test 'eq)
-	format(nil, "I am SBCL: ~A", lisp-implementation-version());
-	#elif `(member :allegro *features* :test 'eq)
-	format(nil, "I am ALLEGRO: ~A", lisp-implementation-version());
-	#else
-	"Under implementation";
-	#endif
-	}#)
+  (defun see-features-example ()
+    #{
+    #if `(member :sbcl *features* :test 'eq)
+    format(nil, "I am SBCL: ~A", lisp-implementation-version());
+    #elif `(member :allegro *features* :test 'eq)
+    format(nil, "I am ALLEGRO: ~A", lisp-implementation-version());
+    #else
+    "Under implementation";
+    #endif
+    }#)
 
-      (see-features-example)
-      ;; On SBCL
-      ;; => "I am SBCL: 2.1.7"
-      ;; On Allegro
-      ;; => "I am ALLEGRO: 10.1 [64-bit Mac OS X (Intel) *SMP*] (Jul 6, 2018 18:44)"
-      ;; On other implementations
-      ;; => "Under implementation"
-    #+end_src
+  (see-features-example)
+  ;; On SBCL
+  ;; => "I am SBCL: 2.1.7"
+  ;; On Allegro
+  ;; => "I am ALLEGRO: 10.1 [64-bit Mac OS X (Intel) *SMP*] (Jul 6, 2018 18:44)"
+  ;; On other implementations
+  ;; => "Under implementation"
+#+end_src
 
 *** =#include=
 
-    =#include= works as you know:
+=#include= works as you know:
 
-    #+begin_src lisp
-      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+#+begin_src lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
 
-      (with-open-file (stream "/tmp/tmp.h" :direction :output :if-exists :supersede)
-	(format stream "const int foo = 100;"))
+  (with-open-file (stream "/tmp/tmp.h" :direction :output :if-exists :supersede)
+    (format stream "const int foo = 100;"))
 
-      (defun return-foo ()
-	#{
-	#include "/tmp/tmp.h"
-	return foo;
-	}#)
+  (defun return-foo ()
+    #{
+    #include "/tmp/tmp.h"
+    return foo;
+    }#)
 
-      (return-foo) ; => 100
-    #+end_src
+  (return-foo) ; => 100
+#+end_src
 
-    When using =#include=, it can be a problem which package the
-    symbol is interned in.  It can be changed with the with-c-syntax
-    specific pragma [fn:1].
+When using =#include=, it can be a problem which package the
+symbol is interned in.  It can be changed with the with-c-syntax
+specific pragma [fn:1].
 
-    #+begin_src lisp
-      (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+#+begin_src lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
 
-      (with-open-file (stream "/tmp/tmp.h" :direction :output :if-exists :supersede)
-	;; _Pragma() can be embedded in the included file.
-	(format stream "const int bar = 123;"))
+  (with-open-file (stream "/tmp/tmp.h" :direction :output :if-exists :supersede)
+    ;; _Pragma() can be embedded in the included file.
+    (format stream "const int bar = 123;"))
 
-      (defpackage temp-package
-	(:use :cl)
-	(:export #:bar))
+  (defpackage temp-package
+    (:use :cl)
+    (:export #:bar))
 
-      #2{
-      _Pragma("WITH_C_SYNTAX IN_PACKAGE \"TEMP-PACKAGE\"")
-      #include "/tmp/tmp.h"
-      }#
+  #2{
+  _Pragma("WITH_C_SYNTAX IN_PACKAGE \"TEMP-PACKAGE\"")
+  #include "/tmp/tmp.h"
+  }#
 
-      temp-package:bar ; => 123
-    #+end_src
+  temp-package:bar ; => 123
+#+end_src
 
-    (But in the Lisp world, you already have =read=, =eval=, and =load=...)
+(But in the Lisp world, you already have =read=, =eval=, and =load=...)
+
+* News
+** 2021-9-5
+   C Preprocessor is added. See examples below.
+   
+** 2021-5-24
+   C Numeric Literals are added. (Inspired by [[https://github.com/akanouras][@akanouras]]. See [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
+   Hexadecimal floating number syntax may be a only practical feature
+   of this package. (Try =#{ 0x1.fffp+1; }#=)
+   
+** 2019-4-25
+- Some special handlings around =++=, =*=, etc are added.
+  The *Duff's Device* example becomes prettier.
+- Added a new example, *C in Lisp in C in Lisp*. (+unholy mixture..+)
 
 * How to load
 
