@@ -1,22 +1,6 @@
 (in-package #:with-c-syntax.core)
 
 ;;; Variables
-(defvar *dynamic-binding-requested* nil
-  "* Value Type 
-a list :: consists of symbols.
-
-* Description
-Holds a list of symbols, which are pointed by a pointer.
-If a pseudo-pointer is created for a symbol, the symbol is added to
-here (Because such a symbol must be handled carefully).
-
-* Notes
-At the beginning of ~with-c-syntax~, it binds this variable to nil.
-
-* Affected By
-~with-c-compilation-unit~.
-")
-
 (defvar *function-pointer-ids* nil
   "* Value Type
 a list :: consists of symbols.
@@ -41,7 +25,6 @@ At the beginning of ~with-c-syntax~, it binds this variable to nil.
   "Establishes variable bindings for a new compilation."
   `(let ((*struct-specs* (copy-hash-table *struct-specs*))
          (*typedef-names* (copy-hash-table *typedef-names*))
-         (*dynamic-binding-requested* nil)
          (*function-pointer-ids* nil))
      ,@body))
 
@@ -548,8 +531,6 @@ Returns (values var-init var-type)."
                   :format-control "Cannot take a pointer to form ~S."
                   :format-arguments (list exp))))
     (cond ((symbolp exp)
-           ;; TODO: remove `*dynamic-binding-requested*' variable.
-           ;; (push exp *dynamic-binding-requested*)
            (cond
              ((nth-value 1 (macroexpand exp)) ; Checks EXP is a symbol-macro or not.
               `(make-pseudo-pointer-to-place ,exp))
@@ -809,7 +790,7 @@ This is not intended for calling directly. The va_start macro uses this."
                              ',(decl-specs-lisp-type return))))))
 
 ;;; Toplevel
-(defun expand-init-decls (mode decl-specs init-decls dynamic-established-syms)
+(defun expand-init-decls (mode decl-specs init-decls)
   "A part of `expand-toplevel'."
   (let ((storage-class
           (or (decl-specs-storage-class decl-specs)
@@ -860,8 +841,6 @@ This is not intended for calling directly. The va_start macro uses this."
                     :format-arguments (list name init)))
       else do
         ;; variables
-        (when (member name *dynamic-binding-requested*)
-          (push name dynamic-established-syms))
         (when (member name *function-pointer-ids*)
           (push name funcptr-syms))
         (ecase storage-class
@@ -871,10 +850,7 @@ This is not intended for calling directly. The va_start macro uses this."
           (|register|
            (assert (eq mode :statement))
            (push `(,name ,init) lexical-binds)
-           (when (member name dynamic-established-syms :test #'eq)
-             (warn 'with-c-syntax-warning
-                   :format-control "Variable ~A is 'register', but its pointer is taken."
-                   :format-arguments (list name)))
+           ;; TODO: add warnings if a pointer is taken for this variable.
            (push name dynamic-extent-vars))
           (|extern|
            (unless (or (null init) (zerop init))
@@ -921,7 +897,6 @@ This is not intended for calling directly. The va_start macro uses this."
 		   (nreverse sym-macro-defs)
                    (nreverse typedef-names)
                    (nreverse funcptr-syms)
-                   dynamic-established-syms
 		   (nreverse toplevel-defs))))))
 
 (defmacro wcs-toplevel-let* (bindings &body body)
@@ -936,14 +911,6 @@ This is not intended for calling directly. The va_start macro uses this."
  This macro is intended to make expansion of `with-c-syntax' to be a top-level form."
   (if local-functions
       `(labels ,local-functions ,@body)
-      `(locally ,@body)))
-
-(defmacro with-wcs-dynamic-bound-symbols ((&rest symbols) &body body)
-  "Inside this, passed symbols are dynamically bound to itself."
-  (if symbols
-      `(let ,(loop for s in symbols collect `(,s ,s))
-         (declare (special ,@symbols))
-         ,@body)
       `(locally ,@body)))
 
 (defun expand-toplevel (mode decls fdefs code)
@@ -962,7 +929,6 @@ MODE is one of `:statement' or `:translation-unit'"
         cleanup-typedef-names
         cleanup-funcptr-syms
         cleanup-struct-specs
-        cleanup-dynamic-established-syms
 	toplevel-defs)
     ;; process decls
     (loop for (dspecs init-decls) in decls
@@ -991,10 +957,8 @@ MODE is one of `:statement' or `:translation-unit'"
                (lexical-binds-1 dynamic-extent-vars-1
                                 special-vars-1 ignored-names-1 sym-macro-defs-1
                                 typedef-names-1 funcptr-syms-1
-                                dynamic-established-syms-1
 				toplevel-defs-1)
-             (expand-init-decls mode dspecs init-decls
-                                cleanup-dynamic-established-syms)
+             (expand-init-decls mode dspecs init-decls)
 	   (assert (subsetp dynamic-extent-vars-1 lexical-binds-1
 			    :test (lambda (dv lv)
 				    (eql dv (car lv)))))
@@ -1005,7 +969,6 @@ MODE is one of `:statement' or `:translation-unit'"
            (nreconcf sym-macro-defs sym-macro-defs-1)
            (nreconcf cleanup-typedef-names typedef-names-1)
            (nreconcf cleanup-funcptr-syms funcptr-syms-1)
-           (setf cleanup-dynamic-established-syms dynamic-established-syms-1)
 	   (nreconcf toplevel-defs toplevel-defs-1)))
     ;; functions
     (loop for fdef in fdefs
@@ -1031,6 +994,7 @@ MODE is one of `:statement' or `:translation-unit'"
     (nreversef toplevel-defs)
     (prog1
         `(progn
+           ;; TODO: FIXME: preserve definition sequence!
 	   ,@toplevel-defs
 	   (wcs-toplevel-let* (,@lexical-binds)
 	     (declare (dynamic-extent ,@dynamic-extent-vars)
@@ -1038,21 +1002,14 @@ MODE is one of `:statement' or `:translation-unit'"
                       (special ,@special-vars))
 	     (wcs-toplevel-labels (,@local-funcs) ; 'static' functions.
 	       ,@func-defs		; 'global' functions.
-	       (with-wcs-dynamic-bound-symbols
-		   ,(ecase mode
-		      (:statement *dynamic-binding-requested*)
-		      (:translation-unit nil))
-		 (symbol-macrolet (,@sym-macro-defs)
-		   ,@code)))))
+	       (symbol-macrolet (,@sym-macro-defs)
+		 ,@code))))
       ;; drop expanded definitions
       (loop for sym in cleanup-typedef-names
          do (remove-typedef sym))
       (loop for c in cleanup-struct-specs
          do (remove-struct-spec (struct-spec-struct-name c)))
       ;; drop symbols specially treated in this unit.
-      (loop for sym in cleanup-dynamic-established-syms
-         do (deletef *dynamic-binding-requested*
-                     sym :test #'eq :count 1))
       (loop for sym in cleanup-funcptr-syms
          do (deletef *function-pointer-ids*
                      sym :test #'eq :count 1)))))
