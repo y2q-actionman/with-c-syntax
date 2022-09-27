@@ -1,5 +1,10 @@
 (in-package #:with-c-syntax.core)
 
+(defmacro nest (&rest things) ; Copied from `uiop:nest'.
+  "Macro to do keep code nesting and indentation under control." ;; Thanks to mbaringer
+  (reduce #'(lambda (outer inner) `(,@outer ,inner))
+          things :from-end t))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun _-symbol-p (obj)
     "Returns T if OBJ is a symbol and starts with '_' character."

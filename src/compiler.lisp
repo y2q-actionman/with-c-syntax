@@ -906,14 +906,22 @@ This is not intended for calling directly. The va_start macro uses this."
       `(let* ,bindings ,@body)
       `(locally ,@body)))
 
-(defmacro wcs-toplevel-labels (local-functions &body body)
-  "Works like `LABELS' except if LOCAL-FUNCTIONS was empty this macro is expanded to `locally'.
- This macro is intended to make expansion of `with-c-syntax' to be a top-level form."
-  (if local-functions
-      `(labels ,local-functions ,@body)
-      `(locally ,@body)))
+(defmacro wcs-nest ((toplevel-defs lexical-binds dynamic-extent-vars
+                     ignored-names special-vars
+                     sym-macro-defs)
+                    &body body)
+  "To be removed"
+  `(progn
+     ;; TODO: FIXME: preserve definition sequence!
+     ,@toplevel-defs
+     (wcs-toplevel-let* (,@lexical-binds)
+       (declare (dynamic-extent ,@dynamic-extent-vars)
+		(ignore ,@ignored-names)
+                (special ,@special-vars))
+       (symbol-macrolet (,@sym-macro-defs)
+	 ,@body))))
 
-(defun expand-toplevel (mode decls fdefs code)
+(defun expand-toplevel (mode decls code)
   "This is a final compilation phase. Makes a toplevel form.
 MODE is one of `:statement' or `:translation-unit'"
   (let (;; used for :statement
@@ -923,8 +931,6 @@ MODE is one of `:statement' or `:translation-unit'"
         special-vars
         ignored-names
 	;; used for both
-        func-defs
-        local-funcs
 	sym-macro-defs
         cleanup-typedef-names
         cleanup-funcptr-syms
@@ -970,40 +976,22 @@ MODE is one of `:statement' or `:translation-unit'"
            (nreconcf cleanup-typedef-names typedef-names-1)
            (nreconcf cleanup-funcptr-syms funcptr-syms-1)
 	   (nreconcf toplevel-defs toplevel-defs-1)))
-    ;; functions
-    (loop for fdef in fdefs
-       as name = (function-definition-func-name fdef)
-       as args = (function-definition-func-args fdef)
-       as body = (function-definition-func-body fdef)
-       do (ecase (function-definition-storage-class fdef)
-            (|global|
-             (push `(defun ,name ,args ,@body) func-defs))
-            (|static|
-             (push `(,name ,args ,@body) local-funcs))))
     ;; Finally, constructs a compiled form.
     (nreversef lexical-binds)
     (nreversef dynamic-extent-vars)
     (nreversef special-vars)
     (nreversef ignored-names)
     (nreversef sym-macro-defs)
-    (nreversef func-defs)
-    (nreversef local-funcs)
     (nreversef cleanup-typedef-names)
     (nreversef cleanup-funcptr-syms)
     (nreversef cleanup-struct-specs)
     (nreversef toplevel-defs)
     (prog1
-        `(progn
-           ;; TODO: FIXME: preserve definition sequence!
-	   ,@toplevel-defs
-	   (wcs-toplevel-let* (,@lexical-binds)
-	     (declare (dynamic-extent ,@dynamic-extent-vars)
-		      (ignore ,@ignored-names)
-                      (special ,@special-vars))
-	     (wcs-toplevel-labels (,@local-funcs) ; 'static' functions.
-	       ,@func-defs		; 'global' functions.
-	       (symbol-macrolet (,@sym-macro-defs)
-		 ,@code))))
+        ;; TODO: FIXME: preserve definition sequence!
+        `(wcs-nest (,toplevel-defs ,lexical-binds ,dynamic-extent-vars
+                                   ,ignored-names ,special-vars
+                                   ,sym-macro-defs)
+           ,@code)
       ;; drop expanded definitions
       (loop for sym in cleanup-typedef-names
          do (remove-typedef sym))
@@ -1037,22 +1025,37 @@ MODE is one of `:statement' or `:translation-unit'"
 		 ,ex-last-code))))
     (expand-toplevel :statement
 		     (stat-declarations stat)
-		     nil
 		     `(,ex-code))))
 
 (defun expand-toplevel-const-exp (exp)
-  (expand-toplevel :statement nil nil `(,exp)))
+  (expand-toplevel :statement nil `(,exp)))
+
+(defmacro wcs-toplevel-labels (local-functions &body body)
+  "Works like `LABELS' except if LOCAL-FUNCTIONS was empty this macro is expanded to `locally'.
+ This macro is intended to make expansion of `with-c-syntax' to be a top-level form."
+  (if local-functions
+      `(labels ,local-functions ,@body)
+      `(locally ,@body)))
+
+(defun expand-function-definition-to-nest-macro-element (fdef)
+  ;; TODO: docstring
+  (let* ((name (function-definition-func-name fdef))
+         (args (function-definition-func-args fdef))
+         (body (function-definition-func-body fdef)))
+    (ecase (function-definition-storage-class fdef)
+      (|global|
+       `(progn (defun ,name ,args ,@body)))
+      (|static|
+       `(wcs-toplevel-labels ((,name ,args ,@body)))))))
 
 (defun expand-translation-unit (units)
+  ;; Makes a `nest' macro form.
   (loop for u in units
-     if (function-definition-p u)
-     collect u into fdefs
-     else
-     collect u into decls
-     finally
-       (return (expand-toplevel :translation-unit
-                                decls fdefs
-				nil))))
+        as expansion = (if (function-definition-p u)
+                           (expand-function-definition-to-nest-macro-element u)
+                           (expand-toplevel :translation-unit (list u) nil))
+        collect expansion into expansions
+        finally (return `(nest ,@expansions))))
 
 ;;; The parser
 (define-parser *expression-parser*      ; TODO: Rename?
