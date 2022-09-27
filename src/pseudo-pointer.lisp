@@ -1,5 +1,7 @@
 (in-package #:with-c-syntax.core)
 
+;;; pseudo-pointer type definitions and environments.
+
 (deftype valid-pseudo-pointer (&optional (pointee-type t))
   "The base type of internal representation of non-null pointers in
 with-c-syntax system.
@@ -59,26 +61,45 @@ If out of that, this call invalidates all pseudo-pointers."
     (clrhash *pseudo-pointee-table*)
     (setf *next-pseudo-pointer* 0)))
 
+;;; pseudo-pointer internal types.
+
+(defstruct (pseudo-pointer-to-place
+            (:constructor %make-pp-to-place))
+  "A pseudo-pointer internal type referring a single place, using `lambda'."
+  lambda)
+
+;;; pseudo-pointer interfaces
+
 (defun pseudo-pointer-pointable-p (object)
-  "Returns whether the OBJECT can be held by pseudo-pointers."
-  ;; In current, this function returns t only if the OBJECT is a
-  ;; `symbol', `vector', or an `array'.
+  "Returns whether the OBJECT can directly be held by pseudo-pointers."
   (typecase object
     (symbol t)
     (vector t)
     (array t)
+    (pseudo-pointer-to-place t)
     (otherwise nil)))
 
-(defun make-pseudo-pointer (pointee &optional (initial-offset 0))
+(defun make-pseudo-pointer (pointee &key (initial-offset 0) (errorp t))
   "Makes and returns a new pseudo-pointer points POINTEE.
 INITIAL-OFFSET is added to the result at making."
-  (unless (pseudo-pointer-pointable-p pointee)
+  (when (and errorp
+             (not (pseudo-pointer-pointable-p pointee)))
     (error 'pseudo-pointer-type-error :pointee pointee))
   (let ((base (ash (incf *next-pseudo-pointer*)
 		   (logcount +pseudo-pointer-mask+))))
     (setf (gethash base *pseudo-pointee-table*)
 	  pointee)
     (+ base +pseudo-pointer-safebit+ initial-offset)))
+
+(defmacro make-pseudo-pointer-to-place (place)
+  "Makes a pseudo-pointer using `pseudo-pointer-to-place'."
+  `(make-pseudo-pointer
+    (%make-pp-to-place
+     :lambda (lambda (mode &optional value)
+               (ecase mode
+                 (:get ,place)
+                 (:set (setf ,place value)))))
+    :errorp nil))
 
 (defun pseudo-pointer-extract (pointer &optional (errorp t))
   "A helper function used by `pseudo-pointer-dereference', etc."
@@ -111,6 +132,11 @@ INITIAL-OFFSET is added to the result at making."
       (array
        (make-pseudo-pointer
 	(make-reduced-dimension-array obj idx)))
+      (pseudo-pointer-to-place
+       (unless (zerop idx)
+	 (error 'pseudo-pointer-dangling-error
+		:pointer pointer :pointee obj :offset idx))
+       (funcall (pseudo-pointer-to-place-lambda obj) :get))
       (otherwise
        (error 'pseudo-pointer-type-error :pointee obj)))))
 
@@ -126,9 +152,16 @@ INITIAL-OFFSET is added to the result at making."
        (set obj new-object))
       (vector
        (setf (elt obj idx) new-object))
+      ;; TODO: 
+      ;; makes a lambda for a pointer to a reduced dimension array.
       (array				; FIXME
        (error 'pseudo-pointer-write-error
 	      :pointer pointer :pointee obj :offset idx))
+      (pseudo-pointer-to-place
+       (unless (zerop idx)
+	 (error 'pseudo-pointer-dangling-error
+		:pointer pointer :pointee obj :offset idx))
+       (funcall (pseudo-pointer-to-place-lambda obj) :set new-object))
       (otherwise
        (error 'pseudo-pointer-type-error :pointee obj)))))
 

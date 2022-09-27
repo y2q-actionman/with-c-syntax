@@ -548,11 +548,18 @@ Returns (values var-init var-type)."
                   :format-control "Cannot take a pointer to form ~S."
                   :format-arguments (list exp))))
     (cond ((symbolp exp)
-           (push exp *dynamic-binding-requested*)
-           (once-only ((val exp))
-             `(make-pseudo-pointer
-               (if (pseudo-pointer-pointable-p ,val)
-                   ,val ',exp))))
+           ;; TODO: remove `*dynamic-binding-requested*' variable.
+           ;; (push exp *dynamic-binding-requested*)
+           (cond
+             ((nth-value 1 (macroexpand exp)) ; Checks EXP is a symbol-macro or not.
+              `(make-pseudo-pointer-to-place ,exp))
+             ;; TODO: Checks whether EXP is a special variable, which can be pointed directly.
+             ;; (To check it,  I require `variable-information' of CLtL2.)
+             (t
+              ;; I assume EXP can be referred without side-effects.
+              `(if (pseudo-pointer-pointable-p ,exp)
+                   (make-pseudo-pointer ,exp :errorp nil)
+                   (make-pseudo-pointer-to-place ,exp)))))
           ((listp exp)
            (destructuring-case exp
              ((lisp-subscript obj &rest args)
@@ -560,7 +567,7 @@ Returns (values var-init var-type)."
                 `(if (arrayp ,obj)
                      (make-pseudo-pointer
                       (make-reduced-dimension-array ,obj ,@(butlast args))
-                      ,(lastcar args))
+                      :initial-offset ,(lastcar args))
                      (error 'runtime-error
                             :format-control "Trying to get a pointer to an array, but this is not an array: ~S."
                             :format-arguments (list ,obj)))))
@@ -569,7 +576,7 @@ Returns (values var-init var-type)."
                 `(if (typep ,obj 'struct)
                      (make-pseudo-pointer
                       (struct-member-vector ,obj)
-                      (struct-member-index ,obj ,mem))
+                      :initial-offset (struct-member-index ,obj ,mem))
                      (error 'runtime-error
                             :format-control "Trying to get a pointer to a struct member, but this is not a struct: ~S."
                             :format-arguments (list ,obj)))))
