@@ -426,12 +426,12 @@ This library is quicklisp-ready on [[http://blog.quicklisp.org/2021/08/august-20
 * API
 Please see these docstrings or comments:
 
-- Macro [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/with-c-syntax.lisp#L15-L52][with-c-syntax]]
-- Comments around [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L792-L820][with-c-syntax-readtable]]
-- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L5-L100][*with-c-syntax-reader-level*]]
-- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L102-L111][*with-c-syntax-reader-case*]]
-- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/reader.lisp#L113-L115][*previous-readtable*]]
-- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/77408a69bbfac40b732b8fa490480bd639ee00b7/src/preprocessor.lisp#L19-L23][*with-c-syntax-find-include-file-function-list*]]
+- Macro [[https://github.com/y2q-actionman/with-c-syntax/blob/95eebdc79eb8dc8c5c3e29d218e447b3ff2b949c/src/with-c-syntax.lisp#L15-L46][with-c-syntax]]
+- Comments around [[https://github.com/y2q-actionman/with-c-syntax/blob/95eebdc79eb8dc8c5c3e29d218e447b3ff2b949c/src/reader.lisp#L792-L820][with-c-syntax-readtable]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/95eebdc79eb8dc8c5c3e29d218e447b3ff2b949c/src/reader.lisp#L5-L100][*with-c-syntax-reader-level*]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/95eebdc79eb8dc8c5c3e29d218e447b3ff2b949c/src/reader.lisp#L102-L111][*with-c-syntax-reader-case*]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/95eebdc79eb8dc8c5c3e29d218e447b3ff2b949c/src/reader.lisp#L113-L115][*previous-readtable*]]
+- Variable [[https://github.com/y2q-actionman/with-c-syntax/blob/95eebdc79eb8dc8c5c3e29d218e447b3ff2b949c/src/preprocessor.lisp#L19-L23][*with-c-syntax-find-include-file-function-list*]]
 
 * Further Information
 What this macro does is only expanding a list of symbols to a Lisp form.
