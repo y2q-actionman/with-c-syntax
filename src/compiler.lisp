@@ -1030,13 +1030,6 @@ MODE is one of `:statement' or `:translation-unit'"
 (defun expand-toplevel-const-exp (exp)
   (expand-toplevel :statement nil `(,exp)))
 
-(defmacro wcs-toplevel-labels (local-functions &body body)
-  "Works like `LABELS' except if LOCAL-FUNCTIONS was empty this macro is expanded to `locally'.
- This macro is intended to make expansion of `with-c-syntax' to be a top-level form."
-  (if local-functions
-      `(labels ,local-functions ,@body)
-      `(locally ,@body)))
-
 (defun expand-function-definition-to-nest-macro-element (fdef)
   ;; TODO: docstring
   (let* ((name (function-definition-func-name fdef))
@@ -1046,7 +1039,7 @@ MODE is one of `:statement' or `:translation-unit'"
       (|global|
        `(progn (defun ,name ,args ,@body)))
       (|static|
-       `(wcs-toplevel-labels ((,name ,args ,@body)))))))
+       `(labels ((,name ,args ,@body)))))))
 
 (defun expand-translation-unit (units)
   ;; Makes a `nest' macro form.
