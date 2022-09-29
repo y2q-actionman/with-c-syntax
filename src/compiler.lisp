@@ -899,12 +899,23 @@ This is not intended for calling directly. The va_start macro uses this."
                    (nreverse funcptr-syms)
 		   (nreverse toplevel-defs))))))
 
-(defmacro wcs-toplevel-let* (bindings &body body)
-  "Works like `LET*' except if BINDINGS was empty this macro is expanded to `locally'.
- This macro is intended to make expansion of `with-c-syntax' to be a top-level form."
-  (if bindings
-      `(let* ,bindings ,@body)
-      `(locally ,@body)))
+(defun expand-declarator-bindings (lexical-binds dynamic-extent-vars ignored-names special-vars)
+  "Makes a (let* (...) (declare ...)) form except trying to simplify the expansion."
+  `(,@(cond (lexical-binds
+             `(let* (,@lexical-binds)))
+            ((and (not lexical-binds)
+                  (or dynamic-extent-vars ignored-names special-vars))
+             '(locally))
+            (t
+             '(progn)))
+    ,@(if (or dynamic-extent-vars ignored-names special-vars)
+          `((declare
+             ,@(if dynamic-extent-vars
+                   `((dynamic-extent ,@dynamic-extent-vars)))
+             ,@(if ignored-names
+                   `((ignore ,@ignored-names)))
+             ,@(if special-vars
+                   `((special ,@special-vars))))))))
 
 (defun expand-declarator-to-nest-macro-elements (mode decls)
   "Expand a list of declarators to a `nest' macro element.
@@ -972,15 +983,12 @@ MODE is one of `:statement' or `:translation-unit'"
     (nreversef cleanup-struct-specs)
     (nreversef toplevel-defs)
     (prog1
-        (let ((forms (list (if toplevel-defs
-                               `(progn ,@toplevel-defs))
-                           `(wcs-toplevel-let* (,@lexical-binds)
-                              (declare (dynamic-extent ,@dynamic-extent-vars)
-	                               (ignore ,@ignored-names)
-                                       (special ,@special-vars)))
-                           (if sym-macro-defs
-                               `(symbol-macrolet (,@sym-macro-defs))))))
-          (remove nil forms))
+        `(,@(if toplevel-defs
+                `((progn ,@toplevel-defs)))
+          ,(expand-declarator-bindings lexical-binds dynamic-extent-vars
+                                       ignored-names special-vars)
+          ,@(if sym-macro-defs
+                `((symbol-macrolet (,@sym-macro-defs)))))
       ;; drop expanded definitions
       (loop for sym in cleanup-typedef-names
          do (remove-typedef sym))
