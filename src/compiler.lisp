@@ -906,18 +906,6 @@ This is not intended for calling directly. The va_start macro uses this."
       `(let* ,bindings ,@body)
       `(locally ,@body)))
 
-(defmacro wcs-nest ((lexical-binds dynamic-extent-vars
-                     ignored-names special-vars
-                     sym-macro-defs)
-                    &body body)
-  "To be removed"
-  `(wcs-toplevel-let* (,@lexical-binds)
-     (declare (dynamic-extent ,@dynamic-extent-vars)
-	      (ignore ,@ignored-names)
-              (special ,@special-vars))
-     (symbol-macrolet (,@sym-macro-defs)
-       ,@body)))
-
 (defun expand-declarator-to-nest-macro-elements (mode decls)
   "Expand a list of declarators to a `nest' macro element.
 MODE is one of `:statement' or `:translation-unit'"
@@ -984,10 +972,14 @@ MODE is one of `:statement' or `:translation-unit'"
     (nreversef cleanup-struct-specs)
     (nreversef toplevel-defs)
     (prog1
-        (let ((forms (list (if toplevel-defs `(progn ,@toplevel-defs))
-                           `(wcs-nest (,lexical-binds ,dynamic-extent-vars
-                                                      ,ignored-names ,special-vars
-                                                      ,sym-macro-defs)))))
+        (let ((forms (list (if toplevel-defs
+                               `(progn ,@toplevel-defs))
+                           `(wcs-toplevel-let* (,@lexical-binds)
+                              (declare (dynamic-extent ,@dynamic-extent-vars)
+	                               (ignore ,@ignored-names)
+                                       (special ,@special-vars)))
+                           (if sym-macro-defs
+                               `(symbol-macrolet (,@sym-macro-defs))))))
           (remove nil forms))
       ;; drop expanded definitions
       (loop for sym in cleanup-typedef-names
