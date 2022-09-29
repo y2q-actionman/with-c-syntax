@@ -39,7 +39,7 @@ At the beginning of ~with-c-syntax~, it binds this variable to nil.
   (lisp-type t)             ; typename for Common Lisp
   (tag nil)		    ; struct/union/enum tag
   (typedef-init-decl nil)   ; typedef
-  ;; Filled by 'finalize-decl-specs', and referred by 'expand-toplevel'
+  ;; Filled by 'finalize-decl-specs', and referred by 'expand-declarator-to-nest-macro-element'
   (enum-bindings nil)       ; enum definition
   (struct-spec nil))	    ; struct/union definition
 
@@ -791,7 +791,7 @@ This is not intended for calling directly. The va_start macro uses this."
 
 ;;; Toplevel
 (defun expand-init-decls (mode decl-specs init-decls)
-  "A part of `expand-toplevel'."
+  "A part of `expand-declarator-to-nest-macro-element'."
   (let ((storage-class
           (or (decl-specs-storage-class decl-specs)
 	      (ecase mode
@@ -921,8 +921,8 @@ This is not intended for calling directly. The va_start macro uses this."
        (symbol-macrolet (,@sym-macro-defs)
 	 ,@body))))
 
-(defun expand-toplevel (mode decls code)
-  "This is a final compilation phase. Makes a toplevel form.
+(defun expand-declarator-to-nest-macro-element (mode decls)
+  "Expand a list of declarators to a `nest' macro element.
 MODE is one of `:statement' or `:translation-unit'"
   (let (;; used for :statement
         lexical-binds
@@ -990,8 +990,7 @@ MODE is one of `:statement' or `:translation-unit'"
         ;; TODO: FIXME: preserve definition sequence!
         `(wcs-nest (,toplevel-defs ,lexical-binds ,dynamic-extent-vars
                                    ,ignored-names ,special-vars
-                                   ,sym-macro-defs)
-           ,@code)
+                                   ,sym-macro-defs))
       ;; drop expanded definitions
       (loop for sym in cleanup-typedef-names
          do (remove-typedef sym))
@@ -1023,12 +1022,13 @@ MODE is one of `:statement' or `:translation-unit'"
                  ;; TODO: setjmp() traversal support here?
 		 ,@(butlast stat-codes)
 		 ,ex-last-code))))
-    (expand-toplevel :statement
-		     (stat-declarations stat)
-		     `(,ex-code))))
+    (let ((decl-expand
+            (expand-declarator-to-nest-macro-element :statement (stat-declarations stat))))
+      `(nest ,decl-expand ,ex-code))))
 
 (defun expand-toplevel-const-exp (exp)
-  (expand-toplevel :statement nil `(,exp)))
+  (let ((decl-expand (expand-declarator-to-nest-macro-element :statement nil)))
+    `(nest ,decl-expand ,exp)))
 
 (defun expand-global-function-definition-to-nest-macro-element (fdef-list)
   (loop for fdef in fdef-list
@@ -1067,7 +1067,7 @@ MODE is one of `:statement' or `:translation-unit'"
               (expand-global-function-definition-to-nest-macro-element unit-seg))
              (|static|
               (expand-static-function-definition-to-nest-macro-element unit-seg)))
-           (expand-toplevel :translation-unit unit-seg nil))
+           (expand-declarator-to-nest-macro-element :translation-unit unit-seg))
     into expansions
     finally (return `(nest ,@expansions))))
 
