@@ -775,7 +775,7 @@ This is not intended for calling directly. The va_start macro uses this."
        :storage-class storage-class
        :func-args `(,@param-ids ,@(if variadic `(&rest ,varargs-sym)))
        :func-body
-       `((declare (ignore ,@omitted))
+       `(,@(if omitted `((declare (ignore ,@omitted)))) 
          ,(if variadic
               `(macrolet ((get-variadic-arguments (&optional (last-argument-name nil l-supplied-p))
                             "locally established `get-variadic-arguments' macro."
