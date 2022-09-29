@@ -1030,25 +1030,46 @@ MODE is one of `:statement' or `:translation-unit'"
 (defun expand-toplevel-const-exp (exp)
   (expand-toplevel :statement nil `(,exp)))
 
-(defun expand-function-definition-to-nest-macro-element (fdef)
-  ;; TODO: docstring
-  (let* ((name (function-definition-func-name fdef))
-         (args (function-definition-func-args fdef))
-         (body (function-definition-func-body fdef)))
-    (ecase (function-definition-storage-class fdef)
-      (|global|
-       `(progn (defun ,name ,args ,@body)))
-      (|static|
-       `(labels ((,name ,args ,@body)))))))
+(defun expand-global-function-definition-to-nest-macro-element (fdef-list)
+  (loop for fdef in fdef-list
+        collect `(defun ,(function-definition-func-name fdef)
+                     ,(function-definition-func-args fdef)
+                   ,@(function-definition-func-body fdef))
+        into defun-list
+        finally
+           (return `(progn ,@defun-list))))
+
+(defun expand-static-function-definition-to-nest-macro-element (fdef-list)
+  (loop for fdef in fdef-list
+        collect `(,(function-definition-func-name fdef)
+                  ,(function-definition-func-args fdef)
+                  ,@(function-definition-func-body fdef))
+        into local-funcs
+        finally
+           (return `(labels (,@local-funcs)))))
+
+(defun %expand-translation-unit-splitter-key (unit)
+  (cond
+    ((function-definition-p unit)
+     (function-definition-storage-class unit))
+    (t
+     nil)))
 
 (defun expand-translation-unit (units)
   ;; Makes a `nest' macro form.
-  (loop for u in units
-        as expansion = (if (function-definition-p u)
-                           (expand-function-definition-to-nest-macro-element u)
-                           (expand-toplevel :translation-unit (list u) nil))
-        collect expansion into expansions
-        finally (return `(nest ,@expansions))))
+  (loop
+    for unit-seg in (split-to-consecutive-parts units :key #'%expand-translation-unit-splitter-key)
+    as first-unit = (first unit-seg)
+    collect
+       (if (function-definition-p first-unit)
+           (ecase (function-definition-storage-class first-unit)
+             (|global|
+              (expand-global-function-definition-to-nest-macro-element unit-seg))
+             (|static|
+              (expand-static-function-definition-to-nest-macro-element unit-seg)))
+           (expand-toplevel :translation-unit unit-seg nil))
+    into expansions
+    finally (return `(nest ,@expansions))))
 
 ;;; The parser
 (define-parser *expression-parser*      ; TODO: Rename?

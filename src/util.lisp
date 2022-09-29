@@ -72,6 +72,35 @@
     collect (car i) into head
     finally (return (values head (cdr i)))))
 
+(defun take-consecutive-part (list &key (test 'eql) (key 'identity))
+  "Takes a first consecutive parts of LIST testing with TEST and
+ returns the head and tail.
+
+ (take-consecutive-part '(1 1 2 2 3)) ;; => (1 1) (2 2 3)
+ (take-consecutive-part '(1 1 1)) ;; => (1 1 1) nil
+ (take-consecutive-part nil) ;; => nil nil"
+  (loop with first = (first list)
+        with first-key = (funcall key first)
+        for i-cons on (rest list)
+        as i = (car i-cons)
+        while (funcall test first-key (funcall key i))
+        collect i into head
+        finally
+           (return (values (list* first head) 
+                           i-cons))))
+
+(defun split-to-consecutive-parts (list &key (test 'eql) (key 'identity))
+  "Split LIST to consecutive parts testing with TEST.
+
+ (split-to-consecutive-parts '(1 1 2 2 3)) ;; => ((1 1) (2 2) (3))
+ (split-to-consecutive-parts '(1 1 1)) ;; => ((1 1 1))
+ (split-to-consecutive-parts nil) ;; => nil"
+  (loop with head = nil
+        until (endp list)
+        do (setf (values head list)
+                 (take-consecutive-part list :test test :key key))
+        collect head))
+
 (defmacro mv-cond-let ((&optional (var1 (gensym)) &rest rest-vars)
                        &body clauses)
   "This is like the famous 'COND-LET', but takes multiple values."
