@@ -763,7 +763,7 @@ This is not intended for calling directly. The va_start macro uses this."
                     :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
                     :format-arguments (list K&R-param-ids param-ids)))))
     (let* ((varargs-sym (gensym "varargs-"))
-           (body-stat (expand-compound-stat body :return-last-statement nil))
+           (body-stat (expand-compound-stat body nil))
            (body (stat-code body-stat)))
       (make-function-definition
        :func-name func-name
@@ -994,7 +994,7 @@ MODE is one of `:statement' or `:translation-unit'"
          do (deletef *function-pointer-ids*
                      sym :test #'eq :count 1)))))
 
-(defun expand-compound-stat (stat &key (return-last-statement *return-last-statement*))
+(defun expand-compound-stat (stat return-last-statement)
   (let* ((stat-codes (stat-code stat))
 	 (last-form (lastcar stat-codes))
 	 (ex-last-code
@@ -1022,30 +1022,14 @@ MODE is one of `:statement' or `:translation-unit'"
     stat))
 
 ;;; Toplevel
-(defun expand-toplevel-stat (stat return-last-statement)
-  (let* ((stat-codes (stat-code stat))
-	 (last-form (lastcar stat-codes))
-	 (ex-last-code
-	  (if (and return-last-statement
-		   (typecase last-form
-		     (symbol
-		      ;; uninterned symbols (gensym) are assumed as C labels.
-		      (symbol-package last-form))
-		     (list
-		      ;; Don't wrap form if `return' already exists.
-		      (not (starts-with 'return last-form)))
-		     (otherwise t)))
-	      `(return ,last-form)
-	      last-form))
-	 (ex-code
-	   `(block nil                  ; FIXME
-	      (tagbody
-                 ;; TODO: setjmp() traversal support here?
-		 ,@(butlast stat-codes)
-		 ,ex-last-code)))
-         (decl-expands
-           (expand-declarator-to-nest-macro-elements :statement (stat-declarations stat))))
-    `(nest ,@decl-expands ,ex-code)))
+(defun expand-toplevel-stat (stat)
+  (let ((code (stat-code stat)))
+    ;; If STAT was not already expanded by `expand-compound-stat'..
+    (unless (and (length= 1 code)
+                 (starts-with 'nest (first code)))
+      (expand-compound-stat stat t)
+      (setf code (stat-code stat)))
+    `(block nil ,@(stat-code stat))))
 
 (defun expand-toplevel-const-exp (exp)
   `(progn ,exp))
@@ -1116,7 +1100,7 @@ MODE is one of `:statement' or `:translation-unit'"
     ;; I require `lambda' for avoiding `eval-when' around `expand-translation-unit'
     (lambda (us) (expand-translation-unit us)))
    (compound-stat
-    (lambda (st) (expand-toplevel-stat st *return-last-statement*)))
+    (lambda (st) (expand-toplevel-stat st)))
    (const-exp                           ; For preprocessor.
     (lambda (exp) (expand-toplevel-const-exp exp))))
 
@@ -1499,13 +1483,13 @@ MODE is one of `:statement' or `:translation-unit'"
       (lambda-ignoring-_ (_lb dcls stat _rb)
         (setf (stat-declarations stat)
 	      (append dcls (stat-declarations stat)))
-        (expand-compound-stat stat)))
+        (expand-compound-stat stat *return-last-statement*)))
    ({ stat-list }
       (lambda-ignoring-_ (_lb stat _rb)
 	stat))
    ({ decl-list	}
       (lambda-ignoring-_ (_lb dcls _rb)
-        (expand-compound-stat (make-stat :declarations dcls))))
+        (expand-compound-stat (make-stat :declarations dcls) *return-last-statement*)))
    ({ }
       (lambda-ignoring-_ (_lb _rb)
 	(make-stat))))
@@ -1571,11 +1555,9 @@ MODE is one of `:statement' or `:translation-unit'"
 	      (make-stat-unresolved-break)))
    (|return| exp \;
 	     (lambda-ignoring-_ (_k exp _t)
-	       ;; use the block of `PROG'
 	       (make-stat :code (list `(return ,exp)))))
    (|return| \;
 	     (lambda-ignoring-_ (_k _t)
-	       ;; use the block of `PROG'
 	       (make-stat :code (list `(return (values)))))))
 
 
