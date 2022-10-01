@@ -47,7 +47,7 @@
                ;; In C99, remaining identifiers are replaced to 0.
                ;; ("6.10.1 Conditional inclusion" in ISO/IEC 9899.)
                ;; I replace it to `cl:nil' for compromising Lisp manner.
-               ;; This substitutuin will supress casts.
+               ;; This substitution will supress casts.
                (values 'lisp-expression nil))))
            (integer
             (values 'int-const token))
@@ -69,7 +69,7 @@
 (defun list-lexer (token-list
                    &aux (syntax-package (find-package '#:with-c-syntax.syntax))
                      (typedef-hack? nil))
-  ;; # This lexer does a dirty hack for 'typedef'.
+  ;; # This lexer has a dirty hack for 'typedef'.
   ;; It automatically adds 'void ;' after each typedef declarations.
   ;; This is a workaround for avoiding the problem between 'the lexer
   ;; hack' and the look-aheading of cl-yacc.
@@ -80,7 +80,7 @@
        (let ((token (pop token-list)))
          (typecase token
            (null
-            (values 'id nil))
+            (values 'lisp-expression nil))
            (symbol
             (cond
               ((eql (symbol-package token) syntax-package)
