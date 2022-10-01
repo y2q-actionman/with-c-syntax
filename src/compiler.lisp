@@ -789,7 +789,7 @@ This is not intended for calling directly. The va_start macro uses this."
        :lisp-type `(function ',(mapcar (constantly t) param-ids) ; TODO: use arg types.
                              ',(decl-specs-lisp-type return))))))
 
-;;; Toplevel
+;;; Compound statement
 (defun expand-init-decls (mode decl-specs init-decls)
   "A part of `expand-declarator-to-nest-macro-elements'."
   (let ((storage-class
@@ -1055,10 +1055,12 @@ MODE is one of `:statement' or `:translation-unit'"
           (stat-declarations stat) nil)
     stat))
 
+;;; Toplevel
 (defun expand-toplevel-const-exp (exp)
   `(progn ,exp))
 
 (defun expand-global-function-definition-to-nest-macro-element (fdef-list)
+  "Used by `expand-translation-unit'"
   (loop for fdef in fdef-list
         collect `(defun ,(function-definition-func-name fdef)
                      ,(function-definition-func-args fdef)
@@ -1068,6 +1070,7 @@ MODE is one of `:statement' or `:translation-unit'"
            (return `(progn ,@defun-list))))
 
 (defun expand-static-function-definition-to-nest-macro-element (fdef-list)
+  "Used by `expand-translation-unit'"
   (loop for fdef in fdef-list
         collect `(,(function-definition-func-name fdef)
                   ,(function-definition-func-args fdef)
@@ -1077,6 +1080,7 @@ MODE is one of `:statement' or `:translation-unit'"
            (return `(labels (,@local-funcs)))))
 
 (defun %expand-translation-unit-splitter-key (unit)
+  "Used by `expand-translation-unit'"
   (cond
     ((function-definition-p unit)
      (function-definition-storage-class unit))
