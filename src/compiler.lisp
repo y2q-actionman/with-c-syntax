@@ -2,20 +2,9 @@
 
 ;;; Variables
 (defvar *function-pointer-ids* nil
-  "* Value Type
-a list :: consists of symbols.
-
-* Description
-Holds a list of symbols, which are declared as a pointer
+  "Holds a list of symbols, which are declared as a pointer
 to a function.  (Because such a symbol is specially treated by the
-function-calling expression.)
-
-* Notes
-At the beginning of ~with-c-syntax~, it binds this variable to nil.
-
-* Affected By
-~with-c-compilation-unit~.
-")
+function-calling expression.)")
 
 (defvar *wcs-expanding-environment* nil
   "`with-c-syntax' bind this to `&environment' argument.")
