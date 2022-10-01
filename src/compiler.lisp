@@ -1056,8 +1056,7 @@ MODE is one of `:statement' or `:translation-unit'"
     stat))
 
 (defun expand-toplevel-const-exp (exp)
-  (let ((decl-expands (expand-declarator-to-nest-macro-elements :statement nil)))
-    `(nest ,@decl-expands ,exp)))
+  `(progn ,exp))
 
 (defun expand-global-function-definition-to-nest-macro-element (fdef-list)
   (loop for fdef in fdef-list
