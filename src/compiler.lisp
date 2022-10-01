@@ -1121,17 +1121,8 @@ MODE is one of `:statement' or `:translation-unit'"
    (translation-unit
     ;; I require `lambda' for avoiding `eval-when' around `expand-translation-unit'
     (lambda (us) (expand-translation-unit us)))
-   (labeled-stat
-    (lambda (st) (expand-toplevel-stat st t)))
-   ;; exp-stat is not included, because it is grammatically ambiguous.
    (compound-stat
     (lambda (st) (expand-toplevel-stat st t)))
-   (selection-stat
-    (lambda (st) (expand-toplevel-stat st nil)))
-   (iteration-stat
-    (lambda (st) (expand-toplevel-stat st nil)))
-   (jump-stat
-    (lambda (st) (expand-toplevel-stat st nil)))
    (const-exp                           ; For preprocessor.
     (lambda (exp) (expand-toplevel-const-exp exp))))
 
