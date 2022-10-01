@@ -108,3 +108,24 @@
     funcptr = #'test-add \;
     return funcptr \( 1 \, 2 \) \;
     }))
+
+(test test-pointer-to-local-static
+  (with-testing-wcs-bind (get-local-static)
+    (with-c-syntax ()
+      int get-local-static \( \) {
+      static int local_static = 0 \;
+      return &local_static \;
+      })
+    (let ((ptr1 (get-local-static))
+          (ptr2 (get-local-static)))
+      (is (= (pseudo-pointer-dereference ptr1)
+             (pseudo-pointer-dereference ptr2)))
+      (setf (pseudo-pointer-dereference ptr1) 0)
+      (is (= (pseudo-pointer-dereference ptr1)
+             (pseudo-pointer-dereference ptr2)
+             0))
+      (setf (pseudo-pointer-dereference ptr2) 999)
+      (is (= (pseudo-pointer-dereference ptr1)
+             (pseudo-pointer-dereference ptr2)
+             (pseudo-pointer-dereference (get-local-static))
+             999)))))
