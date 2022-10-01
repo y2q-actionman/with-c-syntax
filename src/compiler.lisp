@@ -1021,6 +1021,13 @@ MODE is one of `:statement' or `:translation-unit'"
           (stat-declarations stat) nil)
     stat))
 
+(defun expand-statement-expression (stat)
+  "Expands GCC's statement expression, not in C90.
+ See https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html"
+  ;; This is almost same with `expand-toplevel-stat'.
+  (let ((stat (expand-compound-stat stat t)))
+    `(block nil ,@(stat-code stat))))
+
 ;;; Toplevel
 (defun expand-toplevel-stat (stat)
   (let ((code (stat-code stat)))
@@ -1749,7 +1756,10 @@ MODE is one of `:statement' or `:translation-unit'"
    lisp-expression			; added
    (|__offsetof| \( decl-specs \, id \) ; added
                  (lambda-ignoring-_ (_op _lp dspecs _cm id _rp)
-                   (lispify-offsetof dspecs id))))
+                   (lispify-offsetof dspecs id)))
+   (\( stat \)                          ; GCC extension
+       (lambda-ignoring-_  (_lp stat _rp)
+         (expand-statement-expression stat))))
 
 
   (argument-exp-list

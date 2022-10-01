@@ -379,3 +379,34 @@
     return 1 \; )
   (is.equal.wcs nil
     return \;))
+
+;;; Extensions
+
+(test test-stat-expr
+  (is.equal.wcs -1
+    {
+    \( { -1 \; } \) \;
+    })
+  (is.equal.wcs 0
+    {
+    return \( { 0 \; } \) \;
+    })
+  (is.equal.wcs 1
+    {
+    int x = \( { 1 \; } \) \;
+    return x \;
+    })
+  (is.equal.wcs 3
+    {
+    int h = \( { int x = 1 \, y = 2 \; x + y \; } \) \;
+    return h \;
+    })
+  (is.equal.wcs 211
+    {
+    int i = 4 \;
+    int j = \( { int x = 1 \, y = 2 \;
+                 i += 100 \;
+                 x + y + i \; } \) \;
+    j += i \;
+    return j \;
+    }))
