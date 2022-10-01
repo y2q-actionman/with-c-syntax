@@ -137,11 +137,10 @@
   char target = #\T;
   void * result = str;
   int output_count = 0;
-  void * output;
 
   while((result = |strchr|(result, target)) != NULL) {
-    output = with-output-to-string (`(*standard-output*), //; To preserve parens, I used Lisp escape
-				     format(t, "Found '~C' starting at '~A'", target, result));
+    void * output = with-output-to-string (`(*standard-output*), //; To preserve parens, I used Lisp escape
+				            format(t, "Found '~C' starting at '~A'", target, result));
 
     switch (output_count) {
     case 0 :

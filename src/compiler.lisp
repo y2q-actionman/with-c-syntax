@@ -1019,10 +1019,41 @@ MODE is one of `:statement' or `:translation-unit'"
 	      (tagbody
                  ;; TODO: setjmp() traversal support here?
 		 ,@(butlast stat-codes)
-		 ,ex-last-code))))
-    (let ((decl-expands
-            (expand-declarator-to-nest-macro-elements :statement (stat-declarations stat))))
-      `(nest ,@decl-expands ,ex-code))))
+		 ,ex-last-code)))
+         (decl-expands
+           (expand-declarator-to-nest-macro-elements :statement (stat-declarations stat))))
+    `(nest ,@decl-expands ,ex-code)))
+
+(defun expand-compound-stat (stat additional-decl-list &aux (return-last-statement t))
+  (setf (stat-declarations stat)
+	(append additional-decl-list (stat-declarations stat)))
+  (let* ((stat-codes (stat-code stat))
+	 (last-form (lastcar stat-codes))
+         ;; TODO: share with above.
+         ;; TODO: don't do it if not requested.
+	 (ex-last-code
+	   (if (and return-last-statement
+		    (typecase last-form
+		      (symbol
+		       ;; uninterned symbols (gensym) are assumed as C labels.
+		       (symbol-package last-form))
+		      (list
+		       ;; Don't wrap form if `return' already exists.
+		       (not (starts-with 'return last-form)))
+		      (otherwise t)))
+	       `(return ,last-form)
+	       last-form))
+	 (ex-code
+           `(tagbody
+               ;; TODO: setjmp() traversal support here?
+	       ,@(butlast stat-codes)
+	       ,ex-last-code))
+         (decl-expands
+           (expand-declarator-to-nest-macro-elements :statement (stat-declarations stat)))
+         (new-code `(nest ,@decl-expands ,ex-code)))
+    (setf (stat-code stat) `(,new-code)
+          (stat-declarations stat) nil)
+    stat))
 
 (defun expand-toplevel-const-exp (exp)
   (let ((decl-expands (expand-declarator-to-nest-macro-elements :statement nil)))
@@ -1481,15 +1512,13 @@ MODE is one of `:statement' or `:translation-unit'"
   (compound-stat
    ({ decl-list stat-list }
       (lambda-ignoring-_ (_lb dcls stat _rb)
-	(setf (stat-declarations stat)
-	      (append dcls (stat-declarations stat)))
-	stat))
+        (expand-compound-stat stat dcls)))
    ({ stat-list }
       (lambda-ignoring-_ (_lb stat _rb)
 	stat))
    ({ decl-list	}
       (lambda-ignoring-_ (_lb dcls _rb)
-	(make-stat :declarations dcls)))
+        (expand-compound-stat (make-stat) dcls)))
    ({ }
       (lambda-ignoring-_ (_lb _rb)
 	(make-stat))))
