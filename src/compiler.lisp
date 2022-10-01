@@ -6,14 +6,19 @@
 to a function.  (Because such a symbol is specially treated by the
 function-calling expression.)")
 
+(defvar *return-last-statement* t
+  "Specifies whether `with-c-syntax' returns the last form's value of
+  compound statements or not.")
+
 (defvar *wcs-expanding-environment* nil
   "`with-c-syntax' bind this to `&environment' argument.")
 
-(defmacro with-c-compilation-unit (() ; Move to compiler?
+(defmacro with-c-compilation-unit ((&key return-last-statement)
 				   &body body)
   "Establishes variable bindings for a new compilation."
   `(let ((*struct-specs* (copy-hash-table *struct-specs*))
          (*typedef-names* (copy-hash-table *typedef-names*))
+	 (*return-last-statement* ,return-last-statement)
          (*function-pointer-ids* nil))
      ,@body))
 
@@ -1013,7 +1018,7 @@ MODE is one of `:statement' or `:translation-unit'"
            (expand-declarator-to-nest-macro-elements :statement (stat-declarations stat))))
     `(nest ,@decl-expands ,ex-code)))
 
-(defun expand-compound-stat (stat additional-decl-list &aux (return-last-statement t))
+(defun expand-compound-stat (stat additional-decl-list &aux (return-last-statement *return-last-statement*))
   (setf (stat-declarations stat)
 	(append additional-decl-list (stat-declarations stat)))
   (let* ((stat-codes (stat-code stat))
@@ -1114,7 +1119,7 @@ MODE is one of `:statement' or `:translation-unit'"
     ;; I require `lambda' for avoiding `eval-when' around `expand-translation-unit'
     (lambda (us) (expand-translation-unit us)))
    (compound-stat
-    (lambda (st) (expand-toplevel-stat st t)))
+    (lambda (st) (expand-toplevel-stat st *return-last-statement*)))
    (const-exp                           ; For preprocessor.
     (lambda (exp) (expand-toplevel-const-exp exp))))
 

@@ -3,7 +3,8 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun expand-c-syntax (body try-add-{})
     (handler-case
-	(with-c-compilation-unit ()
+	(with-c-compilation-unit
+            (:return-last-statement (eql (first body) '{))
 	  (parse-with-lexer (list-lexer body) *expression-parser*))
       (yacc-parse-error (condition)
 	(if (and try-add-{}
