@@ -410,3 +410,108 @@
     j += i \;
     return j \;
     }))
+
+(defclass test-lisp-with-stat-class ()
+  (slot1 slot2))
+
+(test test-lisp-with-stat
+  (is.equal.wcs "Hello, World!"
+    {
+    with-output-to-string ((*standard-output*)) {
+      princ \( "Hello, World!" \) \;
+    }
+    })
+  ;; Omitting {}. 
+  (is.equal.wcs "Hello, World!"
+    {
+    with-output-to-string ((*standard-output*))
+      with-standard-io-syntax () ; `with-standard-io-syntax' takes zero args.
+        princ \( "Hello, World!" \) \;  
+    })
+  ;; with-slots takes two args.
+  (is.equal.wcs 3
+    {
+    auto obj = make-instance \( 'test-lisp-with-stat-class \) \;
+
+    with-slots ((slot1 (s2 slot2)) obj) {
+      slot1 = 1 \;
+      s2 = 2 \;
+    }
+    return slot-value \( obj \, 'slot1 \) + slot-value \( obj \, 'slot2 \) \;
+    }))
+
+(test test-lisp-with-stat-weird
+  ;; Functions and an empty stmt.
+  ;; This looks like Lisp parens (without '\') works like C parens!.
+  (is.equal.wcs '(1 2 3)
+    {
+     list (1 2 3) \;
+    })
+  ;; Current implementation allows this.
+  (is.equal.wcs "100 200 300"
+    {
+    format (nil "~D ~D ~D") {
+      100 \;
+      200 \;
+      300 \;
+    }
+    }))
+
+(test test-lisp-with-stat-ruby-like-block
+  ;; Codes are from:
+  ;;   https://stackoverflow.com/questions/814739/whats-this-block-in-ruby-and-how-does-it-get-passed-in-a-method-here
+  (flet ((meth_captures (arg block)
+           (concatenate 'string
+                        (funcall block arg 0)
+                        (funcall block (reverse arg) 1))))
+    (let* ((internal-prints
+             (make-array 255 :element-type 'character :fill-pointer 0))
+           (result
+             (with-output-to-string (*standard-output* internal-prints)
+               (with-c-syntax ()
+                 {
+                 meth_captures ("pony")
+                   ;; The next `lambda' is a 'lisp-expression' for our `with-c-syntax' compiler.
+                   ;; It accepts the normal Lisp syntax.
+                   (lambda (word num)
+                     (format t "in callback! word = ~S, num = ~S~%" word num)
+                     (concatenate 'string word (princ-to-string num))
+                  ) \;
+                 }))))
+      (is (equal internal-prints
+                 "in callback! word = \"pony\", num = 0
+in callback! word = \"ynop\", num = 1
+"))
+      (is (equal result "pony0ynop1"))))
+  ;; More _pretty_ version of above
+  (macrolet ((meth-captures (arg &body block)
+               (assert (listp (first block)) () "BLOCK must start with a lambda-list.")
+               (let ((block-lambda `(lambda ,@block)))
+                 `(concatenate 'string
+                               (,block-lambda ,arg 0)
+                               (,block-lambda ,(reverse arg) 1)))))
+    (is.equal.wcs "pony0ynop1"
+      (with-c-syntax ()
+        {
+        meth-captures ("pony") {
+          (word num) \; ; This list becomes lambda-list of the `lambda' in above `macrolet'.
+          format \( t \,  "in callback! word = ~S, num = ~S~%" \, word \, num \) \;
+          concatenate \( 'string \, word \, princ-to-string \( num \) \) \;
+        }
+        })))
+  ;; -- Oh, Did I re-invent Ruby's &block?
+  )
+
+(test test-stat-expr-and-with-stat
+  (is.equal.wcs "Hello---------World"
+    {
+    auto str1 = "Hello" \;
+    auto str2 = "World" \;
+    
+    ; Using lisp-with-stat inside statement-expression syntax.
+    auto output = \( { with-output-to-string ((*standard-output*)) {
+      format \( t \, "~A---------~A" \, str1 \, str2 \) \;
+    } } \) \;
+
+    return output \;
+    }))

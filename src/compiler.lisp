@@ -1021,6 +1021,21 @@ MODE is one of `:statement' or `:translation-unit'"
           (stat-declarations stat) nil)
     stat))
 
+(defun expand-lisp-with-stat-into-stat (identifier lisp-expression stat)
+  "Handles with-c-syntax extension syntax for 'with-' like macros.
+  Expands \" id lisp-expression statement \" to `(,id ,@lisp-expression ,@statement)
+
+  Example:
+   with-output-to-string ((*standard-output*)) { princ \( \"Hello, World!\" \) \; } \;
+   => (with-output-to-string (*standard-output*) (princ \"Hello, World!\"))
+
+  Note: This loose expansion causes weird but interesting results.
+    See test codes in test/stmt.lisp"
+  (let* ((code (stat-code stat))
+         (new-code `(,identifier ,@lisp-expression ,@code)))
+    (setf (stat-code stat) `(,new-code))
+    stat))
+
 (defun expand-statement-expression (stat)
   "Expands GCC's statement expression, not in C90.
  See https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html"
@@ -1462,7 +1477,8 @@ MODE is one of `:statement' or `:translation-unit'"
    compound-stat
    selection-stat
    iteration-stat
-   jump-stat)
+   jump-stat
+   lisp-with-stat)                      ; extension
 
   (labeled-stat
    (id \: stat
@@ -1567,6 +1583,11 @@ MODE is one of `:statement' or `:translation-unit'"
    (|return| \;
 	     (lambda-ignoring-_ (_k _t)
 	       (make-stat :code (list `(return (values)))))))
+
+  (lisp-with-stat                       ; extension
+   (id lisp-expression stat
+       (lambda (id lisp-expression stat)
+         (expand-lisp-with-stat-into-stat id lisp-expression stat))))
 
 
   ;;; Expressions
