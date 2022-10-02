@@ -296,9 +296,7 @@
 
 (test test-math-exp
   #{
-  is (`(< 2.71828
-         #{ return |exp|(1.0d0); }#
-         2.71829));
+  is (`(< 2.71828 #{|exp|(1.0d0)}# 2.71829));
   // ; TODO: I require implicit numeric type conversions to write it like exp(0);
   is.float-equal (|exp|(0.0d0), 1.0d0);
   check-errno (is(|exp|(most-positive-double-float) == HUGE_VAL), ERANGE);
@@ -322,9 +320,7 @@
 (test test-math-expm1
   #{
   double tmp;
-  is (`(< 1.71828
-         #{ return |expm1|(1.0d0); }#
-         1.71829));
+  is (`(< 1.71828 #{|expm1|(1.0d0)}# 1.71829));
   is (|expm1|(0.0) == 0.0);
   is.float-equal (|expm1|(double-float-negative-infinity), -1.0);
   check-errno (tmp = |expm1|(most-positive-double-float), ERANGE);
@@ -832,22 +828,18 @@
 ;; TODO: Make C hexadecimal float notation to main line, to cleaning up.
 (test test-math-nextafter
   #{
-  double before-1d0 = `#2{ 0x1.fffffffffffffp-1; }#;
-  double next-of-least-positive-double-float =  `#2{ 0x1p-1073; }#;
-  double most-positive-subnormal-double-float =  `#2{ 0x1.ffffffffffffep-1023; }#;
+  double before-1d0 = `#2{ 0x1.fffffffffffffp-1 }#;
+  double next-of-least-positive-double-float =  `#2{ 0x1p-1073 }#;
+  double most-positive-subnormal-double-float =  `#2{ 0x1.ffffffffffffep-1023 }#;
   
   `(muffle-unused-code-warning
-     (unless (= least-positive-double-float #2{ 0x1p-1074; }#
-                )
+     (unless (= least-positive-double-float #2{ 0x1p-1074 }#)
        (warn "Your Lisp's double-float representation is not expected one of this test.")));
 
   // ; Simple case
-  is (|nextafter|(1.5d0,  10d0) == `#2{ 0x1.8000000000001p+0; }#
-                 );
-  is (|nextafter|(1.5d0, -10d0) == `#2{ 0x1.7ffffffffffffp+0; }#
-                 );
-  is (|nextafter|(1.0d0,  10d0) == `#2{ 0x1.0000000000001p+0; }#
-                 );
+  is (|nextafter|(1.5d0,  10d0) == `#2{ 0x1.8000000000001p+0 }#);
+  is (|nextafter|(1.5d0, -10d0) == `#2{ 0x1.7ffffffffffffp+0 }#);
+  is (|nextafter|(1.0d0,  10d0) == `#2{ 0x1.0000000000001p+0 }#);
 
   // ; Carry and borrow
   is (|nextafter|(1.0d0, -10d0) == before-1d0);
@@ -898,12 +890,9 @@
 
 (test test-math-nexttoward
   #{
-  is (|nexttoward|(1.5d0,  10d0) == `#2{ 0x1.8000000000001p+0; }#
-                 );
-  is (|nexttoward|(1.5d0, -10d0) == `#2{ 0x1.7ffffffffffffp+0; }#
-                 );
-  is (|nexttoward|(1.0d0,  10d0) == `#2{ 0x1.0000000000001p+0; }#
-                  );
+  is (|nexttoward|(1.5d0,  10d0) == `#2{ 0x1.8000000000001p+0 }#);
+  is (|nexttoward|(1.5d0, -10d0) == `#2{ 0x1.7ffffffffffffp+0 }#);
+  is (|nexttoward|(1.0d0,  10d0) == `#2{ 0x1.0000000000001p+0 }#);
 
   if (least-positive-double-float != least-positive-long-float) {
     is (|nexttoward|(least-positive-double-float, least-positive-long-float) == 0d0);
