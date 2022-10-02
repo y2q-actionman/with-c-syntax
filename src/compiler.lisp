@@ -1320,7 +1320,7 @@ MODE is one of `:statement' or `:translation-unit'"
 
   ;; returns like:
   ;; (name (:aref nil) (:funcall nil) (:aref 5) (:funcall int))
-  ;; processed in 'expand-init-declarator-init'
+  ;; processed in `expand-init-declarator-init'
   (declarator
    (pointer direct-declarator
             (lambda (ptr dcls)
@@ -1421,6 +1421,7 @@ MODE is one of `:statement' or `:translation-unit'"
     (lambda (spec-qual)
       (lispify-type-name spec-qual nil))))
 
+  ;; See 'declarator' about abstract-declarator's representation.
   ;; inserts 'nil' as a name
   (abstract-declarator
    (pointer
