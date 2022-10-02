@@ -215,57 +215,53 @@ For each entry of alist, the car is sorted alphabetically.
 ")
 
 (defun finalize-type-spec (dspecs)
-  "A part of finalize-decl-specs. This processes type-spec."
-  (loop with numeric-symbols = nil
-     with tp-list of-type list = (decl-specs-type-spec dspecs)
-     initially
-       (when (null tp-list)
-	 (return dspecs))
-     for tp in tp-list
-     do (flet ((check-tp-list-length ()
-		 (unless (length= 1 tp-list)
-		   (error 'compile-error
-                          :format-control "Invalid decl-spec: ~A."
-                          :format-arguments (list tp-list)))))
-	  (cond
-	    ((eq tp '|void|)		; void
-	     (check-tp-list-length)
-	     (setf (decl-specs-lisp-type dspecs) nil)
-	     (return dspecs))
-	    ((struct-or-union-spec-p tp)	; struct / union
-	     (check-tp-list-length)
-	     (return (finalize-struct-or-union-spec tp dspecs)))
-	    ((enum-spec-p tp)		; enum
-	     (check-tp-list-length)
-	     (return (finalize-enum-spec tp dspecs)))
-	    ((listp tp)			; lisp type
-	     (check-tp-list-length)
-	     (assert (starts-with '|__lisp_type| tp))
-	     (setf (decl-specs-lisp-type dspecs) (second tp))
-	     (return dspecs))
-	    ((find-typedef tp)		; typedef name
-	     (check-tp-list-length)
-	     (let ((td-dspecs (find-typedef tp)))
-               (setf (decl-specs-lisp-type dspecs)
-                     (decl-specs-lisp-type td-dspecs)
-                     (decl-specs-tag dspecs)
-                     (decl-specs-tag td-dspecs)
-                     (decl-specs-typedef-init-decl dspecs)
-                     (decl-specs-typedef-init-decl td-dspecs))
-               (return dspecs)))
-	    (t				; numeric types
-	     (push tp numeric-symbols))))
-     finally
-       (setf numeric-symbols (sort numeric-symbols #'string<))
-       (setf (decl-specs-lisp-type dspecs)
-             (if-let ((n-entry (assoc numeric-symbols
-                                      +numeric-types-alist+
-                                      :test #'equal)))
-               (cdr n-entry)
-               (error 'compile-error
-                      :format-control "Invalid numeric type: ~A."
-                      :format-arguments (list numeric-symbols))))
-       (return dspecs)))
+  "A part of `finalize-decl-specs'. This processes type-spec."
+  (let* ((tp-list (decl-specs-type-spec dspecs))
+         (tp (first tp-list)))
+    (flet ((check-tp-list-length ()
+	     (unless (length= 1 tp-list)
+	       (error 'compile-error
+                      :format-control "Invalid decl-spec: ~A."
+                      :format-arguments (list tp-list)))))
+      (cond
+        ((null tp-list)
+         dspecs)
+        ((eq tp '|void|)		; void
+         (check-tp-list-length)
+         (setf (decl-specs-lisp-type dspecs) nil)
+         dspecs)
+        ((struct-or-union-spec-p tp)    ; struct / union
+	 (check-tp-list-length)
+	 (finalize-struct-or-union-spec tp dspecs))
+        ((enum-spec-p tp)               ; enum
+	 (check-tp-list-length)
+	 (finalize-enum-spec tp dspecs))
+        ((listp tp)                     ; lisp type
+	 (check-tp-list-length)
+	 (assert (starts-with '|__lisp_type| tp))
+	 (setf (decl-specs-lisp-type dspecs) (second tp))
+	 dspecs)
+        ((find-typedef tp)              ; typedef name
+	 (check-tp-list-length)
+	 (let ((td-dspecs (find-typedef tp)))
+           (setf (decl-specs-lisp-type dspecs)
+                 (decl-specs-lisp-type td-dspecs)
+                 (decl-specs-tag dspecs)
+                 (decl-specs-tag td-dspecs)
+                 (decl-specs-typedef-init-decl dspecs)
+                 (decl-specs-typedef-init-decl td-dspecs))
+           dspecs))
+        (t                              ; numeric types
+         (let* ((numeric-symbols (sort (copy-list tp-list) #'string<))
+                (n-entry (assoc numeric-symbols
+                                +numeric-types-alist+
+                                :test #'equal)))
+           (unless n-entry
+             (error 'compile-error
+                    :format-control "Invalid numeric type: ~A."
+                    :format-arguments (list numeric-symbols)))
+           (setf (decl-specs-lisp-type dspecs) (cdr n-entry))
+           dspecs))))))
 
 (defun finalize-decl-specs (dspecs)
   "Checks and fills the passed decl-specs."
