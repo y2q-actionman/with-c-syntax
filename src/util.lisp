@@ -116,6 +116,9 @@
 	       (progn ,@clause1-body)
 	       (mv-cond-let (,var1 ,@rest-vars) ,@(rest clauses)))))))
 
+(defmacro cond-let ((var1) &body clauses)
+  `(mv-cond-let (,var1) ,@clauses))
+
 ;;; Characters
 ;;; these definitions are used by '#{ }#' reader and libc (<ctype.h>).
 

@@ -40,9 +40,9 @@
            (null
             (values 'lisp-expression nil))
            (symbol
-            (mv-cond-let (cond-var)
+            (cond-let (it)
               ((find-punctuator (symbol-name token))
-               (values cond-var cond-var))
+               (values it it))
               (t
                ;; In C99, remaining identifiers are replaced to 0.
                ;; ("6.10.1 Conditional inclusion" in ISO/IEC 9899.)
