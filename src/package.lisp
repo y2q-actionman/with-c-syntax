@@ -60,7 +60,9 @@
    ","
    ;; For preprocessor (their home package is just this package.)
    "#" "##"
-   "<:" ":>" "<%" "%>" "%:" "%:%:")
+   "<:" ":>" "<%" "%>" "%:" "%:%:"
+   ;; For processing const-exp
+   "__pp_const_exp")
   (:documentation "C punctuators. Some symbols are from `with-c-syntax.syntax' package."))
 
 (defpackage #:with-c-syntax.preprocessor-directive

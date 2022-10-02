@@ -31,6 +31,7 @@
 ;;; Lexer for '#if' preprocessor-directive.
 
 (defun pp-if-expression-lexer (token-list)
+  (push 'with-c-syntax.punctuator:|__pp_const_exp| token-list)
   #'(lambda ()
       (if
        (null token-list)

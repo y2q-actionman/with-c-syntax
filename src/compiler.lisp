@@ -1097,7 +1097,8 @@ MODE is one of `:statement' or `:translation-unit'"
 		  collect i)
 	     '(id typedef-id
 	       int-const char-const float-const
-	       string lisp-expression)))
+	       string lisp-expression
+               with-c-syntax.punctuator:|__pp_const_exp|)))
   (:start-symbol wcs-entry-point)
 
   ;; Our entry point.
@@ -1108,8 +1109,8 @@ MODE is one of `:statement' or `:translation-unit'"
     (lambda (us) (expand-translation-unit us)))
    (compound-stat
     (lambda (st) (expand-toplevel-stat st)))
-   (const-exp                           ; For preprocessor.
-    (lambda (exp) (expand-toplevel-const-exp exp))))
+   (with-c-syntax.punctuator:|__pp_const_exp| const-exp ; For preprocessor.
+     (lambda (_kwd exp) (expand-toplevel-const-exp exp))))
 
 
   (translation-unit

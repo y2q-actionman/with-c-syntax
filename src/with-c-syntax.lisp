@@ -9,7 +9,7 @@
       (yacc-parse-error (condition)
 	(if (and try-add-{}
 		 (not (starts-with '{ body)))
-	    (expand-c-syntax `({ ,@body }) nil) ; retry
+	    (expand-c-syntax `({ ,@body \; }) nil) ; retry
 	    (error 'with-c-syntax-parse-error
 		   :yacc-error condition))))))
 
