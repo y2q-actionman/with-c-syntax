@@ -5,7 +5,7 @@
     (handler-case
 	(with-c-compilation-unit
             (:return-last-statement (eql (first body) '{))
-	  (parse-with-lexer (list-lexer body) *expression-parser*))
+	  (parse-with-lexer (list-lexer body) *c-parser*))
       (yacc-parse-error (condition)
 	(if (and try-add-{}
 		 (not (starts-with '{ body)))

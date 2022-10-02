@@ -1089,7 +1089,7 @@ MODE is one of `:statement' or `:translation-unit'"
     finally (return `(nest ,@expansions))))
 
 ;;; The parser
-(define-parser *expression-parser*      ; TODO: Rename?
+(define-parser *c-parser*
   (:muffle-conflicts t)         ; for 'dangling else'.
   ;; http://www.cs.man.ac.uk/~pjj/bnf/c_syntax.bnf
   (:terminals

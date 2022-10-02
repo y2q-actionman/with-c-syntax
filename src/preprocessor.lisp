@@ -880,7 +880,7 @@ returns NIL."
            (parsed-form
              (handler-case
                  (with-c-compilation-unit ()
-                   (parse-with-lexer lexer *expression-parser*))
+                   (parse-with-lexer lexer *c-parser*))
                (yacc-parse-error (condition)
                  (error 'preprocess-if-expression-parse-error :yacc-error condition))))
            (check-left-token
