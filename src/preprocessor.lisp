@@ -1298,39 +1298,37 @@ returns NIL."
 
 (defun process-with-c-syntax-pragma (directive-symbol directive-token-list)
   (let ((token1 (pop-preprocessor-directive-token directive-token-list directive-symbol)))
-    (flet ((raise-unsyntactic-wcs-pragma-error ()
+    (switch (token1 :test 'token-equal-p)
+      ;; Reader pragmas are also processed by `process-reader-pragma'.
+      ("IN_PACKAGE"
+       (let* ((package-designator
+                (pop-preprocessor-directive-token directive-token-list directive-symbol))
+              (package (find-package package-designator)))
+         (unless package
+           (error 'preprocess-error
+                  :format-control "No package named '~A'."
+                  :format-arguments (list package-designator)))
+         (check-no-preprocessor-token directive-token-list directive-symbol)
+         (setf *package* package)))
+      ("IN_WITH_C_SYNTAX_READTABLE"
+       (let* ((token2
+                (pop-preprocessor-directive-token directive-token-list directive-symbol))
+              (token3
+                (if (preprocessor-token-exists-p directive-token-list)
+                    (pop-preprocessor-directive-token directive-token-list directive-symbol))))
+         (multiple-value-bind (new-level new-case arg1 arg2)
+             (parse-in-with-c-syntax-readtable-parameters token2 token3)
+           (when (or arg1 arg2)
              (error 'preprocess-error
-                    :format-control "Unsyntactic pragma '#pragma ~A ~A'"
-                    :format-arguments (list :WITH_C_SYNTAX token1))))
-      (switch (token1 :test 'token-equal-p)
-        ;; Reader pragmas are also processed by `process-reader-pragma'.
-        ("IN_PACKAGE"
-         (let* ((package-designator
-                  (pop-preprocessor-directive-token directive-token-list directive-symbol))
-                (package (find-package package-designator)))
-           (unless package
-             (error 'preprocess-error
-                    :format-control "No package named '~A'."
-                    :format-arguments (list package-designator)))
+                    :format-control "Bad argument for '#pragma WITH_C_SYNTAX ~A: ~A ~@[~A~]'"
+                    :format-arguments (list token1 token2 token3)))
            (check-no-preprocessor-token directive-token-list directive-symbol)
-           (setf *package* package)))
-        ("IN_WITH_C_SYNTAX_READTABLE"
-         (let* ((token2
-                  (pop-preprocessor-directive-token directive-token-list directive-symbol))
-                (token3
-                  (if (preprocessor-token-exists-p directive-token-list)
-                      (pop-preprocessor-directive-token directive-token-list directive-symbol))))
-           (multiple-value-bind (new-level new-case arg1 arg2)
-               (parse-in-with-c-syntax-readtable-parameters token2 token3)
-             (when (or arg1 arg2)
-               (error 'preprocess-error
-                      :format-control "Bad argument for '#pragma WITH_C_SYNTAX ~A: ~A ~@[~A~]'"
-                      :format-arguments (list token1 token2 token3)))
-             (check-no-preprocessor-token directive-token-list directive-symbol)
-             (setf *readtable*
-                   (find-c-readtable new-level new-case)))))
-        (otherwise
-         (raise-unsyntactic-wcs-pragma-error))))))
+           (setf *readtable*
+                 (find-c-readtable new-level new-case)))))
+      (otherwise
+       (error 'preprocess-error
+              :format-control "Unsyntactic pragma '#pragma ~A ~A'"
+              :format-arguments (list :WITH_C_SYNTAX token1))))))
 
 
 (defun process-stdc-pragma (directive-symbol directive-token-list state)
