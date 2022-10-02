@@ -166,9 +166,7 @@ If required, makes a new struct-spec object."
   dspecs)
 
 (define-constant +numeric-types-alist+
-    '(;; Extension: uses T if no types are specified
-      (()				.	t)
-      ;; Integers
+    '(;; Integers
       ((|int|)                          .	fixnum)
       ((|int| |short|)                  .	(signed-byte 16))
       ((|int| |long|)                   .	(signed-byte 32))
@@ -232,6 +230,8 @@ If required, makes a new struct-spec object."
          (tp (first tp-list)))
     (case (length tp-list)
       (0
+       ;; Extension: uses T if no types are specified
+       (setf (decl-specs-lisp-type dspecs) t)
        dspecs)
       (1
        (cond
