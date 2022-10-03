@@ -8,6 +8,13 @@ coding, I think.)
 At this stage, this package has all features of ISO C 90 freestanding
 implementation.
 
+* News
+
+- (2021-9-5) C Preprocessor is added. See [[#c-preprocessor][C preprocessor examples]].
+- (2021-5-24) C Numeric Literals are added. See [[#inline-usage][examples in 'inline usage' section]]. (Inspired by [[https://github.com/akanouras][@akanouras]] at [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
+- (2019-4-25) Some special handlings around =++=, =*=, etc are added. See [[#duffs-device][Duff's Device example]] .
+- (2019-4-25) Added a new example, [[#c-in-lisp-in-c-in-lisp][C in Lisp in C in Lisp]].
+
 * Examples
 ** Hello, World
 
@@ -164,8 +171,10 @@ behave as you expected as possible.
 (This feature is based on [[https://github.com/phoe][@phoe]]'s suggestion. See [[https://github.com/y2q-actionman/with-c-syntax/issues/2][Issue #2]] .)
 
 ** C in Lisp in C in Lisp
+# unholy mixture
 Sometimes you want to use the Lisp syntax even in =with-c-syntax=.
 If you feel so, you can use =`= as an escape. Here is an example:
+
 
 #+BEGIN_SRC lisp
 (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
@@ -358,20 +367,6 @@ specific pragma [fn:1].
 #+end_src
 
 (But in the Lisp world, you already have =read=, =eval=, and =load=...)
-
-* News
-** 2021-9-5
-   C Preprocessor is added. See examples below.
-   
-** 2021-5-24
-   C Numeric Literals are added. (Inspired by [[https://github.com/akanouras][@akanouras]]. See [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
-   Hexadecimal floating number syntax may be a only practical feature
-   of this package. (Try =#{ 0x1.fffp+1; }#=)
-   
-** 2019-4-25
-- Some special handlings around =++=, =*=, etc are added.
-  The *Duff's Device* example becomes prettier.
-- Added a new example, *C in Lisp in C in Lisp*. (+unholy mixture..+)
 
 * How to load
 
