@@ -330,6 +330,21 @@ void 99-bottles-of-beer (filename) {
   (let ((*standard-output* (make-broadcast-stream)))
     (is (princ #{ 0x1.fffp+1 }#))))
 
+;;; 2022-10-08 syntax extensions
+
+(defun hello-world-string ()
+  #{
+  with-output-to-string `((*standard-output*)) {
+    princ("Hello, World!");
+  }
+  }#)
+
+(test test-hello-world-string
+  (is (string= (hello-world-string)
+               "Hello, World!")))
+
+;;; Preprocessors
+
 #{
 #define MY_MAX(x, y) ((x)>(y) ? (x) : (y))
 

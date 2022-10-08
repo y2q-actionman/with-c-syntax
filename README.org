@@ -171,10 +171,9 @@ behave as you expected as possible.
 (This feature is based on [[https://github.com/phoe][@phoe]]'s suggestion. See [[https://github.com/y2q-actionman/with-c-syntax/issues/2][Issue #2]] .)
 
 ** C in Lisp in C in Lisp
-# unholy mixture
 Sometimes you want to use the Lisp syntax even in =with-c-syntax=.
 If you feel so, you can use =`= as an escape. Here is an example:
-
+# Let's see the unholy mixture..
 
 #+BEGIN_SRC lisp
 (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
@@ -217,8 +216,52 @@ void 99-bottles-of-beer (filename) {
 This example creates "99_bottles_of_beer.txt" file into your home directory.
 I used =`= for using =with-open-file= in Lisp syntax.
 
-(You can use any Lisp operators including =with-open-file= in =with-c-syntax= style.
-However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/blob/e3e9ae2f1f29115f30141e3ada33372e2ce6b65d/test/libc_string.lisp#L143][An example exists in my test code]].)
+Recently, I added a syntax extension for these ~with-~ like macros. See below.
+# TODO: add a link.
+
+** Syntax extensions
+
+*** Statement Expressions
+
+https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html
+
+# (stub)
+
+*** Support ~with-~ like macros.
+
+# (You can use any Lisp operators including =with-open-file= in =with-c-syntax= style.
+# However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/blob/e3e9ae2f1f29115f30141e3ada33372e2ce6b65d/test/libc_string.lisp#L143][An example exists in my test code]].)
+
+=with-c-syntax= has a syntax extensiton to ~with-~ like macros:
+
+#+begin_example
+identifier lisp-expression statement;
+#+end_example>
+
+This is compiled to a Lisp form like below:
+
+#+begin_example
+(identifier (<contents in lisp-expression>)
+  <contents in statement>)
+#+end_example
+
+Here is some examples:
+
+#+begin_src common-lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+  (defun hello-world-string ()
+    #{
+    with-output-to-string `((*standard-output*)) {
+      princ("Hello, World!");
+    }
+    }#)
+
+  (hello-world-string) ; => "Hello, World!"
+#+end_src
+
+# (stub)
+
 
 ** C Preprocessor
 
