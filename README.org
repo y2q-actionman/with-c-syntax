@@ -10,7 +10,7 @@ implementation.
 
 * News
 
-- (2022-10-9) New extensions, [[#statement-expression][Statement Expression]] and "with-syntax support" were added.
+- (2022-10-9) New extensions, [[#statement-expression][Statement Expression]] and [[#support-with--like-macros][with- like syntax support]] were added.
 - (2021-9-5) C Preprocessor is added. See [[#c-preprocessor][C preprocessor examples]].
 - (2021-5-24) C Numeric Literals are added. See [[#inline-usage][examples in 'inline usage' section]]. (Inspired by [[https://github.com/akanouras][@akanouras]] at [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
 - (2019-4-25) Some special handlings around =++=, =*=, etc are added. See [[#duffs-device][Duff's Device example]] .
@@ -299,9 +299,23 @@ You can take the value of =with-= syntax statement by wrapping it with =()=.
   (hello-world-string) ; => "Hello, World!"
 #+end_src
 
-**** =sort= and lambda
+**** =sort= and =lambda=
 
-# (stub)
+This syntax can currently apply to functions, not only macros.
+It may be useful when the function takes a function at the last argument:
+
+#+begin_src common-lisp
+  (defun sort-ascending (lis)
+    #{
+    return (sort `(lis) `(lambda (x y)
+			   #{
+			   return x < y;
+			   }#);
+		 );
+    }#)
+
+  (sort-ascending (list 2 4 1 5 3)) ; => (1 2 3 4 5)
+#+end_src
 
 ** C Preprocessor
 

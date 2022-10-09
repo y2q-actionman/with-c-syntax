@@ -372,6 +372,21 @@ int test-with-slots () {
   (is (string= (hello-world-string)
                "Hello, World!")))
 
+
+(defun sort-ascending (lis)
+  #{
+  return (sort `(lis) `(lambda (x y)
+                         #{
+                         return x < y;
+                         }#);
+               );
+  }#)
+
+(test test-example-sort-ascending
+  (is (equal
+       '(1 2 3 4 5)
+       (sort-ascending (list 2 4 1 5 3)))))
+
 ;;; Preprocessors
 
 #{
