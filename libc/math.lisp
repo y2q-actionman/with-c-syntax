@@ -142,9 +142,7 @@
      &body body)
   (declare (ignorable underflow-value))
   (let ((x_ (gensym)) (y_ (gensym)) (args_ (gensym))
-        (var-list (if (listp var-or-var-list)
-                      var-or-var-list
-                      `(,var-or-var-list))))
+        (var-list (ensure-list var-or-var-list)))
     `(let* ((,x_ ,x)
             (,y_ ,y)
             (,args_ (list ,x_ ,@(if y-supplied-p `(,y_)))))
@@ -396,11 +394,10 @@
          (float-infinity-p x))
      x)
     (t
-     (handler-case
-         (multiple-value-bind (significant exponent sign)
-             (decode-float x)
-           (values (float-sign sign significant)
-                   exponent))))))
+     (multiple-value-bind (significant exponent sign)
+         (decode-float x)
+       (values (float-sign sign significant)
+               exponent)))))
 
 (defun |ilogb| (x)                      ; C99
   (coercef x 'double-float)
