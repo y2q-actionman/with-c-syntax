@@ -703,11 +703,14 @@ Returns (values var-init var-type)."
 (defstruct param-decl
   "Represents 'param-decl' in C syntax BNF."
   (decl-specs (make-decl-specs) :type decl-specs)
-  (declarator nil))
+  ;; In BNF, param-decl takes 'declarator', not 'init-declarator'.
+  ;; I however use the init-declarator object here, for utilizing
+  ;; `finalize-init-declarator' function which fills `lisp-type' slot.
+  (init-declarator nil))                
 
 (defmethod make-load-form ((obj param-decl) &optional environment)
   (make-load-form-saving-slots obj
-   :slot-names '(decl-specs declarator)
+   :slot-names '(decl-specs init-declarator)
    :environment environment))
 
 (defstruct function-definition
@@ -765,17 +768,16 @@ This is not intended for calling directly. The va_start macro uses this."
             (loop-finish)
          else
          do (let* ((decl-specs (param-decl-decl-specs p))
-                   (declarators (param-decl-declarator p))
-                   (decl1 (first declarators))
-                   (var-name (or decl1
-                                 (let ((var (gensym "omitted-arg-")))
-		                   (push var omitted)
-                                   var))))
-              (push var-name param-ids)
-              ;; type
+                   (declarator (param-decl-init-declarator p)))
               (finalize-decl-specs decl-specs)
-              (push (cons var-name (decl-specs-lisp-type decl-specs))
-                    parameter-type-alist)))))
+              (finalize-init-declarator decl-specs declarator)
+              (let ((var-name (or (init-declarator-lisp-name declarator)
+                                  (let ((var (gensym "omitted-arg-")))
+		                    (push var omitted)
+                                    var))))
+                (push var-name param-ids)
+                (push (cons var-name (init-declarator-lisp-type declarator))
+                      parameter-type-alist))))))
     (when varargs-sym
       (push (cons varargs-sym 'list) parameter-type-alist))
     (nreversef param-ids)
@@ -1407,7 +1409,8 @@ MODE is one of `:statement' or `:translation-unit'"
     (lambda-ignoring-_ (dcl _lp id-list _rp)
       (add-to-tail dcl `(:funcall
                          ,(mapcar (lambda (id)
-                                    (make-param-decl :declarator (list id)))
+                                    (make-param-decl
+                                     :init-declarator (make-init-declarator :declarator (list id))))
                                   id-list)))))
    (direct-declarator \(	 \)
     (lambda-ignoring-_ (dcl _lp _rp)
@@ -1448,13 +1451,16 @@ MODE is one of `:statement' or `:translation-unit'"
   (param-decl
    (decl-specs declarator
     (lambda (decl-specs declarator)
-      (make-param-decl :decl-specs decl-specs :declarator declarator)))
+      (make-param-decl :decl-specs decl-specs
+                       :init-declarator (make-init-declarator :declarator declarator))))
    (decl-specs abstract-declarator
     (lambda (decl-specs declarator)
-      (make-param-decl :decl-specs decl-specs :declarator declarator)))
+      (make-param-decl :decl-specs decl-specs
+                       :init-declarator (make-init-declarator :declarator declarator))))
    (decl-specs
     (lambda (decl-specs)
-      (make-param-decl :decl-specs decl-specs))))
+      (make-param-decl :decl-specs decl-specs
+                       :init-declarator (make-init-declarator)))))
 
   (id-list
    (id

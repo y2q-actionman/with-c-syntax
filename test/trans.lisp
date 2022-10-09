@@ -13,7 +13,7 @@
     (is (boundp '*a*))
     (is (boundp '*b*))))
 
-(declaim (ftype function hoge1 hoge2 hoge3 hoge3_void hoge4 hoge5 hoge5_void hoge6 hoge7 hoge8 hoge9))
+(declaim (ftype function hoge1 hoge2 hoge3 hoge3_void hoge4 hoge5 hoge5_void hoge6 hoge7 hoge8 hoge9 hoge10))
 (test test-trans-fdefinition-simple
   (with-testing-wcs-bind (hoge1)
     (with-c-syntax ()
@@ -98,6 +98,13 @@
       { return 9 \; })
     (is (fboundp 'hoge9))
     (is (= 9 (hoge9 'a))))
+
+  (with-testing-wcs-bind (hoge10)
+    (with-c-syntax ()
+      int hoge10 \( int * \)
+      { return 10 \; })
+    (is (fboundp 'hoge10))
+    (is (= 10 (hoge10 'b))))
 
   (signals.macroexpand.wcs ()
     int bad_func \( x \)
