@@ -99,6 +99,12 @@
     (is (fboundp 'hoge9))
     (is (= 9 (hoge9 'a))))
 
+  (signals.macroexpand.wcs ()
+    int bad_func \( x \)
+    int x;
+    int y;
+    { return 0 \; })
+  
   t)
 
 (declaim (ftype function hoge))
@@ -109,9 +115,13 @@
       { return 9999 \; })
     (is (= 9999 (hoge)))
     (is (= 9999 (hoge 'ignored))))
-  )
+  (signals.macroexpand.wcs ()
+    int bad_func \( \)
+    int x;
+    { return 0 \; }
+    ))
 
-(declaim (ftype function inc-a reset-a))
+(declaim (ftype function func inc-a reset-a))
 (test test-trans-decl-static
   (with-testing-wcs-bind (xxx func)
     (with-c-syntax ()
@@ -120,7 +130,7 @@
         return xxx \;
       })
     (is (not (boundp 'xxx)))
-    (is (= (funcall 'func) 99)))
+    (is (= (func) 99)))
   (with-testing-wcs-bind (xxx reset-a inc-a)
     (with-c-syntax ()
       static int xxx = 0 \;
@@ -140,6 +150,7 @@
     (is (= 4 (inc-a)))
     (is (= 0 (reset-a)))))
 
+(declaim (ftype function test-global-vars))
 (test test-trans-decl-static-dependent-global
   (with-testing-wcs-bind (xxx yyy zzz qqq test-global-vars)
     (with-c-syntax ()
@@ -155,7 +166,7 @@
         is \( qqq == 400 \) \;
         return T \;
       })
-    (funcall 'test-global-vars)
+    (test-global-vars)
     (is (not (boundp 'xxx)))
     (is (= yyy 200))
     (is (not (boundp 'zzz)))
@@ -203,6 +214,7 @@
     (is (= 3 (sumn 3 1 1 1)))
     (is (= 10 (sumn 4 1 2 3 4)))))
 
+(declaim (ftype function s-func g-func))
 (test test-trans-fdefinition-and-storage-class
   (with-testing-wcs-bind (s-func g-func)
     (with-c-syntax ()
@@ -210,12 +222,12 @@
       int x \, y \;
       { return x + y \; }
 
-      int g-func \( \) {
+      int g-func \( void \) {
         return s-func \( 1 \, 2 \) \;
       })
     (is (not (fboundp 's-func)))
     (is (fboundp 'g-func))
-    (is (= (funcall 'g-func) 3))))
+    (is (= (g-func) 3))))
 
 (declaim (ftype function accumulator))
 (test test-trans-func-local-static

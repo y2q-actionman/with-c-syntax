@@ -109,6 +109,7 @@
     return funcptr \( 1 \, 2 \) \;
     }))
 
+(declaim (ftype function get-local-static))
 (test test-pointer-to-local-static
   (with-testing-wcs-bind (get-local-static)
     (with-c-syntax ()
@@ -116,8 +117,8 @@
       static int local_static = 0 \;
       return &local_static \;
       })
-    (let ((ptr1 (funcall 'get-local-static))
-          (ptr2 (funcall 'get-local-static)))
+    (let ((ptr1 (get-local-static))
+          (ptr2 (get-local-static)))
       (is (= (pseudo-pointer-dereference ptr1)
              (pseudo-pointer-dereference ptr2)))
       (setf (pseudo-pointer-dereference ptr1) 0)
@@ -127,5 +128,5 @@
       (setf (pseudo-pointer-dereference ptr2) 999)
       (is (= (pseudo-pointer-dereference ptr1)
              (pseudo-pointer-dereference ptr2)
-             (pseudo-pointer-dereference (funcall 'get-local-static))
+             (pseudo-pointer-dereference (get-local-static))
              999)))))
