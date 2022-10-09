@@ -10,6 +10,7 @@ implementation.
 
 * News
 
+- (2022-10-9) New extensions, [[#statement-expression][Statement Expression]] and "with-syntax support" were added.
 - (2021-9-5) C Preprocessor is added. See [[#c-preprocessor][C preprocessor examples]].
 - (2021-5-24) C Numeric Literals are added. See [[#inline-usage][examples in 'inline usage' section]]. (Inspired by [[https://github.com/akanouras][@akanouras]] at [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
 - (2019-4-25) Some special handlings around =++=, =*=, etc are added. See [[#duffs-device][Duff's Device example]] .
@@ -221,11 +222,20 @@ Recently, I added a syntax extension for these ~with-~ like macros. See below.
 
 ** Syntax extensions
 
-*** Statement Expressions
+*** Statement Expression
 
-https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html
+You can treat any statements as a expression by surrounding =(= and =)=.
+This is derived from [[https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html][GCC]].
 
-# (stub)
+#+begin_src common-lisp
+  #{
+  int z = ({
+	   int x = 1, y = 2;
+	   return x + y;
+	   });
+  return z;
+  }#   ; => 3
+#+end_src
 
 *** Support ~with-~ like macros.
 

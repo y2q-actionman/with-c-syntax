@@ -332,6 +332,16 @@ void 99-bottles-of-beer (filename) {
 
 ;;; 2022-10-08 syntax extensions
 
+(test test-readme-stat-expr
+  (is (= 3
+         #{
+         int z = ({
+	          int x = 1, y = 2;
+	          return x + y;
+	          });
+         return z;
+         }#)))
+
 (defun hello-world-string ()
   #{
   with-output-to-string `((*standard-output*)) {
