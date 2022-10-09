@@ -342,11 +342,30 @@ void 99-bottles-of-beer (filename) {
          return z;
          }#)))
 
+(defclass foo ()
+  ((slot1 :initform 1)
+   (slot2 :initform 2)))
+
+#{
+int test-with-slots () {
+  auto obj = make-instance (`'foo);
+  
+  with-slots `((slot1 slot2) obj) {
+    return slot1 + slot2 ;
+  }
+}
+}#
+
+(test test-test-with-slots
+  (is (= (test-with-slots) 3)))
+
+
 (defun hello-world-string ()
   #{
-  with-output-to-string `((*standard-output*)) {
-    princ("Hello, World!");
-  }
+  return (with-output-to-string `((*standard-output*))
+           {
+           princ("Hello, World!");
+           });
   }#)
 
 (test test-hello-world-string
