@@ -13,7 +13,7 @@
     (is (boundp '*a*))
     (is (boundp '*b*))))
 
-(declaim (ftype function hoge1 hoge2 hoge3 hoge4 hoge5 hoge6 hoge7 hoge8 hoge9))
+(declaim (ftype function hoge1 hoge2 hoge3 hoge3_void hoge4 hoge5 hoge5_void hoge6 hoge7 hoge8 hoge9))
 (test test-trans-fdefinition-simple
   (with-testing-wcs-bind (hoge1)
     (with-c-syntax ()
@@ -38,6 +38,13 @@
     (is (fboundp 'hoge3))
     (is (= 3 (hoge3))))
 
+  (with-testing-wcs-bind (hoge3_void)
+    (with-c-syntax ()
+      int hoge3_void \( void \)
+      { return 3 \; })
+    (is (fboundp 'hoge3_void))
+    (is (= 3 (hoge3_void))))
+
   (with-testing-wcs-bind (hoge4)
     (with-c-syntax ()
       int hoge4 \( x \)
@@ -51,6 +58,13 @@
       { return 5 \; })
     (is (fboundp 'hoge5))
     (is (= 5 (hoge5))))
+
+  (with-testing-wcs-bind (hoge5_void)
+    (with-c-syntax ()
+      hoge5_void \( void \)
+      { return 5 \; })
+    (is (fboundp 'hoge5_void))
+    (is (= 5 (hoge5_void))))
 
   (with-testing-wcs-bind (hoge6)
     (with-c-syntax ()
@@ -85,26 +99,46 @@
     (is (fboundp 'hoge9))
     (is (= 9 (hoge9 'a))))
 
+  (signals.macroexpand.wcs ()
+    int bad_func \( x \)
+    int x;
+    int y;
+    { return 0 \; })
+  
   t)
 
-(declaim (ftype function inc-a reset-a))
+(declaim (ftype function hoge))
+(test test-trans-empty-parameters
+  (with-testing-wcs-bind (hoge)
+    (with-c-syntax ()
+      int hoge \( \)
+      { return 9999 \; })
+    (is (= 9999 (hoge)))
+    (is (= 9999 (hoge 'ignored))))
+  (signals.macroexpand.wcs ()
+    int bad_func \( \)
+    int x;
+    { return 0 \; }
+    ))
+
+(declaim (ftype function func inc-a reset-a))
 (test test-trans-decl-static
   (with-testing-wcs-bind (xxx func)
     (with-c-syntax ()
       static int xxx = 99 \;
-      int func \( \) {
+      int func \( void \) {
         return xxx \;
       })
     (is (not (boundp 'xxx)))
-    (is (= (funcall 'func) 99)))
+    (is (= (func) 99)))
   (with-testing-wcs-bind (xxx reset-a inc-a)
     (with-c-syntax ()
       static int xxx = 0 \;
-      int reset-a \( \) {
+      int reset-a \( void \) {
       xxx = 0 \;
       return xxx \;
       }
-      int inc-a \( \) {
+      int inc-a \( void \) {
       return ++ xxx \;
       })
     (is (not (boundp 'xxx)))
@@ -116,6 +150,7 @@
     (is (= 4 (inc-a)))
     (is (= 0 (reset-a)))))
 
+(declaim (ftype function test-global-vars))
 (test test-trans-decl-static-dependent-global
   (with-testing-wcs-bind (xxx yyy zzz qqq test-global-vars)
     (with-c-syntax ()
@@ -124,14 +159,14 @@
       const static int zzz = \( yyy + 100 \) \;
       int qqq = \( zzz + 100 \) \;
 
-      int test-global-vars \( \) {
+      int test-global-vars \( void \) {
         is \( xxx == 100 \) \;
         is \( yyy == 200 \) \;
         is \( zzz == 300 \) \;
         is \( qqq == 400 \) \;
         return T \;
       })
-    (funcall 'test-global-vars)
+    (test-global-vars)
     (is (not (boundp 'xxx)))
     (is (= yyy 200))
     (is (not (boundp 'zzz)))
@@ -179,6 +214,7 @@
     (is (= 3 (sumn 3 1 1 1)))
     (is (= 10 (sumn 4 1 2 3 4)))))
 
+(declaim (ftype function s-func g-func))
 (test test-trans-fdefinition-and-storage-class
   (with-testing-wcs-bind (s-func g-func)
     (with-c-syntax ()
@@ -186,12 +222,12 @@
       int x \, y \;
       { return x + y \; }
 
-      int g-func \( \) {
+      int g-func \( void \) {
         return s-func \( 1 \, 2 \) \;
       })
     (is (not (fboundp 's-func)))
     (is (fboundp 'g-func))
-    (is (= (funcall 'g-func) 3))))
+    (is (= (g-func) 3))))
 
 (declaim (ftype function accumulator))
 (test test-trans-func-local-static

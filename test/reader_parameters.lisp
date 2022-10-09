@@ -5,21 +5,21 @@
 (progn                                  ; For friendly for slime.
   #.(setf *with-c-syntax-reader-level* 2)
   #0{
-  int test-reader-toplevel-conservative \( \) {
+  int test-reader-toplevel-conservative \( void \) {
     return t \;
   }
   }#
 
   #.(setf *with-c-syntax-reader-level* 0)
   #1{
-  int test-reader-toplevel-aggressive(){
+  int test-reader-toplevel-aggressive(void){
     int hoge-array[]={0,1,2};
     return hoge-array[2]== 2;
   }
   }#
 
   #2{
-  int test\-reader\-toplevel\-overkill(){
+  int test\-reader\-toplevel\-overkill(void){
     assert (1+2*3-4 == `(+ 1 (* 2 3) (- 4)));
     return t;
   }

@@ -330,6 +330,67 @@ void 99-bottles-of-beer (filename) {
   (let ((*standard-output* (make-broadcast-stream)))
     (is (princ #{ 0x1.fffp+1 }#))))
 
+;;; 2022-10-08 syntax extensions
+
+(test test-readme-stat-expr
+  (is (= 3
+         #{
+         int z = ({
+	          int x = 1, y = 2;
+	          return x + y;
+	          });
+         return z;
+         }#)))
+
+(defclass foo ()
+  ((slot1 :initform 1)
+   (slot2 :initform 2)))
+
+#{
+int test-with-slots (void) {
+  auto obj = make-instance (`'foo);
+  
+  with-slots `((slot1 slot2) obj) {
+    return slot1 + slot2 ;
+  }
+}
+}#
+
+(test test-test-with-slots
+  (is (= (test-with-slots) 3)))
+
+
+#{
+char * hello-world-string (void) {
+  return (with-output-to-string `((*standard-output*))
+           {
+           princ("Hello, World!");
+           });
+}
+}#
+
+(test test-hello-world-string
+  (is (string= (hello-world-string)
+               "Hello, World!")))
+
+
+#{
+sort-ascending (lis) {
+  return (sort `(lis) `(lambda (x y)
+			 #{
+			 return x < y;
+			 }#);
+	       );
+}
+}#
+
+(test test-example-sort-ascending
+  (is (equal
+       '(1 2 3 4 5)
+       (sort-ascending (list 2 4 1 5 3)))))
+
+;;; Preprocessors
+
 #{
 #define MY_MAX(x, y) ((x)>(y) ? (x) : (y))
 
@@ -361,7 +422,7 @@ int my-cl-max-test (x, y, z) {
 #{
 #define TEST_MACRO_DEFINITION
 
-int test-macro-defined-p () {
+int test-macro-defined-p (void) {
 #ifdef TEST_MACRO_DEFINITION
   return t;
 #else

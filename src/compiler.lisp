@@ -599,8 +599,7 @@ Returns (values var-init var-type)."
 	     :case-label-list (append (stat-case-label-list s1)
 				      (stat-case-label-list s2))))
 
-(defun expand-if-statement (exp then-stat
-			     &optional (else-stat nil))
+(defun expand-if-statement-into-stat (exp then-stat &optional (else-stat nil))
   (let* ((stat (if else-stat
 		   (merge-stat then-stat else-stat)
 		   then-stat))
@@ -639,9 +638,8 @@ Returns (values var-init var-type)."
     (dolist (i ret ret)
       (setf (second i) sym))))
 
-(defun expand-loop (body-stat
-		     &key (init nil) (cond t) (step nil)
-		     (post-test-p nil))
+(defun expand-loop-into-stat (body-stat &key (init nil) (cond t) (step nil)
+		                             (post-test-p nil))
   (let* ((loop-body-tag (gensym "loop-body-"))
 	 (loop-step-tag (gensym "loop-step-"))
 	 (loop-cond-tag (gensym "loop-cond-"))
@@ -673,7 +671,7 @@ Returns (values var-init var-type)."
           (stat-case-label-list stat))
     (push go-tag-sym (stat-code stat))))
 
-(defun expand-switch (exp stat)
+(defun expand-switch-into-stat (exp stat)
   (let* ((switch-end-tag (gensym "switch-end-"))
 	 (default-supplied nil)
 	 (jump-table			; create jump table with COND
@@ -720,22 +718,44 @@ This is not intended for calling directly. The va_start macro uses this."
   '(error 'runtime-error
     :format-control "Trying to get a variadic args list out of a variadic func."))
 
+(defun function-parameter-void-p (func-param)
+  "Called by `lispify-function-definition' to check the function
+arguments list is '(void)' or not."
+  (when-let* ((_ (length= 1 func-param))
+              (param1 (first func-param))
+              (dspecs (first param1)))
+    (and (decl-specs-p dspecs)
+         (equal (decl-specs-type-spec dspecs)
+                '(with-c-syntax.syntax:|void|)))))
+
 (defun lispify-function-definition (name body
                                     &key K&R-decls (return (make-decl-specs)))
   (let* ((func-name (first name))
          (func-param (getf (second name) :funcall))
-         (variadic nil)
+         (varargs-sym )
 	 (omitted nil)
          (param-ids
-          (loop for p in func-param
-             if (eq p '|...|)
-             do (setf variadic t) (loop-finish)
-             else
-             collect
-	       (or (first (second p))	; first of declarator.
-		   (let ((var (gensym "omitted-arg-")))
-		     (push var omitted)
-		     var))))
+           (cond
+             ((null func-param)
+              (warn 'with-c-syntax-style-warning
+                    :message "Empty function parameter '()' was compiled to a varidic function, but there is no way to get the arguments.")
+              (setf varargs-sym (gensym "empty-parameter-varargs-"))
+              (push varargs-sym omitted)
+              nil)
+             ((function-parameter-void-p func-param)
+              nil)
+             (t
+              (loop
+                for p in func-param
+                if (eq p '|...|)
+                do (setf varargs-sym (gensym "varargs-"))
+                   (loop-finish)
+                else
+                collect
+	           (or (first (second p))	; first of declarator.
+		       (let ((var (gensym "omitted-arg-")))
+		         (push var omitted)
+		         var))))))
 	 (return (finalize-decl-specs return))
 	 (storage-class
 	  (case (decl-specs-storage-class return)
@@ -759,16 +779,16 @@ This is not intended for calling directly. The va_start macro uses this."
              (error 'compile-error
                     :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
                     :format-arguments (list K&R-param-ids param-ids)))))
-    (let* ((varargs-sym (gensym "varargs-"))
-           (body-stat (expand-compound-stat body nil))
+    (let* ((body-stat (expand-compound-stat-into-stat body nil))
            (body (stat-code body-stat)))
       (make-function-definition
        :func-name func-name
        :storage-class storage-class
-       :func-args `(,@param-ids ,@(if variadic `(&rest ,varargs-sym)))
+       :func-args `(,@param-ids ,@(if varargs-sym `(&rest ,varargs-sym)))
        :func-body
        `(,@(if omitted `((declare (ignore ,@omitted)))) 
-         ,(if variadic
+         ,(if (and varargs-sym
+                   (not (member varargs-sym omitted))) ; If the parameter list is empty..
               `(macrolet ((get-variadic-arguments (&optional (last-argument-name nil l-supplied-p))
                             "locally established `get-variadic-arguments' macro."
 			    (when l-supplied-p
@@ -991,7 +1011,7 @@ MODE is one of `:statement' or `:translation-unit'"
          do (deletef *function-pointer-ids*
                      sym :test #'eq :count 1)))))
 
-(defun expand-compound-stat (stat return-last-statement)
+(defun expand-compound-stat-into-stat (stat return-last-statement)
   (let* ((stat-codes (stat-code stat))
 	 (last-form (lastcar stat-codes))
 	 (ex-last-code
@@ -1037,16 +1057,16 @@ MODE is one of `:statement' or `:translation-unit'"
   "Expands GCC's statement expression, not in C90.
  See https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html"
   ;; This is almost same with `expand-toplevel-stat'.
-  (let ((stat (expand-compound-stat stat t)))
+  (let ((stat (expand-compound-stat-into-stat stat t)))
     `(block nil ,@(stat-code stat))))
 
 ;;; Toplevel
 (defun expand-toplevel-stat (stat)
   (let ((code (stat-code stat)))
-    ;; If STAT was not already expanded by `expand-compound-stat'..
+    ;; If STAT was not already expanded by `expand-compound-stat-into-stat'..
     (unless (and (length= 1 code)
                  (starts-with 'nest (first code)))
-      (expand-compound-stat stat t)
+      (expand-compound-stat-into-stat stat t)
       (setf code (stat-code stat)))
     `(block nil ,@(stat-code stat))))
 
@@ -1505,13 +1525,13 @@ MODE is one of `:statement' or `:translation-unit'"
       (lambda-ignoring-_ (_lb dcls stat _rb)
         (setf (stat-declarations stat)
 	      (append dcls (stat-declarations stat)))
-        (expand-compound-stat stat *return-last-statement*)))
+        (expand-compound-stat-into-stat stat *return-last-statement*)))
    ({ stat-list }
       (lambda-ignoring-_ (_lb stat _rb)
 	stat))
    ({ decl-list	}
       (lambda-ignoring-_ (_lb dcls _rb)
-        (expand-compound-stat (make-stat :declarations dcls) *return-last-statement*)))
+        (expand-compound-stat-into-stat (make-stat :declarations dcls) *return-last-statement*)))
    ({ }
       (lambda-ignoring-_ (_lb _rb)
 	(make-stat))))
@@ -1525,45 +1545,45 @@ MODE is one of `:statement' or `:translation-unit'"
   (selection-stat
    (|if| \( exp \) stat
          (lambda-ignoring-_ (_op _lp exp _rp stat)
-	   (expand-if-statement exp stat)))
+	   (expand-if-statement-into-stat exp stat)))
    (|if| \( exp \) stat |else| stat
          (lambda-ignoring-_ (_op _lp exp _rp stat1 _el stat2)
-	   (expand-if-statement exp stat1 stat2)))
+	   (expand-if-statement-into-stat exp stat1 stat2)))
    (|switch| \( exp \) stat
 	     (lambda-ignoring-_ (_k _lp exp _rp stat)
-	       (expand-switch exp stat))))
+	       (expand-switch-into-stat exp stat))))
 
   (iteration-stat
    (|while| \( exp \) stat
-	    (lambda-ignoring-_ (_k _lp cond _rp body)
-	      (expand-loop body :cond cond)))
+	    (lambda-ignoring-_ (_k _lp cond _rp stat)
+	      (expand-loop-into-stat stat :cond cond)))
    (|do| stat |while| \( exp \) \;
-         (lambda-ignoring-_ (_k1 body _k2 _lp cond _rp _t)
-	   (expand-loop body :cond cond :post-test-p t)))
+         (lambda-ignoring-_ (_k1 stat _k2 _lp cond _rp _t)
+	   (expand-loop-into-stat stat :cond cond :post-test-p t)))
    (|for| \( exp \; exp \; exp \) stat
-	  (lambda-ignoring-_ (_k _lp init _t1 cond _t2 step _rp body)
-	    (expand-loop body :init init :cond cond :step step)))
+	  (lambda-ignoring-_ (_k _lp init _t1 cond _t2 step _rp stat)
+	    (expand-loop-into-stat stat :init init :cond cond :step step)))
    (|for| \( exp \; exp \;     \) stat
-	  (lambda-ignoring-_ (_k _lp init _t1 cond _t2      _rp body)
-	    (expand-loop body :init init :cond cond)))
+	  (lambda-ignoring-_ (_k _lp init _t1 cond _t2      _rp stat)
+	    (expand-loop-into-stat stat :init init :cond cond)))
    (|for| \( exp \;     \; exp \) stat
-	  (lambda-ignoring-_ (_k _lp init _t1      _t2 step _rp body)
-	    (expand-loop body :init init :step step)))
+	  (lambda-ignoring-_ (_k _lp init _t1      _t2 step _rp stat)
+	    (expand-loop-into-stat stat :init init :step step)))
    (|for| \( exp \;     \;     \) stat
-	  (lambda-ignoring-_ (_k _lp init _t1      _t2      _rp body)
-	    (expand-loop body :init init)))
+	  (lambda-ignoring-_ (_k _lp init _t1      _t2      _rp stat)
+	    (expand-loop-into-stat stat :init init)))
    (|for| \(     \; exp \; exp \) stat
-	  (lambda-ignoring-_ (_k _lp      _t1 cond _t2 step _rp body)
-	    (expand-loop body :cond cond :step step)))
+	  (lambda-ignoring-_ (_k _lp      _t1 cond _t2 step _rp stat)
+	    (expand-loop-into-stat stat :cond cond :step step)))
    (|for| \(     \; exp \;     \) stat
-	  (lambda-ignoring-_ (_k _lp      _t1 cond _t2      _rp body)
-	    (expand-loop body :cond cond)))
+	  (lambda-ignoring-_ (_k _lp      _t1 cond _t2      _rp stat)
+	    (expand-loop-into-stat stat :cond cond)))
    (|for| \(     \;     \; exp \) stat
-	  (lambda-ignoring-_ (_k _lp      _t1      _t2 step _rp body)
-	    (expand-loop body :step step)))
+	  (lambda-ignoring-_ (_k _lp      _t1      _t2 step _rp stat)
+	    (expand-loop-into-stat stat :step step)))
    (|for| \(     \;     \;     \) stat
-	  (lambda-ignoring-_ (_k _lp      _t1      _t2      _rp body)
-	    (expand-loop body))))
+	  (lambda-ignoring-_ (_k _lp      _t1      _t2      _rp stat)
+	    (expand-loop-into-stat stat))))
 
   (jump-stat
    (|goto| id \;

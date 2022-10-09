@@ -441,13 +441,18 @@
     }))
 
 (test test-lisp-with-stat-weird
+  ;; Works with a function
+  (is.equal.wcs '(1 2 3)
+    {
+     list (1 2) { 3 \; }
+    })
   ;; Functions and an empty stmt.
   ;; This looks like Lisp parens (without '\') works like C parens!.
   (is.equal.wcs '(1 2 3)
     {
      list (1 2 3) \;
     })
-  ;; Current implementation allows this.
+  ;; Current implementation allows them.
   (is.equal.wcs "100 200 300"
     {
     format (nil "~D ~D ~D") {
@@ -455,6 +460,10 @@
       200 \;
       300 \;
     }
+    })
+  (is.equal.wcs '(1 2 3 4)
+    {
+    list (1 2) { 3 \; 4 \; }
     }))
 
 (test test-lisp-with-stat-ruby-like-block

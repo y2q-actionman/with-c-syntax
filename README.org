@@ -8,6 +8,14 @@ coding, I think.)
 At this stage, this package has all features of ISO C 90 freestanding
 implementation.
 
+* News
+
+- (2022-10-9) New extensions, [[#statement-expression][Statement Expression]] and [[#support-with--like-macros][with- like syntax support]] were added.
+- (2021-9-5) C Preprocessor is added. See [[#c-preprocessor][C preprocessor examples]].
+- (2021-5-24) C Numeric Literals are added. See [[#inline-usage][examples in 'inline usage' section]]. (Inspired by [[https://github.com/akanouras][@akanouras]] at [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
+- (2019-4-25) Some special handlings around =++=, =*=, etc are added. See [[#duffs-device][Duff's Device example]] .
+- (2019-4-25) Added a new example, [[#c-in-lisp-in-c-in-lisp][C in Lisp in C in Lisp]].
+
 * Examples
 ** Hello, World
 
@@ -166,6 +174,7 @@ behave as you expected as possible.
 ** C in Lisp in C in Lisp
 Sometimes you want to use the Lisp syntax even in =with-c-syntax=.
 If you feel so, you can use =`= as an escape. Here is an example:
+# Let's see the unholy mixture..
 
 #+BEGIN_SRC lisp
 (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
@@ -208,8 +217,108 @@ void 99-bottles-of-beer (filename) {
 This example creates "99_bottles_of_beer.txt" file into your home directory.
 I used =`= for using =with-open-file= in Lisp syntax.
 
-(You can use any Lisp operators including =with-open-file= in =with-c-syntax= style.
-However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/blob/e3e9ae2f1f29115f30141e3ada33372e2ce6b65d/test/libc_string.lisp#L143][An example exists in my test code]].)
+Recently, I added a syntax extension for these ~with-~ like macros. See below.
+# TODO: add a link.
+
+** Syntax extensions
+
+*** Statement Expression
+
+You can treat any statements as a expression by surrounding =(= and =)=.
+This is derived from [[https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html][GCC]].
+
+#+begin_src common-lisp
+  #{
+  int z = ({
+	   int x = 1, y = 2;
+	   return x + y;
+	   });
+  return z;
+  }#   ; => 3
+#+end_src
+
+*** Support ~with-~ like macros.
+
+# (You can use any Lisp operators including =with-open-file= in =with-c-syntax= style.
+# However it looks very weird; [[https://github.com/y2q-actionman/with-c-syntax/blob/e3e9ae2f1f29115f30141e3ada33372e2ce6b65d/test/libc_string.lisp#L143][An example exists in my test code]].)
+
+=with-c-syntax= has a syntax extensiton for ~with-~ like macros:
+
+#+begin_example
+identifier lisp-expression statement;
+#+end_example>
+
+This is compiled to a Lisp form like below:
+
+#+begin_example
+(identifier (<contents in lisp-expression> ...)
+  <contents in statement>
+  ...)
+#+end_example
+
+Here are some examples:
+
+**** =with-slots=
+
+#+begin_src common-lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+  (defclass foo ()
+    ((slot1 :initform 1)
+     (slot2 :initform 2)))
+
+  #{
+  int test-with-slots (void) {
+    auto obj = make-instance (`'foo);
+  
+    with-slots `((slot1 slot2) obj) {
+      return slot1 + slot2 ;
+    }
+  }
+  }#
+
+  (test-with-slots) ; => 3
+#+end_src
+
+**** =with-output-to-string= and statement expression
+
+You can take the value of =with-= syntax statement by wrapping it with =()=.
+
+#+begin_src common-lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+  #{
+  char * hello-world-string (void) {
+    return (with-output-to-string `((*standard-output*))
+	     {
+	     princ("Hello, World!");
+	     });
+  }
+  }#
+
+  (hello-world-string) ; => "Hello, World!"
+#+end_src
+
+**** =sort= and =lambda=
+
+This syntax can currently apply to functions, not only macros.
+It may be useful when the function takes a function at the last argument:
+
+#+begin_src common-lisp
+  (named-readtables:in-readtable with-c-syntax:with-c-syntax-readtable)
+
+  #{
+  sort-ascending (lis) {
+    return (sort `(lis) `(lambda (x y)
+			   #{
+			   return x < y;
+			   }#);
+		 );
+  }
+  }#
+
+  (sort-ascending (list 2 4 1 5 3)) ; => (1 2 3 4 5)
+#+end_src
 
 ** C Preprocessor
 
@@ -276,11 +385,11 @@ only in Level 2 syntax (because it conflicts with standard Lisp
   #{
   #define TEST_MACRO_DEFINITION
 
-  int test-macro-defined-p () {
+  int test-macro-defined-p (void) {
   #ifdef TEST_MACRO_DEFINITION
-  return t;
+    return t;
   #else
-  return nil;
+    return nil;
   #endif
   }
   }#
@@ -359,20 +468,6 @@ specific pragma [fn:1].
 
 (But in the Lisp world, you already have =read=, =eval=, and =load=...)
 
-* News
-** 2021-9-5
-   C Preprocessor is added. See examples below.
-   
-** 2021-5-24
-   C Numeric Literals are added. (Inspired by [[https://github.com/akanouras][@akanouras]]. See [[https://github.com/y2q-actionman/with-c-syntax/pull/7][PR #7]].)
-   Hexadecimal floating number syntax may be a only practical feature
-   of this package. (Try =#{ 0x1.fffp+1; }#=)
-   
-** 2019-4-25
-- Some special handlings around =++=, =*=, etc are added.
-  The *Duff's Device* example becomes prettier.
-- Added a new example, *C in Lisp in C in Lisp*. (+unholy mixture..+)
-
 * How to load
 
 ** Loading by quicklisp
@@ -441,6 +536,8 @@ https://github.com/y2q-actionman/with-c-syntax/wiki
 
 [[https://github.com/vsedach/Vacietis][Vacietis]] is a similer project. It is a "C to Common Lisp" compiler,
 based on reader macros.
+
+"[[https://evilmartians.com/chronicles/a-no-go-fantasy-writing-go-in-ruby-with-ruby-next][A no-go fantasy: writing Go in Ruby with Ruby Next]]" takes a similer approach in Ruby.
 
 * License
 
