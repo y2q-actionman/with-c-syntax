@@ -251,8 +251,9 @@ identifier lisp-expression statement;
 This is compiled to a Lisp form like below:
 
 #+begin_example
-(identifier (<contents in lisp-expression>)
-  <contents in statement>)
+(identifier (<contents in lisp-expression> ...)
+  <contents in statement>
+  ...)
 #+end_example
 
 Here are some examples:
@@ -535,6 +536,8 @@ https://github.com/y2q-actionman/with-c-syntax/wiki
 
 [[https://github.com/vsedach/Vacietis][Vacietis]] is a similer project. It is a "C to Common Lisp" compiler,
 based on reader macros.
+
+"[[https://evilmartians.com/chronicles/a-no-go-fantasy-writing-go-in-ruby-with-ruby-next][A no-go fantasy: writing Go in Ruby with Ruby Next]]" takes a similer approach in Ruby.
 
 * License
 
