@@ -819,7 +819,8 @@ This is not intended for calling directly. The va_start macro uses this."
              (param-type-lisp-decls
                (loop for id in param-ids
                      for type in param-type-list ; TODO: Use K&R decls.
-                     collect `(type ,type ,id)))) ; TODO: omit if the type is not supplied.
+                     unless (eq type t)
+                     collect `(type ,type ,id))))
         (make-function-definition
          :func-name func-name
          :storage-class storage-class
