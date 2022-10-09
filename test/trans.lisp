@@ -97,14 +97,14 @@
       int hoge9 \( int \)
       { return 9 \; })
     (is (fboundp 'hoge9))
-    (is (= 9 (hoge9 'a))))
+    (is (= 9 (hoge9 0))))
 
   (with-testing-wcs-bind (hoge10)
     (with-c-syntax ()
       int hoge10 \( int * \)
       { return 10 \; })
     (is (fboundp 'hoge10))
-    (is (= 10 (hoge10 'b))))
+    (is (= 10 (hoge10 0))))
 
   (signals.macroexpand.wcs ()
     int bad_func \( x \)
