@@ -730,8 +730,7 @@ This is not intended for calling directly. The va_start macro uses this."
     :format-control "Trying to get a variadic args list out of a variadic func."))
 
 (defun function-parameter-void-p (func-param)
-  "Called by `lispify-function-definition' to check the function
-arguments list is '(void)' or not."
+  "Checks the function parameter list is '(void)' or not."
   (when-let* ((_ (length= 1 func-param))
               (param1 (first func-param))
               (_ (param-decl-p param1))
@@ -739,79 +738,108 @@ arguments list is '(void)' or not."
     (equal (decl-specs-type-spec dspecs)
            '(with-c-syntax.syntax:|void|))))
 
-(defun lispify-function-definition (name body
+(defun parse-function-parameter-list (func-param)
+  "Parses FUNC-PARAM as a list of `param-decl' structure (C function
+ parameter list), returns 4 values.
+   1. A list of symbols naming the parameter.
+   2. A symbol naming the variadic argument if requested.
+   3. A list of symbols should be `ignore'd.
+   4. An alist of (<symbol> . <type>), representing parameter types."
+  (let ((param-ids nil)
+        (varargs-sym nil)
+        (omitted nil)
+        (parameter-type-alist nil))
+    (cond
+      ((null func-param)
+       (warn 'with-c-syntax-style-warning
+             :message "Empty function parameter '()' was compiled to a varidic function, but there is no way to get the arguments.")
+       (setf varargs-sym (gensym "empty-parameter-varargs-"))
+       (push varargs-sym omitted))
+      ((function-parameter-void-p func-param)
+       nil)
+      (t
+       (loop
+         for p in func-param
+         when (eq p '|...|)
+         do (setf varargs-sym (gensym "varargs-"))
+            (loop-finish)
+         else
+         do (let* ((decl-specs (param-decl-decl-specs p))
+                   (declarators (param-decl-declarator p))
+                   (decl1 (first declarators))
+                   (var-name (or decl1
+                                 (let ((var (gensym "omitted-arg-")))
+		                   (push var omitted)
+                                   var))))
+              (push var-name param-ids)
+              ;; type
+              (finalize-decl-specs decl-specs)
+              (push (cons var-name (decl-specs-lisp-type decl-specs))
+                    parameter-type-alist)))))
+    (when varargs-sym
+      (push (cons varargs-sym 'list) parameter-type-alist))
+    (nreversef param-ids)
+    (values param-ids varargs-sym omitted parameter-type-alist))) 
+
+(defun lispify-function-definition (name body-stat
                                     &key K&R-decls (return (make-decl-specs)))
+  (finalize-decl-specs return)
+  (expand-compound-stat-into-stat body-stat nil)
   (let* ((func-name (first name))
          (func-param (getf (second name) :funcall))
-         (varargs-sym nil)
-	 (omitted nil)
-         (param-ids
-           (cond
-             ((null func-param)
-              (warn 'with-c-syntax-style-warning
-                    :message "Empty function parameter '()' was compiled to a varidic function, but there is no way to get the arguments.")
-              (setf varargs-sym (gensym "empty-parameter-varargs-"))
-              (push varargs-sym omitted)
-              nil)
-             ((function-parameter-void-p func-param)
-              nil)
-             (t
-              (loop
-                for p in func-param
-                when (eq p '|...|)
-                do (setf varargs-sym (gensym "varargs-"))
-                   (loop-finish)
-                collect
-                   (let* ((declarators (param-decl-declarator p))
-                          (decl1 (first declarators)))
-                     (or decl1
-                         (let ((var (gensym "omitted-arg-")))
-		           (push var omitted)
-		           var)))))))
-	 (return (finalize-decl-specs return))
 	 (storage-class
-	  (case (decl-specs-storage-class return)
-	    (|static| '|static|)
-	    ((nil) '|global|)
-	    (otherwise
-             (error 'compile-error
-                    :format-control "Cannot define a function of storage-class: ~S."
-                    :format-arguments (list (decl-specs-storage-class return)))))))
-    (when K&R-decls
-      (loop for (dspecs init-decls) in K&R-decls
-         as storage-class = (decl-specs-storage-class dspecs)
-         unless (member storage-class
-                        '(nil |auto| |register|) :test #'eq)
-         do (error 'compile-error
-                   :format-control "Invalid storage-class ~S for function arguments."
-                   :format-arguments (list storage-class))
-         nconc (mapcar #'init-declarator-lisp-name init-decls) into K&R-param-ids
-         finally
-           (unless (equal param-ids K&R-param-ids)
-             (error 'compile-error
-                    :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
-                    :format-arguments (list K&R-param-ids param-ids)))))
-    (let* ((body-stat (expand-compound-stat-into-stat body nil))
-           (body (stat-code body-stat)))
-      (make-function-definition
-       :func-name func-name
-       :storage-class storage-class
-       :func-args `(,@param-ids ,@(if varargs-sym `(&rest ,varargs-sym)))
-       :func-body
-       `(,@(if omitted `((declare (ignore ,@omitted)))) 
-         ,(if (and varargs-sym
-                   (not (member varargs-sym omitted))) ; If the parameter list is empty..
-              `(macrolet ((get-variadic-arguments (&optional (last-argument-name nil l-supplied-p))
-                            "locally established `get-variadic-arguments' macro."
-			    (when l-supplied-p
-			      (unless (eql last-argument-name ',(lastcar param-ids))
-				(warn "~A's last argument before '...' is ~A, but ~A was passed."
-				      ',func-name ',(lastcar param-ids) last-argument-name)))
-			    ',varargs-sym))
-                 (block nil ,@body))
-              `(block nil ,@body)))
-       :lisp-type `(function ',(mapcar (constantly t) param-ids) ; TODO: use arg types.
-                             ',(decl-specs-lisp-type return))))))
+	   (case (decl-specs-storage-class return)
+	     (|static| '|static|)
+	     ((nil) '|global|)
+	     (otherwise
+              (error 'compile-error
+                     :format-control "Cannot define a function of storage-class: ~S."
+                     :format-arguments (list (decl-specs-storage-class return)))))))
+    (multiple-value-bind (param-ids varargs-sym omitted parameter-type-alist)
+        (parse-function-parameter-list func-param)
+      (when K&R-decls
+        (loop for (dspecs init-decls) in K&R-decls
+              as storage-class = (decl-specs-storage-class dspecs)
+              unless (member storage-class
+                             '(nil |auto| |register|) :test #'eq)
+              do (error 'compile-error
+                        :format-control "Invalid storage-class ~S for function arguments."
+                        :format-arguments (list storage-class))
+              nconc (mapcar #'init-declarator-lisp-name init-decls) into K&R-param-ids
+              finally
+                 (unless (equal param-ids K&R-param-ids)
+                   (error 'compile-error
+                          :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
+                          :format-arguments (list K&R-param-ids param-ids)))))
+      (let* ((code (stat-code body-stat))
+             (param-type-list (sublis parameter-type-alist param-ids))
+             (lisp-function-type
+               `(function (,@param-type-list) ; Not affected by K&R decls.
+                          ,(decl-specs-lisp-type return)))
+             (param-type-lisp-decls
+               (loop for id in param-ids
+                     for type in param-type-list ; TODO: Use K&R decls.
+                     collect `(type ,type ,id)))) ; TODO: omit if the type is not supplied.
+        (make-function-definition
+         :func-name func-name
+         :storage-class storage-class
+         :func-args `(,@param-ids ,@(if varargs-sym `(&rest ,varargs-sym)))
+         :func-body
+         `(,@(if omitted `((declare (ignore ,@omitted))))
+           ,@(if param-type-lisp-decls
+                 `((declare ,@param-type-lisp-decls)))
+           ,(if (and varargs-sym
+                     (not (member varargs-sym omitted))) ; If the parameter list is empty..
+                `(macrolet ((get-variadic-arguments (&optional (last-argument-name nil l-supplied-p))
+                              "locally established `get-variadic-arguments' macro."
+			      (when l-supplied-p
+			        (unless (eql last-argument-name ',(lastcar param-ids))
+				  (warn "~A's last argument before '...' is ~A, but ~A was passed."
+				        ',func-name ',(lastcar param-ids) last-argument-name)))
+			      ',varargs-sym))
+                   (block nil ,@code))
+                `(block nil ,@code)))
+         :lisp-type lisp-function-type)))))
 
 ;;; Compound statement
 (defun expand-init-decls (mode decl-specs init-decls)
