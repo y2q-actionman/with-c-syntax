@@ -13,7 +13,7 @@
     (is (boundp '*a*))
     (is (boundp '*b*))))
 
-(declaim (ftype function hoge1 hoge2 hoge3 hoge4 hoge5 hoge6 hoge7 hoge8 hoge9))
+(declaim (ftype function hoge1 hoge2 hoge3 hoge3_void hoge4 hoge5 hoge5_void hoge6 hoge7 hoge8 hoge9))
 (test test-trans-fdefinition-simple
   (with-testing-wcs-bind (hoge1)
     (with-c-syntax ()
@@ -38,6 +38,13 @@
     (is (fboundp 'hoge3))
     (is (= 3 (hoge3))))
 
+  (with-testing-wcs-bind (hoge3_void)
+    (with-c-syntax ()
+      int hoge3_void \( void \)
+      { return 3 \; })
+    (is (fboundp 'hoge3_void))
+    (is (= 3 (hoge3_void))))
+
   (with-testing-wcs-bind (hoge4)
     (with-c-syntax ()
       int hoge4 \( x \)
@@ -51,6 +58,13 @@
       { return 5 \; })
     (is (fboundp 'hoge5))
     (is (= 5 (hoge5))))
+
+  (with-testing-wcs-bind (hoge5_void)
+    (with-c-syntax ()
+      hoge5_void \( void \)
+      { return 5 \; })
+    (is (fboundp 'hoge5_void))
+    (is (= 5 (hoge5_void))))
 
   (with-testing-wcs-bind (hoge6)
     (with-c-syntax ()
@@ -87,12 +101,22 @@
 
   t)
 
+(declaim (ftype function hoge))
+(test test-trans-empty-parameters
+  (with-testing-wcs-bind (hoge)
+    (with-c-syntax ()
+      int hoge \( \)
+      { return 9999 \; })
+    (is (= 9999 (hoge)))
+    (is (= 9999 (hoge 'ignored))))
+  )
+
 (declaim (ftype function inc-a reset-a))
 (test test-trans-decl-static
   (with-testing-wcs-bind (xxx func)
     (with-c-syntax ()
       static int xxx = 99 \;
-      int func \( \) {
+      int func \( void \) {
         return xxx \;
       })
     (is (not (boundp 'xxx)))
@@ -100,11 +124,11 @@
   (with-testing-wcs-bind (xxx reset-a inc-a)
     (with-c-syntax ()
       static int xxx = 0 \;
-      int reset-a \( \) {
+      int reset-a \( void \) {
       xxx = 0 \;
       return xxx \;
       }
-      int inc-a \( \) {
+      int inc-a \( void \) {
       return ++ xxx \;
       })
     (is (not (boundp 'xxx)))
@@ -124,7 +148,7 @@
       const static int zzz = \( yyy + 100 \) \;
       int qqq = \( zzz + 100 \) \;
 
-      int test-global-vars \( \) {
+      int test-global-vars \( void \) {
         is \( xxx == 100 \) \;
         is \( yyy == 200 \) \;
         is \( zzz == 300 \) \;

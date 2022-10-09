@@ -735,15 +735,14 @@ arguments list is '(void)' or not."
                                     &key K&R-decls (return (make-decl-specs)))
   (let* ((func-name (first name))
          (func-param (getf (second name) :funcall))
-         (variadic nil)
-         (varargs-sym (gensym "varargs-"))
+         (varargs-sym )
 	 (omitted nil)
          (param-ids
            (cond
              ((null func-param)
               (warn 'with-c-syntax-style-warning
                     :message "Empty function parameter '()' was compiled to a varidic function, but there is no way to get the arguments.")
-              (setf variadic t)
+              (setf varargs-sym (gensym "empty-parameter-varargs-"))
               (push varargs-sym omitted)
               nil)
              ((function-parameter-void-p func-param)
@@ -752,7 +751,8 @@ arguments list is '(void)' or not."
               (loop
                 for p in func-param
                 if (eq p '|...|)
-                do (setf variadic t) (loop-finish)
+                do (setf varargs-sym (gensym "varargs-"))
+                   (loop-finish)
                 else
                 collect
 	           (or (first (second p))	; first of declarator.
@@ -787,10 +787,10 @@ arguments list is '(void)' or not."
       (make-function-definition
        :func-name func-name
        :storage-class storage-class
-       :func-args `(,@param-ids ,@(if variadic `(&rest ,varargs-sym)))
+       :func-args `(,@param-ids ,@(if varargs-sym `(&rest ,varargs-sym)))
        :func-body
        `(,@(if omitted `((declare (ignore ,@omitted)))) 
-         ,(if (and variadic
+         ,(if (and varargs-sym
                    (not (member varargs-sym omitted))) ; If the parameter list is empty..
               `(macrolet ((get-variadic-arguments (&optional (last-argument-name nil l-supplied-p))
                             "locally established `get-variadic-arguments' macro."
