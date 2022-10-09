@@ -347,7 +347,7 @@ void 99-bottles-of-beer (filename) {
    (slot2 :initform 2)))
 
 #{
-int test-with-slots () {
+int test-with-slots (void) {
   auto obj = make-instance (`'foo);
   
   with-slots `((slot1 slot2) obj) {
@@ -360,27 +360,29 @@ int test-with-slots () {
   (is (= (test-with-slots) 3)))
 
 
-(defun hello-world-string ()
-  #{
+#{
+char * hello-world-string (void) {
   return (with-output-to-string `((*standard-output*))
            {
            princ("Hello, World!");
            });
-  }#)
+}
+}#
 
 (test test-hello-world-string
   (is (string= (hello-world-string)
                "Hello, World!")))
 
 
-(defun sort-ascending (lis)
-  #{
+#{
+sort-ascending (lis) {
   return (sort `(lis) `(lambda (x y)
-                         #{
-                         return x < y;
-                         }#);
-               );
-  }#)
+			 #{
+			 return x < y;
+			 }#);
+	       );
+}
+}#
 
 (test test-example-sort-ascending
   (is (equal
@@ -420,7 +422,7 @@ int my-cl-max-test (x, y, z) {
 #{
 #define TEST_MACRO_DEFINITION
 
-int test-macro-defined-p () {
+int test-macro-defined-p (void) {
 #ifdef TEST_MACRO_DEFINITION
   return t;
 #else

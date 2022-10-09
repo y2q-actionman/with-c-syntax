@@ -721,22 +721,44 @@ This is not intended for calling directly. The va_start macro uses this."
   '(error 'runtime-error
     :format-control "Trying to get a variadic args list out of a variadic func."))
 
+(defun function-parameter-void-p (func-param)
+  "Called by `lispify-function-definition' to check the function
+arguments list is '(void)' or not."
+  (when-let* ((_ (length= 1 func-param))
+              (param1 (first func-param))
+              (dspecs (first param1)))
+    (and (decl-specs-p dspecs)
+         (equal (decl-specs-type-spec dspecs)
+                '(with-c-syntax.syntax:|void|)))))
+
 (defun lispify-function-definition (name body
                                     &key K&R-decls (return (make-decl-specs)))
   (let* ((func-name (first name))
          (func-param (getf (second name) :funcall))
          (variadic nil)
+         (varargs-sym (gensym "varargs-"))
 	 (omitted nil)
          (param-ids
-          (loop for p in func-param
-             if (eq p '|...|)
-             do (setf variadic t) (loop-finish)
-             else
-             collect
-	       (or (first (second p))	; first of declarator.
-		   (let ((var (gensym "omitted-arg-")))
-		     (push var omitted)
-		     var))))
+           (cond
+             ((null func-param)
+              (warn 'with-c-syntax-style-warning
+                    :message "Empty function parameter '()' was compiled to a varidic function, but there is no way to get the arguments.")
+              (setf variadic t)
+              (push varargs-sym omitted)
+              nil)
+             ((function-parameter-void-p func-param)
+              nil)
+             (t
+              (loop
+                for p in func-param
+                if (eq p '|...|)
+                do (setf variadic t) (loop-finish)
+                else
+                collect
+	           (or (first (second p))	; first of declarator.
+		       (let ((var (gensym "omitted-arg-")))
+		         (push var omitted)
+		         var))))))
 	 (return (finalize-decl-specs return))
 	 (storage-class
 	  (case (decl-specs-storage-class return)
@@ -760,8 +782,7 @@ This is not intended for calling directly. The va_start macro uses this."
              (error 'compile-error
                     :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
                     :format-arguments (list K&R-param-ids param-ids)))))
-    (let* ((varargs-sym (gensym "varargs-"))
-           (body-stat (expand-compound-stat-into-stat body nil))
+    (let* ((body-stat (expand-compound-stat-into-stat body nil))
            (body (stat-code body-stat)))
       (make-function-definition
        :func-name func-name
@@ -769,7 +790,8 @@ This is not intended for calling directly. The va_start macro uses this."
        :func-args `(,@param-ids ,@(if variadic `(&rest ,varargs-sym)))
        :func-body
        `(,@(if omitted `((declare (ignore ,@omitted)))) 
-         ,(if variadic
+         ,(if (and variadic
+                   (not (member varargs-sym omitted))) ; If the parameter list is empty..
               `(macrolet ((get-variadic-arguments (&optional (last-argument-name nil l-supplied-p))
                             "locally established `get-variadic-arguments' macro."
 			    (when l-supplied-p
