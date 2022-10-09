@@ -699,6 +699,17 @@ Returns (values var-init var-type)."
     stat))
 
 ;;; Function definitions
+
+(defstruct param-decl
+  "Represents 'param-decl' in C syntax BNF."
+  (decl-specs (make-decl-specs) :type decl-specs)
+  (declarator nil))
+
+(defmethod make-load-form ((obj param-decl) &optional environment)
+  (make-load-form-saving-slots obj
+   :slot-names '(decl-specs declarator)
+   :environment environment))
+
 (defstruct function-definition
   "Represents a function definition."
   func-name
@@ -723,16 +734,16 @@ This is not intended for calling directly. The va_start macro uses this."
 arguments list is '(void)' or not."
   (when-let* ((_ (length= 1 func-param))
               (param1 (first func-param))
-              (dspecs (first param1)))
-    (and (decl-specs-p dspecs)
-         (equal (decl-specs-type-spec dspecs)
-                '(with-c-syntax.syntax:|void|)))))
+              (_ (param-decl-p param1))
+              (dspecs (param-decl-decl-specs param1)))
+    (equal (decl-specs-type-spec dspecs)
+           '(with-c-syntax.syntax:|void|))))
 
 (defun lispify-function-definition (name body
                                     &key K&R-decls (return (make-decl-specs)))
   (let* ((func-name (first name))
          (func-param (getf (second name) :funcall))
-         (varargs-sym )
+         (varargs-sym nil)
 	 (omitted nil)
          (param-ids
            (cond
@@ -747,15 +758,16 @@ arguments list is '(void)' or not."
              (t
               (loop
                 for p in func-param
-                if (eq p '|...|)
+                when (eq p '|...|)
                 do (setf varargs-sym (gensym "varargs-"))
                    (loop-finish)
-                else
                 collect
-	           (or (first (second p))	; first of declarator.
-		       (let ((var (gensym "omitted-arg-")))
-		         (push var omitted)
-		         var))))))
+                   (let* ((declarators (param-decl-declarator p))
+                          (decl1 (first declarators)))
+                     (or decl1
+                         (let ((var (gensym "omitted-arg-")))
+		           (push var omitted)
+		           var)))))))
 	 (return (finalize-decl-specs return))
 	 (storage-class
 	  (case (decl-specs-storage-class return)
@@ -1363,10 +1375,11 @@ MODE is one of `:statement' or `:translation-unit'"
     (lambda-ignoring-_ (dcl _lp params _rp)
       (add-to-tail dcl `(:funcall ,params))))
    (direct-declarator \( id-list \)
-    (lambda-ignoring-_ (dcl _lp params _rp)
+    (lambda-ignoring-_ (dcl _lp id-list _rp)
       (add-to-tail dcl `(:funcall
-                         ;; make as a list of (decl-spec (id))
-                         ,(mapcar (lambda (p) `(nil (,p))) params)))))
+                         ,(mapcar (lambda (id)
+                                    (make-param-decl :declarator (list id)))
+                                  id-list)))))
    (direct-declarator \(	 \)
     (lambda-ignoring-_ (dcl _lp _rp)
       (add-to-tail dcl '(:funcall nil)))))
@@ -1405,11 +1418,14 @@ MODE is one of `:statement' or `:translation-unit'"
 
   (param-decl
    (decl-specs declarator
-	       #'list)
+    (lambda (decl-specs declarator)
+      (make-param-decl :decl-specs decl-specs :declarator declarator)))
    (decl-specs abstract-declarator
-	       #'list)
+    (lambda (decl-specs declarator)
+      (make-param-decl :decl-specs decl-specs :declarator declarator)))
    (decl-specs
-    #'list))
+    (lambda (decl-specs)
+      (make-param-decl :decl-specs decl-specs))))
 
   (id-list
    (id
