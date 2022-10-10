@@ -6,6 +6,11 @@
 to a function.  (Because such a symbol is specially treated by the
 function-calling expression.)")
 
+(defun delete-symbols-from-function-pointer-ids (symbols)
+  (loop for sym in symbols
+        do (deletef *function-pointer-ids*
+                    sym :test #'eq :count 1)))
+
 (defvar *return-last-statement* t
   "Specifies whether `with-c-syntax' returns the last form's value of
   compound statements or not.")
@@ -51,7 +56,8 @@ function-calling expression.)")
   ;; Filled by 'finalize-init-declarator'
   (lisp-name)
   (lisp-initform)
-  (lisp-type))
+  (lisp-type)
+  (function-pointer-p nil)) ; T if this variable is treated as a function pointer.
 
 (defmethod make-load-form ((obj init-declarator) &optional environment)
   (make-load-form-saving-slots obj :environment environment))
@@ -466,6 +472,7 @@ Returns (values var-init var-type)."
       (when (and (subtypep var-type 'pseudo-pointer)
                  (starts-with 'pseudo-pointer var-type)
                  (subtypep (second var-type) 'function))
+        (setf (init-declarator-function-pointer-p init-decl) t)
         (push var-name *function-pointer-ids*)))
     (when (eq '|typedef| storage-class)
       (setf (decl-specs-typedef-init-decl dspecs) init-decl)
@@ -729,6 +736,7 @@ Returns (values var-init var-type)."
     (finalize-init-declarator decl-specs init-declarator)
     ;; In function parameter, function name is a function pointer.
     (when (subtypep (init-declarator-lisp-type init-declarator) 'function)
+      (setf (init-declarator-function-pointer-p init-declarator) t)
       (push (init-declarator-lisp-name init-declarator) *function-pointer-ids*))
     (%make-param-decl :decl-specs decl-specs
                       :init-declarator init-declarator)))
@@ -818,7 +826,8 @@ This is not intended for calling directly. The va_start macro uses this."
         (param-types nil)
         (varargs-sym nil)
         (omitted nil)
-        (lisp-type-declaration-table (make-lisp-type-declaration-table)))
+        (lisp-type-declaration-table (make-lisp-type-declaration-table))
+        (funcptr-syms nil))
     (cond
       ((null func-param)
        (warn 'with-c-syntax-style-warning
@@ -834,20 +843,24 @@ This is not intended for calling directly. The va_start macro uses this."
          do (setf varargs-sym (gensym "varargs-"))
             (loop-finish)
          else
-         do (let* ((declarator (param-decl-init-declarator p))
-                   (var-name (or (init-declarator-lisp-name declarator)
+         do (let* ((init-decl (param-decl-init-declarator p))
+                   (var-name (or (init-declarator-lisp-name init-decl)
                                  (let ((var (gensym "omitted-arg-")))
 		                   (push var omitted)
                                    var)))
-                   (var-type (init-declarator-lisp-type declarator)))
+                   (var-type (init-declarator-lisp-type init-decl)))
               (push var-name param-ids)
               (push var-type param-types)
               (push-lisp-type-declaration-table
-               lisp-type-declaration-table var-type var-name)))))
+               lisp-type-declaration-table var-type var-name)
+              (when (init-declarator-function-pointer-p init-decl)
+                (push var-name funcptr-syms))))))
     (when varargs-sym
       (nreconcf param-types '(&rest t))
       (push-lisp-type-declaration-table
        lisp-type-declaration-table 'list varargs-sym))
+    ;; Drop parameter name from *function-pointer-ids*.
+    (delete-symbols-from-function-pointer-ids funcptr-syms)
     (values (nreverse param-ids)
             (nreverse param-types)
             varargs-sym
@@ -917,7 +930,6 @@ This is not intended for calling directly. The va_start macro uses this."
              (lisp-type-declarations    ; TODO: Apply K&R decl types.
                (generate-lisp-type-declarations lisp-type-declaration-table))
              (code (stat-code body-stat)))
-        ;; TODO: drop parameter name from *function-pointer-ids*.
         (make-function-definition
          :func-name func-name
          :storage-class storage-class
@@ -993,7 +1005,7 @@ This is not intended for calling directly. The va_start macro uses this."
                     :format-arguments (list name init)))
       else do
         ;; variables
-        (when (member name *function-pointer-ids*)
+        (when (init-declarator-function-pointer-p i)
           (push name funcptr-syms))
         (ecase storage-class
           (|auto|
@@ -1160,9 +1172,7 @@ MODE is one of `:statement' or `:translation-unit'"
       (loop for c in cleanup-struct-specs
          do (remove-struct-spec (struct-spec-struct-name c)))
       ;; drop symbols specially treated in this unit.
-      (loop for sym in cleanup-funcptr-syms
-         do (deletef *function-pointer-ids*
-                     sym :test #'eq :count 1)))))
+      (delete-symbols-from-function-pointer-ids cleanup-funcptr-syms))))
 
 (defun expand-compound-stat-into-stat (stat return-last-statement)
   (let* ((stat-codes (stat-code stat))
