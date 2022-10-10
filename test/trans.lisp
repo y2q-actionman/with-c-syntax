@@ -13,7 +13,6 @@
     (is (boundp '*a*))
     (is (boundp '*b*))))
 
-(declaim (ftype function hoge1 hoge2 hoge3 hoge3_void hoge4 hoge5 hoge5_void hoge6 hoge7 hoge8 hoge9))
 (test test-trans-fdefinition-simple
   (with-testing-wcs-bind (hoge1)
     (with-c-syntax ()
@@ -97,7 +96,14 @@
       int hoge9 \( int \)
       { return 9 \; })
     (is (fboundp 'hoge9))
-    (is (= 9 (hoge9 'a))))
+    (is (= 9 (hoge9 0))))
+
+  (with-testing-wcs-bind (hoge10)
+    (with-c-syntax ()
+      int hoge10 \( int * \)
+      { return 10 \; })
+    (is (fboundp 'hoge10))
+    (is (= 10 (hoge10 0))))
 
   (signals.macroexpand.wcs ()
     int bad_func \( x \)
@@ -107,7 +113,6 @@
   
   t)
 
-(declaim (ftype function hoge))
 (test test-trans-empty-parameters
   (with-testing-wcs-bind (hoge)
     (with-c-syntax ()
@@ -121,7 +126,6 @@
     { return 0 \; }
     ))
 
-(declaim (ftype function func inc-a reset-a))
 (test test-trans-decl-static
   (with-testing-wcs-bind (xxx func)
     (with-c-syntax ()
@@ -150,7 +154,6 @@
     (is (= 4 (inc-a)))
     (is (= 0 (reset-a)))))
 
-(declaim (ftype function test-global-vars))
 (test test-trans-decl-static-dependent-global
   (with-testing-wcs-bind (xxx yyy zzz qqq test-global-vars)
     (with-c-syntax ()
@@ -185,7 +188,6 @@
 
 (in-readtable with-c-syntax-readtable)
 
-(declaim (ftype function sumn))
 (test test-trans-fdefinition-varargs
   (signals.wcs ()
     |va_list| ap \;
@@ -214,7 +216,6 @@
     (is (= 3 (sumn 3 1 1 1)))
     (is (= 10 (sumn 4 1 2 3 4)))))
 
-(declaim (ftype function s-func g-func))
 (test test-trans-fdefinition-and-storage-class
   (with-testing-wcs-bind (s-func g-func)
     (with-c-syntax ()
@@ -229,8 +230,7 @@
     (is (fboundp 'g-func))
     (is (= (g-func) 3))))
 
-(declaim (ftype function accumulator))
-(test test-trans-func-local-static
+(test test-trans-func-local-static-variable
   (with-testing-wcs-bind (accumulator)
     (with-c-syntax ()
       int accumulator \( n \) {
@@ -261,7 +261,6 @@
   (with-c-syntax ()
     struct xxx-struct { int x \; } \;))
 
-(declaim (ftype function hoge))
 (test test-trans-other-unit-struct
   (is (make-struct 'xxx-struct))
   (with-testing-wcs-bind (hoge)
@@ -278,7 +277,6 @@
   (with-c-syntax ()
     typedef int int_xxx_t \;))
 
-(declaim (ftype function hoge))
 (test test-trans-other-unit-typedef
   (is (find-typedef 'int_xxx_t))
   (with-testing-wcs-bind (hoge)
@@ -294,3 +292,11 @@
 ;;   int wcs-duff-device-2 \( int to-seq \, int from-seq \, int cnt \) {
 ;;    int * to = & to-seq \;
 ;;    })
+
+(test test-trans-function-pointer-function
+  (with-testing-wcs-bind (add-by-func)
+    (with-c-syntax ()
+      int add-by-func \( int x \, int y \, int \( func \) \( int \, int \) \) {
+        return func \( x \, y \) \;
+      })
+    (is (= 3 (add-by-func 1 2 #'+)))))

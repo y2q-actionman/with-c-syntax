@@ -137,9 +137,8 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
       #{
       int *to = &to-seq;
       int *from = &from-seq;
-  
-      int n = (cnt + 7) / 8;
-      n = floor(n);           /* Lisp's CL:/ produces rational */
+
+      int n = floor ((cnt + 7) / 8);	/* Use floor(), because Lisp's '/' produces rational */
       switch (cnt % 8) {
       case 0 :    do {    *to++ = *from++;
       case 7 :            *to++ = *from++;
@@ -149,7 +148,7 @@ This example shows you can call a Lisp function (~cl:format~) with C syntax.
       case 3 :            *to++ = *from++;
       case 2 :            *to++ = *from++;
       case 1 :            *to++ = *from++;
-        } while (--n > 0);
+	} while (--n > 0);
       }
       }#
     to-seq)
@@ -387,7 +386,7 @@ only in Level 2 syntax (because it conflicts with standard Lisp
   #{
   #define TEST_MACRO_DEFINITION
 
-  int test-macro-defined-p (void) {
+  void * test-macro-defined-p (void) {
   #ifdef TEST_MACRO_DEFINITION
     return t;
   #else

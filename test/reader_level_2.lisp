@@ -257,7 +257,7 @@ O 10\\
   ;; /=
   (is.equal.wcs (/ 2 3)
     #2{
-    int hoge=x; hoge/=y; return hoge;
+    auto hoge=x; hoge/=y; return hoge;
     }#)
   ;; %
   (is.equal.wcs 2

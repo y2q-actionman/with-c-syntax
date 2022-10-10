@@ -142,9 +142,7 @@
      &body body)
   (declare (ignorable underflow-value))
   (let ((x_ (gensym)) (y_ (gensym)) (args_ (gensym))
-        (var-list (if (listp var-or-var-list)
-                      var-or-var-list
-                      `(,var-or-var-list))))
+        (var-list (ensure-list var-or-var-list)))
     `(let* ((,x_ ,x)
             (,y_ ,y)
             (,args_ (list ,x_ ,@(if y-supplied-p `(,y_)))))
@@ -394,13 +392,13 @@
     ;; If this check deleted, Allegro CL 10.1 on MacOSX throws `simple-error'.
     ((or (float-nan-p x)
          (float-infinity-p x))
-     x)
+     ;; In this case, the second value (exponent) is unspecified.
+     (values x 0))
     (t
-     (handler-case
-         (multiple-value-bind (significant exponent sign)
-             (decode-float x)
-           (values (float-sign sign significant)
-                   exponent))))))
+     (multiple-value-bind (significant exponent sign)
+         (decode-float x)
+       (values (float-sign sign significant)
+               exponent)))))
 
 (defun |ilogb| (x)                      ; C99
   (coercef x 'double-float)
@@ -777,7 +775,8 @@
   (with-mod-family-error-handling (x y)
     (with-wcs-math-error-handling ((quotient remainder) (round x y))
       (check-wcs-math-result)
-      (values remainder quotient))))
+      (values (coerce remainder 'double-float)
+              (coerce quotient 'double-float)))))
 
 ;;; TODO: real 'remquo' -- support pointer passing..
 

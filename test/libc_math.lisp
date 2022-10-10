@@ -777,19 +777,19 @@
 
   values (rem, quo) = remquo* (3.125, 2.0);
   is (float-equal (rem, -0.875));
-  is (quo == 2);
+  is (quo == 2.0);
 
   values (rem, quo) = remquo* (-3.125, 2.0);
   is (float-equal (rem, 0.875));
-  is (quo == -2);
+  is (quo == -2.0);
 
   values (rem, quo) = remquo* (3.125, -2.0);
   is (float-equal (rem, -0.875));
-  is (quo == -2);
+  is (quo == -2.0);
 
   values (rem, quo) = remquo* (-3.125, -2.0);
   is (float-equal (rem, 0.875));
-  is (quo == 2);
+  is (quo == 2.0);
 
   // ; Specials
   check-errno (is (float-nan-p (remquo* (double-float-positive-infinity, 2.0))), EDOM);

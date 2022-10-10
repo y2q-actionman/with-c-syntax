@@ -467,8 +467,10 @@
     { int x \( hoge \, fuga \, piyo \) \; })
   (is.equal.wcs nil
     { int x \( \) \; })
-  (is.equal.wcs nil
+  (signals.macroexpand.wcs ()
     { int x \( int hoge \, short fuga \, void piyo \) \; })
+  (is.equal.wcs nil
+    { int x \( int hoge \, short fuga \, void \) \; })
   (is.equal.wcs nil
     { int x \( int hoge \, short \, void * \) \; })
   (signals.macroexpand.wcs ()
@@ -679,4 +681,21 @@
     return x \;
     }))
 
+(test test-decl-function-returns-nothing
+  (with-testing-wcs-bind (return-nothing)
+    (with-c-syntax ()
+      void return-nothing \( void \) {
+        return \;
+      })
+    (is (eql nil (values-list (return-nothing))))))
+
+(test test-decl-function-returns-pointer
+  (with-testing-wcs-bind (returns-t)
+    (with-c-syntax ()
+      void * returns-t \( void \) {
+        return t \;
+      })
+    (is (eql t (returns-t)))))
+
 ;; TODO: add initializer tests
+

@@ -6,6 +6,11 @@
 to a function.  (Because such a symbol is specially treated by the
 function-calling expression.)")
 
+(defun delete-symbols-from-function-pointer-ids (symbols)
+  (loop for sym in symbols
+        do (deletef *function-pointer-ids*
+                    sym :test #'eq :count 1)))
+
 (defvar *return-last-statement* t
   "Specifies whether `with-c-syntax' returns the last form's value of
   compound statements or not.")
@@ -51,7 +56,8 @@ function-calling expression.)")
   ;; Filled by 'finalize-init-declarator'
   (lisp-name)
   (lisp-initform)
-  (lisp-type))
+  (lisp-type)
+  (function-pointer-p nil)) ; T if this variable is treated as a function pointer.
 
 (defmethod make-load-form ((obj init-declarator) &optional environment)
   (make-load-form-saving-slots obj :environment environment))
@@ -165,10 +171,12 @@ If required, makes a new struct-spec object."
 	   collect (list e-decl (or e-init default-initform))))
   dspecs)
 
+(deftype with-c-syntax-char ()
+  "Represents C 'char' type, except having one extension: this includes `cl:character'."
+  '(or (signed-byte 8) (unsigned-byte 8) character))
+
 (define-constant +numeric-types-alist+
-    '(;; Extension: uses T if no types are specified
-      (()				.	t)
-      ;; Integers
+    '(;; Integers
       ((|int|)                          .	fixnum)
       ((|int| |short|)                  .	(signed-byte 16))
       ((|int| |long|)                   .	(signed-byte 32))
@@ -194,7 +202,7 @@ If required, makes a new struct-spec object."
       ((|long| |unsigned|)		.	(unsigned-byte 32))
       ((|long| |long| |unsigned|)	.	(unsigned-byte 64))
       ;; Char
-      ((|char|)                         .	character)
+      ((|char|)                         .	with-c-syntax-char)
       ((|char| |signed|)                .	(signed-byte 8))
       ((|char| |unsigned|)              .	(unsigned-byte 8))
       ;; Float
@@ -204,68 +212,67 @@ If required, makes a new struct-spec object."
       ((|double| |long|)                .	long-float))
   :test 'equal
   :documentation
-  "* Value Type
-a list :: consists of alists -- (list-of-symbols . <lisp-type>)
+  "An alist of (list-of-symbols . <lisp-type>), holding relationships
+ between notations of C type and Common Lisp types.
+ For each entry of alist, its car is sorted alphabetically.")
 
-* Description
-Holds relationships between notations of C type and Common Lisp types.
+(define-constant +numeric-type-symbols+
+    (reduce #'union +numeric-types-alist+ :key #'car) 
+  :test 'equal
+  :documentation "A list of symbols representing numeric types.")
 
-* Notes
-For each entry of alist, the car is sorted alphabetically.
-")
+(defun finalize-numeric-type-spec (dspecs type-spec-list)
+  "Fills the decl-specs object referring the passed numeric TYPE-SPEC-LIST."
+  (let* ((numeric-symbols (sort (copy-list type-spec-list) #'string<))
+         (n-entry (assoc numeric-symbols
+                         +numeric-types-alist+
+                         :test #'equal)))
+    (unless n-entry
+      (error 'compile-error
+             :format-control "Invalid numeric type: ~A."
+             :format-arguments (list numeric-symbols)))
+    (setf (decl-specs-lisp-type dspecs) (cdr n-entry))
+    dspecs))
 
 (defun finalize-type-spec (dspecs)
-  "A part of finalize-decl-specs. This processes type-spec."
-  (loop with numeric-symbols = nil
-     with tp-list of-type list = (decl-specs-type-spec dspecs)
-     initially
-       (when (null tp-list)
-	 (return dspecs))
-     for tp in tp-list
-     do (flet ((check-tp-list-length ()
-		 (unless (length= 1 tp-list)
-		   (error 'compile-error
-                          :format-control "Invalid decl-spec: ~A."
-                          :format-arguments (list tp-list)))))
-	  (cond
-	    ((eq tp '|void|)		; void
-	     (check-tp-list-length)
-	     (setf (decl-specs-lisp-type dspecs) nil)
-	     (return dspecs))
-	    ((struct-or-union-spec-p tp)	; struct / union
-	     (check-tp-list-length)
-	     (return (finalize-struct-or-union-spec tp dspecs)))
-	    ((enum-spec-p tp)		; enum
-	     (check-tp-list-length)
-	     (return (finalize-enum-spec tp dspecs)))
-	    ((listp tp)			; lisp type
-	     (check-tp-list-length)
-	     (assert (starts-with '|__lisp_type| tp))
-	     (setf (decl-specs-lisp-type dspecs) (second tp))
-	     (return dspecs))
-	    ((find-typedef tp)		; typedef name
-	     (check-tp-list-length)
-	     (let ((td-dspecs (find-typedef tp)))
-               (setf (decl-specs-lisp-type dspecs)
-                     (decl-specs-lisp-type td-dspecs)
-                     (decl-specs-tag dspecs)
-                     (decl-specs-tag td-dspecs)
-                     (decl-specs-typedef-init-decl dspecs)
-                     (decl-specs-typedef-init-decl td-dspecs))
-               (return dspecs)))
-	    (t				; numeric types
-	     (push tp numeric-symbols))))
-     finally
-       (setf numeric-symbols (sort numeric-symbols #'string<))
-       (setf (decl-specs-lisp-type dspecs)
-             (if-let ((n-entry (assoc numeric-symbols
-                                      +numeric-types-alist+
-                                      :test #'equal)))
-               (cdr n-entry)
-               (error 'compile-error
-                      :format-control "Invalid numeric type: ~A."
-                      :format-arguments (list numeric-symbols))))
-       (return dspecs)))
+  "A part of `finalize-decl-specs'. This processes type-spec."
+  (let* ((tp-list (decl-specs-type-spec dspecs))
+         (tp (first tp-list)))
+    (case (length tp-list)
+      (0
+       ;; Extension: uses T if no types are specified
+       (setf (decl-specs-lisp-type dspecs) t)
+       dspecs)
+      (1
+       (cond
+         ((eq tp '|void|)		; void
+          (setf (decl-specs-lisp-type dspecs) nil)
+          dspecs)
+         ((struct-or-union-spec-p tp)   ; struct / union
+	  (finalize-struct-or-union-spec tp dspecs))
+         ((enum-spec-p tp)              ; enum
+	  (finalize-enum-spec tp dspecs))
+         ((listp tp)                    ; lisp type
+	  (assert (starts-with '|__lisp_type| tp))
+	  (setf (decl-specs-lisp-type dspecs) (second tp))
+	  dspecs)
+         ((find-typedef tp)             ; typedef name
+	  (let ((td-dspecs (find-typedef tp)))
+            (setf (decl-specs-lisp-type dspecs)
+                  (decl-specs-lisp-type td-dspecs)
+                  (decl-specs-tag dspecs)
+                  (decl-specs-tag td-dspecs)
+                  (decl-specs-typedef-init-decl dspecs)
+                  (decl-specs-typedef-init-decl td-dspecs))
+            dspecs))
+         ((member tp +numeric-type-symbols+) ; numeric types
+          (finalize-numeric-type-spec dspecs tp-list))
+         (t
+          (error 'compile-error
+                 :format-control "Invalid decl-spec: ~A."
+                 :format-arguments (list tp-list)))))
+      (otherwise
+       (finalize-numeric-type-spec dspecs tp-list)))))
 
 (defun finalize-decl-specs (dspecs)
   "Checks and fills the passed decl-specs."
@@ -369,6 +376,12 @@ Returns (values var-init var-type)."
               (lisp-elem-type
                (cond ((subtypep aref-type 'number) aref-type)
                      ((subtypep aref-type 'character) aref-type)
+                     ((subtypep 'character aref-type)
+                      ;; Special handling for 'char'.
+                      ;; This check hits our 'char' definition in `+numeric-types-alist+'.
+                      ;; In this case, the compiling code is like below:
+                      ;;   char str[] = "foo";
+                      'character)       ; Will be (simple-array character *)
                      (t t)))            ; excludes compound types 
               (var-type
                (if (and (or (null aref-dim) (member '* aref-dim))
@@ -396,12 +409,13 @@ Returns (values var-init var-type)."
        (let ((var-type (decl-specs-lisp-type dspecs)))
          (cond
            ((type= var-type nil)
-            (error 'compile-error
-                   :format-control "A void variable cannot be initialized."))
+            (values initializer var-type))
            ((type= var-type 't)
             (values initializer var-type))
            ((subtypep var-type 'number) ; includes enum
-            (values (or initializer 0) var-type))
+            (values (or initializer
+                        (coerce 0 var-type)) ; This makes '0' for int, '0d0' for double-float.
+                    var-type))
            ((subtypep var-type 'struct)
             (let* ((sspec (find-struct-spec (decl-specs-tag dspecs)))
                    (var-init
@@ -448,12 +462,17 @@ Returns (values var-init var-type)."
         (error 'compile-error
                :format-control "A function cannot have this storage-class: ~S."
                :format-arguments (list storage-class)))
+      (when (and (subtypep var-type nil)
+                 (or var-name var-init))
+        (error 'compile-error
+               :format-control "A void variable cannot be initialized."))
       (setf (init-declarator-lisp-name init-decl) var-name
 	    (init-declarator-lisp-initform init-decl) var-init
 	    (init-declarator-lisp-type init-decl) var-type)
       (when (and (subtypep var-type 'pseudo-pointer)
                  (starts-with 'pseudo-pointer var-type)
                  (subtypep (second var-type) 'function))
+        (setf (init-declarator-function-pointer-p init-decl) t)
         (push var-name *function-pointer-ids*)))
     (when (eq '|typedef| storage-class)
       (setf (decl-specs-typedef-init-decl dspecs) init-decl)
@@ -702,6 +721,31 @@ Returns (values var-init var-type)."
     stat))
 
 ;;; Function definitions
+
+(defstruct (param-decl (:constructor %make-param-decl))
+  "Represents 'param-decl' in C syntax BNF."
+  decl-specs
+  ;; In BNF, param-decl takes 'declarator', not 'init-declarator'.
+  ;; I however use the init-declarator object here, for utilizing
+  ;; `finalize-init-declarator' function which fills `lisp-type' slot.
+  init-declarator)
+
+(defun make-param-decl (&key (decl-specs (make-decl-specs)) (declarator nil))
+  (finalize-decl-specs decl-specs)
+  (let ((init-declarator (make-init-declarator :declarator declarator)))
+    (finalize-init-declarator decl-specs init-declarator)
+    ;; In function parameter, function name is a function pointer.
+    (when (subtypep (init-declarator-lisp-type init-declarator) 'function)
+      (setf (init-declarator-function-pointer-p init-declarator) t)
+      (push (init-declarator-lisp-name init-declarator) *function-pointer-ids*))
+    (%make-param-decl :decl-specs decl-specs
+                      :init-declarator init-declarator)))
+
+(defmethod make-load-form ((obj param-decl) &optional environment)
+  (make-load-form-saving-slots obj
+   :slot-names '(decl-specs init-declarator)
+   :environment environment))
+
 (defstruct function-definition
   "Represents a function definition."
   func-name
@@ -722,87 +766,190 @@ This is not intended for calling directly. The va_start macro uses this."
     :format-control "Trying to get a variadic args list out of a variadic func."))
 
 (defun function-parameter-void-p (func-param)
-  "Called by `lispify-function-definition' to check the function
-arguments list is '(void)' or not."
+  "Checks the function parameter list is '(void)' or not."
   (when-let* ((_ (length= 1 func-param))
               (param1 (first func-param))
-              (dspecs (first param1)))
-    (and (decl-specs-p dspecs)
-         (equal (decl-specs-type-spec dspecs)
-                '(with-c-syntax.syntax:|void|)))))
+              (_ (param-decl-p param1))
+              (dspecs (param-decl-decl-specs param1)))
+    (equal (decl-specs-type-spec dspecs) '(|void|))))
 
-(defun lispify-function-definition (name body
+(defstruct lisp-type-declaration-table
+  "Used for generating '(declare type ...)' from C declarators."
+  (table (make-hash-table :test 'equal)))
+
+(defun c-type-to-lisp-type-declaration-hack (type)
+  "Treats some special type handlings for valid C code."
+  (if (and (subtypep type 'pseudo-pointer)
+           (listp type))
+      (case (second type)
+        (function
+         ;; Special handing for function-pointers, like:
+         ;;   int (*funcptr)(int, int) = func;
+         (setf type `(or function ,type)))
+        ((with-c-syntax-char)
+         ;; Special handing for C string, like:
+         ;;   char* str = "Hello, World!;
+         (setf type `(or string ,type)))
+        (otherwise
+         type))
+      type))
+
+(defun push-lisp-type-declaration-table (lisp-type-declaration-table type name)
+  (unless (eq type t)
+    (let ((table (lisp-type-declaration-table-table lisp-type-declaration-table))
+          (type (c-type-to-lisp-type-declaration-hack type)))
+      (push name (gethash type table)))))
+
+(defun merge-lisp-type-declaration-table (lisp-type-declaration-table1 lisp-type-declaration-table2)
+  (loop
+    with table1 = (lisp-type-declaration-table-table lisp-type-declaration-table1)
+    with table2 = (lisp-type-declaration-table-table lisp-type-declaration-table2)
+    for type being the hash-key of table2 using (hash-value name-list)
+    do (appendf (gethash type table1) name-list))
+  lisp-type-declaration-table1)
+
+(defun generate-lisp-type-declarations (lisp-type-declaration-table)
+  (loop
+    with table = (lisp-type-declaration-table-table lisp-type-declaration-table)
+    for type being the hash-key of table using (hash-value name-list)
+    collect `(type ,type ,@name-list)))
+
+(defun parse-function-parameter-list (func-param)
+  "Parses FUNC-PARAM as a list of `param-decl' structure (C function
+ parameter list), returns 5 values.
+   1. A list of symbols naming the parameter.
+   2. A list of types representing the types of parameters.
+   3. A symbol naming the variadic argument if requested.
+   4. A list of symbols should be `ignore'd.
+   5. A `lisp-type-declaration-table' object."
+  (let ((param-ids nil)
+        (param-types nil)
+        (varargs-sym nil)
+        (omitted nil)
+        (lisp-type-declaration-table (make-lisp-type-declaration-table))
+        (funcptr-syms nil))
+    (cond
+      ((null func-param)
+       (warn 'with-c-syntax-style-warning
+             :message "Empty function parameter '()' was compiled to a varidic function, but there is no way to get the arguments.")
+       (setf varargs-sym (gensym "empty-parameter-varargs-"))
+       (push varargs-sym omitted))
+      ((function-parameter-void-p func-param)
+       nil)
+      (t
+       (loop
+         for p in func-param
+         when (eq p '|...|)
+         do (setf varargs-sym (gensym "varargs-"))
+            (loop-finish)
+         else
+         do (let* ((init-decl (param-decl-init-declarator p))
+                   (var-name (or (init-declarator-lisp-name init-decl)
+                                 (let ((var (gensym "omitted-arg-")))
+		                   (push var omitted)
+                                   var)))
+                   (var-type (init-declarator-lisp-type init-decl)))
+              (push var-name param-ids)
+              (push var-type param-types)
+              (push-lisp-type-declaration-table
+               lisp-type-declaration-table var-type var-name)
+              (when (init-declarator-function-pointer-p init-decl)
+                (push var-name funcptr-syms))))))
+    (when varargs-sym
+      (nreconcf param-types '(&rest t))
+      (push-lisp-type-declaration-table
+       lisp-type-declaration-table 'list varargs-sym))
+    ;; Drop parameter name from *function-pointer-ids*.
+    (delete-symbols-from-function-pointer-ids funcptr-syms)
+    (values (nreverse param-ids)
+            (nreverse param-types)
+            varargs-sym
+            omitted
+            lisp-type-declaration-table)))
+
+(defun compute-function-return-type (name return-decl-specs)
+  (assert (and (symbolp (first name))
+               (starts-with :funcall (second name))))
+  (let* ((tmp-declarator (list* nil (nthcdr 2 name)))
+         (return-type
+           (cond
+             ((equal tmp-declarator '(nil))
+              ;; Simple case -- int func ();
+              (decl-specs-lisp-type return-decl-specs))
+             (t
+              ;; Returning a pointer etc. -- void* func();
+              (let ((tmp-init-declarator
+                      (make-init-declarator :declarator tmp-declarator)))
+                (finalize-init-declarator return-decl-specs tmp-init-declarator)
+                (init-declarator-lisp-type tmp-init-declarator))))))
+    (cond
+      ((eq return-type nil)
+       ;; This is a function returns 'void', like: void func() { return; }
+       ;; 
+       ;; I uses `CL:NIL' type for 'void' because their semantics are
+       ;; same.  But with-c-syntax compiles 'return;' to (CL:RETURN (VALUES)).
+       ;; It means returns `(VALUES)'.
+       '(values))
+      (t
+       (c-type-to-lisp-type-declaration-hack return-type)))))
+
+(defun lispify-function-definition (name body-stat
                                     &key K&R-decls (return (make-decl-specs)))
+  (finalize-decl-specs return)
+  (expand-compound-stat-into-stat body-stat nil)
   (let* ((func-name (first name))
          (func-param (getf (second name) :funcall))
-         (varargs-sym )
-	 (omitted nil)
-         (param-ids
-           (cond
-             ((null func-param)
-              (warn 'with-c-syntax-style-warning
-                    :message "Empty function parameter '()' was compiled to a varidic function, but there is no way to get the arguments.")
-              (setf varargs-sym (gensym "empty-parameter-varargs-"))
-              (push varargs-sym omitted)
-              nil)
-             ((function-parameter-void-p func-param)
-              nil)
-             (t
-              (loop
-                for p in func-param
-                if (eq p '|...|)
-                do (setf varargs-sym (gensym "varargs-"))
-                   (loop-finish)
-                else
-                collect
-	           (or (first (second p))	; first of declarator.
-		       (let ((var (gensym "omitted-arg-")))
-		         (push var omitted)
-		         var))))))
-	 (return (finalize-decl-specs return))
 	 (storage-class
-	  (case (decl-specs-storage-class return)
-	    (|static| '|static|)
-	    ((nil) '|global|)
-	    (otherwise
-             (error 'compile-error
-                    :format-control "Cannot define a function of storage-class: ~S."
-                    :format-arguments (list (decl-specs-storage-class return)))))))
-    (when K&R-decls
-      (loop for (dspecs init-decls) in K&R-decls
-         as storage-class = (decl-specs-storage-class dspecs)
-         unless (member storage-class
-                        '(nil |auto| |register|) :test #'eq)
-         do (error 'compile-error
-                   :format-control "Invalid storage-class ~S for function arguments."
-                   :format-arguments (list storage-class))
-         nconc (mapcar #'init-declarator-lisp-name init-decls) into K&R-param-ids
-         finally
-           (unless (equal param-ids K&R-param-ids)
-             (error 'compile-error
-                    :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
-                    :format-arguments (list K&R-param-ids param-ids)))))
-    (let* ((body-stat (expand-compound-stat-into-stat body nil))
-           (body (stat-code body-stat)))
-      (make-function-definition
-       :func-name func-name
-       :storage-class storage-class
-       :func-args `(,@param-ids ,@(if varargs-sym `(&rest ,varargs-sym)))
-       :func-body
-       `(,@(if omitted `((declare (ignore ,@omitted)))) 
-         ,(if (and varargs-sym
-                   (not (member varargs-sym omitted))) ; If the parameter list is empty..
-              `(macrolet ((get-variadic-arguments (&optional (last-argument-name nil l-supplied-p))
-                            "locally established `get-variadic-arguments' macro."
-			    (when l-supplied-p
-			      (unless (eql last-argument-name ',(lastcar param-ids))
-				(warn "~A's last argument before '...' is ~A, but ~A was passed."
-				      ',func-name ',(lastcar param-ids) last-argument-name)))
-			    ',varargs-sym))
-                 (block nil ,@body))
-              `(block nil ,@body)))
-       :lisp-type `(function ',(mapcar (constantly t) param-ids) ; TODO: use arg types.
-                             ',(decl-specs-lisp-type return))))))
+	   (case (decl-specs-storage-class return)
+	     (|static| '|static|)
+	     ((nil) '|global|)
+	     (otherwise
+              (error 'compile-error
+                     :format-control "Cannot define a function of storage-class: ~S."
+                     :format-arguments (list (decl-specs-storage-class return)))))))
+    (multiple-value-bind (param-ids param-types varargs-sym omitted lisp-type-declaration-table)
+        (parse-function-parameter-list func-param)
+      (when K&R-decls
+        (loop for (dspecs init-decls) in K&R-decls
+              as storage-class = (decl-specs-storage-class dspecs)
+              unless (member storage-class
+                             '(nil |auto| |register|) :test #'eq)
+              do (error 'compile-error
+                        :format-control "Invalid storage-class ~S for function arguments."
+                        :format-arguments (list storage-class))
+              nconc (mapcar #'init-declarator-lisp-name init-decls) into K&R-param-ids
+              finally
+                 (unless (equal param-ids K&R-param-ids)
+                   (error 'compile-error
+                          :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
+                          :format-arguments (list K&R-param-ids param-ids)))))
+      (let* ((return-type (compute-function-return-type name return))
+             (lisp-function-type
+               `(function (,@param-types) ; Not affected by K&R decls.
+                          ,return-type))
+             (lisp-type-declarations    ; TODO: Apply K&R decl types.
+               (generate-lisp-type-declarations lisp-type-declaration-table))
+             (code (stat-code body-stat)))
+        (make-function-definition
+         :func-name func-name
+         :storage-class storage-class
+         :func-args `(,@param-ids ,@(if varargs-sym `(&rest ,varargs-sym)))
+         :func-body
+         `(,@(if omitted `((declare (ignore ,@omitted))))
+           ,@(if lisp-type-declarations
+                 `((declare ,@lisp-type-declarations)))
+           ,(if (and varargs-sym
+                     (not (member varargs-sym omitted))) ; If the parameter list is empty..
+                `(macrolet ((get-variadic-arguments (&optional (last-argument-name nil l-supplied-p))
+                              "locally established `get-variadic-arguments' macro."
+			      (when l-supplied-p
+			        (unless (eql last-argument-name ',(lastcar param-ids))
+				  (warn "~A's last argument before '...' is ~A, but ~A was passed."
+				        ',func-name ',(lastcar param-ids) last-argument-name)))
+			      ',varargs-sym))
+                   (block nil ,@code))
+                `(block nil ,@code)))
+         :lisp-type lisp-function-type)))))
 
 ;;; Compound statement
 (defun expand-init-decls (mode decl-specs init-decls)
@@ -843,28 +990,32 @@ arguments list is '(void)' or not."
       with funcptr-syms = nil
       with sym-macro-defs = nil
       with toplevel-defs = nil
+      with types-table = (make-lisp-type-declaration-table)
 
       for i in init-decls
       as name = (init-declarator-lisp-name i)
       as init = (init-declarator-lisp-initform i)
+      as type = (init-declarator-lisp-type i)
 
       ;; function declarations
-      if (subtypep (init-declarator-lisp-type i) 'function)
+      if (subtypep type 'function)
         do (unless (or (null init) (zerop init))
              (error 'compile-error
                     :format-control "A function cannot have initializer (~S = ~S)."
                     :format-arguments (list name init)))
       else do
         ;; variables
-        (when (member name *function-pointer-ids*)
+        (when (init-declarator-function-pointer-p i)
           (push name funcptr-syms))
         (ecase storage-class
           (|auto|
            (assert (eq mode :statement))
-           (push `(,name ,init) lexical-binds))
+           (push `(,name ,init) lexical-binds)
+           (push-lisp-type-declaration-table types-table type name))
           (|register|
            (assert (eq mode :statement))
            (push `(,name ,init) lexical-binds)
+           (push-lisp-type-declaration-table types-table type name)
            ;; TODO: add warnings if a pointer is taken for this variable.
            (push name dynamic-extent-vars))
           (|extern|
@@ -876,7 +1027,9 @@ arguments list is '(void)' or not."
            (assert (eq mode :translation-unit))
            (push `(progn (defvar ,name)
                          (setf (documentation ',name 'variable)
-		               "generated by with-c-syntax for a global variable."))
+		               "generated by with-c-syntax for a global variable.")
+                         ,@(if (not (eq type t))
+                               `((declaim (type ,type ,name)))))
                  toplevel-defs)
 	   ;; Temporary use a lexical variable for initializing the
            ;; global variable with static const variables, which are
@@ -894,10 +1047,12 @@ arguments list is '(void)' or not."
               ;;  See https://github.com/y2q-actionman/with-c-syntax/blob/4a2e437ac500ce0dbd5c00dfe4c13b9a8cfd13b4/src/compiler.lisp#L919-L932 )
 	      (let ((st-sym (gensym (format nil "static-var-~A-storage-" name))))
                 (push `(,st-sym (load-time-value (cons ,init nil))) lexical-binds)
+                (push-lisp-type-declaration-table types-table `(cons ,type null) st-sym)
                 (push `(,name (car ,st-sym)) sym-macro-defs)))
 	     (:translation-unit
 	      ;; lexically bound
-	      (push `(,name ,init) lexical-binds))))
+	      (push `(,name ,init) lexical-binds)
+              (push-lisp-type-declaration-table types-table type name))))
           (|typedef|
            (push name typedef-names)
 	   (when (eq mode :translation-unit)
@@ -912,9 +1067,11 @@ arguments list is '(void)' or not."
 		   (nreverse sym-macro-defs)
                    (nreverse typedef-names)
                    (nreverse funcptr-syms)
-		   (nreverse toplevel-defs))))))
+		   (nreverse toplevel-defs)
+                   types-table)))))
 
-(defun expand-declarator-bindings (lexical-binds dynamic-extent-vars ignored-names special-vars)
+(defun expand-declarator-bindings (lexical-binds dynamic-extent-vars
+                                   ignored-names special-vars type-decls)
   "Makes a (let* (...) (declare ...)) form except trying to simplify the expansion."
   `(,@(cond (lexical-binds
              `(let* (,@lexical-binds)))
@@ -923,14 +1080,15 @@ arguments list is '(void)' or not."
              '(locally))
             (t
              '(progn)))
-    ,@(if (or dynamic-extent-vars ignored-names special-vars)
+    ,@(if (or dynamic-extent-vars ignored-names special-vars type-decls)
           `((declare
              ,@(if dynamic-extent-vars
                    `((dynamic-extent ,@dynamic-extent-vars)))
              ,@(if ignored-names
                    `((ignore ,@ignored-names)))
              ,@(if special-vars
-                   `((special ,@special-vars))))))))
+                   `((special ,@special-vars)))
+             ,@type-decls)))))
 
 (defun expand-declarator-to-nest-macro-elements (mode decls)
   "Expand a list of declarators to a `nest' macro element.
@@ -946,7 +1104,8 @@ MODE is one of `:statement' or `:translation-unit'"
         cleanup-typedef-names
         cleanup-funcptr-syms
         cleanup-struct-specs
-	toplevel-defs)
+	toplevel-defs
+        (types-table (make-lisp-type-declaration-table)))
     ;; process decls
     (loop for (dspecs init-decls) in decls
        ;; enum consts
@@ -972,9 +1131,10 @@ MODE is one of `:statement' or `:translation-unit'"
        ;; declarations
        do(multiple-value-bind 
                (lexical-binds-1 dynamic-extent-vars-1
-                                special-vars-1 ignored-names-1 sym-macro-defs-1
-                                typedef-names-1 funcptr-syms-1
-				toplevel-defs-1)
+                special-vars-1 ignored-names-1 sym-macro-defs-1
+                typedef-names-1 funcptr-syms-1
+		toplevel-defs-1
+                types-table-1)
              (expand-init-decls mode dspecs init-decls)
 	   (assert (subsetp dynamic-extent-vars-1 lexical-binds-1
 			    :test (lambda (dv lv)
@@ -986,7 +1146,8 @@ MODE is one of `:statement' or `:translation-unit'"
            (nreconcf sym-macro-defs sym-macro-defs-1)
            (nreconcf cleanup-typedef-names typedef-names-1)
            (nreconcf cleanup-funcptr-syms funcptr-syms-1)
-	   (nreconcf toplevel-defs toplevel-defs-1)))
+	   (nreconcf toplevel-defs toplevel-defs-1)
+           (setf types-table (merge-lisp-type-declaration-table types-table types-table-1))))
     ;; Finally, constructs a compiled form.
     (nreversef lexical-binds)
     (nreversef dynamic-extent-vars)
@@ -1001,7 +1162,8 @@ MODE is one of `:statement' or `:translation-unit'"
         `(,@(if toplevel-defs
                 `((progn ,@toplevel-defs)))
           ,(expand-declarator-bindings lexical-binds dynamic-extent-vars
-                                       ignored-names special-vars)
+                                       ignored-names special-vars
+                                       (generate-lisp-type-declarations types-table))
           ,@(if sym-macro-defs
                 `((symbol-macrolet (,@sym-macro-defs)))))
       ;; drop expanded definitions
@@ -1010,9 +1172,7 @@ MODE is one of `:statement' or `:translation-unit'"
       (loop for c in cleanup-struct-specs
          do (remove-struct-spec (struct-spec-struct-name c)))
       ;; drop symbols specially treated in this unit.
-      (loop for sym in cleanup-funcptr-syms
-         do (deletef *function-pointer-ids*
-                     sym :test #'eq :count 1)))))
+      (delete-symbols-from-function-pointer-ids cleanup-funcptr-syms))))
 
 (defun expand-compound-stat-into-stat (stat return-last-statement)
   (let* ((stat-codes (stat-code stat))
@@ -1083,6 +1243,9 @@ MODE is one of `:statement' or `:translation-unit'"
                      ,(function-definition-func-args fdef)
                    ,@(function-definition-func-body fdef))
         into defun-list
+        collect `(declaim (ftype ,(function-definition-lisp-type fdef)
+                              ,(function-definition-func-name fdef)))
+        into defun-list
         finally
            (return `(progn ,@defun-list))))
 
@@ -1093,8 +1256,12 @@ MODE is one of `:statement' or `:translation-unit'"
                   ,(function-definition-func-args fdef)
                   ,@(function-definition-func-body fdef))
         into local-funcs
+        collect `(ftype ,(function-definition-lisp-type fdef)
+                     ,(function-definition-func-name fdef))
+        into local-func-decls
         finally
-           (return `(labels (,@local-funcs)))))
+           (return `(labels (,@local-funcs)
+                      (declare ,@local-func-decls)))))
 
 (defun %expand-translation-unit-splitter-key (unit)
   "Used by `expand-translation-unit'"
@@ -1145,7 +1312,7 @@ MODE is one of `:statement' or `:translation-unit'"
    (compound-stat
     (lambda (st) (expand-toplevel-stat st)))
    (with-c-syntax.punctuator:|__pp_const_exp| const-exp ; For preprocessor.
-     (lambda (_kwd exp) (expand-toplevel-const-exp exp))))
+     (lambda-ignoring-_ (_kwd exp) (expand-toplevel-const-exp exp))))
 
 
   (translation-unit
@@ -1343,7 +1510,7 @@ MODE is one of `:statement' or `:translation-unit'"
 
   ;; returns like:
   ;; (name (:aref nil) (:funcall nil) (:aref 5) (:funcall int))
-  ;; processed in 'expand-init-declarator-init'
+  ;; processed in `expand-init-declarator-init'
   (declarator
    (pointer direct-declarator
             (lambda (ptr dcls)
@@ -1366,10 +1533,11 @@ MODE is one of `:statement' or `:translation-unit'"
     (lambda-ignoring-_ (dcl _lp params _rp)
       (add-to-tail dcl `(:funcall ,params))))
    (direct-declarator \( id-list \)
-    (lambda-ignoring-_ (dcl _lp params _rp)
+    (lambda-ignoring-_ (dcl _lp id-list _rp)
       (add-to-tail dcl `(:funcall
-                         ;; make as a list of (decl-spec (id))
-                         ,(mapcar (lambda (p) `(nil (,p))) params)))))
+                         ,(mapcar (lambda (id)
+                                    (make-param-decl :declarator (list id)))
+                                  id-list)))))
    (direct-declarator \(	 \)
     (lambda-ignoring-_ (dcl _lp _rp)
       (add-to-tail dcl '(:funcall nil)))))
@@ -1408,11 +1576,14 @@ MODE is one of `:statement' or `:translation-unit'"
 
   (param-decl
    (decl-specs declarator
-	       #'list)
+    (lambda (decl-specs declarator)
+      (make-param-decl :decl-specs decl-specs :declarator declarator)))
    (decl-specs abstract-declarator
-	       #'list)
+    (lambda (decl-specs declarator)
+      (make-param-decl :decl-specs decl-specs :declarator declarator)))
    (decl-specs
-    #'list))
+    (lambda (decl-specs)
+      (make-param-decl :decl-specs decl-specs))))
 
   (id-list
    (id
@@ -1444,6 +1615,7 @@ MODE is one of `:statement' or `:translation-unit'"
     (lambda (spec-qual)
       (lispify-type-name spec-qual nil))))
 
+  ;; See 'declarator' about abstract-declarator's representation.
   ;; inserts 'nil' as a name
   (abstract-declarator
    (pointer
