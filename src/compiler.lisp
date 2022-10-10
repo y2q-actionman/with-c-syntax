@@ -1185,7 +1185,7 @@ MODE is one of `:statement' or `:translation-unit'"
    (compound-stat
     (lambda (st) (expand-toplevel-stat st)))
    (with-c-syntax.punctuator:|__pp_const_exp| const-exp ; For preprocessor.
-     (lambda (_kwd exp) (expand-toplevel-const-exp exp))))
+     (lambda-ignoring-_ (_kwd exp) (expand-toplevel-const-exp exp))))
 
 
   (translation-unit

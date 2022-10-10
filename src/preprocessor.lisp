@@ -574,7 +574,7 @@
     (and first-token
          (token-equal-p first-token "("))))
 
-(defun expand-object-like-macro (macro-definition pp-state)
+(defun expand-object-like-macro (macro-definition)
   (expand-macro-replacement-list (macro-definition-replacement-list macro-definition)
                                  nil))
 
@@ -624,7 +624,7 @@ alist of preprocessor macro definitions.  PP-STATE is a
                    macro-alist
                    t)))
       (object-like-macro
-       (let ((expansion (expand-object-like-macro pp-macro pp-state)))
+       (let ((expansion (expand-object-like-macro pp-macro)))
          (values (nconc (list pp-macro)
                         expansion
                         (list :end-of-preprocessor-macro-scope))

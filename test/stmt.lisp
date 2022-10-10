@@ -499,15 +499,16 @@ in callback! word = \"ynop\", num = 1
                  `(concatenate 'string
                                (,block-lambda ,arg 0)
                                (,block-lambda ,(reverse arg) 1)))))
-    (is.equal.wcs "pony0ynop1"
-      (with-c-syntax ()
-        {
-        meth-captures ("pony") {
+    (let ((*standard-output* (make-broadcast-stream)))
+      (is.equal.wcs "pony0ynop1"
+        (with-c-syntax ()
+          {
+          meth-captures ("pony") {
           (word num) \; ; This list becomes lambda-list of the `lambda' in above `macrolet'.
           format \( t \,  "in callback! word = ~S, num = ~S~%" \, word \, num \) \;
           concatenate \( 'string \, word \, princ-to-string \( num \) \) \;
-        }
-        })))
+          }
+          }))))
   ;; -- Oh, Did I re-invent Ruby's &block?
   )
 
