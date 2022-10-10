@@ -292,3 +292,11 @@
 ;;   int wcs-duff-device-2 \( int to-seq \, int from-seq \, int cnt \) {
 ;;    int * to = & to-seq \;
 ;;    })
+
+(test test-trans-function-pointer-function
+  (with-testing-wcs-bind (add-by-func)
+    (with-c-syntax ()
+      int add-by-func \( int x \, int y \, int \( func \) \( int \, int \) \) {
+        return func \( x \, y \) \;
+      })
+    (is (= 3 (add-by-func 1 2 #'+)))))

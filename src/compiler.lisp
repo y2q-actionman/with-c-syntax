@@ -727,6 +727,9 @@ Returns (values var-init var-type)."
   (finalize-decl-specs decl-specs)
   (let ((init-declarator (make-init-declarator :declarator declarator)))
     (finalize-init-declarator decl-specs init-declarator)
+    ;; In function parameter, function name is a function pointer.
+    (when (subtypep (init-declarator-lisp-type init-declarator) 'function)
+      (push (init-declarator-lisp-name init-declarator) *function-pointer-ids*))
     (%make-param-decl :decl-specs decl-specs
                       :init-declarator init-declarator)))
 
@@ -831,17 +834,16 @@ This is not intended for calling directly. The va_start macro uses this."
          do (setf varargs-sym (gensym "varargs-"))
             (loop-finish)
          else
-         do (let* ((decl-specs (param-decl-decl-specs p))
-                   (declarator (param-decl-init-declarator p)))
-              (let ((var-name (or (init-declarator-lisp-name declarator)
-                                  (let ((var (gensym "omitted-arg-")))
-		                    (push var omitted)
-                                    var)))
-                    (var-type (init-declarator-lisp-type declarator)))
-                (push var-name param-ids)
-                (push var-type param-types)
-                (push-lisp-type-declaration-table
-                 lisp-type-declaration-table var-type var-name))))))
+         do (let* ((declarator (param-decl-init-declarator p))
+                   (var-name (or (init-declarator-lisp-name declarator)
+                                 (let ((var (gensym "omitted-arg-")))
+		                   (push var omitted)
+                                   var)))
+                   (var-type (init-declarator-lisp-type declarator)))
+              (push var-name param-ids)
+              (push var-type param-types)
+              (push-lisp-type-declaration-table
+               lisp-type-declaration-table var-type var-name)))))
     (when varargs-sym
       (nreconcf param-types '(&rest t))
       (push-lisp-type-declaration-table
@@ -915,6 +917,7 @@ This is not intended for calling directly. The va_start macro uses this."
              (lisp-type-declarations    ; TODO: Apply K&R decl types.
                (generate-lisp-type-declarations lisp-type-declaration-table))
              (code (stat-code body-stat)))
+        ;; TODO: drop parameter name from *function-pointer-ids*.
         (make-function-definition
          :func-name func-name
          :storage-class storage-class
