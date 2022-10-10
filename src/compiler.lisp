@@ -165,6 +165,10 @@ If required, makes a new struct-spec object."
 	   collect (list e-decl (or e-init default-initform))))
   dspecs)
 
+(deftype with-c-syntax-char ()
+  "Represents C 'char' type, except having one extension: this includes `cl:character'."
+  '(or (signed-byte 8) (unsigned-byte 8) character))
+
 (define-constant +numeric-types-alist+
     '(;; Integers
       ((|int|)                          .	fixnum)
@@ -192,7 +196,7 @@ If required, makes a new struct-spec object."
       ((|long| |unsigned|)		.	(unsigned-byte 32))
       ((|long| |long| |unsigned|)	.	(unsigned-byte 64))
       ;; Char
-      ((|char|)                         .	character)
+      ((|char|)                         .	with-c-syntax-char)
       ((|char| |signed|)                .	(signed-byte 8))
       ((|char| |unsigned|)              .	(unsigned-byte 8))
       ;; Float
@@ -366,6 +370,12 @@ Returns (values var-init var-type)."
               (lisp-elem-type
                (cond ((subtypep aref-type 'number) aref-type)
                      ((subtypep aref-type 'character) aref-type)
+                     ((subtypep 'character aref-type)
+                      ;; Special handling for 'char'.
+                      ;; This check hits our 'char' definition in `+numeric-types-alist+'.
+                      ;; In this case, the compiling code is like below:
+                      ;;   char str[] = "foo";
+                      'character)       ; Will be (simple-array character *)
                      (t t)))            ; excludes compound types 
               (var-type
                (if (and (or (null aref-dim) (member '* aref-dim))
@@ -398,7 +408,9 @@ Returns (values var-init var-type)."
            ((type= var-type 't)
             (values initializer var-type))
            ((subtypep var-type 'number) ; includes enum
-            (values (or initializer 0) var-type))
+            (values (or initializer
+                        (coerce 0 var-type)) ; This makes '0' for int, '0d0' for double-float.
+                    var-type))
            ((subtypep var-type 'struct)
             (let* ((sspec (find-struct-spec (decl-specs-tag dspecs)))
                    (var-init
@@ -747,8 +759,27 @@ This is not intended for calling directly. The va_start macro uses this."
 
 (defun push-lisp-type-declaration-table (lisp-type-declaration-table type name)
   (unless (eq type t)
-    (let ((table (lisp-type-declaration-table-table lisp-type-declaration-table)))
+    (let ((table (lisp-type-declaration-table-table lisp-type-declaration-table))
+          (type type))
+      (when (and (subtypep type 'pseudo-pointer)
+                 (listp type))
+        (case (second type)
+          (function
+           ;; Special handing for function-pointers, like:
+           ;;   int (*funcptr)(int, int) = func;
+           (setf type `(or function ,type)))
+          ((with-c-syntax-char)
+           ;; Special handing for C string, like:
+           ;;   char* str = "Hello, World!;
+           (setf type `(or string ,type)))))
       (push name (gethash type table)))))
+
+(defun merge-lisp-type-declaration-table (lisp-type-declaration-table1 lisp-type-declaration-table2)
+  (loop
+    with table1 = (lisp-type-declaration-table-table lisp-type-declaration-table1)
+    with table2 = (lisp-type-declaration-table-table lisp-type-declaration-table2)
+    for type being the hash-key of table2 using (hash-value name-list)
+    do (appendf (gethash type table1) name-list)))
 
 (defun generate-lisp-type-declarations (lisp-type-declaration-table)
   (loop
@@ -903,6 +934,7 @@ This is not intended for calling directly. The va_start macro uses this."
       with funcptr-syms = nil
       with sym-macro-defs = nil
       with toplevel-defs = nil
+      with types-table = (make-lisp-type-declaration-table)
 
       for i in init-decls
       as name = (init-declarator-lisp-name i)
@@ -922,10 +954,12 @@ This is not intended for calling directly. The va_start macro uses this."
         (ecase storage-class
           (|auto|
            (assert (eq mode :statement))
-           (push `(,name ,init) lexical-binds))
+           (push `(,name ,init) lexical-binds)
+           (push-lisp-type-declaration-table types-table type name))
           (|register|
            (assert (eq mode :statement))
            (push `(,name ,init) lexical-binds)
+           (push-lisp-type-declaration-table types-table type name)
            ;; TODO: add warnings if a pointer is taken for this variable.
            (push name dynamic-extent-vars))
           (|extern|
@@ -957,10 +991,12 @@ This is not intended for calling directly. The va_start macro uses this."
               ;;  See https://github.com/y2q-actionman/with-c-syntax/blob/4a2e437ac500ce0dbd5c00dfe4c13b9a8cfd13b4/src/compiler.lisp#L919-L932 )
 	      (let ((st-sym (gensym (format nil "static-var-~A-storage-" name))))
                 (push `(,st-sym (load-time-value (cons ,init nil))) lexical-binds)
+                (push-lisp-type-declaration-table types-table `(cons ,type null) st-sym)
                 (push `(,name (car ,st-sym)) sym-macro-defs)))
 	     (:translation-unit
 	      ;; lexically bound
-	      (push `(,name ,init) lexical-binds))))
+	      (push `(,name ,init) lexical-binds)
+              (push-lisp-type-declaration-table types-table type name))))
           (|typedef|
            (push name typedef-names)
 	   (when (eq mode :translation-unit)
@@ -975,9 +1011,11 @@ This is not intended for calling directly. The va_start macro uses this."
 		   (nreverse sym-macro-defs)
                    (nreverse typedef-names)
                    (nreverse funcptr-syms)
-		   (nreverse toplevel-defs))))))
+		   (nreverse toplevel-defs)
+                   types-table)))))
 
-(defun expand-declarator-bindings (lexical-binds dynamic-extent-vars ignored-names special-vars)
+(defun expand-declarator-bindings (lexical-binds dynamic-extent-vars
+                                   ignored-names special-vars type-decls)
   "Makes a (let* (...) (declare ...)) form except trying to simplify the expansion."
   `(,@(cond (lexical-binds
              `(let* (,@lexical-binds)))
@@ -986,14 +1024,15 @@ This is not intended for calling directly. The va_start macro uses this."
              '(locally))
             (t
              '(progn)))
-    ,@(if (or dynamic-extent-vars ignored-names special-vars)
+    ,@(if (or dynamic-extent-vars ignored-names special-vars type-decls)
           `((declare
              ,@(if dynamic-extent-vars
                    `((dynamic-extent ,@dynamic-extent-vars)))
              ,@(if ignored-names
                    `((ignore ,@ignored-names)))
              ,@(if special-vars
-                   `((special ,@special-vars))))))))
+                   `((special ,@special-vars)))
+             ,@type-decls)))))
 
 (defun expand-declarator-to-nest-macro-elements (mode decls)
   "Expand a list of declarators to a `nest' macro element.
@@ -1009,7 +1048,8 @@ MODE is one of `:statement' or `:translation-unit'"
         cleanup-typedef-names
         cleanup-funcptr-syms
         cleanup-struct-specs
-	toplevel-defs)
+	toplevel-defs
+        (types-table (make-lisp-type-declaration-table)))
     ;; process decls
     (loop for (dspecs init-decls) in decls
        ;; enum consts
@@ -1035,9 +1075,10 @@ MODE is one of `:statement' or `:translation-unit'"
        ;; declarations
        do(multiple-value-bind 
                (lexical-binds-1 dynamic-extent-vars-1
-                                special-vars-1 ignored-names-1 sym-macro-defs-1
-                                typedef-names-1 funcptr-syms-1
-				toplevel-defs-1)
+                special-vars-1 ignored-names-1 sym-macro-defs-1
+                typedef-names-1 funcptr-syms-1
+		toplevel-defs-1
+                types-table-1)
              (expand-init-decls mode dspecs init-decls)
 	   (assert (subsetp dynamic-extent-vars-1 lexical-binds-1
 			    :test (lambda (dv lv)
@@ -1049,7 +1090,8 @@ MODE is one of `:statement' or `:translation-unit'"
            (nreconcf sym-macro-defs sym-macro-defs-1)
            (nreconcf cleanup-typedef-names typedef-names-1)
            (nreconcf cleanup-funcptr-syms funcptr-syms-1)
-	   (nreconcf toplevel-defs toplevel-defs-1)))
+	   (nreconcf toplevel-defs toplevel-defs-1)
+           (setf types-tabele (merge-lisp-type-declaration-table types-table types-table-1))))
     ;; Finally, constructs a compiled form.
     (nreversef lexical-binds)
     (nreversef dynamic-extent-vars)
@@ -1064,7 +1106,8 @@ MODE is one of `:statement' or `:translation-unit'"
         `(,@(if toplevel-defs
                 `((progn ,@toplevel-defs)))
           ,(expand-declarator-bindings lexical-binds dynamic-extent-vars
-                                       ignored-names special-vars)
+                                       ignored-names special-vars
+                                       (generate-lisp-type-declarations types-table))
           ,@(if sym-macro-defs
                 `((symbol-macrolet (,@sym-macro-defs)))))
       ;; drop expanded definitions

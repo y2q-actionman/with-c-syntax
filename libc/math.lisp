@@ -392,7 +392,8 @@
     ;; If this check deleted, Allegro CL 10.1 on MacOSX throws `simple-error'.
     ((or (float-nan-p x)
          (float-infinity-p x))
-     x)
+     ;; In this case, the second value (exponent) is unspecified.
+     (values x 0))
     (t
      (multiple-value-bind (significant exponent sign)
          (decode-float x)
@@ -774,7 +775,8 @@
   (with-mod-family-error-handling (x y)
     (with-wcs-math-error-handling ((quotient remainder) (round x y))
       (check-wcs-math-result)
-      (values remainder quotient))))
+      (values (coerce remainder 'double-float)
+              (coerce quotient 'double-float)))))
 
 ;;; TODO: real 'remquo' -- support pointer passing..
 
