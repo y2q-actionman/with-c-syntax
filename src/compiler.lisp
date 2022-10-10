@@ -784,7 +784,8 @@ This is not intended for calling directly. The va_start macro uses this."
     with table1 = (lisp-type-declaration-table-table lisp-type-declaration-table1)
     with table2 = (lisp-type-declaration-table-table lisp-type-declaration-table2)
     for type being the hash-key of table2 using (hash-value name-list)
-    do (appendf (gethash type table1) name-list)))
+    do (appendf (gethash type table1) name-list))
+  lisp-type-declaration-table1)
 
 (defun generate-lisp-type-declarations (lisp-type-declaration-table)
   (loop
@@ -1123,7 +1124,7 @@ MODE is one of `:statement' or `:translation-unit'"
            (nreconcf cleanup-typedef-names typedef-names-1)
            (nreconcf cleanup-funcptr-syms funcptr-syms-1)
 	   (nreconcf toplevel-defs toplevel-defs-1)
-           (setf types-tabele (merge-lisp-type-declaration-table types-table types-table-1))))
+           (setf types-table (merge-lisp-type-declaration-table types-table types-table-1))))
     ;; Finally, constructs a compiled form.
     (nreversef lexical-binds)
     (nreversef dynamic-extent-vars)
