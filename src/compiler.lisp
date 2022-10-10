@@ -741,17 +741,34 @@ This is not intended for calling directly. The va_start macro uses this."
     (equal (decl-specs-type-spec dspecs)
            '(with-c-syntax.syntax:|void|))))
 
+(defstruct lisp-type-declaration-table
+  "Used for generating '(declare type ...)' from C declarators."
+  (table (make-hash-table :test 'equal)))
+
+(defun push-lisp-type-declaration-table (lisp-type-declaration-table type name)
+  (unless (eq type t)
+    (let ((table (lisp-type-declaration-table-table lisp-type-declaration-table)))
+      (push name (gethash type table)))))
+
+(defun generate-lisp-type-declarations (lisp-type-declaration-table)
+  (loop
+    with table = (lisp-type-declaration-table-table lisp-type-declaration-table)
+    for type being the hash-key of table using (hash-value name-list)
+    collect `(type ,type ,@name-list)))
+
 (defun parse-function-parameter-list (func-param)
   "Parses FUNC-PARAM as a list of `param-decl' structure (C function
- parameter list), returns 4 values.
+ parameter list), returns 5 values.
    1. A list of symbols naming the parameter.
-   2. A symbol naming the variadic argument if requested.
-   3. A list of symbols should be `ignore'd.
-   4. An alist of (<symbol> . <type>), representing parameter types."
+   2. A list of types representing the types of parameters.
+   3. A symbol naming the variadic argument if requested.
+   4. A list of symbols should be `ignore'd.
+   5. A `lisp-type-declaration-table' object."
   (let ((param-ids nil)
+        (param-types nil)
         (varargs-sym nil)
         (omitted nil)
-        (parameter-type-alist nil))
+        (lisp-type-declaration-table (make-lisp-type-declaration-table)))
     (cond
       ((null func-param)
        (warn 'with-c-syntax-style-warning
@@ -774,14 +791,21 @@ This is not intended for calling directly. The va_start macro uses this."
               (let ((var-name (or (init-declarator-lisp-name declarator)
                                   (let ((var (gensym "omitted-arg-")))
 		                    (push var omitted)
-                                    var))))
+                                    var)))
+                    (var-type (init-declarator-lisp-type declarator)))
                 (push var-name param-ids)
-                (push (cons var-name (init-declarator-lisp-type declarator))
-                      parameter-type-alist))))))
+                (push var-type param-types)
+                (push-lisp-type-declaration-table
+                 lisp-type-declaration-table var-type var-name))))))
     (when varargs-sym
-      (push (cons varargs-sym 'list) parameter-type-alist))
-    (nreversef param-ids)
-    (values param-ids varargs-sym omitted parameter-type-alist))) 
+      (nreconcf param-types '(&rest t))
+      (push-lisp-type-declaration-table
+       lisp-type-declaration-table 'list varargs-sym))
+    (values (nreverse param-ids)
+            (nreverse param-types)
+            varargs-sym
+            omitted
+            lisp-type-declaration-table))) 
 
 (defun lispify-function-definition (name body-stat
                                     &key K&R-decls (return (make-decl-specs)))
@@ -797,7 +821,7 @@ This is not intended for calling directly. The va_start macro uses this."
               (error 'compile-error
                      :format-control "Cannot define a function of storage-class: ~S."
                      :format-arguments (list (decl-specs-storage-class return)))))))
-    (multiple-value-bind (param-ids varargs-sym omitted parameter-type-alist)
+    (multiple-value-bind (param-ids param-types varargs-sym omitted lisp-type-declaration-table)
         (parse-function-parameter-list func-param)
       (when K&R-decls
         (loop for (dspecs init-decls) in K&R-decls
@@ -814,23 +838,19 @@ This is not intended for calling directly. The va_start macro uses this."
                           :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
                           :format-arguments (list K&R-param-ids param-ids)))))
       (let* ((code (stat-code body-stat))
-             (param-type-list (sublis parameter-type-alist param-ids))
              (lisp-function-type
-               `(function (,@param-type-list) ; Not affected by K&R decls.
+               `(function (,@param-types) ; Not affected by K&R decls.
                           ,(decl-specs-lisp-type return)))
-             (param-type-lisp-decls
-               (loop for id in param-ids
-                     for type in param-type-list ; TODO: Use K&R decls.
-                     unless (eq type t)
-                     collect `(type ,type ,id))))
+             (lisp-type-declarations    ; TODO: Apply K&R decl types.
+               (generate-lisp-type-declarations lisp-type-declaration-table)))
         (make-function-definition
          :func-name func-name
          :storage-class storage-class
          :func-args `(,@param-ids ,@(if varargs-sym `(&rest ,varargs-sym)))
          :func-body
          `(,@(if omitted `((declare (ignore ,@omitted))))
-           ,@(if param-type-lisp-decls
-                 `((declare ,@param-type-lisp-decls)))
+           ,@(if lisp-type-declarations
+                 `((declare ,@lisp-type-declarations)))
            ,(if (and varargs-sym
                      (not (member varargs-sym omitted))) ; If the parameter list is empty..
                 `(macrolet ((get-variadic-arguments (&optional (last-argument-name nil l-supplied-p))
