@@ -112,7 +112,7 @@
 (test test-pointer-to-local-static
   (with-testing-wcs-bind (get-local-static)
     (with-c-syntax ()
-      int get-local-static \( void \) {
+      int * get-local-static \( void \) {
       static int local_static = 0 \;
       return &local_static \;
       })
