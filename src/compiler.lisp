@@ -403,8 +403,7 @@ Returns (values var-init var-type)."
        (let ((var-type (decl-specs-lisp-type dspecs)))
          (cond
            ((type= var-type nil)
-            (error 'compile-error
-                   :format-control "A void variable cannot be initialized."))
+            (values initializer var-type))
            ((type= var-type 't)
             (values initializer var-type))
            ((subtypep var-type 'number) ; includes enum
@@ -457,6 +456,10 @@ Returns (values var-init var-type)."
         (error 'compile-error
                :format-control "A function cannot have this storage-class: ~S."
                :format-arguments (list storage-class)))
+      (when (and (subtypep var-type nil)
+                 (or var-name var-init))
+        (error 'compile-error
+               :format-control "A void variable cannot be initialized."))
       (setf (init-declarator-lisp-name init-decl) var-name
 	    (init-declarator-lisp-initform init-decl) var-init
 	    (init-declarator-lisp-type init-decl) var-type)
@@ -712,13 +715,20 @@ Returns (values var-init var-type)."
 
 ;;; Function definitions
 
-(defstruct param-decl
+(defstruct (param-decl (:constructor %make-param-decl))
   "Represents 'param-decl' in C syntax BNF."
-  (decl-specs (make-decl-specs) :type decl-specs)
+  decl-specs
   ;; In BNF, param-decl takes 'declarator', not 'init-declarator'.
   ;; I however use the init-declarator object here, for utilizing
   ;; `finalize-init-declarator' function which fills `lisp-type' slot.
-  (init-declarator nil))                
+  init-declarator)
+
+(defun make-param-decl (&key (decl-specs (make-decl-specs)) (declarator nil))
+  (finalize-decl-specs decl-specs)
+  (let ((init-declarator (make-init-declarator :declarator declarator)))
+    (finalize-init-declarator decl-specs init-declarator)
+    (%make-param-decl :decl-specs decl-specs
+                      :init-declarator init-declarator)))
 
 (defmethod make-load-form ((obj param-decl) &optional environment)
   (make-load-form-saving-slots obj
@@ -823,8 +833,6 @@ This is not intended for calling directly. The va_start macro uses this."
          else
          do (let* ((decl-specs (param-decl-decl-specs p))
                    (declarator (param-decl-init-declarator p)))
-              (finalize-decl-specs decl-specs)
-              (finalize-init-declarator decl-specs declarator)
               (let ((var-name (or (init-declarator-lisp-name declarator)
                                   (let ((var (gensym "omitted-arg-")))
 		                    (push var omitted)
@@ -1515,8 +1523,7 @@ MODE is one of `:statement' or `:translation-unit'"
     (lambda-ignoring-_ (dcl _lp id-list _rp)
       (add-to-tail dcl `(:funcall
                          ,(mapcar (lambda (id)
-                                    (make-param-decl
-                                     :init-declarator (make-init-declarator :declarator (list id))))
+                                    (make-param-decl :declarator (list id)))
                                   id-list)))))
    (direct-declarator \(	 \)
     (lambda-ignoring-_ (dcl _lp _rp)
@@ -1557,16 +1564,13 @@ MODE is one of `:statement' or `:translation-unit'"
   (param-decl
    (decl-specs declarator
     (lambda (decl-specs declarator)
-      (make-param-decl :decl-specs decl-specs
-                       :init-declarator (make-init-declarator :declarator declarator))))
+      (make-param-decl :decl-specs decl-specs :declarator declarator)))
    (decl-specs abstract-declarator
     (lambda (decl-specs declarator)
-      (make-param-decl :decl-specs decl-specs
-                       :init-declarator (make-init-declarator :declarator declarator))))
+      (make-param-decl :decl-specs decl-specs :declarator declarator)))
    (decl-specs
     (lambda (decl-specs)
-      (make-param-decl :decl-specs decl-specs
-                       :init-declarator (make-init-declarator)))))
+      (make-param-decl :decl-specs decl-specs))))
 
   (id-list
    (id

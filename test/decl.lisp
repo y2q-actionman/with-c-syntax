@@ -467,8 +467,10 @@
     { int x \( hoge \, fuga \, piyo \) \; })
   (is.equal.wcs nil
     { int x \( \) \; })
-  (is.equal.wcs nil
+  (signals.macroexpand.wcs ()
     { int x \( int hoge \, short fuga \, void piyo \) \; })
+  (is.equal.wcs nil
+    { int x \( int hoge \, short fuga \, void \) \; })
   (is.equal.wcs nil
     { int x \( int hoge \, short \, void * \) \; })
   (signals.macroexpand.wcs ()
