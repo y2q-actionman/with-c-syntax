@@ -679,4 +679,21 @@
     return x \;
     }))
 
+(test test-decl-function-returns-nothing
+  (with-testing-wcs-bind (return-nothing)
+    (with-c-syntax ()
+      void return-nothing \( void \) {
+        return \;
+      })
+    (is (eql nil (values-list (return-nothing))))))
+
+(test test-decl-function-returns-pointer
+  (with-testing-wcs-bind (returns-t)
+    (with-c-syntax ()
+      void * returns-t \( void \) {
+        return t \;
+      })
+    (is (eql t (returns-t)))))
+
 ;; TODO: add initializer tests
+

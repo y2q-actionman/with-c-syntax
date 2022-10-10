@@ -109,7 +109,6 @@
     return funcptr \( 1 \, 2 \) \;
     }))
 
-(declaim (ftype function get-local-static))
 (test test-pointer-to-local-static
   (with-testing-wcs-bind (get-local-static)
     (with-c-syntax ()

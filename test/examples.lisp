@@ -1,5 +1,7 @@
 (in-package #:with-c-syntax.test)
 
+;;; From README.org
+
 (defun wcs-hello-world ()
   (with-c-syntax ()
     format \( t \, "Hello, World!" \) \;
@@ -421,7 +423,7 @@ int my-cl-max-test (x, y, z) {
 #{
 #define TEST_MACRO_DEFINITION
 
-int test-macro-defined-p (void) {
+void * test-macro-defined-p (void) {
 #ifdef TEST_MACRO_DEFINITION
   return t;
 #else

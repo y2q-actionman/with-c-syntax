@@ -384,7 +384,7 @@ only in Level 2 syntax (because it conflicts with standard Lisp
   #{
   #define TEST_MACRO_DEFINITION
 
-  int test-macro-defined-p (void) {
+  void * test-macro-defined-p (void) {
   #ifdef TEST_MACRO_DEFINITION
     return t;
   #else

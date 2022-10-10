@@ -750,28 +750,33 @@ This is not intended for calling directly. The va_start macro uses this."
               (param1 (first func-param))
               (_ (param-decl-p param1))
               (dspecs (param-decl-decl-specs param1)))
-    (equal (decl-specs-type-spec dspecs)
-           '(with-c-syntax.syntax:|void|))))
+    (equal (decl-specs-type-spec dspecs) '(|void|))))
 
 (defstruct lisp-type-declaration-table
   "Used for generating '(declare type ...)' from C declarators."
   (table (make-hash-table :test 'equal)))
 
+(defun c-type-to-lisp-type-declaration-hack (type)
+  "Treats some special type handlings for valid C code."
+  (if (and (subtypep type 'pseudo-pointer)
+           (listp type))
+      (case (second type)
+        (function
+         ;; Special handing for function-pointers, like:
+         ;;   int (*funcptr)(int, int) = func;
+         (setf type `(or function ,type)))
+        ((with-c-syntax-char)
+         ;; Special handing for C string, like:
+         ;;   char* str = "Hello, World!;
+         (setf type `(or string ,type)))
+        (otherwise
+         type))
+      type))
+
 (defun push-lisp-type-declaration-table (lisp-type-declaration-table type name)
   (unless (eq type t)
     (let ((table (lisp-type-declaration-table-table lisp-type-declaration-table))
-          (type type))
-      (when (and (subtypep type 'pseudo-pointer)
-                 (listp type))
-        (case (second type)
-          (function
-           ;; Special handing for function-pointers, like:
-           ;;   int (*funcptr)(int, int) = func;
-           (setf type `(or function ,type)))
-          ((with-c-syntax-char)
-           ;; Special handing for C string, like:
-           ;;   char* str = "Hello, World!;
-           (setf type `(or string ,type)))))
+          (type (c-type-to-lisp-type-declaration-hack type)))
       (push name (gethash type table)))))
 
 (defun merge-lisp-type-declaration-table (lisp-type-declaration-table1 lisp-type-declaration-table2)
@@ -836,7 +841,33 @@ This is not intended for calling directly. The va_start macro uses this."
             (nreverse param-types)
             varargs-sym
             omitted
-            lisp-type-declaration-table))) 
+            lisp-type-declaration-table)))
+
+(defun compute-function-return-type (name return-decl-specs)
+  (assert (and (symbolp (first name))
+               (starts-with :funcall (second name))))
+  (let* ((tmp-declarator (list* nil (nthcdr 2 name)))
+         (return-type
+           (cond
+             ((equal tmp-declarator '(nil))
+              ;; Simple case -- int func ();
+              (decl-specs-lisp-type return-decl-specs))
+             (t
+              ;; Returning a pointer etc. -- void* func();
+              (let ((tmp-init-declarator
+                      (make-init-declarator :declarator tmp-declarator)))
+                (finalize-init-declarator return-decl-specs tmp-init-declarator)
+                (init-declarator-lisp-type tmp-init-declarator))))))
+    (cond
+      ((eq return-type nil)
+       ;; This is a function returns 'void', like: void func() { return; }
+       ;; 
+       ;; I uses `CL:NIL' type for 'void' because their semantics are
+       ;; same.  But with-c-syntax compiles 'return;' to (CL:RETURN (VALUES)).
+       ;; It means returns `(VALUES)'.
+       '(values))
+      (t
+       (c-type-to-lisp-type-declaration-hack return-type)))))
 
 (defun lispify-function-definition (name body-stat
                                     &key K&R-decls (return (make-decl-specs)))
@@ -868,12 +899,13 @@ This is not intended for calling directly. The va_start macro uses this."
                    (error 'compile-error
                           :format-control "Function prototype (~A) is not matched with k&r-style params (~A)."
                           :format-arguments (list K&R-param-ids param-ids)))))
-      (let* ((code (stat-code body-stat))
+      (let* ((return-type (compute-function-return-type name return))
              (lisp-function-type
                `(function (,@param-types) ; Not affected by K&R decls.
-                          ,(decl-specs-lisp-type return)))
+                          ,return-type))
              (lisp-type-declarations    ; TODO: Apply K&R decl types.
-               (generate-lisp-type-declarations lisp-type-declaration-table)))
+               (generate-lisp-type-declarations lisp-type-declaration-table))
+             (code (stat-code body-stat)))
         (make-function-definition
          :func-name func-name
          :storage-class storage-class
@@ -1189,6 +1221,9 @@ MODE is one of `:statement' or `:translation-unit'"
                      ,(function-definition-func-args fdef)
                    ,@(function-definition-func-body fdef))
         into defun-list
+        collect `(declaim (ftype ,(function-definition-lisp-type fdef)
+                              ,(function-definition-func-name fdef)))
+        into defun-list
         finally
            (return `(progn ,@defun-list))))
 
@@ -1199,8 +1234,12 @@ MODE is one of `:statement' or `:translation-unit'"
                   ,(function-definition-func-args fdef)
                   ,@(function-definition-func-body fdef))
         into local-funcs
+        collect `(ftype ,(function-definition-lisp-type fdef)
+                     ,(function-definition-func-name fdef))
+        into local-func-decls
         finally
-           (return `(labels (,@local-funcs)))))
+           (return `(labels (,@local-funcs)
+                      (declare ,@local-func-decls)))))
 
 (defun %expand-translation-unit-splitter-key (unit)
   "Used by `expand-translation-unit'"
