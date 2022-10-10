@@ -256,6 +256,8 @@ This is compiled to a Lisp form like below:
   ...)
 #+end_example
 
+(This feature is based on [[https://github.com/phoe][@phoe]]'s suggestion. See [[https://github.com/y2q-actionman/with-c-syntax/issues/4][Issue #4]] .)
+
 Here are some examples:
 
 **** =with-slots=
@@ -299,7 +301,7 @@ You can take the value of =with-= syntax statement by wrapping it with =()=.
   (hello-world-string) ; => "Hello, World!"
 #+end_src
 
-**** =sort= and =lambda=
+**** Using with an operator takes a function
 
 This syntax can currently apply to functions, not only macros.
 It may be useful when the function takes a function at the last argument:
